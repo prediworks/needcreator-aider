@@ -77,7 +77,23 @@ export default function RegisterPage() {
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
-      toast.error(error.response?.data?.error || 'Erreur lors de l\'inscription');
+      
+      // Better error messages
+      let errorMessage = 'Erreur lors de l\'inscription';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Cet email est déjà utilisé';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Le mot de passe doit contenir au moins 6 caractères';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Email invalide';
+      } else if (error.code === 'auth/operation-not-allowed') {
+        errorMessage = 'L\'inscription est temporairement désactivée';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

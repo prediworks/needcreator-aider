@@ -16,8 +16,12 @@ export function useAuth() {
           // Fetch user profile from backend
           const response = await api.get('/auth/profile');
           setUser(response.data.user);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Failed to fetch user profile:', error);
+          // If user doesn't exist in backend, they need to complete registration
+          if (error.response?.status === 404) {
+            console.log('User not found in backend, needs to complete registration');
+          }
           setUser(null);
         }
       } else {

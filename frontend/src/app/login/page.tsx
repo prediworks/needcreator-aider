@@ -26,7 +26,22 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Login error:', error);
-      toast.error('Email ou mot de passe incorrect');
+      
+      // Better error messages
+      let errorMessage = 'Email ou mot de passe incorrect';
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Aucun compte trouvé avec cet email';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Mot de passe incorrect';
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = 'Trop de tentatives. Réessayez plus tard';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Email invalide';
+      } else if (error.code === 'auth/user-disabled') {
+        errorMessage = 'Ce compte a été désactivé';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
