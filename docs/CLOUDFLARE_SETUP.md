@@ -2,158 +2,151 @@
 
 ## 🎯 Vue d'ensemble
 
-Ce guide vous accompagne pour déployer l'application sur Cloudflare avec deux environnements distincts.
+Ce guide vous accompagne pour déployer l'application sur Cloudflare avec deux environnements distincts (PREPROD et PROD).
+
+**Nouvelle approche** : Les variables d'environnement sont gérées via des fichiers `.env.preprod` et `.env.production` au lieu de `wrangler secret`, ce qui simplifie grandement le déploiement.
 
 ---
 
 ## 📦 Étape 1: Créer les buckets R2
 
 ```bash
-# Bucket PREPROD
-wrangler r2 bucket create ugc-platform-preprod
+# Installer Wrangler si ce n'est pas déjà fait
+npm install -g wrangler
 
-# Bucket PROD
+# Se connecter à Cloudflare
+wrangler login
+
+# Créer les buckets
+wrangler r2 bucket create ugc-platform-preprod
 wrangler r2 bucket create ugc-platform-prod
 ```
 
 ---
 
-## 🔐 Étape 2: Configurer les secrets PREPROD
+## 🔐 Étape 2: Configurer les variables d'environnement
 
-Exécutez ces commandes une par une et entrez les valeurs demandées:
+### PREPROD
 
+1. **Copiez le fichier d'exemple:**
 ```bash
+cd backend
+cp .env.preprod.example .env.preprod
+```
+
+2. **Éditez `.env.preprod` avec vos vraies valeurs:**
+```bash
+# Utilisez votre éditeur préféré
+nano .env.preprod
+# ou
+code .env.preprod
+# ou
+vim .env.preprod
+```
+
+3. **Remplissez toutes les variables:**
+
+```env
 # MongoDB Atlas (cluster preprod)
-wrangler secret put MONGODB_URI --env preprod
-# Entrer: mongodb+srv://username:password@cluster-preprod.xxxxx.mongodb.net/ugc-platform?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://username:password@cluster-preprod.xxxxx.mongodb.net/ugc-platform?retryWrites=true&w=majority
 
 # Firebase (projet preprod)
-wrangler secret put FIREBASE_PROJECT_ID --env preprod
-# Entrer: ugc-platform-preprod
-
-wrangler secret put FIREBASE_PRIVATE_KEY --env preprod
-# Entrer: la clé privée du Service Account (avec \n)
-
-wrangler secret put FIREBASE_CLIENT_EMAIL --env preprod
-# Entrer: firebase-adminsdk-xxxxx@ugc-platform-preprod.iam.gserviceaccount.com
+FIREBASE_PROJECT_ID=ugc-platform-preprod
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nVOTRE_CLE_ICI\n-----END PRIVATE KEY-----\n"
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@ugc-platform-preprod.iam.gserviceaccount.com
 
 # Stripe (clés TEST)
-wrangler secret put STRIPE_SECRET_KEY --env preprod
-# Entrer: sk_test_xxxxx
-
-wrangler secret put STRIPE_WEBHOOK_SECRET --env preprod
-# Entrer: whsec_xxxxx (test)
+STRIPE_SECRET_KEY=sk_test_xxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxx
+STRIPE_PLATFORM_FEE_PERCENT=10
 
 # SendGrid
-wrangler secret put SENDGRID_API_KEY --env preprod
-# Entrer: SG.xxxxx
-
-wrangler secret put FROM_EMAIL --env preprod
-# Entrer: noreply@preprod.votre-domaine.com
+SENDGRID_API_KEY=SG.xxxxx
+FROM_EMAIL=noreply@preprod.votre-domaine.com
 
 # Cloudflare R2 (preprod)
-wrangler secret put CLOUDFLARE_ACCOUNT_ID --env preprod
-# Entrer: votre account ID Cloudflare
-
-wrangler secret put CLOUDFLARE_ACCESS_KEY_ID --env preprod
-# Entrer: R2 Access Key ID
-
-wrangler secret put CLOUDFLARE_SECRET_ACCESS_KEY --env preprod
-# Entrer: R2 Secret Access Key
-
-wrangler secret put CLOUDFLARE_BUCKET_NAME --env preprod
-# Entrer: ugc-platform-preprod
-
-wrangler secret put CLOUDFLARE_PUBLIC_URL --env preprod
-# Entrer: https://preprod-files.votre-domaine.com
+CLOUDFLARE_ACCOUNT_ID=votre-account-id
+CLOUDFLARE_ACCESS_KEY_ID=votre-access-key-id
+CLOUDFLARE_SECRET_ACCESS_KEY=votre-secret-access-key
+CLOUDFLARE_BUCKET_NAME=ugc-platform-preprod
+CLOUDFLARE_PUBLIC_URL=https://preprod-files.votre-domaine.com
 
 # Frontend URL
-wrangler secret put FRONTEND_URL --env preprod
-# Entrer: https://preprod.votre-domaine.com
+FRONTEND_URL=https://preprod.votre-domaine.com
 
-# JWT Secret
-wrangler secret put JWT_SECRET --env preprod
-# Entrer: un secret aléatoire fort (générez avec: openssl rand -base64 32)
+# JWT Secret (générez avec: openssl rand -base64 32)
+JWT_SECRET=votre-secret-aleatoire-fort
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Storage Provider
+STORAGE_PROVIDER=cloudflare
 ```
 
----
+### PRODUCTION
 
-## 🔐 Étape 3: Configurer les secrets PRODUCTION
-
+1. **Copiez le fichier d'exemple:**
 ```bash
-# MongoDB Atlas (cluster prod)
-wrangler secret put MONGODB_URI --env production
-# Entrer: mongodb+srv://username:password@cluster-prod.xxxxx.mongodb.net/ugc-platform?retryWrites=true&w=majority
-
-# Firebase (projet prod)
-wrangler secret put FIREBASE_PROJECT_ID --env production
-# Entrer: ugc-platform-prod
-
-wrangler secret put FIREBASE_PRIVATE_KEY --env production
-# Entrer: la clé privée du Service Account (avec \n)
-
-wrangler secret put FIREBASE_CLIENT_EMAIL --env production
-# Entrer: firebase-adminsdk-xxxxx@ugc-platform-prod.iam.gserviceaccount.com
-
-# Stripe (clés LIVE)
-wrangler secret put STRIPE_SECRET_KEY --env production
-# Entrer: sk_live_xxxxx
-
-wrangler secret put STRIPE_WEBHOOK_SECRET --env production
-# Entrer: whsec_xxxxx (live)
-
-# SendGrid
-wrangler secret put SENDGRID_API_KEY --env production
-# Entrer: SG.xxxxx
-
-wrangler secret put FROM_EMAIL --env production
-# Entrer: noreply@votre-domaine.com
-
-# Cloudflare R2 (prod)
-wrangler secret put CLOUDFLARE_ACCOUNT_ID --env production
-wrangler secret put CLOUDFLARE_ACCESS_KEY_ID --env production
-wrangler secret put CLOUDFLARE_SECRET_ACCESS_KEY --env production
-
-wrangler secret put CLOUDFLARE_BUCKET_NAME --env production
-# Entrer: ugc-platform-prod
-
-wrangler secret put CLOUDFLARE_PUBLIC_URL --env production
-# Entrer: https://files.votre-domaine.com
-
-# Frontend URL
-wrangler secret put FRONTEND_URL --env production
-# Entrer: https://votre-domaine.com
-
-# JWT Secret
-wrangler secret put JWT_SECRET --env production
-# Entrer: un secret aléatoire fort DIFFÉRENT de preprod
+cp .env.production.example .env.production
 ```
+
+2. **Éditez `.env.production` avec vos vraies valeurs:**
+```bash
+nano .env.production
+# ou
+code .env.production
+```
+
+3. **Remplissez toutes les variables (utilisez des valeurs DIFFÉRENTES de preprod):**
+
+**⚠️ Important:**
+- Utilisez des clés Stripe LIVE (pas TEST)
+- Utilisez un JWT_SECRET différent de preprod
+- Pointez vers les ressources de production (MongoDB prod, Firebase prod, etc.)
 
 ---
 
-## 🚀 Étape 4: Déployer le Backend
+## 🚀 Étape 3: Déployer le Backend
 
-### Déployer PREPROD
+### Méthode 1: Avec les scripts (Recommandé)
 
+**Déployer PREPROD:**
 ```bash
 cd backend
-wrangler deploy --env preprod
+chmod +x scripts/deploy-preprod.sh
+npm run deploy:preprod
 ```
 
-Votre API sera disponible sur: `https://ugc-platform-api-preprod.votre-compte.workers.dev`
-
-### Déployer PRODUCTION
-
+**Déployer PRODUCTION:**
 ```bash
 cd backend
-wrangler deploy --env production
+chmod +x scripts/deploy-production.sh
+npm run deploy:prod
 ```
 
-Votre API sera disponible sur: `https://ugc-platform-api-prod.votre-compte.workers.dev`
+Le script de production vous demandera une confirmation avant de déployer.
+
+### Méthode 2: Avec npm directement
+
+```bash
+# PREPROD
+npm run deploy:preprod
+
+# PRODUCTION
+npm run deploy:prod
+```
+
+### URLs de vos APIs
+
+Après le déploiement, vos APIs seront disponibles sur:
+- **PREPROD**: `https://ugc-platform-api-preprod.votre-compte.workers.dev`
+- **PRODUCTION**: `https://ugc-platform-api-prod.votre-compte.workers.dev`
 
 ---
 
-## 🌐 Étape 5: Configurer le Frontend
+## 🌐 Étape 4: Configurer le Frontend
 
 ### 1. Créer les fichiers d'environnement
 
@@ -216,7 +209,7 @@ wrangler pages deploy .next --project-name=ugc-platform-prod --branch=main
 
 ---
 
-## 🔗 Étape 6: Configurer les domaines personnalisés
+## 🔗 Étape 5: Configurer les domaines personnalisés
 
 ### Dans Cloudflare Dashboard
 
@@ -232,7 +225,7 @@ wrangler pages deploy .next --project-name=ugc-platform-prod --branch=main
 
 ---
 
-## 🔄 Étape 7: Configurer les Webhooks Stripe
+## 🔄 Étape 6: Configurer les Webhooks Stripe
 
 ### PREPROD
 1. Dashboard Stripe (mode Test)
@@ -256,7 +249,7 @@ wrangler secret put STRIPE_WEBHOOK_SECRET --env production
 
 ---
 
-## ✅ Étape 8: Vérification
+## ✅ Étape 7: Vérification
 
 ### Checklist PREPROD
 
@@ -284,7 +277,7 @@ wrangler secret put STRIPE_WEBHOOK_SECRET --env production
 
 ---
 
-## 🔍 Étape 9: Tests
+## 🔍 Étape 8: Tests
 
 ### Tester PREPROD
 
@@ -308,7 +301,7 @@ curl https://votre-domaine.com
 
 ---
 
-## 📊 Étape 10: Monitoring
+## 📊 Étape 9: Monitoring
 
 ### Cloudflare Analytics
 
@@ -331,12 +324,15 @@ wrangler tail --env production
 
 ### Erreur de connexion MongoDB
 
-```bash
-# Vérifier le secret
-wrangler secret list --env preprod
+Vérifiez que la variable `MONGODB_URI` est correcte dans votre fichier `.env.preprod` ou `.env.production`.
 
-# Mettre à jour si nécessaire
-wrangler secret put MONGODB_URI --env preprod
+```bash
+# Vérifier que le fichier existe
+ls -la backend/.env.preprod
+
+# Redéployer après correction
+cd backend
+npm run deploy:preprod
 ```
 
 ### Erreur Firebase
@@ -408,25 +404,42 @@ jobs:
 ## 📝 Commandes utiles
 
 ```bash
-# Lister les secrets
-wrangler secret list --env preprod
-wrangler secret list --env production
-
-# Supprimer un secret
-wrangler secret delete SECRET_NAME --env preprod
-
-# Voir les logs
+# Voir les logs en temps réel
 wrangler tail --env preprod
 wrangler tail --env production
 
 # Rollback (redéployer une version précédente)
 wrangler rollback --env production
 
-# Tester localement
-wrangler dev --env preprod
+# Lister les déploiements
+wrangler deployments list --env production
+
+# Tester localement avec les variables preprod
+cd backend
+npm run wrangler:preprod
+
+# Redéployer rapidement
+npm run deploy:preprod
+npm run deploy:prod
 ```
 
 ---
+
+## 💡 Avantages de cette approche
+
+✅ **Simplicité**: Un seul fichier `.env` par environnement  
+✅ **Rapidité**: Déploiement en une seule commande  
+✅ **Versionnable**: Les fichiers `.example` peuvent être commités  
+✅ **Sécurisé**: Les fichiers `.env.*` sont dans `.gitignore`  
+✅ **Maintenable**: Facile de modifier une variable et redéployer  
+
+## 🔒 Sécurité
+
+**⚠️ IMPORTANT:**
+- Ne commitez JAMAIS les fichiers `.env.preprod` et `.env.production` dans git
+- Ces fichiers sont déjà dans `.gitignore`
+- Utilisez des valeurs différentes pour preprod et production (surtout JWT_SECRET)
+- Gardez vos fichiers `.env` en sécurité (backup chiffré)
 
 ## 🎉 Félicitations !
 
@@ -434,6 +447,13 @@ Votre application est maintenant déployée sur Cloudflare avec deux environneme
 
 **URLs:**
 - PREPROD Frontend: `https://preprod.votre-domaine.com`
-- PREPROD API: `https://api-preprod.votre-domaine.com`
+- PREPROD API: `https://api-preprod.votre-domaine.com` ou `https://ugc-platform-api-preprod.votre-compte.workers.dev`
 - PROD Frontend: `https://votre-domaine.com`
-- PROD API: `https://api.votre-domaine.com`
+- PROD API: `https://api.votre-domaine.com` ou `https://ugc-platform-api-prod.votre-compte.workers.dev`
+
+## 📚 Ressources supplémentaires
+
+- [Documentation Wrangler](https://developers.cloudflare.com/workers/wrangler/)
+- [Cloudflare R2 Docs](https://developers.cloudflare.com/r2/)
+- [Cloudflare Workers Docs](https://developers.cloudflare.com/workers/)
+- [Guide backend/README.md](../backend/README.md)
