@@ -16,6 +16,7 @@ router.post('/register/brand', authenticate, validate(schemas.registerBrand), re
 
 // Profile
 router.get('/profile', authenticate, getProfile);
+router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
 
 export default router;

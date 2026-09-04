@@ -117,10 +117,26 @@ export async function registerBrand(req, res) {
 }
 
 /**
- * Get current user profile
+ * Get current user profile or public profile by ID
  */
 export async function getProfile(req, res) {
   try {
+    const { userId } = req.params;
+    
+    // If userId is provided, get public profile
+    if (userId) {
+      const user = await User.findById(userId)
+        .select('profile role status createdAt')
+        .lean();
+      
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      return res.json({ user });
+    }
+    
+    // Otherwise get current user's full profile
     const user = await User.findById(req.user._id)
       .select('-__v')
       .lean();
