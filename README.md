@@ -116,13 +116,64 @@ Voir `frontend/.env.example` pour la configuration :
 
 ## 🚀 Déploiement
 
-### Backend
-- Recommandé : Railway, Render, ou Scaleway
-- Nécessite : MongoDB Atlas, variables d'environnement
+Le projet supporte **plusieurs architectures de déploiement**. Voir [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) pour le guide complet.
 
-### Frontend
-- Recommandé : Vercel ou Netlify
-- Configuration automatique pour Next.js
+### Architectures recommandées
+
+**Option 1 - Full Vercel (MVP rapide)**
+```
+Frontend: Vercel
+Backend: Vercel Serverless Functions
+Database: MongoDB Atlas
+Storage: Cloudflare R2
+```
+
+**Option 2 - Firebase + Cloudflare**
+```
+Frontend: Firebase Hosting
+Backend: Firebase Functions
+Database: MongoDB Atlas
+Storage: Cloudflare R2
+```
+
+**Option 3 - Cloudflare Full Stack**
+```
+Frontend: Cloudflare Pages
+Backend: Cloudflare Workers
+Database: MongoDB Atlas
+Storage: Cloudflare R2
+```
+
+**Option 4 - Production (pas de cold starts)**
+```
+Frontend: Vercel ou Cloudflare Pages
+Backend: Railway ou Render (Node.js classique)
+Database: MongoDB Atlas
+Storage: Cloudflare R2
+```
+
+**Option 5 - Souveraineté EU**
+```
+Frontend: Scaleway Object Storage + CDN
+Backend: Scaleway Functions
+Database: Scaleway Managed Database
+Storage: Scaleway Object Storage
+```
+
+### Déploiement rapide
+
+**Backend sur Railway** (le plus simple):
+1. Connecter le repo sur [railway.app](https://railway.app)
+2. Ajouter les variables d'environnement
+3. Déployer automatiquement
+
+**Frontend sur Vercel**:
+1. Connecter le repo sur [vercel.com](https://vercel.com)
+2. Sélectionner le dossier `frontend`
+3. Ajouter les variables d'environnement
+4. Déployer automatiquement
+
+Voir [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) pour toutes les options et configurations détaillées.
 
 ## 📝 API Documentation
 
