@@ -3,10 +3,13 @@ node_modules/
 package-lock.json
 yarn.lock
 
-# Environment
+# Environment variables (NEVER commit these!)
 .env
 .env.local
 .env.*.local
+.env.preprod
+.env.production
+.dev.vars
 
 # Logs
 logs/
@@ -35,3 +38,7 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Wrangler
+.wrangler/
+wrangler.toml.backup

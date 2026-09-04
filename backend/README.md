@@ -340,3 +340,92 @@ MIT
 
 - Email : support@ugc-platform.com
 - Documentation : https://docs.ugc-platform.com
+# Backend API - UGC Platform
+
+API backend pour la plateforme UGC.
+
+## 🚀 Déploiement sur Cloudflare Workers
+
+### Configuration initiale
+
+1. **Copiez les fichiers d'exemple:**
+```bash
+cp .env.preprod.example .env.preprod
+cp .env.production.example .env.production
+```
+
+2. **Configurez les variables d'environnement:**
+
+Éditez `.env.preprod` et `.env.production` avec vos vraies valeurs.
+
+**Générer un JWT secret:**
+```bash
+openssl rand -base64 32
+```
+
+3. **Rendez les scripts exécutables:**
+```bash
+chmod +x scripts/deploy-preprod.sh
+chmod +x scripts/deploy-production.sh
+```
+
+### Déploiement
+
+**PREPROD:**
+```bash
+npm run deploy:preprod
+# ou
+./scripts/deploy-preprod.sh
+```
+
+**PRODUCTION:**
+```bash
+npm run deploy:prod
+# ou
+./scripts/deploy-production.sh
+```
+
+### Développement local
+
+**Avec Node.js classique:**
+```bash
+npm run dev
+```
+
+**Avec Wrangler (simule Cloudflare Workers):**
+```bash
+npm run wrangler:preprod
+```
+
+### Commandes utiles
+
+```bash
+# Voir les logs en temps réel
+npx wrangler tail --env preprod
+npx wrangler tail --env production
+
+# Rollback vers une version précédente
+npx wrangler rollback --env production
+
+# Lister les déploiements
+npx wrangler deployments list --env production
+```
+
+## 📝 Variables d'environnement
+
+Toutes les variables sont définies dans:
+- `.env.preprod` pour l'environnement de préproduction
+- `.env.production` pour l'environnement de production
+
+**⚠️ Important:** Ces fichiers contiennent des secrets et ne doivent JAMAIS être commités dans git.
+
+## 🔒 Sécurité
+
+- Les fichiers `.env.preprod` et `.env.production` sont dans `.gitignore`
+- Utilisez des valeurs différentes pour preprod et production
+- Ne partagez jamais vos secrets dans Slack, email, etc.
+- Utilisez des JWT secrets forts et uniques
+
+## 📚 Documentation
+
+Voir [docs/CLOUDFLARE_SETUP.md](../docs/CLOUDFLARE_SETUP.md) pour le guide complet de déploiement.
