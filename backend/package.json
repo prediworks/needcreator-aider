@@ -27,7 +27,9 @@
     "sharp": "^0.33.1",
     "nodemailer": "^6.9.7",
     "joi": "^17.11.0",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "@aws-sdk/client-s3": "^3.478.0",
+    "@aws-sdk/s3-request-presigner": "^3.478.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2",

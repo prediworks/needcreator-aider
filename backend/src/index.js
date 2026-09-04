@@ -6,12 +6,11 @@ import { config } from './config/index.js';
 import { connectDB } from './db/connection.js';
 import logger from './utils/logger.js';
 
-// Import routes (to be created)
-// import authRoutes from './routes/auth.js';
-// import userRoutes from './routes/users.js';
-// import campaignRoutes from './routes/campaigns.js';
-// import deliveryRoutes from './routes/deliveries.js';
-// import reviewRoutes from './routes/reviews.js';
+// Import routes
+import authRoutes from './routes/auth.js';
+import campaignRoutes from './routes/campaigns.js';
+import deliveryRoutes from './routes/deliveries.js';
+import reviewRoutes from './routes/reviews.js';
 
 const app = express();
 
@@ -42,11 +41,10 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
-// app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
-// app.use('/api/campaigns', campaignRoutes);
-// app.use('/api/deliveries', deliveryRoutes);
-// app.use('/api/reviews', reviewRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // 404 handler
 app.use((req, res) => {
