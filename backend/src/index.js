@@ -5,12 +5,16 @@ import rateLimit from 'express-rate-limit';
 import { config } from './config/index.js';
 import { connectDB } from './db/connection.js';
 import logger from './utils/logger.js';
+import { runScheduledJobs } from './jobs/autoApproval.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
 import campaignRoutes from './routes/campaigns.js';
 import deliveryRoutes from './routes/deliveries.js';
 import reviewRoutes from './routes/reviews.js';
+import webhookRoutes from './routes/webhooks.js';
+import adminRoutes from './routes/admin.js';
+import portfolioRoutes from './routes/portfolio.js';
 
 const app = express();
 
@@ -40,11 +44,16 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Webhooks (before body parser middleware)
+app.use('/api/webhooks', webhookRoutes);
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/deliveries', deliveryRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/portfolio', portfolioRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -75,6 +84,18 @@ async function startServer() {
       logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
     });
+    
+    // Schedule cron jobs (run every day at 2 AM)
+    if (config.env === 'production') {
+      setInterval(() => {
+        const now = new Date();
+        if (now.getHours() === 2 && now.getMinutes() === 0) {
+          runScheduledJobs();
+        }
+      }, 60000); // Check every minute
+      
+      logger.info('⏰ Scheduled jobs configured');
+    }
     
   } catch (error) {
     logger.error('Failed to start server:', error);
