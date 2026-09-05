@@ -66,12 +66,18 @@ export async function registerCreator(req, res) {
  */
 export async function registerBrand(req, res) {
   try {
+    logger.info('Brand registration started', { 
+      email: req.body.email,
+      firebaseUid: req.firebaseUser?.uid 
+    });
+    
     const { email, companyName, website, industry } = req.body;
     const { uid } = req.firebaseUser;
     
     // Check if user already exists
     const existingUser = await User.findOne({ firebaseUid: uid });
     if (existingUser) {
+      logger.warn('User already exists', { firebaseUid: uid });
       return res.status(400).json({ error: 'User already exists' });
     }
     
@@ -95,10 +101,14 @@ export async function registerBrand(req, res) {
     
     await user.save();
     
-    // Send welcome email
-    await sendBrandWelcome(email, companyName);
+    logger.info(`Brand user saved to database: ${user._id}`);
     
-    logger.info(`Brand registered: ${user._id}`);
+    // Send welcome email
+    await sendBrandWelcome(email, companyName).catch(err => 
+      logger.error('Failed to send welcome email:', err)
+    );
+    
+    logger.info(`Brand registered successfully: ${user._id}`);
     
     res.status(201).json({
       message: 'Brand account created successfully',

@@ -48,12 +48,19 @@ app.get('/health', (req, res) => {
 app.use('/api/webhooks', webhookRoutes);
 
 // API routes
+logger.info('Mounting API routes...');
 app.use('/api/auth', authRoutes);
+logger.info('✓ Auth routes mounted at /api/auth');
 app.use('/api/campaigns', campaignRoutes);
+logger.info('✓ Campaign routes mounted at /api/campaigns');
 app.use('/api/deliveries', deliveryRoutes);
+logger.info('✓ Delivery routes mounted at /api/deliveries');
 app.use('/api/reviews', reviewRoutes);
+logger.info('✓ Review routes mounted at /api/reviews');
 app.use('/api/admin', adminRoutes);
+logger.info('✓ Admin routes mounted at /api/admin');
 app.use('/api/portfolio', portfolioRoutes);
+logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler
 app.use((req, res) => {
