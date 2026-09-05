@@ -2,8 +2,8 @@ import nodemailer from 'nodemailer';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
-// Create transporter
-const transporter = nodemailer.createTransport({
+// Create SendGrid transporter as fallback
+const sendgridTransporter = nodemailer.createTransport({
   host: 'smtp.sendgrid.net',
   port: 587,
   secure: false,
@@ -12,6 +12,25 @@ const transporter = nodemailer.createTransport({
     pass: config.email.sendgridApiKey,
   },
 });
+
+// Create SMTP transporter if SMTP_HOST is configured
+const smtpConfig = config.email.smtp;
+const smtpTransporter = smtpConfig?.host
+  ? nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      auth: smtpConfig.user
+        ? {
+            user: smtpConfig.user,
+            pass: smtpConfig.pass,
+          }
+        : undefined,
+    })
+  : null;
+
+// Use SMTP if available, otherwise fallback to SendGrid
+const transporter = smtpTransporter || sendgridTransporter;
 
 /**
  * Send email
