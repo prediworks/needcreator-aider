@@ -89,6 +89,10 @@ export default function RegisterPage() {
         errorMessage = 'Email invalide';
       } else if (error.code === 'auth/operation-not-allowed') {
         errorMessage = 'L\'inscription est temporairement désactivée';
+      } else if (error.code === 'auth/configuration-not-found') {
+        errorMessage = 'Firebase Authentication n\'est pas configuré. Vérifiez votre configuration Firebase.';
+      } else if (error.code === 'auth/invalid-api-key') {
+        errorMessage = 'Clé API Firebase invalide. Vérifiez votre fichier .env.local';
       } else if (error.response?.data?.error) {
         errorMessage = error.response.data.error;
       }
