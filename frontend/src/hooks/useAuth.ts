@@ -13,6 +13,9 @@ export function useAuth() {
 
       if (firebaseUser) {
         try {
+          // Add a small delay to allow backend to create user
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
           // Fetch user profile from backend
           const response = await api.get('/auth/profile');
           setUser(response.data.user);
@@ -21,8 +24,10 @@ export function useAuth() {
           // If user doesn't exist in backend, they need to complete registration
           if (error.response?.status === 404) {
             console.log('User not found in backend, needs to complete registration');
+            // Don't set user to null immediately, the registration might still be in progress
+          } else {
+            setUser(null);
           }
-          setUser(null);
         }
       } else {
         setUser(null);

@@ -69,9 +69,12 @@ export default function RegisterPage() {
         ? { email, name, bio, niches, minPrice: parseInt(minPrice) }
         : { email, companyName, website, industry };
 
-      await api.post(endpoint, data, {
+      const response = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
       });
+
+      // Wait a bit for the auth state to update
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       toast.success('Compte créé avec succès !');
       router.push('/dashboard');
