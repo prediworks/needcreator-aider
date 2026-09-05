@@ -60,7 +60,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
 
 ### Événements nécessaires
 
-L'application écoute ces 5 événements Stripe :
+L'application écoute ces 6 événements Stripe :
 
 | Événement | Description | Utilisation |
 |-----------|-------------|-------------|
@@ -68,7 +68,8 @@ L'application écoute ces 5 événements Stripe :
 | `payment_intent.succeeded` | Paiement réussi | Confirmation du paiement de la marque |
 | `payment_intent.payment_failed` | Paiement échoué | Notification d'échec de paiement |
 | `transfer.created` | Transfert créé | Confirmation du transfert au créateur |
-| `transfer.failed` | Transfert échoué | Notification d'échec de transfert |
+| `transfer.reversed` | Transfert inversé | Notification d'annulation/remboursement |
+| `transfer.updated` | Transfert mis à jour | Mise à jour du statut du transfert |
 
 ### Configuration en développement (avec ngrok)
 
@@ -94,12 +95,13 @@ Ngrok affichera une URL comme : `https://abc123.ngrok-free.app`
    - Allez sur [Stripe Dashboard](https://dashboard.stripe.com/test/webhooks)
    - Cliquez sur **Add endpoint**
    - **Endpoint URL** : `https://abc123.ngrok-free.app/api/webhooks/stripe`
-   - **Events to send** : Sélectionnez ces 5 événements :
+   - **Events to send** : Sélectionnez ces 6 événements :
      - ✅ `account.updated`
      - ✅ `payment_intent.succeeded`
      - ✅ `payment_intent.payment_failed`
      - ✅ `transfer.created`
-     - ✅ `transfer.failed`
+     - ✅ `transfer.reversed`
+     - ✅ `transfer.updated`
    - Cliquez sur **Add endpoint**
    - Copiez le **Signing secret** (commence par `whsec_...`)
    - Ajoutez-le dans `backend/.env` :
@@ -113,7 +115,7 @@ Ngrok affichera une URL comme : `https://abc123.ngrok-free.app`
    - Allez sur [Stripe Dashboard](https://dashboard.stripe.com/webhooks) (mode LIVE)
    - Cliquez sur **Add endpoint**
    - **Endpoint URL** : `https://api.votre-domaine.com/api/webhooks/stripe`
-   - **Events to send** : Sélectionnez les mêmes 5 événements
+   - **Events to send** : Sélectionnez les mêmes 6 événements
    - Cliquez sur **Add endpoint**
    - Copiez le **Signing secret**
    - Ajoutez-le dans vos variables d'environnement de production

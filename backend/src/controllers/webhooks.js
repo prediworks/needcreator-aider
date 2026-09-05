@@ -31,8 +31,12 @@ export async function handleStripeWebhook(req, res) {
         await handleTransferCreated(event.data.object);
         break;
         
-      case 'transfer.failed':
-        await handleTransferFailed(event.data.object);
+      case 'transfer.reversed':
+        await handleTransferReversed(event.data.object);
+        break;
+        
+      case 'transfer.updated':
+        await handleTransferUpdated(event.data.object);
         break;
         
       default:
@@ -136,9 +140,9 @@ async function handleTransferCreated(transfer) {
 }
 
 /**
- * Handle transfer.failed event
+ * Handle transfer.reversed event
  */
-async function handleTransferFailed(transfer) {
+async function handleTransferReversed(transfer) {
   try {
     const delivery = await Delivery.findOne({
       'payment.stripeTransferId': transfer.id,
@@ -149,11 +153,36 @@ async function handleTransferFailed(transfer) {
       return;
     }
     
-    delivery.payment.status = 'failed';
+    delivery.payment.status = 'refunded';
     await delivery.save();
     
-    logger.error(`Transfer failed for delivery: ${delivery._id}`);
+    logger.error(`Transfer reversed for delivery: ${delivery._id}`);
   } catch (error) {
-    logger.error('Failed to handle transfer.failed:', error);
+    logger.error('Failed to handle transfer.reversed:', error);
+  }
+}
+
+/**
+ * Handle transfer.updated event
+ */
+async function handleTransferUpdated(transfer) {
+  try {
+    const delivery = await Delivery.findOne({
+      'payment.stripeTransferId': transfer.id,
+    });
+    
+    if (!delivery) {
+      logger.warn(`Delivery not found for transfer: ${transfer.id}`);
+      return;
+    }
+    
+    // Update transfer status if needed
+    if (transfer.reversed) {
+      delivery.payment.status = 'refunded';
+      await delivery.save();
+      logger.info(`Transfer updated (reversed) for delivery: ${delivery._id}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle transfer.updated:', error);
   }
 }
