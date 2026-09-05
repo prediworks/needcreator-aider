@@ -90,6 +90,7 @@ async function startServer() {
     app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
+      logger.info(`📝 Note: Frontend should be on http://localhost:3000`);
     });
     
     // Schedule cron jobs (run every day at 2 AM)

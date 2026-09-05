@@ -17,7 +17,7 @@ export default function ApiTestPage() {
       setResult(`API URL: ${apiUrl}\n\nTesting connection...`);
 
       // Test 1: Health check
-      const healthUrl = apiUrl?.replace('/api', '/health') || 'http://localhost:3000/health';
+      const healthUrl = apiUrl?.replace('/api', '/health') || 'http://localhost:3002/health';
       const healthResponse = await fetch(healthUrl);
       const healthData = await healthResponse.json();
 

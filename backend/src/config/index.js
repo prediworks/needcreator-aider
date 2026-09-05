@@ -4,7 +4,7 @@ dotenv.config();
 
 export const config = {
   env: process.env.NODE_ENV || 'development',
-  port: parseInt(process.env.PORT || process.env.DEFAULT_PORT || '3000', 10),
+  port: parseInt(process.env.PORT || process.env.DEFAULT_PORT || '3002', 10),
   
   // MongoDB
   mongodb: {
