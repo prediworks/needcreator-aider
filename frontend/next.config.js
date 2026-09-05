@@ -13,8 +13,16 @@ const nextConfig = {
         fs: false,
       };
     }
+    
+    // Fix for undici/Firebase compatibility
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'undici': false,
+    };
+    
     return config;
   },
+  transpilePackages: ['firebase', '@firebase/auth'],
 }
 
 module.exports = nextConfig
