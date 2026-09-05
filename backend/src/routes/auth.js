@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, authenticateFirebase } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import {
   registerCreator,
@@ -17,9 +17,9 @@ router.use((req, res, next) => {
   next();
 });
 
-// Registration (authenticate only, user doesn't exist yet)
-router.post('/register/creator', authenticate, validate(schemas.registerCreator), registerCreator);
-router.post('/register/brand', authenticate, validate(schemas.registerBrand), registerBrand);
+// Registration (authenticateFirebase only, user doesn't exist yet)
+router.post('/register/creator', authenticateFirebase, validate(schemas.registerCreator), registerCreator);
+router.post('/register/brand', authenticateFirebase, validate(schemas.registerBrand), registerBrand);
 
 // Profile (authenticate required)
 router.get('/profile', authenticate, getProfile);

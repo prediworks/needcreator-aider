@@ -19,7 +19,35 @@ try {
 }
 
 /**
- * Middleware to verify Firebase ID token
+ * Middleware to verify Firebase ID token without requiring an existing user
+ */
+export async function authenticateFirebase(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+    
+    const token = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    req.firebaseUser = decodedToken;
+    
+    next();
+  } catch (error) {
+    logger.error('Firebase authentication error:', error);
+    
+    if (error.code === 'auth/id-token-expired') {
+      return res.status(401).json({ error: 'Token expired' });
+    }
+    
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+/**
+ * Middleware to verify Firebase ID token and load the user from DB
  */
 export async function authenticate(req, res, next) {
   try {
