@@ -59,9 +59,14 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      console.log('Starting registration process...', { role, email });
+      
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      console.log('Firebase user created:', userCredential.user.uid);
+      
       const idToken = await userCredential.user.getIdToken();
+      console.log('ID token obtained');
 
       // Register in backend
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
@@ -69,12 +74,14 @@ export default function RegisterPage() {
         ? { email, name, bio, niches, minPrice: parseInt(minPrice) }
         : { email, companyName, website, industry };
 
+      console.log('Sending registration to backend:', endpoint);
       const response = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
       });
+      console.log('Backend registration successful:', response.data);
 
-      // Wait a bit for the auth state to update
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait for the auth state to update and user to be created in DB
+      await new Promise(resolve => setTimeout(resolve, 2500));
 
       toast.success('Compte créé avec succès !');
       router.push('/dashboard');
