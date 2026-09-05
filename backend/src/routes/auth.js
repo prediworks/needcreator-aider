@@ -21,10 +21,10 @@ router.use((req, res, next) => {
 router.post('/register/creator', authenticate, validate(schemas.registerCreator), registerCreator);
 router.post('/register/brand', authenticate, validate(schemas.registerBrand), registerBrand);
 
-// Profile (authenticate required)
-router.get('/profile', authenticate, getProfile);
+// Profile (require user to exist)
+router.get('/profile', authenticate, requireUser, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
-router.patch('/profile', authenticate, updateProfile);
+router.patch('/profile', authenticate, requireUser, updateProfile);
 
 logger.info('Auth routes configured');
 
