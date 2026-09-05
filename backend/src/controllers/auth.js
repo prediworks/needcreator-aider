@@ -1,5 +1,5 @@
 import User from '../models/User.js';
-import { createConnectAccount, createCustomer } from '../services/stripe.js';
+import { createCustomer } from '../services/stripe.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import logger from '../utils/logger.js';
 
@@ -17,10 +17,7 @@ export async function registerCreator(req, res) {
       return res.status(400).json({ error: 'User already exists' });
     }
     
-    // Create Stripe Connect account
-    const stripeAccount = await createConnectAccount(email);
-    
-    // Create user
+    // Create user without Stripe Connect account — the creator will connect later
     const user = new User({
       firebaseUid: uid,
       email,
@@ -33,8 +30,15 @@ export async function registerCreator(req, res) {
           minPrice,
           avgPrice: minPrice,
         },
+        stripeConnect: {
+          accountId: null,
+          onboardingComplete: false,
+          chargesEnabled: false,
+          payoutsEnabled: false,
+          detailsSubmitted: false,
+          requirements: {},
+        },
       },
-      stripeAccountId: stripeAccount.id,
       status: 'pending', // Needs admin approval
     });
     
@@ -173,7 +177,19 @@ export async function updateProfile(req, res) {
     
     // Update allowed fields based on role
     if (user.role === 'creator') {
-      const allowedFields = ['profile.name', 'profile.bio', 'profile.avatar', 'profile.niches', 'profile.pricing'];
+      const allowedFields = [
+        'profile.name',
+        'profile.bio',
+        'profile.avatar',
+        'profile.niches',
+        'profile.pricing',
+        'profile.stripeConnect.accountId',
+        'profile.stripeConnect.onboardingComplete',
+        'profile.stripeConnect.chargesEnabled',
+        'profile.stripeConnect.payoutsEnabled',
+        'profile.stripeConnect.detailsSubmitted',
+        'profile.stripeConnect.requirements',
+      ];
       Object.keys(updates).forEach(key => {
         if (allowedFields.some(field => key.startsWith(field))) {
           user.set(key, updates[key]);

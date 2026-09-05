@@ -68,6 +68,30 @@ const userSchema = new mongoose.Schema({
       }
     },
     
+    stripeConnect: {
+      accountId: String,
+      onboardingComplete: {
+        type: Boolean,
+        default: false,
+      },
+      chargesEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      payoutsEnabled: {
+        type: Boolean,
+        default: false,
+      },
+      detailsSubmitted: {
+        type: Boolean,
+        default: false,
+      },
+      requirements: {
+        type: Object,
+        default: {},
+      },
+    },
+    
     stats: {
       completedJobs: {
         type: Number,
@@ -98,7 +122,7 @@ const userSchema = new mongoose.Schema({
   },
   
   // Stripe accounts
-  stripeAccountId: String, // For creators (Connect)
+  stripeAccountId: String, // For creators (Connect) - kept for backward compatibility
   stripeCustomerId: String, // For brands
   
   // Status
@@ -172,7 +196,8 @@ userSchema.virtual('profileCompletion').get(function() {
       this.profile.portfolio?.length >= 3,
       this.profile.niches?.length > 0,
       this.profile.pricing?.minPrice,
-      this.stripeAccountId
+      this.profile.stripeConnect?.accountId,
+      this.profile.stripeConnect?.onboardingComplete,
     );
   } else if (this.role === 'brand') {
     fields.push(
@@ -194,7 +219,7 @@ userSchema.methods.canApplyToCampaign = function() {
     this.status === 'active' &&
     this.verification.portfolio &&
     this.profile.portfolio?.length >= 3 &&
-    this.stripeAccountId
+    this.profile.stripeConnect?.accountId
   );
 };
 

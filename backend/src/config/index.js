@@ -27,6 +27,7 @@ export const config = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    apiVersion: process.env.STRIPE_API_VERSION || '2026-08-26.dahlia',
     platformFeePercent: parseInt(process.env.STRIPE_PLATFORM_FEE_PERCENT || '10', 10),
   },
   
