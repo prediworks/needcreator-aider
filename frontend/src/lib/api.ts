@@ -6,7 +6,7 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 if (!apiUrl) {
   console.error('❌ NEXT_PUBLIC_API_URL is not defined in .env.local');
   console.error('Please create frontend/.env.local with:');
-  console.error('NEXT_PUBLIC_API_URL=http://localhost:3000/api');
+  console.error('NEXT_PUBLIC_API_URL=http://localhost:3002/api');
 }
 
 console.log('🔗 API URL:', apiUrl);

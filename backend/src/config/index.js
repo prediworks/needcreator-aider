@@ -65,7 +65,7 @@ export const config = {
   
   // CORS
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    origin: process.env.FRONTEND_URL || 'http://localhost:3003',
   },
   
   // Business rules
