@@ -22,6 +22,7 @@ import ReviewForm, { Stars } from '@/components/ReviewForm';
 import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
 import PerformanceCard from '@/components/PerformanceCard';
+import ReadyPackCard from '@/components/ReadyPackCard';
 import {
   ArrowLeft,
   Upload,
@@ -489,6 +490,9 @@ export default function DeliveryDetailPage() {
                 )}
               </Card>
             )}
+
+            {/* Pack prêt à diffuser (marque, après validation) */}
+            {isDone && isBrand && <ReadyPackCard delivery={delivery} />}
 
             {/* Performances (après validation) */}
             {isDone && <PerformanceCard delivery={delivery} />}

@@ -416,6 +416,129 @@ export async function setLinkVisibility(req, res) {
 }
 
 /**
+ * Lance le traitement du pack en arrière-plan
+ */
+async function runReadyPack(deliveryId) {
+  const { processVideo } = await import('../services/video.js');
+  const delivery = await Delivery.findById(deliveryId);
+  if (!delivery) return;
+  delivery.readyPack.status = 'processing';
+  await delivery.save();
+  const outputs = [];
+  let failed = 0;
+  const sources = (delivery.files || []).filter(f => !f.superseded && f.type === 'video');
+  for (const f of sources) {
+    try {
+      const result = await processVideo(f.url, delivery.readyPack.options, `ready-pack/${delivery._id}`);
+      result.outputs.forEach(o => outputs.push({ ...o, itemId: String(f._id), sourceName: f.filename }));
+    } catch (err) {
+      failed++;
+      logger.error(`Ready pack failed for ${f.filename}:`, err.message);
+      outputs.push({ itemId: String(f._id), sourceName: f.filename, kind: 'video', error: err.message });
+    }
+  }
+  delivery.readyPack.outputs = outputs;
+  delivery.readyPack.status = failed === sources.length && sources.length > 0 ? 'failed' : 'done';
+  delivery.readyPack.completedAt = new Date();
+  if (failed) delivery.readyPack.error = `${failed} vidéo(s) n'ont pas pu être traitées`;
+  await delivery.save();
+  logger.info(`Ready pack ${delivery.readyPack.status} for delivery ${delivery._id} (${outputs.length} fichiers)`);
+}
+
+/**
+ * Commande du pack "prêt à diffuser" (marque, livraison approuvée)
+ * Si un prix est configuré : PaymentIntent à confirmer par carte, puis /ready-pack/confirm lance le traitement
+ */
+export async function requestReadyPack(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const brand = req.user;
+    const delivery = await Delivery.findOne({ _id: deliveryId, brandId: brand._id });
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!['approved', 'auto_approved'].includes(delivery.status)) {
+      return res.status(400).json({ error: 'Le pack se commande après validation de la livraison' });
+    }
+    if (['queued', 'processing'].includes(delivery.readyPack?.status)) {
+      return res.status(400).json({ error: 'Un traitement est déjà en cours' });
+    }
+    const videos = (delivery.files || []).filter(f => !f.superseded && f.type === 'video');
+    if (videos.length === 0) {
+      return res.status(400).json({ error: 'Le pack nécessite des vidéos livrées en fichier (les liens ne peuvent pas être retraités)' });
+    }
+    const { formats, subtitles, thumbnail } = req.body;
+    const price = Math.round(config.readyPack.pricePerVideo * videos.length * 100) / 100;
+    delivery.readyPack.options = { formats, subtitles, thumbnail };
+    delivery.readyPack.price = price;
+    delivery.readyPack.requestedAt = new Date();
+    delivery.readyPack.outputs = [];
+    delivery.readyPack.error = null;
+
+    let clientSecret = null;
+    if (price > 0 && brand.stripeCustomerId) {
+      const { stripe } = await import('../services/stripe.js');
+      const pi = await stripe.paymentIntents.create({
+        amount: Math.round(price * 100), currency: 'eur', customer: brand.stripeCustomerId,
+        payment_method_types: ['card'], description: `Pack prêt à diffuser — ${videos.length} vidéo(s)`,
+        metadata: { deliveryId: String(delivery._id), kind: 'ready_pack' },
+      });
+      delivery.readyPack.stripePaymentIntentId = pi.id;
+      delivery.readyPack.paymentStatus = 'pending';
+      delivery.readyPack.status = 'awaiting_payment';
+      clientSecret = pi.client_secret;
+      await delivery.save();
+      return res.json({ message: 'Pack créé, paiement à confirmer', price, clientSecret, readyPack: delivery.readyPack });
+    }
+
+    delivery.readyPack.paymentStatus = price > 0 ? 'pending' : 'none';
+    delivery.readyPack.status = 'queued';
+    await delivery.save();
+    setImmediate(() => runReadyPack(delivery._id).catch(err => logger.error('Ready pack job crashed:', err)));
+    res.json({ message: 'Traitement lancé', price, readyPack: delivery.readyPack });
+  } catch (error) {
+    logger.error('Failed to request ready pack:', error);
+    res.status(500).json({ error: `Impossible de commander le pack : ${error?.raw?.message || error.message}` });
+  }
+}
+
+/**
+ * Client secret du paiement du pack (pour l'écran de carte)
+ */
+export async function readyPackPaymentIntent(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id });
+    if (!delivery?.readyPack?.stripePaymentIntentId) return res.status(400).json({ error: 'Aucun paiement de pack en attente' });
+    const { retrievePaymentIntent } = await import('../services/stripe.js');
+    const pi = await retrievePaymentIntent(delivery.readyPack.stripePaymentIntentId);
+    res.json({ clientSecret: pi.client_secret, status: pi.status, amount: delivery.readyPack.price, currency: 'EUR' });
+  } catch (error) {
+    res.status(500).json({ error: 'Impossible de préparer le paiement du pack' });
+  }
+}
+
+/**
+ * Confirme le paiement du pack puis lance le traitement
+ */
+export async function confirmReadyPack(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id });
+    if (!delivery?.readyPack?.stripePaymentIntentId) return res.status(400).json({ error: 'Aucun paiement de pack en attente' });
+    const { retrievePaymentIntent } = await import('../services/stripe.js');
+    const pi = await retrievePaymentIntent(delivery.readyPack.stripePaymentIntentId);
+    if (pi.status !== 'succeeded') {
+      return res.status(400).json({ error: `Paiement non confirmé (statut Stripe : ${pi.status})` });
+    }
+    delivery.readyPack.paymentStatus = 'paid';
+    delivery.readyPack.status = 'queued';
+    await delivery.save();
+    setImmediate(() => runReadyPack(delivery._id).catch(err => logger.error('Ready pack job crashed:', err)));
+    res.json({ message: 'Paiement confirmé, traitement lancé', readyPack: delivery.readyPack });
+  } catch (error) {
+    logger.error('Failed to confirm ready pack:', error);
+    res.status(500).json({ error: 'Impossible de confirmer le pack' });
+  }
+}
+
+/**
  * Saisie / mise à jour des performances d'une vidéo livrée (marque ou créateur)
  */
 export async function updatePerformance(req, res) {
@@ -815,6 +938,12 @@ export async function getDelivery(req, res) {
 
     // URLs lisibles pour les fichiers
     delivery.files = await resolveUrlsIn(delivery.files || []);
+    if (delivery.readyPack?.outputs?.length) {
+      delivery.readyPack.outputs = await resolveUrlsIn(delivery.readyPack.outputs);
+    }
+    delivery.readyPackPricePerVideo = config.readyPack.pricePerVideo;
+    const { transcriptionAvailable } = await import('../services/video.js');
+    delivery.readyPackSubtitlesAvailable = transcriptionAvailable();
 
     // Avis déjà laissés sur cette campagne (pour afficher/masquer le formulaire)
     const reviews = await Review.find({ campaignId: idOf(delivery.campaignId) })

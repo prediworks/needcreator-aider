@@ -711,6 +711,59 @@ await step('Brief IA : statut et génération (ou message clair si non configur�
   return `brief généré par ${res.data.provider}/${res.data.model} : « ${res.data.brief.title} »`;
 });
 
+await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vignette', async () => {
+  const { makeSampleVideo } = await import('../src/services/video.js');
+  const sample = await makeSampleVideo(2);
+  const fs = await import('fs');
+  const realVideo = new File([fs.readFileSync(sample)], 'vraie-video.mp4', { type: 'video/mp4' });
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', {
+    title: 'Campagne pack prêt à diffuser', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline, deliveryTypes: ['file'],
+  });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  const d = sel.data.delivery._id;
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  await stripe.paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await brandApi('POST', `/deliveries/${d}/confirm-payment`, {});
+  const f = new FormData(); f.append('files', realVideo);
+  const up = await creatorApi('POST', `/deliveries/${d}/upload`, f, { form: true });
+  expect(up.status === 200, 'Upload de la vraie vidéo échoué', up);
+  await creatorApi('POST', `/deliveries/${d}/submit`, {});
+  const tooEarlyBefore = await brandApi('POST', `/deliveries/${d}/ready-pack`, { formats: ['9:16'] });
+  expect(tooEarlyBefore.status === 400, 'Le pack ne doit pas être commandable avant validation', tooEarlyBefore);
+  await brandApi('POST', `/deliveries/${d}/approve`);
+
+  const order = await brandApi('POST', `/deliveries/${d}/ready-pack`, { formats: ['9:16', '1:1'], thumbnail: true, subtitles: false });
+  expect(order.status === 200 && order.data.price === 15 && order.data.readyPack.status === 'awaiting_payment' && order.data.clientSecret, 'Commande du pack incorrecte', order);
+  const notPaid = await brandApi('POST', `/deliveries/${d}/ready-pack/confirm`, {});
+  expect(notPaid.status === 400, 'La confirmation sans paiement doit échouer', notPaid);
+  await stripe.paymentIntents.confirm(order.data.readyPack.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  const conf = await brandApi('POST', `/deliveries/${d}/ready-pack/confirm`, {});
+  expect(conf.status === 200 && conf.data.readyPack.status === 'queued', 'Confirmation du pack échouée', conf);
+
+  let rp = null;
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    const det = await brandApi('GET', `/deliveries/${d}`);
+    rp = det.data.delivery.readyPack;
+    if (['done', 'failed'].includes(rp.status)) break;
+  }
+  expect(rp && rp.status === 'done', `Le pack devrait être terminé (statut ${rp?.status}, ${rp?.error || ''})`, { status: 200, data: rp });
+  const videos = rp.outputs.filter(o => o.kind === 'video' && o.url);
+  const thumbs = rp.outputs.filter(o => o.kind === 'thumbnail' && o.url);
+  expect(videos.length === 2 && thumbs.length === 1, 'Attendu : 2 vidéos + 1 vignette', { status: 200, data: rp.outputs });
+  const v916 = videos.find(v => v.format === '9:16');
+  expect(v916.width === 1080 && v916.height === 1920, 'Format 9:16 incorrect', { status: 200, data: v916 });
+  const head = await fetch(v916.url, { headers: { Range: 'bytes=0-64' } });
+  expect(head.ok, `La vidéo générée n'est pas téléchargeable (HTTP ${head.status})`);
+  fs.unlinkSync(sample);
+  return `2 formats + vignette générés et téléchargeables, 15 € payés`;
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);

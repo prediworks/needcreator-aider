@@ -123,6 +123,35 @@ const deliverySchema = new mongoose.Schema({
     receivedAt: Date,
     note: String,
   },
+  // Pack "vidéo prête à diffuser" (déclinaisons de format, vignette, sous-titres)
+  readyPack: {
+    status: { type: String, enum: ['none', 'awaiting_payment', 'queued', 'processing', 'done', 'failed'], default: 'none' },
+    options: {
+      formats: [String],
+      subtitles: Boolean,
+      thumbnail: Boolean,
+    },
+    price: Number,
+    stripePaymentIntentId: String,
+    paymentStatus: { type: String, enum: ['none', 'pending', 'paid'], default: 'none' },
+    outputs: [{
+      itemId: String,
+      sourceName: String,
+      kind: String,      // video | thumbnail | subtitles
+      format: String,
+      url: String,
+      filename: String,
+      width: Number,
+      height: Number,
+      subtitled: Boolean,
+      language: String,
+      error: String,
+    }],
+    requestedAt: Date,
+    completedAt: Date,
+    error: String,
+  },
+
   // Performances des vidéos livrées (saisie manuelle marque/créateur ; connexion aux réseaux plus tard)
   performance: [{
     itemId: String,             // _id du fichier ou du lien livré

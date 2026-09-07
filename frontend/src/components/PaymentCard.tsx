@@ -23,7 +23,9 @@ const CARD_STYLE = {
   },
 };
 
-function CheckoutForm({ deliveryId, amount, clientSecret }: { deliveryId: string; amount: number; clientSecret: string }) {
+interface CheckoutProps { deliveryId: string; amount: number; clientSecret: string; confirmPath: string; buttonLabel?: string; immediate?: boolean }
+
+function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLabel, immediate }: CheckoutProps) {
   const stripe = useStripe();
   const elements = useElements();
   const queryClient = useQueryClient();
@@ -31,7 +33,7 @@ function CheckoutForm({ deliveryId, amount, clientSecret }: { deliveryId: string
   const [cardComplete, setCardComplete] = useState(false);
 
   const confirmOnServer = useMutation({
-    mutationFn: async () => (await api.post(`/deliveries/${deliveryId}/confirm-payment`)).data,
+    mutationFn: async () => (await api.post(confirmPath)).data,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,7 +54,7 @@ function CheckoutForm({ deliveryId, amount, clientSecret }: { deliveryId: string
         await confirmOnServer.mutateAsync();
         queryClient.invalidateQueries({ queryKey: ['delivery', deliveryId] });
         queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-        toast.success('Paiement confirmé. Le montant est bloqué et sera versé au créateur après votre validation.');
+        toast.success(immediate ? 'Paiement confirmé.' : 'Paiement confirmé. Le montant est bloqué et sera versé au créateur après votre validation.');
       } else {
         toast.warning(`Paiement en attente (statut : ${paymentIntent?.status})`);
       }
@@ -71,11 +73,13 @@ function CheckoutForm({ deliveryId, amount, clientSecret }: { deliveryId: string
       <p className="text-xs text-neutral-500">Numéro de carte, date d&apos;expiration et code de sécurité.</p>
       <Button type="submit" className="w-full" isLoading={submitting} disabled={!stripe || !elements || !cardComplete}>
         <Lock className="w-4 h-4 mr-2" />
-        Bloquer {formatCurrency(amount)}
+        {buttonLabel || `Bloquer ${formatCurrency(amount)}`}
       </Button>
-      <p className="text-xs text-neutral-500 text-center">
-        Votre carte est autorisée, pas débitée. Le montant n&apos;est prélevé qu&apos;à la validation de la livraison (ou après 7 jours sans réponse).
-      </p>
+      {!immediate && (
+        <p className="text-xs text-neutral-500 text-center">
+          Votre carte est autorisée, pas débitée. Le montant n&apos;est prélevé qu&apos;à la validation de la livraison (ou après 7 jours sans réponse).
+        </p>
+      )}
     </form>
   );
 }
@@ -83,10 +87,22 @@ function CheckoutForm({ deliveryId, amount, clientSecret }: { deliveryId: string
 /**
  * Écran de paiement affiché à la marque tant que le montant n'est pas bloqué
  */
-export default function PaymentCard({ deliveryId }: { deliveryId: string }) {
+interface PaymentCardProps {
+  deliveryId: string;
+  intentPath?: string;
+  confirmPath?: string;
+  title?: string;
+  subtitle?: string;
+  buttonLabel?: string;
+  immediate?: boolean;
+}
+
+export default function PaymentCard({ deliveryId, intentPath, confirmPath, title, subtitle, buttonLabel, immediate }: PaymentCardProps) {
+  const ip = intentPath || `/deliveries/${deliveryId}/payment-intent`;
+  const cp = confirmPath || `/deliveries/${deliveryId}/confirm-payment`;
   const { data, isLoading, error } = useQuery({
-    queryKey: ['payment-intent', deliveryId],
-    queryFn: async () => (await api.get(`/deliveries/${deliveryId}/payment-intent`)).data,
+    queryKey: ['payment-intent', ip],
+    queryFn: async () => (await api.get(ip)).data,
   });
 
   if (!stripePromise) {
@@ -104,8 +120,8 @@ export default function PaymentCard({ deliveryId }: { deliveryId: string }) {
           <CreditCard className="w-5 h-5 text-primary-600" />
         </div>
         <div>
-          <h3 className="font-semibold text-neutral-900">Paiement à confirmer</h3>
-          <p className="text-sm text-neutral-600">Le créateur commencera dès que le montant est bloqué.</p>
+          <h3 className="font-semibold text-neutral-900">{title || 'Paiement à confirmer'}</h3>
+          <p className="text-sm text-neutral-600">{subtitle || 'Le créateur commencera dès que le montant est bloqué.'}</p>
         </div>
       </div>
 
@@ -115,7 +131,7 @@ export default function PaymentCard({ deliveryId }: { deliveryId: string }) {
         <p className="text-sm text-red-700">{getErrorMessage(error, 'Paiement indisponible')}</p>
       ) : (
         <Elements stripe={stripePromise} options={{ locale: 'fr' }}>
-          <CheckoutForm deliveryId={deliveryId} amount={data.amount} clientSecret={data.clientSecret} />
+          <CheckoutForm deliveryId={deliveryId} amount={data.amount} clientSecret={data.clientSecret} confirmPath={cp} buttonLabel={buttonLabel} immediate={immediate} />
         </Elements>
       )}
     </Card>

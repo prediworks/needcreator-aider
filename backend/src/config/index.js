@@ -78,6 +78,11 @@ export const config = {
     origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim(),
   },
   
+  // Pack "vidéo prête à diffuser" (€ par vidéo ; 0 = inclus)
+  readyPack: {
+    pricePerVideo: parseFloat(process.env.READY_PACK_PRICE || '15'),
+  },
+
   // Parrainage (montants configurables)
   referral: {
     brandFeePercent: parseFloat(process.env.REFERRAL_BRAND_FEE_PERCENT || '5'),          // commission de la marque parrainée sur sa 1re campagne

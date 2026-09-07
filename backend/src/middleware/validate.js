@@ -90,6 +90,13 @@ export const schemas = {
     productDescription: Joi.string().max(300).allow(''),
   }),
 
+  // Pack prêt à diffuser
+  readyPack: Joi.object({
+    formats: Joi.array().items(Joi.string().valid('9:16', '1:1', '16:9')).min(1).default(['9:16']),
+    subtitles: Joi.boolean().default(false),
+    thumbnail: Joi.boolean().default(true),
+  }),
+
   // Brief IA
   aiBrief: Joi.object({
     productDescription: Joi.string().min(10).max(2000).required(),

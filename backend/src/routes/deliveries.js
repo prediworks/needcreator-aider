@@ -17,6 +17,9 @@ import {
   setLinkVisibility,
   updateShipping,
   updatePerformance,
+  requestReadyPack,
+  readyPackPaymentIntent,
+  confirmReadyPack,
 } from '../controllers/deliveries.js';
 
 const router = express.Router();
@@ -39,6 +42,9 @@ router.post('/:deliveryId/upload', authenticate, authorize('creator'), upload.ar
 router.post('/:deliveryId/links', authenticate, authorize('creator'), validate(schemas.deliveryLinks), addLinks);
 router.delete('/:deliveryId/items/:itemId', authenticate, authorize('creator'), removeItem);
 router.patch('/:deliveryId/links/:linkId/visibility', authenticate, validate(schemas.linkVisibility), setLinkVisibility);
+router.post('/:deliveryId/ready-pack', authenticate, authorize('brand'), validate(schemas.readyPack), requestReadyPack);
+router.get('/:deliveryId/ready-pack/payment-intent', authenticate, authorize('brand'), readyPackPaymentIntent);
+router.post('/:deliveryId/ready-pack/confirm', authenticate, authorize('brand'), confirmReadyPack);
 router.patch('/:deliveryId/performance', authenticate, validate(schemas.performanceUpdate), updatePerformance);
 router.patch('/:deliveryId/shipping', authenticate, validate(schemas.shippingUpdate), updateShipping);
 router.post('/:deliveryId/submit', authenticate, authorize('creator'), submitDelivery);

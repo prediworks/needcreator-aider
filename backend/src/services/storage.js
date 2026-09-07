@@ -143,6 +143,17 @@ export async function uploadVideo(buffer, originalName, metadata = {}, contentTy
 }
 
 /**
+ * Télécharge un objet R2 en mémoire (Buffer)
+ */
+export async function downloadFile(key) {
+  const command = new GetObjectCommand({ Bucket: config.storage.cloudflare.bucketName, Key: key });
+  const response = await s3Client.send(command);
+  const chunks = [];
+  for await (const chunk of response.Body) chunks.push(chunk);
+  return Buffer.concat(chunks);
+}
+
+/**
  * Delete file from R2
  */
 export async function deleteFile(filename) {
