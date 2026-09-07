@@ -236,6 +236,9 @@ await step('Campagnes : feed créateur (matching niches)', async () => {
   expect(res.status === 200, 'Feed inaccessible', res);
   const found = res.data.campaigns.find(c => c._id === campaign._id);
   expect(found, 'La campagne publiée devrait apparaître dans le feed du créateur', res);
+  expect(found.matchesMyNiches === true, 'La campagne devrait être marquée comme correspondant aux niches', res);
+  const first = res.data.campaigns[0];
+  expect(first.matchesMyNiches !== false || !res.data.campaigns.some(c => c.matchesMyNiches), 'Les campagnes de mes niches devraient être en premier', res);
   const search = await creatorApi('GET', '/campaigns?search=bout%20en%20bout');
   expect(search.data.campaigns.some(c => c._id === campaign._id), 'La recherche par mot-clé ne trouve pas la campagne', search);
   return `${res.data.campaigns.length} campagne(s) visible(s)`;

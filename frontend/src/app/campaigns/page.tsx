@@ -60,7 +60,7 @@ function CampaignsContent() {
             <p className="text-neutral-600">
               {isBrand
                 ? 'Gérez vos campagnes UGC'
-                : 'Trouvez des campagnes qui correspondent à votre profil'}
+                : 'Toutes les campagnes ouvertes, celles de vos niches en premier'}
             </p>
           </div>
           {isBrand && (
@@ -175,7 +175,11 @@ function CampaignsContent() {
                         : `Créée ${formatRelativeTime(campaign.createdAt)}`}
                     </div>
                   </div>
-                  <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
+                  {!isBrand && campaign.matchesMyNiches ? (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800 whitespace-nowrap">Pour vous</span>
+                  ) : (
+                    <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
+                  )}
                 </div>
 
                 {/* Campaign Info */}

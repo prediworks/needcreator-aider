@@ -161,13 +161,10 @@ export async function getCampaigns(req, res) {
       } else if (mode === 'all') {
         query.status = { $in: ['active', 'in_progress', 'completed'] };
       } else {
-        // Campagnes ouvertes correspondant aux niches du créateur
+        // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
         query.selectedCreator = null;
         query['matching.excludedCreators'] = { $ne: user._id };
-        if (user.profile.niches?.length > 0 && !niche) {
-          query['matching.niches'] = { $in: user.profile.niches };
-        }
       }
     } else if (status) {
       query.status = status;
@@ -197,14 +194,18 @@ export async function getCampaigns(req, res) {
     ]);
     campaigns = campaigns.map(c => c.toObject({ virtuals: true }));
 
-    // Pour un créateur : ajoute sa candidature (statut, prix) à chaque campagne
+    // Pour un créateur : ajoute sa candidature (statut, prix) et la correspondance de niches à chaque campagne
     if (user.role === 'creator') {
+      const myNiches = user.profile.niches || [];
       campaigns.forEach(c => {
         const mine = (c.applications || []).find(a => idOf(a.creatorId) === user._id.toString());
         c.myApplication = mine ? { status: mine.status, price: mine.price, appliedAt: mine.appliedAt } : null;
         c.isSelected = idOf(c.selectedCreator) === user._id.toString();
+        c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
         delete c.applications; // ne pas exposer les autres candidatures
       });
+      // Campagnes de mes niches en premier, puis les plus récentes
+      campaigns.sort((a, b) => Number(b.matchesMyNiches) - Number(a.matchesMyNiches));
     }
 
     res.json({

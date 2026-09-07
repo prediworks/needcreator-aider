@@ -173,7 +173,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
             <Card className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-neutral-900">
-                  Campagnes pour vous
+                  Campagnes ouvertes
                 </h2>
                 <Link href="/campaigns">
                   <Button variant="ghost" size="sm">
@@ -223,7 +223,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <p className="text-neutral-600 mb-4">Aucune campagne ne correspond à vos niches pour le moment</p>
+                  <p className="text-neutral-600 mb-4">Aucune campagne ouverte pour le moment</p>
                   <Link href="/campaigns">
                     <Button>Explorer toutes les campagnes</Button>
                   </Link>
