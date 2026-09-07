@@ -23,6 +23,10 @@ import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
 import PerformanceCard from '@/components/PerformanceCard';
 import ReadyPackCard from '@/components/ReadyPackCard';
+import ShopifyProductPicker from '@/components/ShopifyProductPicker';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api, { getErrorMessage } from '@/lib/api';
 import {
   ArrowLeft,
   Upload,
@@ -57,6 +61,11 @@ export default function DeliveryDetailPage() {
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [linkInput, setLinkInput] = useState('');
+  const shopifyPublish = useMutation({
+    mutationFn: async (productId: string) => (await api.post(`/integrations/shopify/deliveries/${deliveryId}/publish`, { productId })).data,
+    onSuccess: (d) => toast.success(d.message),
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
   const [notes, setNotes] = useState('');
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionForm, setShowRevisionForm] = useState(false);
@@ -493,6 +502,11 @@ export default function DeliveryDetailPage() {
 
             {/* Pack prêt à diffuser (marque, après validation) */}
             {isDone && isBrand && <ReadyPackCard delivery={delivery} />}
+
+            {/* Publication Shopify (marque, après validation) */}
+            {isDone && isBrand && (
+              <ShopifyProductPicker buttonLabel="Publier les vidéos sur cette fiche" onPick={(p) => shopifyPublish.mutate(String(p.id))} />
+            )}
 
             {/* Performances (après validation) */}
             {isDone && <PerformanceCard delivery={delivery} />}

@@ -73,6 +73,25 @@ Importer les fiches produit pour pré-remplir les briefs, puis pousser les vidé
 **N. Application mobile pour les créateurs (effort L)**
 Les créateurs tournent au téléphone. Une app (ou d'abord une PWA installable) pour candidater, filmer et envoyer directement. À faire une fois le volume prouvé.
 
+## État d'avancement (7 septembre 2026)
+
+Toutes les fonctionnalités retenues sont implémentées et couvertes par le test automatique (`npm run test:e2e`) :
+
+| | Fonctionnalité | Statut | À prévoir |
+|---|---|---|---|
+| A | Brief assisté par IA | Fait, fournisseur interchangeable (`AI_PROVIDER`), prompts dans `backend/config/prompts/` | Renseigner une clé API pour l'activer |
+| B | Invitation de créateurs | Fait | — |
+| C | Réactivité des marques | Fait | — |
+| D | Messagerie par campagne | Fait | — |
+| E | Statistiques de performance | Fait en saisie manuelle | Connexion aux réseaux sociaux (Meta / TikTok) plus tard |
+| F | Pack vidéo prête à diffuser | Fait (formats, vignette, sous-titres) | Clé OpenAI pour la transcription ; tester le rendu des sous-titres sur de vraies vidéos |
+| H | Multi-créateurs + paiement groupé | Fait | — |
+| I | Badges et niveaux | Fait | — |
+| J | Envoi de produit | Fait | — |
+| K | Mes revenus | Fait | — |
+| L | Parrainage | Fait, montants configurables | — |
+| M | Shopify | Code prêt, **non testé** faute d'application Shopify | Créer l'application sur partners.shopify.com, renseigner `SHOPIFY_*` |
+
 ## 4. Recommandation
 
 Si vous ne deviez faire que trois choses avant de chercher vos premiers clients :

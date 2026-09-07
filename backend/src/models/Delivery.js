@@ -165,6 +165,7 @@ const deliverySchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   }],
 
+  shopifyPublishedAt: Date,
   estimatedDeliveryDays: Number, // délai promis dans le devis
   productionDeadline: Date,      // reçu + délai (ou sélection + délai sans envoi)
 

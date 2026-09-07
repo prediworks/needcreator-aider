@@ -764,6 +764,32 @@ await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vig
   return `2 formats + vignette générés et téléchargeables, 15 € payés`;
 });
 
+await step('Shopify : statut, installation (non configurée → message clair), signature HMAC', async () => {
+  const st = await brandApi('GET', '/integrations/shopify/status');
+  expect(st.status === 200 && st.data.connected === false, 'Statut Shopify incorrect', st);
+  const inst = await brandApi('POST', '/integrations/shopify/install', { shop: 'ma-boutique' });
+  if (!st.data.configured) {
+    expect(inst.status === 503 && /SHOPIFY_API_KEY/.test(inst.data.error), 'Sans configuration, un message clair (503) est attendu', inst);
+  } else {
+    expect(inst.status === 200 && inst.data.url.includes('ma-boutique.myshopify.com/admin/oauth/authorize'), 'URL d\'installation incorrecte', inst);
+  }
+  const forbidden = await creatorApi('GET', '/integrations/shopify/status');
+  expect(forbidden.status === 403, 'Réservé aux marques', forbidden);
+  // Vérification de signature (fonction pure)
+  const { verifyShopifyHmac, normalizeShop, signState, verifyState } = await import('../src/services/shopify.js');
+  const crypto = await import('crypto');
+  const secret = 'test-secret';
+  const query = { code: 'abc', shop: 'ma-boutique.myshopify.com', state: 'x', timestamp: '1700000000' };
+  const message = Object.keys(query).sort().map(k => `${k}=${query[k]}`).join('&');
+  const hmac = crypto.createHmac('sha256', secret).update(message).digest('hex');
+  expect(verifyShopifyHmac({ ...query, hmac }, secret) === true, 'HMAC valide refusé');
+  expect(verifyShopifyHmac({ ...query, hmac: 'deadbeef' }, secret) === false, 'HMAC invalide accepté');
+  expect(normalizeShop('Ma-Boutique') === 'ma-boutique.myshopify.com' && normalizeShop('bad domain!') === null, 'Normalisation du domaine incorrecte');
+  const state = signState({ uid: 'u1', shop: 'ma-boutique.myshopify.com' });
+  expect(verifyState(state)?.uid === 'u1' && verifyState(state + 'x') === null, 'State signé incorrect');
+  return st.data.configured ? 'configurée, URL OAuth générée' : 'non configurée : message clair, signatures vérifiées';
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);

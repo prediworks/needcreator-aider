@@ -63,7 +63,7 @@ export async function authenticate(req, res, next) {
     const decodedToken = await admin.auth().verifyIdToken(token);
     
     // Find user in database
-    const user = await User.findOne({ firebaseUid: decodedToken.uid });
+    const user = await User.findOne({ firebaseUid: decodedToken.uid }).select('+integrations.shopify.accessToken');
     
     if (!user) {
       return res.status(404).json({ error: 'User not found' });

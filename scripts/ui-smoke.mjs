@@ -67,7 +67,7 @@ await step('Marque : inscription via le formulaire', async () => {
 await step('Marque : création + publication d\'une campagne', async () => {
   await bp.goto(`${FRONT}/campaigns/new`);
   await bp.getByLabel(/Titre de la campagne/).fill('Campagne test interface utilisateur');
-  await bp.locator('textarea').first().fill('Nous cherchons une vidéo témoignage authentique pour notre nouvelle gamme de soins visage bio.');
+  await bp.getByPlaceholder(/Présentez votre marque/).fill('Nous cherchons une vidéo témoignage authentique pour notre nouvelle gamme de soins visage bio.');
   await bp.getByRole('button', { name: 'Beauté' }).click();
   await bp.getByRole('button', { name: 'Continuer' }).click();
   await bp.getByLabel(/Budget total/).fill('300');

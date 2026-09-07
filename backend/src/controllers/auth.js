@@ -22,6 +22,7 @@ async function serializeUser(userDoc) {
     id: user._id,
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
   };
+  if (out.integrations?.shopify) out.integrations = { shopify: { shop: out.integrations.shopify.shop, installedAt: out.integrations.shopify.installedAt, connected: !!user.integrations?.shopify?.accessToken } };
   out.referral = {
     code: user.referral?.code,
     discountedCampaignsLeft: user.referral?.discountedCampaignsLeft || 0,

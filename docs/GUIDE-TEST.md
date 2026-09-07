@@ -40,7 +40,7 @@ cd backend
 npm run test:e2e -- --clean
 ```
 
-Résultat attendu : `32/32 étapes OK`. Si une étape est ❌, le message dit quoi et pourquoi.
+Résultat attendu : `48/48 étapes OK`. Si une étape est ❌, le message dit quoi et pourquoi.
 
 ## 4. Test manuel dans le navigateur
 
@@ -94,7 +94,31 @@ Utilisez une fenêtre de navigation privée pour être connecté avec plusieurs 
 
 Sans réponse de la marque, la livraison est validée automatiquement. Pour tester sans attendre : admin → "Lancer les tâches planifiées" après avoir modifié la date dans la base, ou lancez `npm run test:e2e` qui simule ce cas.
 
-## 5. Problèmes fréquents
+## 5. Tester les nouvelles fonctionnalités
+
+| Fonctionnalité | Où | Comment tester |
+|---|---|---|
+| Devis (prix, droits, conditions) | Page campagne, côté créateur | « Envoyer un devis » puis « Modifier mon devis » tant que la marque n'a pas accepté. La marque voit chaque devis et clique « Accepter le devis et payer ». |
+| Budget facultatif | Création de campagne | Laissez le budget vide : les créateurs voient « Devis libre ». |
+| Livraison par lien | Page livraison, côté créateur | Collez une URL TikTok / Instagram / Drive (une par ligne). Le compteur « x / N attendue(s) » bloque la soumission au-delà de N. |
+| Liens publics / privés | Page livraison, après validation | Chaque partie coche ou décoche « J'accepte qu'il soit public ». Le lien n'apparaît sur le profil du créateur que si les deux acceptent. |
+| Badges et niveaux | Profil créateur, candidatures | Nouveau / Confirmé (3 missions, note ≥ 4,5) / Expert (10 missions, note ≥ 4,7). Seuils modifiables dans `backend/.env` (`BADGE_*`). |
+| Vidéo Ambassadeur | Profil créateur → « Parlez de NeedCreator » | Collez un lien, puis Admin → « Vidéos Ambassadeur » → Valider. Le créateur voit les campagnes 24 h avant les autres (`EARLY_ACCESS_HOURS`, 0 pour désactiver). |
+| Réactivité des marques | Cartes et page campagne, côté créateur | « Valide en X j », « répond en X j », calculés après les premières sélections et validations. |
+| Invitation | Annuaire « Créateurs » ou fiche créateur, côté marque | « Inviter » → choisir une campagne ouverte. Le créateur invité voit la campagne même en avant-première. |
+| Annuaire des créateurs | Menu « Créateurs » (marque) | Filtres niches, prix, note, niveau, réseau, abonnés ; onglet « Mes collaborateurs ». |
+| Réseaux sociaux et réalisations | Profil créateur | Blocs « Mes réseaux sociaux » et « Mes réalisations » ; visibles sur la fiche publique (onglet Réalisations, 12 par page). |
+| Multi-créateurs | Création de campagne → « Nombre de créateurs recherchés » | Sélectionnez plusieurs devis ; « Payer toutes les sélections en une fois » sur la page campagne. |
+| Messagerie | Page campagne (« Discuter ») et menu « Messages » | Ouverte après candidature ou invitation. Email de notification, au plus un toutes les 15 min par discussion. |
+| Envoi de produit | Création de campagne (case à cocher) → page livraison | Le créateur renseigne son adresse dans son profil ; la marque marque « expédié » (suivi) ; le créateur « reçu ». Le délai de production démarre à la réception. |
+| Mes revenus | Menu « Mes revenus » (créateur) | Missions payées, en attente, bonus, export CSV. |
+| Parrainage | Profil (marque et créateur) | Copiez le lien d'invitation ; le filleul s'inscrit avec le code (`?ref=`). Montants dans `backend/.env` (`REFERRAL_*`). |
+| Performances | Page livraison après validation | Renseignez vues / likes par vidéo ; cumul et coût pour 1 000 vues sur la page campagne (marque). |
+| Brief IA | Création de campagne, étape 1 | Nécessite une clé dans `backend/.env` (`ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`, `AI_PROVIDER`). Prompts modifiables dans `backend/config/prompts/`. |
+| Pack prêt à diffuser | Page livraison après validation (marque) | Choisissez les formats, payez (`READY_PACK_PRICE`, 0 = inclus), téléchargez les déclinaisons. Sous-titres si `OPENAI_API_KEY` est renseignée. |
+| Shopify | Profil marque → « Boutique Shopify » | Nécessite une application Shopify (`SHOPIFY_*` dans `backend/.env`). Ensuite : pré-remplir un brief depuis un produit, publier les vidéos validées sur la fiche produit (metafield `needcreator.ugc_videos`). |
+
+## 6. Problèmes fréquents
 
 | Symptôme | Cause probable | Solution |
 |----------|----------------|----------|

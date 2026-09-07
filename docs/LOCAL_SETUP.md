@@ -113,6 +113,22 @@ FROM_EMAIL=noreply@votre-domaine.fr
 # Optionnel
 MIN_CREATOR_VIDEOS=3        # vidéos de portfolio requises pour candidater
 JOBS_INTERVAL_MINUTES=60    # fréquence des tâches planifiées (auto-approbation, rappels)
+EARLY_ACCESS_HOURS=24       # avant-première des campagnes pour les Ambassadeurs (0 = désactivé)
+REFERRAL_BRAND_FEE_PERCENT=5 # parrainage : commission de la marque parrainée sur sa 1re campagne
+REFERRAL_REFERRER_FEE_PERCENT=5
+REFERRAL_CREATOR_BONUS=10   # bonus (€) au parrain créateur
+READY_PACK_PRICE=15         # pack prêt à diffuser, € par vidéo (0 = inclus)
+
+# Brief IA (au choix)
+AI_PROVIDER=anthropic       # anthropic | openai
+AI_MODEL=claude-opus-5
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=             # aussi utilisée pour les sous-titres automatiques
+
+# Shopify (application créée sur partners.shopify.com)
+SHOPIFY_API_KEY=
+SHOPIFY_API_SECRET=
+SHOPIFY_APP_URL=            # URL publique du backend (callback : /api/integrations/shopify/callback)
 
 # Security
 JWT_SECRET=dev-secret-change-me

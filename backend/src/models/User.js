@@ -198,6 +198,16 @@ const userSchema = new mongoose.Schema({
     },
   },
   
+  // Intégrations tierces (marques)
+  integrations: {
+    shopify: {
+      shop: String,
+      accessToken: { type: String, select: false },
+      scopes: String,
+      installedAt: Date,
+    },
+  },
+
   // Parrainage
   referral: {
     code: { type: String, unique: true, sparse: true },

@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
 import { formatCurrency } from '@/lib/utils';
 import AiBriefCard from '@/components/AiBriefCard';
+import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 
 const PLATFORM_FEE_PERCENT = 10;
 
@@ -152,6 +153,16 @@ export default function NewCampaignPage() {
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-6">
+              <ShopifyProductPicker
+                onPick={(p) => {
+                  setTitle((t) => t || `Vidéo UGC pour ${p.title}`.slice(0, 100));
+                  setDescription((d) => d || `${p.title}${p.price ? ` (${p.price} €)` : ''} — ${p.description}`.slice(0, 1000));
+                  setProductDescription(p.title);
+                  setProductShipping(true);
+                }}
+                buttonLabel="Pré-remplir"
+              />
+
               <AiBriefCard
                 videoType={videoType}
                 platforms={platforms}

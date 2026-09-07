@@ -17,6 +17,7 @@ import LevelBadges from '@/components/LevelBadges';
 import { SocialsEditor, RealisationsEditor } from '@/components/SocialsEditor';
 import AddressEditor from '@/components/AddressEditor';
 import ReferralCard from '@/components/ReferralCard';
+import ShopifyCard from '@/components/ShopifyCard';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -353,6 +354,9 @@ function ProfileContent() {
               </div>
             )}
           </Card>
+
+          {/* Shopify (marque) */}
+          {profile.role === 'brand' && <ShopifyCard />}
 
           {/* Parrainage */}
           {(isCreator || profile.role === 'brand') && <ReferralCard role={isCreator ? 'creator' : 'brand'} />}
