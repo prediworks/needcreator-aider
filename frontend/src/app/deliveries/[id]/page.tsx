@@ -20,6 +20,7 @@ import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import ReviewForm, { Stars } from '@/components/ReviewForm';
 import PaymentCard from '@/components/PaymentCard';
+import ShippingCard from '@/components/ShippingCard';
 import {
   ArrowLeft,
   Upload,
@@ -235,6 +236,11 @@ export default function DeliveryDetailPage() {
                   ⏳ La marque n&apos;a pas encore confirmé le paiement. Vous pouvez préparer votre contenu, mais attendez la confirmation avant de démarrer une production coûteuse.
                 </p>
               </Card>
+            )}
+
+            {/* Envoi du produit */}
+            {(delivery.shipping?.required || delivery.shipping?.status !== 'none' || isBrand) && !isDone && (
+              <ShippingCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />
             )}
 
             {/* Brief (rappel) */}

@@ -589,6 +589,37 @@ await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () =
   return '2 créateurs sélectionnés, 190€ payés en une fois, campagne terminée après les 2 approbations';
 });
 
+await step('Envoi de produit : adresse, expédition, réception, délai de production', async () => {
+  const addr = await creatorApi('PATCH', '/auth/profile', { profile: { address: { name: 'Créateur Test', line1: '12 rue des Lilas', postalCode: '75011', city: 'Paris', country: 'France', phone: '0600000000' } } });
+  expect(addr.status === 200 && addr.data.user.profile.address.city === 'Paris', 'Adresse non enregistrée', addr);
+  const pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  expect(!pub.creator.profile.address, 'L\'adresse ne doit pas être publique', { status: 200, data: pub.creator.profile.address });
+
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', {
+    title: 'Campagne avec envoi de produit', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'unboxing', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline, productShipping: true, productDescription: 'Sérum 30 ml',
+  });
+  expect(c.status === 201 && c.data.campaign.brief.productShipping === true, 'Campagne avec envoi non créée', c);
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 5 });
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  const d = sel.data.delivery;
+  expect(d.shipping.required && d.shipping.status === 'pending' && d.shipping.address.city === 'Paris' && !d.productionDeadline, 'La livraison doit attendre l\'envoi avec l\'adresse du créateur', sel);
+
+  const early = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'received' });
+  expect(early.status === 400, 'Réception impossible avant expédition', early);
+  const notBrand = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'shipped' });
+  expect(notBrand.status === 403, 'Seule la marque expédie', notBrand);
+  const ship = await brandApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'shipped', carrier: 'Colissimo', trackingNumber: '6A123', trackingUrl: 'https://www.laposte.fr/suivi/6A123' });
+  expect(ship.status === 200 && ship.data.shipping.status === 'shipped', 'Expédition échouée', ship);
+  const recv = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'received' });
+  expect(recv.status === 200 && recv.data.shipping.status === 'received' && recv.data.productionDeadline, 'Réception échouée', recv);
+  const days = Math.round((new Date(recv.data.productionDeadline) - Date.now()) / 86400000);
+  expect(days === 5, `Le délai de production doit être de 5 jours après réception (obtenu ${days})`, recv);
+  return `expédié Colissimo 6A123, reçu, livraison attendue dans ${days} jours`;
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);

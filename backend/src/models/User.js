@@ -93,6 +93,17 @@ const userSchema = new mongoose.Schema({
       },
     },
     
+    // Adresse postale du créateur (envoi de produits) — visible par la marque après sélection uniquement
+    address: {
+      name: String,
+      line1: String,
+      line2: String,
+      postalCode: String,
+      city: String,
+      country: { type: String, default: 'France' },
+      phone: String,
+    },
+
     // Réseaux sociaux (stats déclarées par le créateur)
     socials: [{
       network: { type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'other'], required: true },

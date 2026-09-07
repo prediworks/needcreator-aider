@@ -15,6 +15,7 @@ import StripeConnectCard from '@/components/StripeConnectCard';
 import AmbassadorCard from '@/components/AmbassadorCard';
 import LevelBadges from '@/components/LevelBadges';
 import { SocialsEditor, RealisationsEditor } from '@/components/SocialsEditor';
+import AddressEditor from '@/components/AddressEditor';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -359,6 +360,7 @@ function ProfileContent() {
           {isCreator && <StripeConnectCard />}
 
           {/* Réseaux sociaux + réalisations (créateur) */}
+          {isCreator && <AddressEditor address={profile.profile.address} />}
           {isCreator && <SocialsEditor socials={profile.profile.socials} />}
           {isCreator && <RealisationsEditor realisations={profile.profile.realisations} />}
 

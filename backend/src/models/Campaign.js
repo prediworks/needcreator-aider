@@ -50,6 +50,9 @@ const campaignSchema = new mongoose.Schema({
       default: ['file', 'link'],
     },
     platforms: [{ type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'] }],
+    // Un produit physique doit être envoyé au créateur avant la production
+    productShipping: { type: Boolean, default: false },
+    productDescription: String,
     dosDonts: {
       dos: [String],
       donts: [String],

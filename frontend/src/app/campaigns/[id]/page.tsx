@@ -264,6 +264,12 @@ export default function CampaignDetailPage() {
                   )}
                 </div>
 
+                {campaign.brief.productShipping && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-900">
+                    📦 Un produit est envoyé au créateur sélectionné{campaign.brief.productDescription ? ` : ${campaign.brief.productDescription}` : ''}. Le délai de production démarre à sa réception.
+                  </div>
+                )}
+
                 {campaign.brief.requirements?.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium text-neutral-500 mb-2">Consignes</h3>

@@ -84,6 +84,17 @@ export const schemas = {
     deliveryTypes: Joi.array().items(Joi.string().valid('file', 'link')).min(1).default(['file', 'link']),
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).max(8).default([]),
     creatorsWanted: Joi.number().integer().min(1).max(20).default(1),
+    productShipping: Joi.boolean().default(false),
+    productDescription: Joi.string().max(300).allow(''),
+  }),
+
+  // Envoi de produit
+  shippingUpdate: Joi.object({
+    action: Joi.string().valid('shipped', 'received', 'not_required').required(),
+    carrier: Joi.string().max(60).allow(''),
+    trackingNumber: Joi.string().max(80).allow(''),
+    trackingUrl: Joi.string().uri({ scheme: ['http', 'https'] }).allow(''),
+    note: Joi.string().max(500).allow(''),
   }),
   
   // Application = devis

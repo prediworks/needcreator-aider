@@ -41,6 +41,8 @@ export async function createCampaign(req, res) {
       deliveryTypes,
       platforms,
       creatorsWanted,
+      productShipping,
+      productDescription,
     } = req.body;
 
     // La date limite est prise en fin de journée (23:59:59)
@@ -60,6 +62,8 @@ export async function createCampaign(req, res) {
         requirements: requirements || [],
         deliveryTypes: deliveryTypes?.length ? deliveryTypes : ['file', 'link'],
         platforms: platforms || [],
+        productShipping: !!productShipping,
+        productDescription,
       },
       budget: budget
         ? { total: budget, perVideo: Math.round(budget / deliverables) }

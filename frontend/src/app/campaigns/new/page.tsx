@@ -50,6 +50,8 @@ export default function NewCampaignPage() {
   const [deliveryTypes, setDeliveryTypes] = useState<string[]>(['file', 'link']);
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [creatorsWanted, setCreatorsWanted] = useState('1');
+  const [productShipping, setProductShipping] = useState(false);
+  const [productDescription, setProductDescription] = useState('');
 
   if (!ready) return <Spinner />;
 
@@ -81,6 +83,8 @@ export default function NewCampaignPage() {
     deliveryTypes,
     platforms,
     creatorsWanted: Math.max(1, parseInt(creatorsWanted) || 1),
+    productShipping,
+    productDescription: productShipping ? productDescription : '',
   });
 
   const toggleIn = (list: string[], set: (v: string[]) => void, value: string) =>
@@ -283,6 +287,17 @@ export default function NewCampaignPage() {
                   min={1}
                   max={20}
                 />
+              </div>
+
+              <div className="bg-neutral-50 rounded-lg p-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+                  <input type="checkbox" checked={productShipping} onChange={(e) => setProductShipping(e.target.checked)} />
+                  Un produit doit être envoyé au créateur avant la production
+                </label>
+                <p className="text-xs text-neutral-500 mt-1 mb-2">Vous recevrez l&apos;adresse du créateur après sélection, avec un suivi expédié / reçu. Le délai de production démarre à la réception.</p>
+                {productShipping && (
+                  <Input label="Quel produit ? (optionnel)" value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Ex : 1 sérum vitamine C 30 ml + 1 crème de nuit" maxLength={300} />
+                )}
               </div>
 
               <div>

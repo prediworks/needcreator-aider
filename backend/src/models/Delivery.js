@@ -108,6 +108,23 @@ const deliverySchema = new mongoose.Schema({
     releasedAt: Date,
   },
   
+  // Envoi du produit au créateur
+  shipping: {
+    required: { type: Boolean, default: false },
+    status: { type: String, enum: ['none', 'pending', 'shipped', 'received'], default: 'none' },
+    address: {
+      name: String, line1: String, line2: String, postalCode: String, city: String, country: String, phone: String,
+    },
+    carrier: String,
+    trackingNumber: String,
+    trackingUrl: String,
+    shippedAt: Date,
+    receivedAt: Date,
+    note: String,
+  },
+  estimatedDeliveryDays: Number, // délai promis dans le devis
+  productionDeadline: Date,      // reçu + délai (ou sélection + délai sans envoi)
+
   autoApprovalDate: Date,
   
   submittedAt: Date,

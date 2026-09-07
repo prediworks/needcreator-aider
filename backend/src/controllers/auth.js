@@ -225,6 +225,8 @@ export async function updateProfile(req, res) {
           'profile.niches',
           'profile.pricing.minPrice',
           'profile.pricing.avgPrice',
+          'profile.address.name', 'profile.address.line1', 'profile.address.line2', 'profile.address.postalCode',
+          'profile.address.city', 'profile.address.country', 'profile.address.phone',
           'preferences.emailNotifications',
           'preferences.language',
         ]

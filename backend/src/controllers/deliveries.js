@@ -8,7 +8,9 @@ import { uploadMultipleFiles, resolveUrlsIn } from '../services/storage.js';
 import {
   sendDeliverySubmitted,
   sendDeliveryApproved,
-  sendRevisionRequested
+  sendRevisionRequested,
+  sendProductShipped,
+  sendProductReceived,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -52,12 +54,20 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   const application = campaign.applications.find(app => idOf(app.creatorId) === creatorId);
   const amount = price ?? application?.price ?? campaign.budget.total;
 
+  const creatorDoc = await User.findById(creatorId).select('profile.address');
+  const days = application?.estimatedDeliveryDays || 7;
   const delivery = new Delivery({
     campaignId: campaign._id,
     creatorId,
     brandId: brand._id,
     payment: { amount, currency: 'EUR' },
     status: 'pending',
+    estimatedDeliveryDays: days,
+    shipping: campaign.brief?.productShipping
+      ? { required: true, status: 'pending', address: creatorDoc?.profile?.address || {} }
+      : { required: false, status: 'none' },
+    // Sans envoi de produit, le délai court dès la sélection
+    productionDeadline: campaign.brief?.productShipping ? null : new Date(Date.now() + days * 86400000),
   });
   delivery.calculatePaymentAmounts();
 
@@ -402,6 +412,63 @@ export async function setLinkVisibility(req, res) {
   } catch (error) {
     logger.error('Failed to set link visibility:', error);
     res.status(500).json({ error: 'Failed to update visibility' });
+  }
+}
+
+/**
+ * Suivi de l'envoi du produit : la marque marque "expédié", le créateur "reçu"
+ */
+export async function updateShipping(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const { action, carrier, trackingNumber, trackingUrl, note } = req.body;
+    const user = req.user;
+    const delivery = await Delivery.findById(deliveryId)
+      .populate('campaignId', 'title')
+      .populate('creatorId', 'email profile.name')
+      .populate('brandId', 'email profile.companyName profile.name');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    const isBrand = idOf(delivery.brandId) === user._id.toString();
+    const isCreator = idOf(delivery.creatorId) === user._id.toString();
+    if (!isBrand && !isCreator) return res.status(403).json({ error: 'Access denied' });
+
+    if (action === 'shipped') {
+      if (!isBrand) return res.status(403).json({ error: 'Seule la marque peut marquer le produit comme expédié' });
+      delivery.shipping.required = true;
+      delivery.shipping.status = 'shipped';
+      delivery.shipping.carrier = carrier;
+      delivery.shipping.trackingNumber = trackingNumber;
+      delivery.shipping.trackingUrl = trackingUrl;
+      delivery.shipping.note = note;
+      delivery.shipping.shippedAt = new Date();
+      await delivery.save();
+      sendProductShipped(delivery.creatorId.email, delivery.creatorId.profile.name, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.campaignId.title, carrier, trackingNumber, trackingUrl, delivery._id)
+        .catch(err => logger.error('Shipping email failed:', err.message));
+    } else if (action === 'received') {
+      if (!isCreator) return res.status(403).json({ error: 'Seul le créateur peut confirmer la réception' });
+      if (delivery.shipping.status !== 'shipped') return res.status(400).json({ error: 'Le produit n\'est pas encore marqué comme expédié' });
+      delivery.shipping.status = 'received';
+      delivery.shipping.receivedAt = new Date();
+      // Le délai de production court à partir de la réception
+      const days = delivery.estimatedDeliveryDays || 7;
+      delivery.productionDeadline = new Date(Date.now() + days * 86400000);
+      await delivery.save();
+      sendProductReceived(delivery.brandId.email, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.creatorId.profile.name, delivery.campaignId.title, delivery.productionDeadline, delivery._id)
+        .catch(err => logger.error('Shipping email failed:', err.message));
+    } else if (action === 'not_required') {
+      if (!isBrand) return res.status(403).json({ error: 'Réservé à la marque' });
+      delivery.shipping.required = false;
+      delivery.shipping.status = 'none';
+      const days = delivery.estimatedDeliveryDays || 7;
+      if (!delivery.productionDeadline) delivery.productionDeadline = new Date(Date.now() + days * 86400000);
+      await delivery.save();
+    }
+
+    logger.info(`Shipping ${action} on delivery ${delivery._id}`);
+    res.json({ message: 'Envoi mis à jour', shipping: delivery.shipping, productionDeadline: delivery.productionDeadline });
+  } catch (error) {
+    logger.error('Failed to update shipping:', error);
+    res.status(500).json({ error: 'Failed to update shipping' });
   }
 }
 

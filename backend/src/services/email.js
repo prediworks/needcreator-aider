@@ -283,3 +283,26 @@ export async function sendNewMessageNotification(email, name, senderName, campai
   `;
   return sendEmail(email, subject, html);
 }
+
+export async function sendProductShipped(email, name, brandName, campaignTitle, carrier, trackingNumber, trackingUrl, deliveryId) {
+  const subject = `📦 ${brandName} vous a envoyé le produit — ${campaignTitle}`;
+  const html = `
+    <h1>Bonjour ${name}</h1>
+    <p><strong>${brandName}</strong> a expédié le produit pour la campagne <strong>${campaignTitle}</strong>.</p>
+    ${carrier || trackingNumber ? `<p>Transporteur : ${carrier || '—'} · Suivi : ${trackingUrl ? `<a href="${trackingUrl}">${trackingNumber || 'lien'}</a>` : (trackingNumber || '—')}</p>` : ''}
+    <p>Dès réception, confirmez-le sur la plateforme : votre délai de production démarrera à ce moment-là.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Confirmer la réception</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendProductReceived(email, companyName, creatorName, campaignTitle, productionDeadline, deliveryId) {
+  const subject = `✅ ${creatorName} a reçu le produit — ${campaignTitle}`;
+  const html = `
+    <h1>Bonjour ${companyName}</h1>
+    <p><strong>${creatorName}</strong> confirme avoir reçu le produit pour <strong>${campaignTitle}</strong>.</p>
+    <p>Livraison des vidéos attendue avant le <strong>${new Date(productionDeadline).toLocaleDateString('fr-FR')}</strong>.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Suivre la livraison</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

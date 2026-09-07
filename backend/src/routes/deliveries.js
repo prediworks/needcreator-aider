@@ -15,6 +15,7 @@ import {
   addLinks,
   removeItem,
   setLinkVisibility,
+  updateShipping,
 } from '../controllers/deliveries.js';
 
 const router = express.Router();
@@ -37,6 +38,7 @@ router.post('/:deliveryId/upload', authenticate, authorize('creator'), upload.ar
 router.post('/:deliveryId/links', authenticate, authorize('creator'), validate(schemas.deliveryLinks), addLinks);
 router.delete('/:deliveryId/items/:itemId', authenticate, authorize('creator'), removeItem);
 router.patch('/:deliveryId/links/:linkId/visibility', authenticate, validate(schemas.linkVisibility), setLinkVisibility);
+router.patch('/:deliveryId/shipping', authenticate, validate(schemas.shippingUpdate), updateShipping);
 router.post('/:deliveryId/submit', authenticate, authorize('creator'), submitDelivery);
 router.post('/:deliveryId/approve', authenticate, authorize('brand'), approveDelivery);
 router.get('/:deliveryId/payment-intent', authenticate, authorize('brand'), getPaymentIntent);
