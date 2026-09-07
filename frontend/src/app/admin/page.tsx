@@ -6,6 +6,7 @@ import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
   useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, useRunJobs,
+  usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
 } from '@/hooks/useAdmin';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -16,7 +17,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'users' | 'campaigns' | 'deliveries';
+type Tab = 'pending' | 'ambassadors' | 'users' | 'campaigns' | 'deliveries';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -29,6 +30,9 @@ export default function AdminPage() {
   const { data: campaigns } = useAdminCampaigns(ready && tab === 'campaigns');
   const { data: deliveries } = useAdminDeliveries(ready && tab === 'deliveries');
 
+  const { data: ambassadors } = usePendingAmbassadors(ready && tab === 'ambassadors');
+  const approveAmb = useApproveAmbassador();
+  const rejectAmb = useRejectAmbassador();
   const approve = useApproveCreator();
   const reject = useRejectCreator();
   const suspend = useSuspendUser();
@@ -39,6 +43,7 @@ export default function AdminPage() {
 
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: 'pending', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
+    { key: 'ambassadors', label: 'Vidéos Ambassadeur' },
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
@@ -153,6 +158,33 @@ export default function AdminPage() {
               </div>
             ) : (
               <p className="text-neutral-500 text-center py-8">Aucun créateur en attente 🎉</p>
+            )}
+          </Card>
+        )}
+
+        {/* Ambassadors */}
+        {tab === 'ambassadors' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-1">Vidéos « Parlez de NeedCreator » à vérifier</h2>
+            <p className="text-sm text-neutral-500 mb-4">Validez si la vidéo parle bien de NeedCreator : le créateur obtient le badge Ambassadeur et l&apos;accès anticipé de 24 h.</p>
+            {ambassadors?.creators?.length ? (
+              <div className="space-y-3">
+                {ambassadors.creators.map((c: any) => (
+                  <div key={c._id} className="border border-neutral-200 rounded-lg p-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="font-medium">{c.profile?.name} <span className="text-neutral-500 font-normal">· {c.email}</span></div>
+                      <a href={c.profile.ambassador.videoUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 hover:underline break-all">{c.profile.ambassador.videoUrl}</a>
+                      <div className="text-xs text-neutral-500">envoyée le {formatDate(c.profile.ambassador.submittedAt)}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => approveAmb.mutate({ userId: c._id })} isLoading={approveAmb.isPending}><CheckCircle className="w-4 h-4 mr-1" /> Valider</Button>
+                      <Button size="sm" variant="outline" onClick={() => rejectAmb.mutate({ userId: c._id, reason: prompt('Motif (visible par le créateur) :') || '' })} isLoading={rejectAmb.isPending}><XCircle className="w-4 h-4 mr-1" /> Refuser</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-neutral-500 text-center py-8">Aucune vidéo en attente</p>
             )}
           </Card>
         )}

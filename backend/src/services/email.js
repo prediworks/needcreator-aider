@@ -241,3 +241,17 @@ export async function sendAutoApprovalNotification(brandEmail, creatorEmail, com
     `
   );
 }
+
+/**
+ * Badge Ambassadeur attribué
+ */
+export async function sendAmbassadorApproved(email, name) {
+  const subject = 'Vous êtes Ambassadeur NeedCreator ! 🌟';
+  const html = `
+    <h1>Merci ${name} !</h1>
+    <p>Votre vidéo a été validée : vous avez maintenant le badge <strong>Ambassadeur</strong>.</p>
+    <p>Vous accédez aux nouvelles campagnes 24 h avant tout le monde.</p>
+    <p><a href="${config.cors.origin}/campaigns">Voir les campagnes en avant-première</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

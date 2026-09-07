@@ -57,6 +57,10 @@ export const schemas = {
     refreshUrl: Joi.string().uri(),
   }),
   
+  ambassadorVideo: Joi.object({
+    videoUrl: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
+  }),
+
   // Admin moderation
   moderationReason: Joi.object({
     reason: Joi.string().max(500).allow(''),

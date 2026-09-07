@@ -62,6 +62,16 @@ export const useRejectCreator = () => useAdminAction((id) => `/admin/creators/${
 export const useSuspendUser = () => useAdminAction((id) => `/admin/users/${id}/suspend`, 'Utilisateur suspendu');
 export const useReactivateUser = () => useAdminAction((id) => `/admin/users/${id}/reactivate`, 'Utilisateur réactivé');
 
+export function usePendingAmbassadors(enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'ambassadors'],
+    queryFn: async () => (await api.get('/admin/ambassadors/pending')).data,
+    enabled,
+  });
+}
+export const useApproveAmbassador = () => useAdminAction((id) => `/admin/ambassadors/${id}/approve`, 'Badge Ambassadeur attribué');
+export const useRejectAmbassador = () => useAdminAction((id) => `/admin/ambassadors/${id}/reject`, 'Vidéo refusée');
+
 export function useRunJobs() {
   const queryClient = useQueryClient();
   return useMutation({

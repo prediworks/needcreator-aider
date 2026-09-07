@@ -2,7 +2,7 @@ import User from '../models/User.js';
 import Campaign from '../models/Campaign.js';
 import Delivery from '../models/Delivery.js';
 import Review from '../models/Review.js';
-import { sendCreatorApproved } from '../services/email.js';
+import { sendCreatorApproved, sendAmbassadorApproved } from '../services/email.js';
 import { runScheduledJobs } from '../jobs/autoApproval.js';
 import { resolveUrlsIn } from '../services/storage.js';
 
@@ -23,6 +23,44 @@ export async function getUserDetail(req, res) {
   }
 }
 import logger from '../utils/logger.js';
+
+/**
+ * Ambassadeurs : vidéos en attente de validation
+ */
+export async function getPendingAmbassadors(req, res) {
+  try {
+    const creators = await User.find({ role: 'creator', 'profile.ambassador.status': 'pending' })
+      .select('email profile.name profile.ambassador profile.niches createdAt')
+      .sort({ 'profile.ambassador.submittedAt': 1 })
+      .lean();
+    res.json({ creators });
+  } catch (error) {
+    logger.error('Failed to get pending ambassadors:', error);
+    res.status(500).json({ error: 'Failed to get pending ambassadors' });
+  }
+}
+
+export async function reviewAmbassador(req, res) {
+  try {
+    const { userId } = req.params;
+    const approve = req.path.endsWith('/approve');
+    const user = await User.findById(userId);
+    if (!user || user.role !== 'creator') return res.status(404).json({ error: 'Creator not found' });
+    if (!user.profile.ambassador?.videoUrl) return res.status(400).json({ error: 'Aucune vidéo soumise' });
+    user.set('profile.ambassador.status', approve ? 'approved' : 'rejected');
+    user.set('profile.ambassador.reviewedAt', new Date());
+    user.set('profile.ambassador.note', req.body?.reason || null);
+    await user.save();
+    if (approve) {
+      sendAmbassadorApproved(user.email, user.profile.name).catch(err => logger.error('Ambassador email failed:', err.message));
+    }
+    logger.info(`Ambassador ${approve ? 'approved' : 'rejected'}: ${user._id}`);
+    res.json({ message: approve ? 'Badge Ambassadeur attribué' : 'Vidéo refusée', ambassador: user.profile.ambassador });
+  } catch (error) {
+    logger.error('Failed to review ambassador:', error);
+    res.status(500).json({ error: 'Failed to review ambassador' });
+  }
+}
 
 /**
  * Lance les tâches planifiées à la demande

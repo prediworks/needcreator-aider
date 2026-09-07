@@ -130,3 +130,10 @@ export const RIGHTS_SUPPORTS: Record<string, string> = {
   tv: 'TV / affichage',
   other: 'Autre',
 };
+
+export const LEVELS: Record<string, { label: string; className: string; description: string }> = {
+  new: { label: 'Nouveau', className: 'bg-neutral-100 text-neutral-700', description: 'Créateur récemment arrivé' },
+  confirmed: { label: 'Confirmé', className: 'bg-blue-100 text-blue-800', description: '3 missions ou plus, note ≥ 4,5' },
+  expert: { label: 'Expert', className: 'bg-purple-100 text-purple-800', description: '10 missions ou plus, note ≥ 4,7' },
+  ambassador: { label: '🌟 Ambassadeur', className: 'bg-yellow-100 text-yellow-800', description: 'A parlé de NeedCreator sur ses réseaux' },
+};

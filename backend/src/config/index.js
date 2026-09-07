@@ -78,6 +78,16 @@ export const config = {
     origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim(),
   },
   
+  // Badges et niveaux des créateurs
+  badges: {
+    confirmedJobs: parseInt(process.env.BADGE_CONFIRMED_JOBS || '3', 10),
+    confirmedRating: parseFloat(process.env.BADGE_CONFIRMED_RATING || '4.5'),
+    expertJobs: parseInt(process.env.BADGE_EXPERT_JOBS || '10', 10),
+    expertRating: parseFloat(process.env.BADGE_EXPERT_RATING || '4.7'),
+    // Accès anticipé aux campagnes pour les ambassadeurs (heures) ; 0 = désactivé
+    earlyAccessHours: parseInt(process.env.EARLY_ACCESS_HOURS || '24', 10),
+  },
+
   // Business rules
   business: {
     autoApprovalDays: 7,

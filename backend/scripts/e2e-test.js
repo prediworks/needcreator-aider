@@ -206,6 +206,35 @@ await step('Admin : validation du créateur', async () => {
   return `créateur actif, ${stats.data.users.creators} créateur(s) au total`;
 });
 
+await step('Avant-première : un créateur non ambassadeur ne voit pas encore la campagne', async () => {
+  const res = await creatorApi('GET', '/campaigns');
+  const visible = res.data.campaigns.some(c => c._id === campaign._id);
+  expect(!visible, 'La campagne vient d\'être publiée : elle devrait être réservée aux Ambassadeurs pendant 24 h', res);
+  const detail = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  expect(detail.status === 403 && /avant-première/i.test(detail.data.error), 'Le détail devrait expliquer l\'avant-première', detail);
+  return 'campagne masquée, message explicatif';
+});
+
+await step('Ambassadeur : vidéo soumise puis validée par l\'admin', async () => {
+  const bad = await creatorApi('POST', '/auth/ambassador', { videoUrl: 'pas une url' });
+  expect(bad.status === 400, 'Une URL invalide devrait être refusée', bad);
+  const res = await creatorApi('POST', '/auth/ambassador', { videoUrl: 'https://www.tiktok.com/@moi/video/needcreator' });
+  expect(res.status === 200 && res.data.ambassador.status === 'pending', 'Soumission échouée', res);
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const pending = await brandApi('GET', '/admin/ambassadors/pending');
+  expect(pending.status === 200 && pending.data.creators.some(c => c._id === creatorUser.id), 'Vidéo absente de la liste admin', pending);
+  const ok = await brandApi('POST', `/admin/ambassadors/${creatorUser.id}/approve`);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(ok.status === 200 && ok.data.ambassador.status === 'approved', 'Validation échouée', ok);
+  const profile = await creatorApi('GET', '/auth/profile');
+  expect(profile.data.user.badges.includes('ambassador') && profile.data.user.level === 'new', 'Badges incorrects', profile);
+  const feed = await creatorApi('GET', '/campaigns');
+  const found = feed.data.campaigns.find(c => c._id === campaign._id);
+  expect(found && found.earlyAccess === true, 'L\'ambassadeur devrait voir la campagne en avant-première', feed);
+  return `badges : ${profile.data.user.badges.join(', ')} — campagne visible en avant-première`;
+});
+
 await step('Portfolio : upload de 3 vidéos (R2)', async () => {
   for (let i = 1; i <= 3; i++) {
     const form = new FormData();

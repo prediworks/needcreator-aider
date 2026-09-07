@@ -118,6 +118,11 @@ const campaignSchema = new mongoose.Schema({
     }
   },
   
+  notifications: {
+    ambassadorsNotifiedAt: Date,
+    allNotifiedAt: Date,
+  },
+
   timeline: {
     publishedAt: Date,
     applicationDeadline: Date,

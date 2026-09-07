@@ -25,6 +25,9 @@ export interface User {
   profileCompletion: number;
   applyBlockers?: string[];
   canApply?: boolean;
+  level?: string;
+  badges?: string[];
+  nextLevel?: { level: string; missingJobs: number; minRating: number; message: string } | null;
   stripeCustomerId?: string;
 }
 

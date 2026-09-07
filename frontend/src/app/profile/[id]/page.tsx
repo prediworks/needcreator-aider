@@ -13,6 +13,7 @@ import { ArrowLeft, Star, Briefcase, Video, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, VIDEO_TYPES, PLATFORMS } from '@/lib/labels';
 import { Link2 } from 'lucide-react';
+import LevelBadges from '@/components/LevelBadges';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -84,8 +85,9 @@ export default function PublicProfilePage() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+                  <h1 className="text-2xl font-bold text-neutral-900 mb-1 flex items-center gap-2 flex-wrap">
                     {creator.profile.name}
+                    <LevelBadges badges={creator.badges} />
                   </h1>
                   <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3 flex-wrap">
                     <div className="flex items-center gap-1">

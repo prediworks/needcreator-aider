@@ -175,7 +175,9 @@ function CampaignsContent() {
                         : `Créée ${formatRelativeTime(campaign.createdAt)}`}
                     </div>
                   </div>
-                  {!isBrand && campaign.matchesMyNiches ? (
+                  {!isBrand && campaign.earlyAccess ? (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap">🌟 Avant-première</span>
+                  ) : !isBrand && campaign.matchesMyNiches ? (
                     <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800 whitespace-nowrap">Pour vous</span>
                   ) : (
                     <Badge map={CAMPAIGN_STATUS} value={campaign.status} />

@@ -7,6 +7,7 @@ import {
   getAccountStatus,
 } from '../services/stripe.js';
 import { resolveUrlsIn } from '../services/storage.js';
+import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import logger from '../utils/logger.js';
 
@@ -21,6 +22,9 @@ async function serializeUser(userDoc) {
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
   };
   if (user.role === 'creator') {
+    out.level = levelFor(user.profile?.stats);
+    out.badges = badgesFor(user);
+    out.nextLevel = nextLevelHint(user.profile?.stats);
     out.applyBlockers = typeof userDoc.applyBlockers === 'function' ? userDoc.applyBlockers() : [];
     out.canApply = typeof userDoc.canApplyToCampaign === 'function' ? userDoc.canApplyToCampaign() : false;
     if (user.profile?.portfolio?.length) {
@@ -166,6 +170,10 @@ export async function getProfile(req, res) {
 
       // Ne pas exposer les infos Stripe
       if (user.profile?.stripeConnect) delete user.profile.stripeConnect;
+      if (user.role === 'creator') {
+        user.level = levelFor(user.profile?.stats);
+        user.badges = badgesFor(user);
+      }
       if (user.profile?.portfolio?.length) {
         user.profile.portfolio = await resolveUrlsIn(user.profile.portfolio);
       }
@@ -330,5 +338,32 @@ export async function getStripeConnectStatus(req, res) {
   } catch (error) {
     logger.error('Failed to get Stripe Connect status:', error);
     res.status(500).json({ error: 'Impossible de récupérer le statut Stripe' });
+  }
+}
+
+/**
+ * Le créateur soumet le lien d'une vidéo où il parle de NeedCreator (badge Ambassadeur)
+ */
+export async function submitAmbassadorVideo(req, res) {
+  try {
+    const user = req.user;
+    if (user.role !== 'creator') return res.status(403).json({ error: 'Réservé aux créateurs' });
+    const { videoUrl } = req.body;
+    if (user.profile.ambassador?.status === 'approved') {
+      return res.status(400).json({ error: 'Vous êtes déjà Ambassadeur' });
+    }
+    user.set('profile.ambassador', {
+      status: 'pending',
+      videoUrl,
+      submittedAt: new Date(),
+      reviewedAt: null,
+      note: null,
+    });
+    await user.save();
+    logger.info(`Ambassador video submitted by ${user._id}: ${videoUrl}`);
+    res.json({ message: 'Merci ! Notre équipe vérifie votre vidéo sous 24h.', ambassador: user.profile.ambassador });
+  } catch (error) {
+    logger.error('Failed to submit ambassador video:', error);
+    res.status(500).json({ error: 'Failed to submit video' });
   }
 }

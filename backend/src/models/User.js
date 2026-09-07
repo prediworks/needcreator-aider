@@ -93,6 +93,15 @@ const userSchema = new mongoose.Schema({
       },
     },
     
+    // Vidéo "parlez de NeedCreator" → badge Ambassadeur + accès anticipé aux campagnes
+    ambassador: {
+      status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
+      videoUrl: String,
+      submittedAt: Date,
+      reviewedAt: Date,
+      note: String,
+    },
+
     stats: {
       completedJobs: {
         type: Number,

@@ -12,6 +12,8 @@ import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import StripeConnectCard from '@/components/StripeConnectCard';
+import AmbassadorCard from '@/components/AmbassadorCard';
+import LevelBadges from '@/components/LevelBadges';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -149,9 +151,10 @@ function ProfileContent() {
                   <h1 className="text-2xl font-bold text-neutral-900">
                     {profile.profile.companyName || profile.profile.name}
                   </h1>
-                  <div className="flex items-center gap-2 text-neutral-600">
+                  <div className="flex items-center gap-2 text-neutral-600 flex-wrap">
                     <span>{isCreator ? 'Créateur UGC' : profile.role === 'admin' ? 'Administrateur' : 'Marque'}</span>
                     <Badge map={USER_STATUS} value={profile.status} />
+                    {isCreator && <LevelBadges badges={profile.badges} />}
                   </div>
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
@@ -348,6 +351,9 @@ function ProfileContent() {
             )}
           </Card>
 
+          {/* Ambassadeur (créateur) */}
+          {isCreator && <AmbassadorCard ambassador={profile.profile.ambassador} />}
+
           {/* Stripe Connect (créateur) */}
           {isCreator && <StripeConnectCard />}
 
@@ -528,6 +534,11 @@ function ProfileContent() {
                   </p>
                 </div>
               </div>
+              {profile.nextLevel && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 mb-3">
+                  <strong>Niveau suivant :</strong> {profile.nextLevel.message}
+                </div>
+              )}
               {blockers.length > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
                   <strong>Pour candidater :</strong> {blockers.join(' ')}

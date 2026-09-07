@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote } from '@/hooks/useCampaigns';
 import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
+import LevelBadges from '@/components/LevelBadges';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -45,11 +46,12 @@ export default function CampaignDetailPage() {
   if (!ready || isLoading) return <Spinner />;
 
   if (!campaign || error) {
+    const apiMessage = (error as any)?.response?.data?.error;
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Card className="p-8 text-center">
-          <h2 className="text-xl font-semibold mb-2">Campagne introuvable</h2>
-          <p className="text-neutral-600 mb-4">Cette campagne n&apos;existe pas ou n&apos;est plus accessible</p>
+        <Card className="p-8 text-center max-w-lg">
+          <h2 className="text-xl font-semibold mb-2">{apiMessage ? 'Campagne non accessible' : 'Campagne introuvable'}</h2>
+          <p className="text-neutral-600 mb-4">{apiMessage || 'Cette campagne n\'existe pas ou n\'est plus accessible'}</p>
           <Link href="/campaigns">
             <Button>Retour aux campagnes</Button>
           </Link>
@@ -261,7 +263,7 @@ export default function CampaignDetailPage() {
                                 )}
                               </div>
                               <div>
-                                <div className="font-medium">{c.profile?.name || 'Créateur'}</div>
+                                <div className="font-medium flex items-center gap-2 flex-wrap">{c.profile?.name || 'Créateur'} <LevelBadges badges={c.badges} size="xs" /></div>
                                 <div className="text-sm text-neutral-500 flex items-center gap-1">
                                   <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
                                   {reviews ? `${rating.toFixed(1)} (${reviews} avis)` : 'Nouveau créateur'}

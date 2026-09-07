@@ -8,6 +8,7 @@ import {
   updateProfile,
   startStripeConnect,
   getStripeConnectStatus,
+  submitAmbassadorVideo,
 } from '../controllers/auth.js';
 import logger from '../utils/logger.js';
 
@@ -27,6 +28,9 @@ router.post('/register/brand', authenticateFirebase, validate(schemas.registerBr
 router.get('/profile', authenticate, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
+
+// Badge Ambassadeur : lien vers une vidéo qui parle de NeedCreator
+router.post('/ambassador', authenticate, authorize('creator'), validate(schemas.ambassadorVideo), submitAmbassadorVideo);
 
 // Stripe Connect (créateurs) : démarrer l'onboarding et consulter le statut
 router.post('/stripe/connect', authenticate, authorize('creator'), validate(schemas.stripeConnect), startStripeConnect);

@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import Review from '../models/Review.js';
 import { uploadVideo, deleteFile, keyFromUrl, resolveUrlsIn } from '../services/storage.js';
 import { publicRealisations } from './deliveries.js';
+import { levelFor, badgesFor } from '../utils/badges.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -123,7 +124,7 @@ export async function getCreatorPortfolio(req, res) {
       role: 'creator',
       status: 'active',
     })
-      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing createdAt')
+      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing profile.ambassador.status createdAt')
       .lean();
 
     if (!creator) {
@@ -142,7 +143,11 @@ export async function getCreatorPortfolio(req, res) {
 
     const realisations = await publicRealisations(creatorId, req.user?._id);
 
-    res.json({ creator: { ...creator, id: creator._id }, reviews, realisations });
+    res.json({
+      creator: { ...creator, id: creator._id, level: levelFor(creator.profile?.stats), badges: badgesFor(creator) },
+      reviews,
+      realisations,
+    });
   } catch (error) {
     logger.error('Failed to get creator portfolio:', error);
     res.status(500).json({ error: 'Failed to get portfolio' });

@@ -12,6 +12,8 @@ import {
   getAdminCampaigns,
   getAdminDeliveries,
   getUserDetail,
+  getPendingAmbassadors,
+  reviewAmbassador,
 } from '../controllers/admin.js';
 
 const router = express.Router();
@@ -32,6 +34,11 @@ router.get('/users', getUsers);
 router.get('/users/:userId', getUserDetail);
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
+
+// Ambassadeurs
+router.get('/ambassadors/pending', getPendingAmbassadors);
+router.post('/ambassadors/:userId/approve', reviewAmbassador);
+router.post('/ambassadors/:userId/reject', reviewAmbassador);
 
 // Supervision
 router.get('/campaigns', getAdminCampaigns);

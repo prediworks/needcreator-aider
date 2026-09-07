@@ -7,6 +7,8 @@ import {
   sendApplicationAccepted,
 } from '../services/email.js';
 import { createDeliveryForCampaign } from './deliveries.js';
+import { config } from '../config/index.js';
+import { levelFor, badgesFor, isAmbassador } from '../utils/badges.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
@@ -110,12 +112,17 @@ export async function publishCampaign(req, res) {
     await campaign.save();
 
     // Notify matching creators (en arrière-plan, sans bloquer la réponse)
+    // Avec l'avant-première, seuls les ambassadeurs sont prévenus tout de suite ; les autres par la tâche planifiée
+    const earlyAccess = config.badges.earlyAccessHours > 0;
     const matchingCreators = await User.find({
       role: 'creator',
       status: 'active',
       'preferences.emailNotifications': { $ne: false },
       'profile.niches': { $in: campaign.matching.niches },
+      ...(earlyAccess && { 'profile.ambassador.status': 'approved' }),
     }).select('email profile.name').limit(100);
+    campaign.set(earlyAccess ? 'notifications.ambassadorsNotifiedAt' : 'notifications.allNotifiedAt', new Date());
+    await campaign.save();
 
     Promise.allSettled(
       matchingCreators.map(creator =>
@@ -170,6 +177,11 @@ export async function getCampaigns(req, res) {
         query.status = 'active';
         query.selectedCreator = null;
         query['matching.excludedCreators'] = { $ne: user._id };
+        // Accès anticipé : les non-ambassadeurs voient les campagnes après le délai d'avant-première
+        const hours = config.badges.earlyAccessHours;
+        if (hours > 0 && !isAmbassador(user)) {
+          query['timeline.publishedAt'] = { $lte: new Date(Date.now() - hours * 3600 * 1000) };
+        }
       }
     } else if (status) {
       query.status = status;
@@ -207,6 +219,8 @@ export async function getCampaigns(req, res) {
         c.myApplication = mine ? { status: mine.status, price: mine.price, appliedAt: mine.appliedAt } : null;
         c.isSelected = idOf(c.selectedCreator) === user._id.toString();
         c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
+        const hours = config.badges.earlyAccessHours;
+        c.earlyAccess = hours > 0 && c.timeline?.publishedAt && (Date.now() - new Date(c.timeline.publishedAt).getTime()) < hours * 3600 * 1000;
         delete c.applications; // ne pas exposer les autres candidatures
       });
       // Campagnes de mes niches en premier, puis les plus récentes
@@ -238,7 +252,7 @@ export async function getCampaign(req, res) {
 
     const campaignDoc = await Campaign.findById(campaignId)
       .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry')
-      .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing status')
+      .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status status')
       .populate('selectedCreator', 'profile.name profile.avatar');
 
     if (!campaignDoc) {
@@ -255,6 +269,12 @@ export async function getCampaign(req, res) {
     // Check access rights
     if (user.role === 'creator' && campaign.status !== 'active' && !isSelectedCreator && !hasApplied) {
       return res.status(403).json({ error: 'Campaign not available' });
+    }
+    if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isAmbassador(user) && config.badges.earlyAccessHours > 0) {
+      const openAt = new Date(campaign.timeline.publishedAt).getTime() + config.badges.earlyAccessHours * 3600 * 1000;
+      if (Date.now() < openAt) {
+        return res.status(403).json({ error: 'Cette campagne est en avant-première pour les Ambassadeurs. Elle sera ouverte à tous dans quelques heures.', earlyAccessUntil: new Date(openAt) });
+      }
     }
 
     if (user.role === 'brand' && !isOwner) {
@@ -283,7 +303,13 @@ export async function getCampaign(req, res) {
     } else if (isOwner) {
       // Nettoie les candidatures dont le créateur a été supprimé
       campaign.applications = (campaign.applications || []).filter(a => a.creatorId);
-      // Tri par score de matching décroissant
+      // Niveau / badges de chaque candidat, puis tri par score de matching décroissant
+      campaign.applications.forEach(a => {
+        if (a.creatorId?.profile) {
+          a.creatorId.level = levelFor(a.creatorId.profile.stats);
+          a.creatorId.badges = badgesFor(a.creatorId);
+        }
+      });
       campaign.applications.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
     }
 

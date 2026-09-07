@@ -129,12 +129,11 @@ await step('Créateur : inscription via le formulaire', async () => {
   return 'tableau de bord avec les étapes à compléter';
 });
 
-await step('Créateur : voit la campagne publiée et le blocage de candidature', async () => {
+await step('Créateur : campagne fraîchement publiée = avant-première Ambassadeurs', async () => {
   await cp.goto(campaignUrl);
-  await cp.getByText('Campagne test interface utilisateur').first().waitFor({ timeout: 20000 });
-  await cp.getByText('Candidature impossible pour l\'instant').waitFor({ timeout: 20000 });
+  await cp.getByText(/avant-première/i).first().waitFor({ timeout: 20000 });
   await cp.screenshot({ path: `${SHOTS}/05-creator-campaign.png`, fullPage: true });
-  return 'blocages affichés';
+  return 'message d\'avant-première affiché';
 });
 
 await step('Créateur : profil, Stripe et upload portfolio', async () => {

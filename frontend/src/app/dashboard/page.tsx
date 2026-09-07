@@ -12,6 +12,8 @@ import Spinner from '@/components/ui/Spinner';
 import { Briefcase, TrendingUp, Star, Clock, Plus, Package, AlertTriangle, Video } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, VIDEO_TYPES } from '@/lib/labels';
+import AmbassadorCard from '@/components/AmbassadorCard';
+import LevelBadges from '@/components/LevelBadges';
 
 export default function DashboardPage() {
   const { user, ready } = useRequireAuth();
@@ -46,8 +48,8 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-            Bonjour {user.profile.name} 👋
+          <h1 className="text-3xl font-bold text-neutral-900 mb-2 flex items-center gap-3 flex-wrap">
+            Bonjour {user.profile.name} 👋 <LevelBadges badges={user.badges} />
           </h1>
           <p className="text-neutral-600">
             Voici un aperçu de votre activité
@@ -90,6 +92,10 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
               </Link>
             </div>
           </Card>
+        )}
+
+        {user.profile.ambassador?.status !== 'approved' && (
+          <div className="mb-6"><AmbassadorCard ambassador={user.profile.ambassador} compact /></div>
         )}
 
         {/* Stats Cards */}
