@@ -44,6 +44,12 @@ const campaignSchema = new mongoose.Schema({
       max: 10,
     },
     requirements: [String],
+    // Modes de livraison acceptés et réseaux de diffusion visés
+    deliveryTypes: {
+      type: [{ type: String, enum: ['file', 'link'] }],
+      default: ['file', 'link'],
+    },
+    platforms: [{ type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'] }],
     dosDonts: {
       dos: [String],
       donts: [String],
@@ -59,16 +65,13 @@ const campaignSchema = new mongoose.Schema({
     mentions: [String],
   },
   
+  // Budget facultatif : sans budget, le créateur propose son prix dans son devis
   budget: {
     total: {
       type: Number,
-      required: true,
       min: 50,
     },
-    perVideo: {
-      type: Number,
-      required: true,
-    },
+    perVideo: Number,
     currency: {
       type: String,
       default: 'EUR',
@@ -92,6 +95,13 @@ const campaignSchema = new mongoose.Schema({
       min: 0,
       max: 5,
       default: 0,
+    },
+    // Nombre de créateurs recherchés (campagne multi-créateurs)
+    creatorsWanted: {
+      type: Number,
+      min: 1,
+      max: 20,
+      default: 1,
     },
     preferredCreators: [{
       type: mongoose.Schema.Types.ObjectId,
@@ -137,6 +147,31 @@ const campaignSchema = new mongoose.Schema({
     },
     estimatedDeliveryDays: Number,
     matchScore: Number, // AI matching score (0-100)
+    // Devis : prix + conditions contractuelles, modifiable tant qu'il n'est pas accepté
+    quote: {
+      version: { type: Number, default: 1 },
+      updatedAt: Date,
+      acceptedAt: Date,
+      rights: {
+        duration: { type: String, enum: ['6m', '1y', '2y', '3y', 'unlimited'], default: '1y' },
+        supports: [{ type: String, enum: ['social_organic', 'paid_ads', 'website', 'email', 'marketplace', 'tv', 'other'] }],
+        territories: { type: String, default: 'France' },
+        exclusivity: { type: Boolean, default: false },
+        exclusivityMonths: Number,
+      },
+      deliveryTypes: [{ type: String, enum: ['file', 'link'] }],
+      platforms: [{ type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'] }],
+      revisions: { type: Number, default: 2 },
+      terms: String, // conditions libres du créateur
+      history: [{
+        version: Number,
+        price: Number,
+        estimatedDeliveryDays: Number,
+        rights: Object,
+        terms: String,
+        savedAt: Date,
+      }],
+    },
   }],
   
   selectedCreator: {

@@ -254,11 +254,24 @@ await step('Candidature du créateur', async () => {
   return `match ${res.data.application.matchScore}%`;
 });
 
+await step('Créateur : modifie son devis (droits, conditions), version 2', async () => {
+  const res = await creatorApi('PATCH', `/campaigns/${campaign._id}/quote`, {
+    proposal: 'Je suis motivé !', price: 260, estimatedDeliveryDays: 6,
+    rights: { duration: '2y', supports: ['social_organic', 'paid_ads'], territories: 'Europe', exclusivity: true, exclusivityMonths: 3 },
+    deliveryTypes: ['file', 'link'], platforms: ['tiktok'], revisions: 2, terms: 'Produit à fournir par la marque.',
+  });
+  expect(res.status === 200 && res.data.application.price === 260, 'Modification du devis échouée', res);
+  expect(res.data.application.quote.version === 2 && res.data.application.quote.history.length === 1, 'Versionnage du devis incorrect', res);
+  expect(res.data.application.quote.rights.duration === '2y', 'Droits non enregistrés', res);
+  return 'devis v2 : 260€, droits 2 ans, exclusivité 3 mois';
+});
+
 await step('Marque : voit la candidature (score de matching)', async () => {
   const res = await brandApi('GET', `/campaigns/${campaign._id}`);
   expect(res.status === 200 && res.data.campaign.applications?.length === 1, 'Candidature invisible côté marque', res);
   const app = res.data.campaign.applications[0];
   expect(app.creatorId?.profile?.name, 'Profil du candidat non peuplé', res);
+  expect(app.quote?.terms === 'Produit à fournir par la marque.', 'Le devis devrait être visible par la marque', res);
   return `${app.creatorId.profile.name} — ${app.price}€ — match ${app.matchScore}%`;
 });
 
@@ -271,6 +284,9 @@ await step('Marque : sélection du créateur (+ livraison + paiement Stripe test
   expect(!res.data.warning, 'Avertissement paiement : ' + res.data.warning, res);
   expect(res.data.paymentRequired === true && res.data.clientSecret, 'L\'écran de paiement devrait être demandé', res);
   expect(delivery.payment.status === 'pending', 'Le paiement devrait être en attente de la carte', res);
+  expect(delivery.payment.amount === 260, 'Le montant doit être celui du devis accepté (260€)', res);
+  const camp = await brandApi('GET', `/campaigns/${campaign._id}`);
+  expect(camp.data.campaign.applications[0].quote.acceptedAt, 'Le devis devrait être marqué accepté', camp);
   return `livraison ${delivery._id}, ${delivery.payment.amount}€ à confirmer par carte`;
 });
 
@@ -290,6 +306,16 @@ await step('Marque : saisie de carte (simulée) + confirmation du paiement', asy
   const res = await brandApi('POST', `/deliveries/${delivery._id}/confirm-payment`, {});
   expect(res.status === 200 && res.data.paymentStatus === 'held', 'Confirmation échouée', res);
   return `${delivery.payment.amount}€ bloqués (commission ${delivery.payment.platformFee}€)`;
+});
+
+await step('Créateur : livraison par lien + règle du nombre de vidéos (2 attendues)', async () => {
+  const add = await creatorApi('POST', `/deliveries/${delivery._id}/links`, { links: [{ url: 'https://www.tiktok.com/@test/video/1', title: 'Vidéo TikTok' }] });
+  expect(add.status === 200 && add.data.links.length === 1 && add.data.links[0].platform === 'tiktok', 'Ajout de lien échoué', add);
+  const tooMany = await creatorApi('POST', `/deliveries/${delivery._id}/links`, { links: [{ url: 'https://youtu.be/a' }, { url: 'https://youtu.be/b' }] });
+  expect(tooMany.status === 400, 'Dépasser le nombre de vidéos attendu devrait être refusé', tooMany);
+  const rm = await creatorApi('DELETE', `/deliveries/${delivery._id}/items/${add.data.links[0]._id}`);
+  expect(rm.status === 200 && rm.data.delivery.links.length === 0, 'Suppression du lien échouée', rm);
+  return 'lien ajouté, dépassement refusé, suppression OK';
 });
 
 await step('Créateur : voit sa mission dans "Mes livraisons"', async () => {
@@ -339,7 +365,8 @@ await step('Créateur : nouvelle version + re-soumission', async () => {
   const res = await creatorApi('POST', `/deliveries/${delivery._id}/submit`, {});
   expect(res.status === 200 && res.data.delivery.status === 'submitted', 'Re-soumission échouée', res);
   expect(res.data.delivery.revisions[0].resolvedAt, 'La révision devrait être marquée résolue', res);
-  return 'révision résolue';
+  expect(res.data.delivery.files.filter(f => f.superseded).length === 2 && res.data.delivery.files.filter(f => !f.superseded).length === 1, 'Les anciennes versions devraient être marquées remplacées', res);
+  return 'révision résolue, anciennes versions conservées comme historique';
 });
 
 await step('Marque : approbation (encaissement Stripe)', async () => {
@@ -350,6 +377,43 @@ await step('Marque : approbation (encaissement Stripe)', async () => {
   const profile = await creatorApi('GET', '/auth/profile');
   expect(profile.data.user.profile.stats.completedJobs >= 1, 'completedJobs devrait être incrémenté', profile);
   return `paiement ${res.data.delivery.payment.status}${res.data.warning ? ' — ' + res.data.warning : ''}`;
+});
+
+await step('Liens publics/privés : accord des deux parties', async () => {
+  // Nouvelle campagne "devis libre" (sans budget), livrée par lien uniquement
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', {
+    title: 'Campagne devis libre par lien', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, deliveryTypes: ['link'], platforms: ['instagram'],
+  });
+  expect(c.status === 201 && !c.data.campaign.budget?.total, 'Campagne sans budget refusée', c);
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const ap = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 150, estimatedDeliveryDays: 4 });
+  expect(ap.status === 201, 'Candidature sur campagne sans budget échouée', ap);
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel.status === 200 && sel.data.delivery.payment.amount === 150, 'Sélection / montant du devis incorrect', sel);
+  const { default: Stripe } = await import('stripe');
+  await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await brandApi('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});
+  const d = sel.data.delivery._id;
+  const f = new FormData(); f.append('files', fakeVideo('x.mp4'));
+  const up = await creatorApi('POST', `/deliveries/${d}/upload`, f, { form: true });
+  expect(up.status === 400, 'Un fichier devrait être refusé sur une campagne "lien uniquement"', up);
+  const add = await creatorApi('POST', `/deliveries/${d}/links`, { links: [{ url: 'https://www.instagram.com/reel/abc' }] });
+  expect(add.status === 200, 'Ajout du lien échoué', add);
+  const linkId = add.data.links[0]._id;
+  await creatorApi('POST', `/deliveries/${d}/submit`, {});
+  const ok = await brandApi('POST', `/deliveries/${d}/approve`);
+  expect(ok.status === 200, 'Approbation échouée', ok);
+  let pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  expect(pub.realisations.length === 1 && pub.realisations[0].isPublic, 'Le lien devrait être public par défaut sur le profil', { status: 200, data: pub });
+  const priv = await brandApi('PATCH', `/deliveries/${d}/links/${linkId}/visibility`, { public: false });
+  expect(priv.status === 200 && priv.data.isPublic === false, 'La marque devrait pouvoir rendre le lien privé', priv);
+  pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  expect(pub.realisations.length === 0, 'Un lien privé ne doit pas apparaître publiquement', { status: 200, data: pub });
+  const asBrand = await brandApi('GET', `/portfolio/creator/${creatorUser.id}`);
+  expect(asBrand.data.realisations.length === 1 && asBrand.data.realisations[0].isPublic === false, 'La marque concernée doit voir le lien privé', asBrand);
+  return 'public par défaut, privé dès qu\'une partie refuse, visible par la marque concernée';
 });
 
 await step('Avis : marque → créateur et créateur → marque', async () => {

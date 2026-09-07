@@ -10,6 +10,7 @@ import {
   selectCreator,
   updateCampaign,
   cancelCampaign,
+  updateQuote,
 } from '../controllers/campaigns.js';
 
 const router = express.Router();
@@ -23,7 +24,8 @@ router.delete('/:campaignId', authenticate, authorize('brand'), cancelCampaign);
 
 // Campaign actions
 router.post('/:campaignId/publish', authenticate, authorize('brand'), publishCampaign);
-router.post('/:campaignId/apply', authenticate, authorize('creator'), validate(schemas.applyToCampaign), applyToCampaign);
+router.post('/:campaignId/apply', authenticate, authorize('creator'), validate(schemas.quote), applyToCampaign);
+router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
 router.post('/:campaignId/select/:creatorId', authenticate, authorize('brand'), selectCreator);
 
 export default router;

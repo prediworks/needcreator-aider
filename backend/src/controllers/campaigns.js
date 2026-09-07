@@ -34,6 +34,9 @@ export async function createCampaign(req, res) {
       budget,
       niches,
       applicationDeadline,
+      deliveryTypes,
+      platforms,
+      creatorsWanted,
     } = req.body;
 
     // La date limite est prise en fin de journée (23:59:59)
@@ -51,13 +54,15 @@ export async function createCampaign(req, res) {
         duration,
         deliverables,
         requirements: requirements || [],
+        deliveryTypes: deliveryTypes?.length ? deliveryTypes : ['file', 'link'],
+        platforms: platforms || [],
       },
-      budget: {
-        total: budget,
-        perVideo: Math.round(budget / deliverables),
-      },
+      budget: budget
+        ? { total: budget, perVideo: Math.round(budget / deliverables) }
+        : {},
       matching: {
         niches,
+        creatorsWanted: creatorsWanted || 1,
       },
       timeline: {
         applicationDeadline: deadline,
@@ -299,9 +304,9 @@ function computeMatchScore(campaign, creator, price) {
     ? niches.filter(n => (creator.profile.niches || []).includes(n)).length / niches.length
     : 0;
 
-  const perVideo = campaign.budget.perVideo || 0;
+  const perVideo = campaign.budget?.perVideo || 0;
   const askedPerVideo = price / (campaign.brief.deliverables || 1);
-  let budgetFit = 1;
+  let budgetFit = 1; // sans budget annoncé, le critère est neutre
   if (perVideo > 0 && askedPerVideo > perVideo) {
     budgetFit = Math.max(0, 1 - (askedPerVideo - perVideo) / perVideo);
   }
@@ -321,7 +326,7 @@ function computeMatchScore(campaign, creator, price) {
 export async function applyToCampaign(req, res) {
   try {
     const { campaignId } = req.params;
-    const { proposal, price, estimatedDeliveryDays } = req.body;
+    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
     const creator = req.user;
 
     if (!creator.canApplyToCampaign()) {
@@ -351,6 +356,16 @@ export async function applyToCampaign(req, res) {
       estimatedDeliveryDays,
       matchScore,
       status: 'pending',
+      quote: {
+        version: 1,
+        updatedAt: new Date(),
+        rights,
+        deliveryTypes,
+        platforms: platforms?.length ? platforms : campaign.brief.platforms,
+        revisions,
+        terms,
+        history: [],
+      },
     });
 
     campaign.analytics.applications = (campaign.analytics.applications || 0) + 1;
@@ -376,6 +391,62 @@ export async function applyToCampaign(req, res) {
   } catch (error) {
     logger.error('Failed to apply to campaign:', error);
     res.status(500).json({ error: 'Failed to apply to campaign' });
+  }
+}
+
+/**
+ * Met à jour le devis d'une candidature (créateur), tant qu'elle n'est pas acceptée
+ */
+export async function updateQuote(req, res) {
+  try {
+    const { campaignId } = req.params;
+    const creator = req.user;
+    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
+
+    const campaign = await Campaign.findById(campaignId);
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const application = campaign.applications.find(a => idOf(a.creatorId) === creator._id.toString());
+    if (!application) return res.status(404).json({ error: 'Vous n\'avez pas candidaté à cette campagne' });
+    if (application.status !== 'pending') {
+      return res.status(400).json({ error: 'Le devis ne peut plus être modifié (candidature acceptée ou refusée)' });
+    }
+    if (campaign.status !== 'active') {
+      return res.status(400).json({ error: 'La campagne n\'accepte plus de modifications' });
+    }
+
+    // Archive la version précédente
+    application.quote = application.quote || { version: 1, history: [] };
+    application.quote.history = application.quote.history || [];
+    application.quote.history.push({
+      version: application.quote.version || 1,
+      price: application.price,
+      estimatedDeliveryDays: application.estimatedDeliveryDays,
+      rights: application.quote.rights ? application.quote.rights.toObject?.() || application.quote.rights : undefined,
+      terms: application.quote.terms,
+      savedAt: application.quote.updatedAt || application.appliedAt,
+    });
+
+    application.proposal = proposal ?? application.proposal;
+    application.price = price;
+    application.estimatedDeliveryDays = estimatedDeliveryDays;
+    application.matchScore = computeMatchScore(campaign, creator, price);
+    application.quote.version = (application.quote.version || 1) + 1;
+    application.quote.updatedAt = new Date();
+    application.quote.rights = rights;
+    application.quote.deliveryTypes = deliveryTypes;
+    application.quote.platforms = platforms?.length ? platforms : campaign.brief.platforms;
+    application.quote.revisions = revisions;
+    application.quote.terms = terms;
+
+    await campaign.save();
+
+    logger.info(`Quote updated (v${application.quote.version}) by creator ${creator._id} on campaign ${campaign._id}`);
+
+    res.json({ message: 'Devis mis à jour', application });
+  } catch (error) {
+    logger.error('Failed to update quote:', error);
+    res.status(500).json({ error: 'Failed to update quote' });
   }
 }
 
@@ -419,6 +490,7 @@ export async function selectCreator(req, res) {
     }
 
     campaign.selectCreator(creatorId);
+    if (application.quote) application.quote.acceptedAt = new Date();
     await campaign.save();
 
     // Crée la livraison + autorisation de paiement

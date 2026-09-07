@@ -10,7 +10,7 @@ import Input from '@/components/ui/Input';
 import Spinner from '@/components/ui/Spinner';
 import { ArrowLeft, Save, Send, Info } from 'lucide-react';
 import Link from 'next/link';
-import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS } from '@/lib/labels';
+import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
 import { formatCurrency } from '@/lib/utils';
 
 const PLATFORM_FEE_PERCENT = 10;
@@ -47,6 +47,9 @@ export default function NewCampaignPage() {
   const [budget, setBudget] = useState('');
   const [niches, setNiches] = useState<string[]>([]);
   const [applicationDeadline, setApplicationDeadline] = useState('');
+  const [deliveryTypes, setDeliveryTypes] = useState<string[]>(['file', 'link']);
+  const [platforms, setPlatforms] = useState<string[]>([]);
+  const [creatorsWanted, setCreatorsWanted] = useState('1');
 
   if (!ready) return <Spinner />;
 
@@ -72,13 +75,19 @@ export default function NewCampaignPage() {
     duration: parseInt(duration),
     deliverables: nbVideos,
     requirements: requirements.split('\n').map(r => r.trim()).filter(Boolean).slice(0, 10),
-    budget: budgetNumber,
+    budget: budgetNumber >= 50 ? budgetNumber : null,
     niches,
     applicationDeadline,
+    deliveryTypes,
+    platforms,
+    creatorsWanted: Math.max(1, parseInt(creatorsWanted) || 1),
   });
 
+  const toggleIn = (list: string[], set: (v: string[]) => void, value: string) =>
+    set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
+
   const step1Valid = title.trim().length >= 10 && description.trim().length >= 50 && niches.length > 0;
-  const step2Valid = budgetNumber >= 50 && !!applicationDeadline;
+  const step2Valid = (budgetNumber === 0 || budgetNumber >= 50) && !!applicationDeadline && deliveryTypes.length > 0;
 
   const handleSaveDraft = async () => {
     const result = await createMutation.mutateAsync(payload());
@@ -254,16 +263,54 @@ export default function NewCampaignPage() {
                 <p className="text-xs text-neutral-500 mt-1">Un modèle est pré-rempli, adaptez-le à votre produit.</p>
               </div>
 
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Mode de livraison accepté</label>
+                  <div className="flex flex-col gap-2">
+                    {Object.entries(DELIVERY_TYPES).map(([v, l]) => (
+                      <label key={v} className="flex items-center gap-2 text-sm text-neutral-700">
+                        <input type="checkbox" checked={deliveryTypes.includes(v)} onChange={() => toggleIn(deliveryTypes, setDeliveryTypes, v)} />
+                        {l}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <Input
+                  label="Nombre de créateurs recherchés"
+                  type="number"
+                  value={creatorsWanted}
+                  onChange={(e) => setCreatorsWanted(e.target.value)}
+                  min={1}
+                  max={20}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Réseaux de diffusion prévus (optionnel)</label>
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => toggleIn(platforms, setPlatforms, p)}
+                      className={`px-3 py-1 rounded-full text-sm transition ${platforms.includes(p) ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                    >
+                      {PLATFORMS[p]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <Input
-                  label="Budget total (€, minimum 50)"
+                  label="Budget total (€) — facultatif"
                   type="number"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
-                  placeholder={String(suggestedBudget)}
+                  placeholder={`Laissez vide pour recevoir des devis libres (suggestion : ${suggestedBudget})`}
                   min={50}
-                  required
                 />
+                <p className="text-xs text-neutral-500 mt-1">Sans budget, chaque créateur propose son prix dans son devis. Vous choisissez ensuite.</p>
                 <div className="mt-2 bg-primary-50 border border-primary-100 rounded-lg p-3 text-sm text-neutral-700 space-y-1">
                   <div className="flex items-center gap-2 font-medium text-neutral-900">
                     <Info className="w-4 h-4 text-primary-600" />
@@ -341,7 +388,11 @@ export default function NewCampaignPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-600">Budget</span>
-                    <span className="font-medium">{formatCurrency(budgetNumber)} ({formatCurrency(perVideo)} / vidéo)</span>
+                    <span className="font-medium">{budgetNumber ? `${formatCurrency(budgetNumber)} (${formatCurrency(perVideo)} / vidéo)` : 'Devis libres'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Créateurs recherchés</span>
+                    <span className="font-medium">{creatorsWanted}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-600">Niches</span>

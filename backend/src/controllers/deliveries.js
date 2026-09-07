@@ -14,6 +14,23 @@ import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
 
+function platformFromUrl(url = '') {
+  const u = url.toLowerCase();
+  if (u.includes('tiktok.com')) return 'tiktok';
+  if (u.includes('instagram.com')) return 'instagram';
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+  if (u.includes('linkedin.com')) return 'linkedin';
+  if (u.includes('facebook.com') || u.includes('fb.watch')) return 'facebook';
+  if (u.includes('twitter.com') || u.includes('x.com')) return 'x';
+  if (u.includes('drive.google') || u.includes('dropbox') || u.includes('wetransfer')) return 'drive';
+  return 'other';
+}
+
+function itemCount(delivery) {
+  const current = (arr) => (arr || []).filter(i => !i.superseded).length;
+  return current(delivery.files) + current(delivery.links);
+}
+
 function fileTypeFromMime(mimetype = '') {
   if (mimetype.startsWith('video/')) return 'video';
   if (mimetype.startsWith('image/')) return 'image';
@@ -201,6 +218,17 @@ export async function uploadDeliverables(req, res) {
       return res.status(400).json({ error: 'Cannot upload files in current status' });
     }
 
+    const campaignForCount = await Campaign.findById(delivery.campaignId).select('brief.deliverables brief.deliveryTypes');
+    const expected = campaignForCount?.brief?.deliverables || 1;
+    if (campaignForCount?.brief?.deliveryTypes?.length && !campaignForCount.brief.deliveryTypes.includes('file')) {
+      return res.status(400).json({ error: 'Cette campagne attend une livraison par lien, pas par fichier' });
+    }
+    if (itemCount(delivery) + files.length > expected) {
+      return res.status(400).json({
+        error: `Cette campagne attend ${expected} vidéo(s) : vous en avez déjà ${itemCount(delivery)}. Supprimez-en avant d'en ajouter.`,
+      });
+    }
+
     // Upload files to storage
     const uploadedFiles = await uploadMultipleFiles(files, 'deliverables');
 
@@ -253,8 +281,12 @@ export async function submitDelivery(req, res) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    if (delivery.files.length === 0) {
-      return res.status(400).json({ error: 'Ajoutez au moins un fichier avant de soumettre' });
+    if (itemCount(delivery) === 0) {
+      return res.status(400).json({ error: 'Ajoutez au moins une vidéo (fichier ou lien) avant de soumettre' });
+    }
+    const expectedCount = await Campaign.findById(delivery.campaignId).select('brief.deliverables').then(c => c?.brief?.deliverables || 1);
+    if (itemCount(delivery) > expectedCount) {
+      return res.status(400).json({ error: `La campagne attend ${expectedCount} vidéo(s) maximum, vous en avez ${itemCount(delivery)}` });
     }
 
     if (!['pending', 'revision_requested'].includes(delivery.status)) {
@@ -283,6 +315,133 @@ export async function submitDelivery(req, res) {
     logger.error('Failed to submit delivery:', error);
     res.status(500).json({ error: 'Failed to submit delivery' });
   }
+}
+
+/**
+ * Ajoute des liens de livraison (créateur)
+ */
+export async function addLinks(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const { links } = req.body;
+    const delivery = await Delivery.findOne({ _id: deliveryId, creatorId: req.user._id });
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!['pending', 'revision_requested'].includes(delivery.status)) {
+      return res.status(400).json({ error: 'Impossible d\'ajouter des liens dans ce statut' });
+    }
+    const campaign = await Campaign.findById(delivery.campaignId).select('brief.deliverables brief.deliveryTypes');
+    const expected = campaign?.brief?.deliverables || 1;
+    if (campaign?.brief?.deliveryTypes?.length && !campaign.brief.deliveryTypes.includes('link')) {
+      return res.status(400).json({ error: 'Cette campagne attend une livraison par fichier, pas par lien' });
+    }
+    if (itemCount(delivery) + links.length > expected) {
+      return res.status(400).json({
+        error: `Cette campagne attend ${expected} vidéo(s) : vous en avez déjà ${itemCount(delivery)}.`,
+      });
+    }
+    links.forEach(l => {
+      delivery.links.push({
+        url: l.url,
+        title: l.title,
+        platform: l.platform || platformFromUrl(l.url),
+        visibility: { creator: l.public !== false, brand: true },
+      });
+    });
+    await delivery.save();
+    logger.info(`Links added to delivery ${delivery._id}: ${links.length}`);
+    res.json({ message: 'Liens ajoutés', links: delivery.links, delivery: delivery.toObject({ virtuals: true }) });
+  } catch (error) {
+    logger.error('Failed to add links:', error);
+    res.status(500).json({ error: 'Failed to add links' });
+  }
+}
+
+/**
+ * Supprime un fichier ou un lien avant soumission (créateur)
+ */
+export async function removeItem(req, res) {
+  try {
+    const { deliveryId, itemId } = req.params;
+    const delivery = await Delivery.findOne({ _id: deliveryId, creatorId: req.user._id });
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!['pending', 'revision_requested'].includes(delivery.status)) {
+      return res.status(400).json({ error: 'Impossible de supprimer dans ce statut' });
+    }
+    const file = delivery.files.id(itemId);
+    const link = delivery.links.id(itemId);
+    if (!file && !link) return res.status(404).json({ error: 'Élément introuvable' });
+    if (file) file.deleteOne(); else link.deleteOne();
+    await delivery.save();
+    res.json({ message: 'Élément supprimé', delivery: delivery.toObject({ virtuals: true }) });
+  } catch (error) {
+    logger.error('Failed to remove item:', error);
+    res.status(500).json({ error: 'Failed to remove item' });
+  }
+}
+
+/**
+ * Visibilité d'un lien : chaque partie (créateur / marque) donne ou retire son accord.
+ * Le lien est public uniquement si les deux sont d'accord.
+ */
+export async function setLinkVisibility(req, res) {
+  try {
+    const { deliveryId, linkId } = req.params;
+    const { public: isPublic } = req.body;
+    const user = req.user;
+    const delivery = await Delivery.findById(deliveryId);
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    const isBrand = idOf(delivery.brandId) === user._id.toString();
+    const isCreator = idOf(delivery.creatorId) === user._id.toString();
+    if (!isBrand && !isCreator) return res.status(403).json({ error: 'Access denied' });
+    const link = delivery.links.id(linkId);
+    if (!link) return res.status(404).json({ error: 'Lien introuvable' });
+    if (isBrand) link.visibility.brand = isPublic; else link.visibility.creator = isPublic;
+    await delivery.save();
+    res.json({ message: 'Visibilité mise à jour', link, isPublic: link.visibility.brand && link.visibility.creator });
+  } catch (error) {
+    logger.error('Failed to set link visibility:', error);
+    res.status(500).json({ error: 'Failed to update visibility' });
+  }
+}
+
+/**
+ * Réalisations publiques d'un créateur (liens de livraisons approuvées, accord des deux parties)
+ */
+export async function publicRealisations(creatorId, viewerId = null) {
+  const deliveries = await Delivery.find({
+    creatorId,
+    status: { $in: ['approved', 'auto_approved'] },
+    'links.0': { $exists: true },
+  })
+    .populate('campaignId', 'title brief.videoType')
+    .populate('brandId', 'profile.companyName')
+    .sort({ approvedAt: -1 })
+    .lean();
+
+  const out = [];
+  for (const d of deliveries) {
+    const viewerIsBrand = viewerId && idOf(d.brandId) === viewerId.toString();
+    for (const l of d.links || []) {
+      if (l.superseded) continue;
+      const isPublic = l.visibility?.creator !== false && l.visibility?.brand !== false;
+      if (isPublic || viewerIsBrand) {
+        out.push({
+          _id: l._id,
+          url: l.url,
+          platform: l.platform,
+          title: l.title || d.campaignId?.title,
+          campaignTitle: d.campaignId?.title,
+          videoType: d.campaignId?.brief?.videoType,
+          brandName: d.brandId?.profile?.companyName,
+          deliveryId: d._id,
+          date: d.approvedAt,
+          isPublic,
+          source: 'delivery',
+        });
+      }
+    }
+  }
+  return out;
 }
 
 /**

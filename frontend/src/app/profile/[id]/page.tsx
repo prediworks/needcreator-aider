@@ -11,7 +11,8 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Star, Briefcase, Video, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { NICHES, VIDEO_TYPES } from '@/lib/labels';
+import { NICHES, VIDEO_TYPES, PLATFORMS } from '@/lib/labels';
+import { Link2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +26,7 @@ export default function PublicProfilePage() {
   const { data, isLoading } = usePublicProfile(creatorId);
   const creator = data?.creator;
   const reviews = data?.reviews || [];
+  const realisations: any[] = (data as any)?.realisations || [];
 
   if (isLoading) return <Spinner />;
 
@@ -195,6 +197,25 @@ export default function PublicProfilePage() {
                 </div>
               )}
             </Card>
+
+            {/* Réalisations (liens de livraisons publiques) */}
+            {realisations.length > 0 && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold text-neutral-900 mb-1">Réalisations pour des marques ({realisations.length})</h2>
+                <p className="text-sm text-neutral-500 mb-4">Vidéos livrées via NeedCreator et publiées avec l&apos;accord de la marque.</p>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {realisations.map((r: any) => (
+                    <a key={r._id} href={r.url} target="_blank" rel="noopener noreferrer" className="border border-neutral-200 rounded-lg p-3 hover:border-primary-500 transition flex items-start gap-3">
+                      <Link2 className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-medium text-neutral-900 truncate">{r.title}</div>
+                        <div className="text-xs text-neutral-500">{r.brandName} · {PLATFORMS[r.platform] || r.platform}{r.videoType ? ` · ${VIDEO_TYPES[r.videoType] || r.videoType}` : ''}{!r.isPublic ? ' · privé (visible par vous)' : ''}</div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* Avis */}
             {reviews.length > 0 && (

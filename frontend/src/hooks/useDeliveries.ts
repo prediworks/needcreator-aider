@@ -109,3 +109,47 @@ export function useRequestRevision() {
     },
   });
 }
+
+export function useAddLinks() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deliveryId, links }: { deliveryId: string; links: Array<{ url: string; title?: string; public?: boolean }> }) => {
+      const response = await api.post(`/deliveries/${deliveryId}/links`, { links });
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
+      toast.success('Lien(s) ajouté(s)');
+    },
+    onError: (error: any) => toast.error(getErrorMessage(error, 'Erreur lors de l\'ajout du lien')),
+  });
+}
+
+export function useRemoveItem() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deliveryId, itemId }: { deliveryId: string; itemId: string }) => {
+      const response = await api.delete(`/deliveries/${deliveryId}/items/${itemId}`);
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
+    },
+    onError: (error: any) => toast.error(getErrorMessage(error, 'Erreur lors de la suppression')),
+  });
+}
+
+export function useSetLinkVisibility() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deliveryId, linkId, isPublic }: { deliveryId: string; linkId: string; isPublic: boolean }) => {
+      const response = await api.patch(`/deliveries/${deliveryId}/links/${linkId}/visibility`, { public: isPublic });
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
+      toast.success(data.isPublic ? 'Lien public : visible sur le profil du créateur' : 'Lien privé : visible uniquement par vous deux');
+    },
+    onError: (error: any) => toast.error(getErrorMessage(error, 'Erreur')),
+  });
+}

@@ -45,9 +45,24 @@ const deliverySchema = new mongoose.Schema({
       width: Number,
       height: Number,
       format: String,
-    }
+    },
+    superseded: { type: Boolean, default: false }, // remplacé lors d'une révision
   }],
   
+  // Livraison par lien (TikTok, Instagram, YouTube, Drive...)
+  links: [{
+    url: { type: String, required: true },
+    platform: { type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'drive', 'other'], default: 'other' },
+    title: String,
+    addedAt: { type: Date, default: Date.now },
+    // Public si le créateur ET la marque l'acceptent (par défaut oui des deux côtés)
+    visibility: {
+      creator: { type: Boolean, default: true },
+      brand: { type: Boolean, default: true },
+    },
+    superseded: { type: Boolean, default: false },
+  }],
+
   status: {
     type: String,
     enum: ['pending', 'submitted', 'revision_requested', 'approved', 'auto_approved', 'rejected'],
@@ -114,6 +129,12 @@ const deliverySchema = new mongoose.Schema({
 deliverySchema.index({ status: 1, autoApprovalDate: 1 });
 deliverySchema.index({ campaignId: 1, creatorId: 1 }, { unique: true });
 
+// Nombre de livrables (fichiers + liens) et attendu
+deliverySchema.virtual('itemCount').get(function() {
+  const current = (arr) => (arr || []).filter(i => !i.superseded).length;
+  return current(this.files) + current(this.links);
+});
+
 // Virtual for revision count
 deliverySchema.virtual('revisionCount').get(function() {
   return this.revisions?.length || 0;
@@ -172,6 +193,9 @@ deliverySchema.methods.requestRevision = function(feedback) {
     requestedAt: new Date(),
     feedback,
   });
+  // Les vidéos actuelles deviennent "version précédente" : le créateur en livre de nouvelles
+  (this.files || []).forEach(f => { f.superseded = true; });
+  (this.links || []).forEach(l => { l.superseded = true; });
   
   // Reset auto-approval date
   this.autoApprovalDate = null;

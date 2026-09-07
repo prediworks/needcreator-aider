@@ -210,9 +210,9 @@ function CampaignsContent() {
                 <div className="flex items-center justify-between pt-4 border-t border-neutral-200">
                   <div>
                     <div className="text-2xl font-bold text-primary-600">
-                      {formatCurrency(campaign.budget.perVideo)}
+                      {campaign.budget?.perVideo ? formatCurrency(campaign.budget.perVideo) : 'Devis libre'}
                     </div>
-                    <div className="text-xs text-neutral-500">par vidéo</div>
+                    <div className="text-xs text-neutral-500">{campaign.budget?.perVideo ? 'par vidéo' : 'proposez votre prix'}</div>
                   </div>
                   <div className="text-right">
                     {campaign.myApplication ? (

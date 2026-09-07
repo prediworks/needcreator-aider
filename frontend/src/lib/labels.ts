@@ -94,3 +94,39 @@ export function label(map: Record<string, any>, key: string | undefined): string
   if (!entry) return key;
   return typeof entry === 'string' ? entry : entry.label;
 }
+
+export const PLATFORMS: Record<string, string> = {
+  tiktok: 'TikTok',
+  instagram: 'Instagram',
+  youtube: 'YouTube',
+  linkedin: 'LinkedIn',
+  facebook: 'Facebook',
+  x: 'X (Twitter)',
+  website: 'Site web',
+  drive: 'Drive / transfert',
+  other: 'Autre',
+};
+export const PLATFORM_OPTIONS = ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'];
+
+export const DELIVERY_TYPES: Record<string, string> = {
+  file: 'Fichier vidéo (upload)',
+  link: 'Lien (publication ou transfert)',
+};
+
+export const RIGHTS_DURATION: Record<string, string> = {
+  '6m': '6 mois',
+  '1y': '1 an',
+  '2y': '2 ans',
+  '3y': '3 ans',
+  unlimited: 'Illimitée',
+};
+
+export const RIGHTS_SUPPORTS: Record<string, string> = {
+  social_organic: 'Réseaux sociaux (organique)',
+  paid_ads: 'Publicité payante (Meta, TikTok Ads…)',
+  website: 'Site web / page produit',
+  email: 'Emailing',
+  marketplace: 'Marketplaces (Amazon…)',
+  tv: 'TV / affichage',
+  other: 'Autre',
+};

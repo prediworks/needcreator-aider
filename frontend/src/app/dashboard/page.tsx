@@ -195,7 +195,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-semibold text-neutral-900">{campaign.title}</h3>
                         <span className="text-primary-600 font-semibold whitespace-nowrap ml-3">
-                          {formatCurrency(campaign.budget.perVideo)} / vidéo
+                          {campaign.budget?.perVideo ? `${formatCurrency(campaign.budget.perVideo)} / vidéo` : 'Devis libre'}
                         </span>
                       </div>
                       <p className="text-sm text-neutral-600 mb-3 line-clamp-2">
@@ -371,7 +371,7 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
               <TrendingUp className="w-5 h-5 text-green-500" />
             </div>
             <div className="text-3xl font-bold text-neutral-900">
-              {formatCurrency(campaigns.filter((c: any) => c.status !== 'cancelled').reduce((acc: number, c: any) => acc + c.budget.total, 0))}
+              {formatCurrency(campaigns.filter((c: any) => c.status !== 'cancelled').reduce((acc: number, c: any) => acc + (c.budget?.total || 0), 0))}
             </div>
           </Card>
         </div>
@@ -404,7 +404,7 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
                       <div className="flex items-center gap-4 text-xs text-neutral-500">
                         <span>{campaign.analytics?.applications || 0} candidature(s)</span>
                         <span>•</span>
-                        <span>{formatCurrency(campaign.budget.total)}</span>
+                        <span>{campaign.budget?.total ? formatCurrency(campaign.budget.total) : 'Devis libres'}</span>
                         <span>•</span>
                         <span>{campaign.brief.deliverables} vidéo(s)</span>
                       </div>

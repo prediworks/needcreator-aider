@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import Review from '../models/Review.js';
 import { uploadVideo, deleteFile, keyFromUrl, resolveUrlsIn } from '../services/storage.js';
+import { publicRealisations } from './deliveries.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -139,7 +140,9 @@ export async function getCreatorPortfolio(req, res) {
       .limit(10)
       .lean();
 
-    res.json({ creator: { ...creator, id: creator._id }, reviews });
+    const realisations = await publicRealisations(creatorId, req.user?._id);
+
+    res.json({ creator: { ...creator, id: creator._id }, reviews, realisations });
   } catch (error) {
     logger.error('Failed to get creator portfolio:', error);
     res.status(500).json({ error: 'Failed to get portfolio' });

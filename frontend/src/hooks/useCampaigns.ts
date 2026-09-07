@@ -124,3 +124,22 @@ export function useSelectCreator() {
     },
   });
 }
+
+export function useUpdateQuote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ campaignId, data }: { campaignId: string; data: any }) => {
+      const response = await api.patch(`/campaigns/${campaignId}/quote`, data);
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', variables.campaignId] });
+      toast.success('Devis mis à jour');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la mise à jour du devis'));
+    },
+  });
+}

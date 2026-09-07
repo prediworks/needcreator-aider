@@ -3,10 +3,10 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
-import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator } from '@/hooks/useCampaigns';
+import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote } from '@/hooks/useCampaigns';
+import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import {
@@ -23,7 +23,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
-import { NICHES, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS } from '@/lib/labels';
+import { NICHES, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
 
 export default function CampaignDetailPage() {
@@ -37,11 +37,10 @@ export default function CampaignDetailPage() {
   const publishMutation = usePublishCampaign();
   const cancelMutation = useCancelCampaign();
   const selectMutation = useSelectCreator();
+  const updateQuoteMutation = useUpdateQuote();
 
   const [showApplicationForm, setShowApplicationForm] = useState(false);
-  const [proposal, setProposal] = useState('');
-  const [price, setPrice] = useState('');
-  const [estimatedDeliveryDays, setEstimatedDeliveryDays] = useState('7');
+  const [editingQuote, setEditingQuote] = useState(false);
 
   if (!ready || isLoading) return <Spinner />;
 
@@ -64,17 +63,14 @@ export default function CampaignDetailPage() {
   const userId = user?.id || user?._id;
   const isOwnCampaign = isBrand && (campaign.brandId?._id || campaign.brandId) === userId;
 
-  const handleApply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await applyMutation.mutateAsync({
-      campaignId,
-      data: {
-        proposal,
-        price: parseInt(price),
-        estimatedDeliveryDays: parseInt(estimatedDeliveryDays),
-      },
-    });
+  const handleApply = async (values: any) => {
+    await applyMutation.mutateAsync({ campaignId, data: values });
     setShowApplicationForm(false);
+  };
+
+  const handleUpdateQuote = async (values: any) => {
+    await updateQuoteMutation.mutateAsync({ campaignId, data: values });
+    setEditingQuote(false);
   };
 
   const handleSelect = async (creatorId: string, name: string, amount: number) => {
@@ -90,7 +86,6 @@ export default function CampaignDetailPage() {
     await cancelMutation.mutateAsync(campaignId);
   };
 
-  const suggestedPrice = campaign.budget.total;
 
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
@@ -199,6 +194,23 @@ export default function CampaignDetailPage() {
                   </div>
                 </div>
 
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-neutral-500 mb-1">Livraison acceptée</h3>
+                    <p className="text-neutral-900 text-sm">{(campaign.brief.deliveryTypes || ['file', 'link']).map((t: string) => DELIVERY_TYPES[t]).join(' ou ')}</p>
+                  </div>
+                  {campaign.brief.platforms?.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-neutral-500 mb-1">Réseaux de diffusion</h3>
+                      <div className="flex flex-wrap gap-1">
+                        {campaign.brief.platforms.map((p: string) => (
+                          <span key={p} className="px-2 py-0.5 bg-neutral-100 text-neutral-700 rounded text-xs">{PLATFORMS[p] || p}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {campaign.brief.requirements?.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium text-neutral-500 mb-2">Consignes</h3>
@@ -268,8 +280,12 @@ export default function CampaignDetailPage() {
                             </div>
                           </div>
                           {app.proposal && (
-                            <p className="text-sm text-neutral-600 mb-3 bg-neutral-50 rounded p-3">{app.proposal}</p>
+                            <p className="text-sm text-neutral-600 mb-3 bg-neutral-50 rounded p-3 whitespace-pre-line">{app.proposal}</p>
                           )}
+                          <div className="mb-3 border border-neutral-100 rounded-lg p-3">
+                            <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Devis</div>
+                            <QuoteSummary application={app} />
+                          </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge map={APPLICATION_STATUS} value={app.status} />
                             <Link href={`/profile/${cid}`}>
@@ -282,7 +298,7 @@ export default function CampaignDetailPage() {
                                 isLoading={selectMutation.isPending}
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
-                                Sélectionner et payer
+                                Accepter le devis et payer
                               </Button>
                             )}
                           </div>
@@ -305,13 +321,25 @@ export default function CampaignDetailPage() {
             <Card className="p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Budget</h3>
               <div className="text-center py-2">
-                <div className="text-4xl font-bold text-primary-600 mb-1">
-                  {formatCurrency(campaign.budget.perVideo)}
-                </div>
-                <div className="text-sm text-neutral-600">par vidéo</div>
-                <div className="text-xs text-neutral-500 mt-2">
-                  Total : {formatCurrency(campaign.budget.total)} pour {campaign.brief.deliverables} vidéo(s)
-                </div>
+                {campaign.budget?.total ? (
+                  <>
+                    <div className="text-4xl font-bold text-primary-600 mb-1">
+                      {formatCurrency(campaign.budget.perVideo)}
+                    </div>
+                    <div className="text-sm text-neutral-600">par vidéo</div>
+                    <div className="text-xs text-neutral-500 mt-2">
+                      Total : {formatCurrency(campaign.budget.total)} pour {campaign.brief.deliverables} vidéo(s)
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-2xl font-bold text-primary-600 mb-1">Devis libre</div>
+                    <div className="text-sm text-neutral-600">{campaign.brief.deliverables} vidéo(s) · chaque créateur propose son prix</div>
+                  </>
+                )}
+                {campaign.matching?.creatorsWanted > 1 && (
+                  <div className="text-xs text-neutral-500 mt-2">{campaign.matching.creatorsWanted} créateurs recherchés</div>
+                )}
                 {isCreator && (
                   <div className="text-xs text-neutral-500 mt-1">
                     Vous recevez 90% du prix accepté (commission 10%)
@@ -370,16 +398,33 @@ export default function CampaignDetailPage() {
             )}
 
             {isCreator && !campaign.isSelected && campaign.userHasApplied && (
-              <Card className="p-6 bg-green-50 border-green-200">
-                <div className="flex items-center gap-3 text-green-700 mb-2">
-                  <CheckCircle className="w-5 h-5" />
-                  <span className="font-medium">Candidature envoyée</span>
-                </div>
-                {campaign.myApplication && (
-                  <div className="text-sm text-neutral-700">
-                    Prix proposé : {formatCurrency(campaign.myApplication.price)} ·{' '}
-                    <Badge map={APPLICATION_STATUS} value={campaign.myApplication.status} />
-                  </div>
+              <Card className={editingQuote ? 'p-6' : 'p-6 bg-green-50 border-green-200'}>
+                {editingQuote ? (
+                  <>
+                    <h3 className="font-semibold text-neutral-900 mb-3">Modifier mon devis</h3>
+                    <QuoteForm
+                      campaign={campaign}
+                      initial={{ ...campaign.myApplication?.quote, price: campaign.myApplication?.price, estimatedDeliveryDays: campaign.myApplication?.estimatedDeliveryDays, proposal: campaign.myApplication?.proposal }}
+                      submitLabel="Enregistrer le devis"
+                      isLoading={updateQuoteMutation.isPending}
+                      onSubmit={handleUpdateQuote}
+                      onCancel={() => setEditingQuote(false)}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 text-green-700 mb-2">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-medium">Devis envoyé</span>
+                      <Badge map={APPLICATION_STATUS} value={campaign.myApplication?.status} />
+                    </div>
+                    {campaign.myApplication && <QuoteSummary application={campaign.myApplication} compact />}
+                    {campaign.myApplication?.status === 'pending' && campaign.status === 'active' && (
+                      <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setEditingQuote(true)}>
+                        Modifier mon devis
+                      </Button>
+                    )}
+                  </>
                 )}
               </Card>
             )}
@@ -391,70 +436,21 @@ export default function CampaignDetailPage() {
                     <Button
                       className="w-full"
                       size="lg"
-                      onClick={() => { setPrice(String(suggestedPrice)); setShowApplicationForm(true); }}
+                      onClick={() => setShowApplicationForm(true)}
                     >
-                      Candidater maintenant
+                      Envoyer un devis
                     </Button>
                   ) : (
-                    <form onSubmit={handleApply} className="space-y-4">
-                      <h3 className="font-semibold text-neutral-900">Votre candidature</h3>
-
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700 mb-1">
-                          Message à la marque (optionnel)
-                        </label>
-                        <textarea
-                          value={proposal}
-                          onChange={(e) => setProposal(e.target.value)}
-                          placeholder="Expliquez pourquoi vous êtes le bon créateur..."
-                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          rows={4}
-                          maxLength={500}
-                        />
-                      </div>
-
-                      <div>
-                        <Input
-                          label={`Votre prix total pour ${campaign.brief.deliverables} vidéo(s) (€)`}
-                          type="number"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          min={50}
-                          max={10000}
-                          required
-                        />
-                        <p className="text-xs text-neutral-500 mt-1">
-                          Budget de la marque : {formatCurrency(campaign.budget.total)}. Vous recevrez {formatCurrency(Math.round((parseInt(price) || 0) * 0.9))} net.
-                        </p>
-                      </div>
-
-                      <Input
-                        label="Délai de livraison (jours)"
-                        type="number"
-                        value={estimatedDeliveryDays}
-                        onChange={(e) => setEstimatedDeliveryDays(e.target.value)}
-                        min={1}
-                        max={30}
-                        required
+                    <div>
+                      <h3 className="font-semibold text-neutral-900 mb-3">Mon devis</h3>
+                      <QuoteForm
+                        campaign={campaign}
+                        submitLabel="Envoyer le devis"
+                        isLoading={applyMutation.isPending}
+                        onSubmit={handleApply}
+                        onCancel={() => setShowApplicationForm(false)}
                       />
-
-                      <div className="flex gap-2">
-                        <Button
-                          type="submit"
-                          className="flex-1"
-                          isLoading={applyMutation.isPending}
-                        >
-                          Envoyer
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setShowApplicationForm(false)}
-                        >
-                          Annuler
-                        </Button>
-                      </div>
-                    </form>
+                    </div>
                   )
                 ) : (
                   <div>

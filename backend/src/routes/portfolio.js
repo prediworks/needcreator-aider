@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 import {
   uploadPortfolioVideo,
   deletePortfolioVideo,
@@ -35,6 +35,6 @@ router.post(
 router.delete('/:videoId', authenticate, authorize('creator'), deletePortfolioVideo);
 
 // Public portfolio
-router.get('/creator/:creatorId', getCreatorPortfolio);
+router.get('/creator/:creatorId', optionalAuth, getCreatorPortfolio);
 
 export default router;

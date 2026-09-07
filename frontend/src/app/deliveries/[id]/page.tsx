@@ -8,7 +8,10 @@ import {
   useUploadDeliverables,
   useSubmitDelivery,
   useApproveDelivery,
-  useRequestRevision
+  useRequestRevision,
+  useAddLinks,
+  useRemoveItem,
+  useSetLinkVisibility,
 } from '@/hooks/useDeliveries';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -26,9 +29,13 @@ import {
   FileVideo,
   Download,
   Star,
+  Link2,
+  Trash2,
+  Globe,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
-import { DELIVERY_STATUS, PAYMENT_STATUS, VIDEO_TYPES } from '@/lib/labels';
+import { DELIVERY_STATUS, PAYMENT_STATUS, VIDEO_TYPES, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
 
 export default function DeliveryDetailPage() {
@@ -41,8 +48,12 @@ export default function DeliveryDetailPage() {
   const submitMutation = useSubmitDelivery();
   const approveMutation = useApproveDelivery();
   const revisionMutation = useRequestRevision();
+  const addLinksMutation = useAddLinks();
+  const removeItemMutation = useRemoveItem();
+  const visibilityMutation = useSetLinkVisibility();
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [linkInput, setLinkInput] = useState('');
   const [notes, setNotes] = useState('');
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionForm, setShowRevisionForm] = useState(false);
@@ -67,7 +78,13 @@ export default function DeliveryDetailPage() {
   const isBrand = user?.role === 'brand';
   const isDone = ['approved', 'auto_approved'].includes(delivery.status);
   const canUpload = isCreator && (delivery.status === 'pending' || delivery.status === 'revision_requested');
-  const canSubmit = isCreator && delivery.files?.length > 0 && (delivery.status === 'pending' || delivery.status === 'revision_requested');
+  const expected = delivery.campaignId?.brief?.deliverables || 1;
+  const currentFiles: any[] = (delivery.files || []).filter((f: any) => !f.superseded);
+  const currentLinks: any[] = (delivery.links || []).filter((l: any) => !l.superseded);
+  const previousItems: any[] = [...(delivery.files || []), ...(delivery.links || [])].filter((i: any) => i.superseded);
+  const itemCount = currentFiles.length + currentLinks.length;
+  const allowedTypes: string[] = delivery.campaignId?.brief?.deliveryTypes || ['file', 'link'];
+  const canSubmit = isCreator && itemCount > 0 && itemCount <= expected && (delivery.status === 'pending' || delivery.status === 'revision_requested');
   const canApprove = isBrand && delivery.status === 'submitted';
   const canRequestRevision = isBrand && delivery.status === 'submitted' && delivery.canRequestRevision;
   const campaign = delivery.campaignId || {};
@@ -85,6 +102,16 @@ export default function DeliveryDetailPage() {
     await uploadMutation.mutateAsync({ deliveryId, files: selectedFiles });
     setSelectedFiles([]);
   };
+
+  const handleAddLinks = async () => {
+    const urls = linkInput.split(/\n|,|\s+/).map(u => u.trim()).filter(u => /^https?:\/\//.test(u));
+    if (urls.length === 0) return;
+    await addLinksMutation.mutateAsync({ deliveryId, links: urls.map(url => ({ url, public: true })) });
+    setLinkInput('');
+  };
+
+  const isLinkPublic = (l: any) => l.visibility?.creator !== false && l.visibility?.brand !== false;
+  const myConsent = (l: any) => (isBrand ? l.visibility?.brand !== false : l.visibility?.creator !== false);
 
   const handleSubmit = async () => {
     if (!confirm('Soumettre la livraison à la marque ? Elle aura 7 jours pour valider ou demander une révision.')) return;
@@ -233,13 +260,59 @@ export default function DeliveryDetailPage() {
 
             {/* Files */}
             <Card className="p-6">
-              <h2 className="text-xl font-semibold text-neutral-900 mb-4">
-                Fichiers livrés ({delivery.files?.length || 0})
-              </h2>
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xl font-semibold text-neutral-900">
+                  Vidéos livrées
+                </h2>
+                <span className={`text-sm font-medium px-2 py-1 rounded-full ${itemCount === expected ? 'bg-green-100 text-green-800' : itemCount > expected ? 'bg-red-100 text-red-800' : 'bg-neutral-100 text-neutral-700'}`}>
+                  {itemCount} / {expected} attendue(s)
+                </span>
+              </div>
+              <p className="text-xs text-neutral-500 mb-4">Livraison acceptée : {allowedTypes.map((t: string) => DELIVERY_TYPES[t]).join(' ou ')}.</p>
 
-              {delivery.files?.length > 0 ? (
+              {currentLinks.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {currentLinks.map((l: any) => (
+                    <div key={l._id} className="border border-neutral-200 rounded-lg p-3 flex items-start gap-3">
+                      <Link2 className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary-700 hover:underline break-all">
+                          {l.title || l.url}
+                        </a>
+                        <div className="text-xs text-neutral-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                          <span className="px-1.5 py-0.5 bg-neutral-100 rounded">{PLATFORMS[l.platform] || l.platform}</span>
+                          <span>{formatRelativeTime(l.addedAt)}</span>
+                          <span className={`flex items-center gap-1 ${isLinkPublic(l) ? 'text-green-700' : 'text-neutral-600'}`}>
+                            {isLinkPublic(l) ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                            {isLinkPublic(l) ? 'Public (visible sur le profil du créateur)' : 'Privé'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {(isBrand || isCreator) && (
+                          <label className="flex items-center gap-1 text-xs text-neutral-600 whitespace-nowrap" title="Le lien n'est public que si la marque et le créateur l'acceptent">
+                            <input
+                              type="checkbox"
+                              checked={myConsent(l)}
+                              onChange={(e) => visibilityMutation.mutate({ deliveryId, linkId: l._id, isPublic: e.target.checked })}
+                            />
+                            J&apos;accepte qu&apos;il soit public
+                          </label>
+                        )}
+                        {canUpload && (
+                          <button onClick={() => removeItemMutation.mutate({ deliveryId, itemId: l._id })} className="text-red-500 hover:text-red-700 p-1" title="Supprimer">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {currentFiles.length > 0 ? (
                 <div className="grid md:grid-cols-2 gap-4">
-                  {delivery.files.map((file: any, index: number) => (
+                  {currentFiles.map((file: any, index: number) => (
                     <div key={index} className="border border-neutral-200 rounded-lg overflow-hidden">
                       {file.type === 'video' ? (
                         <VideoPlayer src={file.url} title={file.filename} className="rounded-none" />
@@ -255,31 +328,77 @@ export default function DeliveryDetailPage() {
                           <p className="text-xs text-neutral-500">
                             {formatRelativeTime(file.uploadedAt)}{file.size ? ` · ${(file.size / 1024 / 1024).toFixed(1)} Mo` : ''}
                           </p>
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1 mt-1"
-                          >
-                            <Download className="w-4 h-4" />
-                            Télécharger
-                          </a>
+                          <div className="flex items-center gap-3 mt-1">
+                            <a
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                            >
+                              <Download className="w-4 h-4" />
+                              Télécharger
+                            </a>
+                            {canUpload && file._id && (
+                              <button onClick={() => removeItemMutation.mutate({ deliveryId, itemId: file._id })} className="text-sm text-red-500 hover:text-red-700 flex items-center gap-1">
+                                <Trash2 className="w-4 h-4" /> Supprimer
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : currentLinks.length === 0 ? (
                 <div className="text-center py-8 text-neutral-500">
-                  {isCreator ? 'Ajoutez vos vidéos ci-dessous' : 'Le créateur n\'a pas encore envoyé de fichier'}
+                  {isCreator
+                    ? (delivery.status === 'revision_requested' ? 'Envoyez la nouvelle version de vos vidéos (fichier ou lien)' : 'Ajoutez vos vidéos ci-dessous (fichier ou lien)')
+                    : 'Le créateur n\'a pas encore envoyé de vidéo'}
                 </div>
+              ) : null}
+
+              {previousItems.length > 0 && (
+                <details className="mt-4 text-sm">
+                  <summary className="cursor-pointer text-neutral-600">Versions précédentes ({previousItems.length})</summary>
+                  <ul className="mt-2 space-y-1 text-neutral-600">
+                    {previousItems.map((i: any) => (
+                      <li key={i._id}>
+                        <a href={i.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline break-all">{i.filename || i.title || i.url}</a>
+                        <span className="text-xs text-neutral-400"> · {formatRelativeTime(i.uploadedAt || i.addedAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               )}
 
               {/* Upload Section (Creator only) */}
-              {canUpload && (
+              {canUpload && allowedTypes.includes('link') && itemCount < expected && (
+                <div className="mt-6 pt-6 border-t border-neutral-200">
+                  <h3 className="font-medium text-neutral-900 mb-1 flex items-center gap-2"><Link2 className="w-4 h-4" /> Ajouter un lien</h3>
+                  <p className="text-xs text-neutral-500 mb-2">Une URL par ligne : publication TikTok / Instagram / YouTube, ou lien Drive / WeTransfer. Un lien = une vidéo.</p>
+                  <textarea
+                    value={linkInput}
+                    onChange={(e) => setLinkInput(e.target.value)}
+                    placeholder={'https://www.tiktok.com/@moi/video/123\nhttps://drive.google.com/...'}
+                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm"
+                    rows={2}
+                  />
+                  <Button size="sm" className="mt-2" onClick={handleAddLinks} isLoading={addLinksMutation.isPending} disabled={!/https?:\/\//.test(linkInput)}>
+                    Ajouter le(s) lien(s)
+                  </Button>
+                </div>
+              )}
+
+              {canUpload && itemCount >= expected && (
+                <div className="mt-6 pt-6 border-t border-neutral-200 text-sm text-green-700">
+                  ✓ Vous avez atteint le nombre de vidéos attendu. Vous pouvez soumettre la livraison.
+                </div>
+              )}
+
+              {canUpload && allowedTypes.includes('file') && itemCount < expected && (
                 <div className="mt-6 pt-6 border-t border-neutral-200">
                   <h3 className="font-medium text-neutral-900 mb-3">
-                    {delivery.status === 'revision_requested' ? 'Envoyer la nouvelle version' : 'Envoyer mes vidéos'}
+                    {delivery.status === 'revision_requested' ? 'Envoyer la nouvelle version (fichier)' : 'Envoyer un fichier vidéo'}
                   </h3>
                   <div className="space-y-3">
                     <input
