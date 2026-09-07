@@ -105,6 +105,17 @@ export async function confirmWithTestCard(paymentIntentId) {
   return paymentIntent;
 }
 
+export async function createSetupIntent(customerId) {
+  return stripe.setupIntents.create({ customer: customerId, payment_method_types: ['card'], usage: 'off_session' });
+}
+
+/**
+ * Confirme un PaymentIntent avec une carte déjà enregistrée (paiement groupé)
+ */
+export async function confirmWithPaymentMethod(paymentIntentId, paymentMethodId) {
+  return stripe.paymentIntents.confirm(paymentIntentId, { payment_method: paymentMethodId, off_session: true });
+}
+
 export async function retrievePaymentIntent(paymentIntentId) {
   return stripe.paymentIntents.retrieve(paymentIntentId);
 }

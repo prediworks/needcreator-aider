@@ -12,6 +12,8 @@ import {
   cancelCampaign,
   updateQuote,
   inviteCreator,
+  createPaymentSetup,
+  payAllPending,
 } from '../controllers/campaigns.js';
 
 const router = express.Router();
@@ -28,6 +30,8 @@ router.post('/:campaignId/publish', authenticate, authorize('brand'), publishCam
 router.post('/:campaignId/apply', authenticate, authorize('creator'), validate(schemas.quote), applyToCampaign);
 router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
 router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
+router.post('/:campaignId/payment-setup', authenticate, authorize('brand'), createPaymentSetup);
+router.post('/:campaignId/pay-all', authenticate, authorize('brand'), payAllPending);
 router.post('/:campaignId/select/:creatorId', authenticate, authorize('brand'), selectCreator);
 
 export default router;

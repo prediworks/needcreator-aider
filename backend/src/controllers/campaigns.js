@@ -171,13 +171,12 @@ export async function getCampaigns(req, res) {
       if (mode === 'applied') {
         query['applications.creatorId'] = user._id;
       } else if (mode === 'selected') {
-        query.selectedCreator = user._id;
+        query.$or = [{ selectedCreators: user._id }, { selectedCreator: user._id }];
       } else if (mode === 'all') {
         query.status = { $in: ['active', 'in_progress', 'completed'] };
       } else {
         // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
-        query.selectedCreator = null;
         query['matching.excludedCreators'] = { $ne: user._id };
         // Accès anticipé : les non-ambassadeurs voient les campagnes après le délai d'avant-première
         const hours = config.badges.earlyAccessHours;
@@ -225,7 +224,7 @@ export async function getCampaigns(req, res) {
       campaigns.forEach(c => {
         const mine = (c.applications || []).find(a => idOf(a.creatorId) === user._id.toString());
         c.myApplication = mine ? { status: mine.status, price: mine.price, appliedAt: mine.appliedAt } : null;
-        c.isSelected = idOf(c.selectedCreator) === user._id.toString();
+        c.isSelected = (c.selectedCreators || []).some(id => idOf(id) === user._id.toString()) || idOf(c.selectedCreator) === user._id.toString();
         c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
         const hours = config.badges.earlyAccessHours;
         c.earlyAccess = hours > 0 && c.timeline?.publishedAt && (Date.now() - new Date(c.timeline.publishedAt).getTime()) < hours * 3600 * 1000;
@@ -263,7 +262,8 @@ export async function getCampaign(req, res) {
     const campaignDoc = await Campaign.findById(campaignId)
       .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
       .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status status')
-      .populate('selectedCreator', 'profile.name profile.avatar');
+      .populate('selectedCreator', 'profile.name profile.avatar')
+      .populate('selectedCreators', 'profile.name profile.avatar');
 
     if (!campaignDoc) {
       return res.status(404).json({ error: 'Campaign not found' });
@@ -271,7 +271,9 @@ export async function getCampaign(req, res) {
     const campaign = campaignDoc.toObject({ virtuals: true });
 
     const isOwner = user.role === 'brand' && idOf(campaign.brandId) === user._id.toString();
-    const isSelectedCreator = user.role === 'creator' && idOf(campaign.selectedCreator) === user._id.toString();
+    const isSelectedCreator = user.role === 'creator' && (
+      (campaign.selectedCreators || []).some(c => idOf(c) === user._id.toString()) || idOf(campaign.selectedCreator) === user._id.toString()
+    );
     const hasApplied = user.role === 'creator' && (campaign.applications || []).some(
       app => idOf(app.creatorId) === user._id.toString()
     );
@@ -292,9 +294,18 @@ export async function getCampaign(req, res) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Livraison associée (pour la marque et le créateur sélectionné)
-    if (isOwner || isSelectedCreator) {
-      const delivery = await Delivery.findOne({ campaignId: campaign._id })
+    // Livraisons associées : toutes pour la marque, la sienne pour le créateur sélectionné
+    if (isOwner) {
+      const deliveries = await Delivery.find({ campaignId: campaign._id })
+        .select('_id status payment.status payment.amount payment.stripePaymentIntentId creatorId')
+        .populate('creatorId', 'profile.name')
+        .lean();
+      campaign.deliveries = deliveries;
+      campaign.delivery = deliveries[0] || null;
+      campaign.pendingPayments = deliveries.filter(d => d.payment?.stripePaymentIntentId && ['pending', 'failed'].includes(d.payment?.status));
+      campaign.remainingSlots = Campaign.prototype.remainingSlots.call(campaign);
+    } else if (isSelectedCreator) {
+      const delivery = await Delivery.findOne({ campaignId: campaign._id, creatorId: user._id })
         .select('_id status payment.status')
         .lean();
       campaign.delivery = delivery || null;
@@ -507,8 +518,11 @@ export async function selectCreator(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    if (campaign.selectedCreator) {
-      return res.status(400).json({ error: 'Un créateur a déjà été sélectionné' });
+    if (campaign.remainingSlots() === 0) {
+      return res.status(400).json({ error: 'Tous les créateurs recherchés ont déjà été sélectionnés' });
+    }
+    if ((campaign.selectedCreators || []).some(id => idOf(id) === creatorId)) {
+      return res.status(400).json({ error: 'Ce créateur est déjà sélectionné' });
     }
 
     if (campaign.status !== 'active') {
@@ -538,7 +552,7 @@ export async function selectCreator(req, res) {
     let paymentWarning = null;
     let clientSecret = null;
     try {
-      const result = await createDeliveryForCampaign(campaign, brand, application.price);
+      const result = await createDeliveryForCampaign(campaign, brand, application.price, creatorId);
       delivery = result.delivery;
       paymentWarning = result.warning || null;
       clientSecret = result.clientSecret || null;
@@ -563,6 +577,7 @@ export async function selectCreator(req, res) {
       delivery,
       clientSecret,
       paymentRequired: !!delivery && delivery.payment.status === 'pending' && !!delivery.payment.stripePaymentIntentId,
+      remainingSlots: campaign.remainingSlots(),
       warning: paymentWarning,
     });
   } catch (error) {
@@ -645,7 +660,7 @@ export async function cancelCampaign(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    if (campaign.selectedCreator) {
+    if (campaign.selectedCreator || campaign.selectedCreators?.length) {
       return res.status(400).json({
         error: 'Impossible d\'annuler une campagne avec un créateur sélectionné'
       });
@@ -704,5 +719,69 @@ export async function inviteCreator(req, res) {
   } catch (error) {
     logger.error('Failed to invite creator:', error);
     res.status(500).json({ error: 'Failed to invite creator' });
+  }
+}
+
+/**
+ * Paiement groupé : SetupIntent pour enregistrer la carte de la marque
+ */
+export async function createPaymentSetup(req, res) {
+  try {
+    const brand = req.user;
+    const campaign = await Campaign.findOne({ _id: req.params.campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (!brand.stripeCustomerId) return res.status(400).json({ error: 'Aucun client Stripe' });
+    const pending = await Delivery.find({ campaignId: campaign._id, 'payment.status': { $in: ['pending', 'failed'] }, 'payment.stripePaymentIntentId': { $exists: true } })
+      .select('payment.amount').lean();
+    const { createSetupIntent } = await import('../services/stripe.js');
+    const setupIntent = await createSetupIntent(brand.stripeCustomerId);
+    res.json({
+      clientSecret: setupIntent.client_secret,
+      count: pending.length,
+      total: pending.reduce((a, d) => a + (d.payment.amount || 0), 0),
+    });
+  } catch (error) {
+    logger.error('Failed to create payment setup:', error);
+    res.status(500).json({ error: 'Impossible de préparer le paiement groupé' });
+  }
+}
+
+/**
+ * Paiement groupé : confirme tous les paiements en attente de la campagne avec la carte enregistrée
+ */
+export async function payAllPending(req, res) {
+  try {
+    const brand = req.user;
+    const { paymentMethodId } = req.body;
+    if (!paymentMethodId) return res.status(400).json({ error: 'paymentMethodId manquant' });
+    const campaign = await Campaign.findOne({ _id: req.params.campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const pending = await Delivery.find({ campaignId: campaign._id, 'payment.status': { $in: ['pending', 'failed'] }, 'payment.stripePaymentIntentId': { $exists: true } });
+    const { confirmWithPaymentMethod } = await import('../services/stripe.js');
+    const results = [];
+    for (const d of pending) {
+      try {
+        const pi = await confirmWithPaymentMethod(d.payment.stripePaymentIntentId, paymentMethodId);
+        if (['requires_capture', 'succeeded'].includes(pi.status)) {
+          d.payment.status = pi.status === 'succeeded' ? 'captured' : 'held';
+          d.payment.heldAt = new Date();
+          await d.save();
+          results.push({ deliveryId: d._id, ok: true });
+        } else {
+          results.push({ deliveryId: d._id, ok: false, status: pi.status });
+        }
+      } catch (err) {
+        d.payment.status = 'failed';
+        await d.save();
+        results.push({ deliveryId: d._id, ok: false, error: err?.raw?.message || err.message });
+      }
+    }
+    const paid = results.filter(r => r.ok).length;
+    logger.info(`Grouped payment on campaign ${campaign._id}: ${paid}/${results.length} confirmed`);
+    res.json({ message: `${paid} paiement(s) confirmé(s) sur ${results.length}`, paid, results });
+  } catch (error) {
+    logger.error('Failed to pay all:', error);
+    res.status(500).json({ error: 'Échec du paiement groupé' });
   }
 }

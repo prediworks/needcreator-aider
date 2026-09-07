@@ -105,6 +105,7 @@ function fakeVideo(name) {
 const brandEmail = `e2e-brand-${RUN}@needcreator-test.com`;
 const creatorEmail = `e2e-creator-${RUN}@needcreator-test.com`;
 let brand, creator, brandApi, creatorApi, adminApi;
+const extraCleanup = [];
 let brandUser, creatorUser, campaign, delivery;
 
 console.log(`\n=== Test de bout en bout (${API}) ===\n`);
@@ -499,6 +500,75 @@ await step('Liens publics/privés : accord des deux parties', async () => {
   return 'public par défaut, privé dès qu\'une partie refuse, visible par la marque concernée';
 });
 
+await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () => {
+  // Second créateur, activé directement en base
+  const creator2Email = `e2e-creator2-${RUN}@needcreator-test.com`;
+  const c2 = await firebaseUser(creator2Email);
+  const c2Api = client(c2.idToken);
+  const reg = await c2Api('POST', '/auth/register/creator', { email: creator2Email, name: 'Créateur 2', bio: '', niches: ['beauty'], minPrice: 80 });
+  expect(reg.status === 201, 'Inscription créateur 2 échouée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: c2.uid });
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: creator2Email }, { $set: { status: 'active', 'verification.portfolio': true, 'profile.ambassador.status': 'approved' } });
+  for (let i = 1; i <= 3; i++) { const f = new FormData(); f.append('video', fakeVideo(`c2-${i}.mp4`)); f.append('title', `C2 ${i}`); f.append('videoType', 'demo'); await c2Api('POST', '/portfolio/upload', f, { form: true }); }
+
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', {
+    title: 'Campagne multi-créateurs test', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'demo', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, creatorsWanted: 2,
+  });
+  expect(c.status === 201 && c.data.campaign.matching.creatorsWanted === 2, 'Création multi-créateurs échouée', c);
+  const cid = c.data.campaign._id;
+  await brandApi('POST', `/campaigns/${cid}/publish`);
+  const a1 = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  const a2 = await c2Api('POST', `/campaigns/${cid}/apply`, { price: 90, estimatedDeliveryDays: 4 });
+  expect(a1.status === 201 && a2.status === 201, 'Candidatures échouées', a2);
+
+  const s1 = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+  expect(s1.status === 200 && s1.data.remainingSlots === 1 && s1.data.campaign.status === 'active', 'Après 1 sélection, la campagne doit rester ouverte', s1);
+  const still = await c2Api('GET', `/campaigns/${cid}`);
+  expect(still.status === 200 && still.data.campaign.status === 'active', 'Le 2e créateur doit encore voir la campagne ouverte', still);
+  const s2 = await brandApi('POST', `/campaigns/${cid}/select/${reg.data.user.id}`);
+  expect(s2.status === 200 && s2.data.remainingSlots === 0 && s2.data.campaign.status === 'in_progress', 'Après 2 sélections, la campagne passe en production', s2);
+  const s3 = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+  expect(s3.status === 400, 'Une 3e sélection doit être refusée', s3);
+
+  const detail = await brandApi('GET', `/campaigns/${cid}`);
+  expect(detail.data.campaign.deliveries.length === 2 && detail.data.campaign.pendingPayments.length === 2, 'Deux livraisons et deux paiements en attente attendus', detail);
+
+  // Paiement groupé : carte enregistrée (SetupIntent) puis confirmation de tous les paiements
+  const setup = await brandApi('POST', `/campaigns/${cid}/payment-setup`);
+  expect(setup.status === 200 && setup.data.count === 2 && setup.data.total === 190, 'SetupIntent groupé incorrect', setup);
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const siId = setup.data.clientSecret.split('_secret')[0];
+  const si = await stripe.setupIntents.confirm(siId, { payment_method: 'pm_card_visa' });
+  const pay = await brandApi('POST', `/campaigns/${cid}/pay-all`, { paymentMethodId: si.payment_method });
+  expect(pay.status === 200 && pay.data.paid === 2, 'Paiement groupé échoué', pay);
+  const after = await brandApi('GET', `/campaigns/${cid}`);
+  expect(after.data.campaign.pendingPayments.length === 0 && after.data.campaign.deliveries.every(d => d.payment.status === 'held'), 'Tous les paiements devraient être bloqués', after);
+
+  // Livraison + approbation des deux → campagne terminée seulement à la fin
+  for (const [api, d] of [[creatorApi, after.data.campaign.deliveries.find(x => x.creatorId._id === creatorUser.id)], [c2Api, after.data.campaign.deliveries.find(x => x.creatorId._id === reg.data.user.id)]]) {
+    const f = new FormData(); f.append('files', fakeVideo('m.mp4'));
+    await api('POST', `/deliveries/${d._id}/upload`, f, { form: true });
+    await api('POST', `/deliveries/${d._id}/submit`, {});
+  }
+  const ok1 = await brandApi('POST', `/deliveries/${after.data.campaign.deliveries[0]._id}/approve`);
+  expect(ok1.status === 200, 'Approbation 1 échouée', ok1);
+  const mid = await brandApi('GET', `/campaigns/${cid}`);
+  expect(mid.data.campaign.status === 'in_progress', 'La campagne ne doit pas être terminée tant qu\'une livraison reste', mid);
+  const ok2 = await brandApi('POST', `/deliveries/${after.data.campaign.deliveries[1]._id}/approve`);
+  expect(ok2.status === 200, 'Approbation 2 échouée', ok2);
+  const end = await brandApi('GET', `/campaigns/${cid}`);
+  expect(end.data.campaign.status === 'completed', 'La campagne devrait être terminée', end);
+  // Avis par créateur
+  const r1 = await brandApi('POST', `/reviews/campaign/${cid}?creatorId=${creatorUser.id}`, { rating: 5, communication: 5, quality: 5, timeliness: 5, professionalism: 5 });
+  const r2 = await brandApi('POST', `/reviews/campaign/${cid}?creatorId=${reg.data.user.id}`, { rating: 4, communication: 4, quality: 4, timeliness: 4, professionalism: 4 });
+  expect(r1.status === 201 && r2.status === 201, 'La marque doit pouvoir noter chaque créateur', r2);
+  return '2 créateurs sélectionnés, 190€ payés en une fois, campagne terminée après les 2 approbations';
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);
@@ -507,7 +577,7 @@ await step('Avis : marque → créateur et créateur → marque', async () => {
   const dup = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, communication: 5, quality: 5, timeliness: 5, professionalism: 5 });
   expect(dup.status === 400, 'Un double avis devrait être refusé', dup);
   const list = await fetch(`${API}/reviews/user/${creatorUser.id}`).then(r => r.json());
-  expect(list.stats.avgRating === 5 && list.reviews.length === 1, 'Moyenne des avis incorrecte', { status: 200, data: list });
+  expect(list.stats.avgRating === 5 && list.reviews.length === 2, 'Moyenne des avis incorrecte (1 avis campagne multi + 1 avis ici)', { status: 200, data: list });
   const profile = await creatorApi('GET', '/auth/profile');
   expect(profile.data.user.profile.stats.rating === 5, 'La note du profil créateur devrait être 5', profile);
   return 'note créateur 5.0';
@@ -579,8 +649,11 @@ if (CLEAN) {
     await db.collection('reviews').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('deliveries').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('campaigns').deleteMany({ _id: { $in: campIds } });
-    await db.collection('users').deleteMany({ _id: { $in: ids } });
-    for (const u of [brand, creator]) { if (u) await admin.auth().deleteUser(u.uid).catch(() => {}); }
+    const extraIds = extraCleanup.map(e => new mongoose.Types.ObjectId(e.userId));
+    await db.collection('reviews').deleteMany({ $or: [{ revieweeId: { $in: extraIds } }, { reviewerId: { $in: extraIds } }] });
+    await db.collection('deliveries').deleteMany({ creatorId: { $in: extraIds } });
+    await db.collection('users').deleteMany({ _id: { $in: [...ids, ...extraIds] } });
+    for (const u of [brand, creator, ...extraCleanup]) { if (u) await admin.auth().deleteUser(u.uid).catch(() => {}); }
     return 'comptes et données supprimés';
   });
 }

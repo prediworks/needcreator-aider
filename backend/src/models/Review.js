@@ -77,7 +77,7 @@ const reviewSchema = new mongoose.Schema({
 
 // Indexes
 reviewSchema.index({ revieweeId: 1, createdAt: -1 });
-reviewSchema.index({ campaignId: 1, reviewerId: 1 }, { unique: true });
+reviewSchema.index({ campaignId: 1, reviewerId: 1, revieweeId: 1 }, { unique: true });
 
 // Statics
 reviewSchema.statics.calculateAverageRating = async function(userId) {

@@ -42,11 +42,11 @@ function fileTypeFromMime(mimetype = '') {
  * Crée la livraison d'une campagne + autorisation de paiement Stripe.
  * Utilisé par selectCreator et par la route POST /deliveries/campaign/:id
  */
-export async function createDeliveryForCampaign(campaign, brand, price) {
-  const creatorId = idOf(campaign.selectedCreator);
+export async function createDeliveryForCampaign(campaign, brand, price, forCreatorId = null) {
+  const creatorId = forCreatorId ? String(forCreatorId) : idOf(campaign.selectedCreator);
   if (!creatorId) throw new Error('Aucun créateur sélectionné');
 
-  const existing = await Delivery.findOne({ campaignId: campaign._id });
+  const existing = await Delivery.findOne({ campaignId: campaign._id, creatorId });
   if (existing) return { delivery: existing, warning: null };
 
   const application = campaign.applications.find(app => idOf(app.creatorId) === creatorId);
@@ -485,8 +485,14 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   if (transferId) delivery.payment.stripeTransferId = transferId;
   await delivery.save();
 
-  // Clôture la campagne
-  await Campaign.updateOne({ _id: idOf(delivery.campaignId) }, { $set: { status: 'completed' } });
+  // Clôture la campagne quand toutes les livraisons sont approuvées
+  const campaignId = idOf(delivery.campaignId);
+  const remaining = await Delivery.countDocuments({ campaignId, status: { $nin: ['approved', 'auto_approved', 'rejected'] } });
+  const campaignDoc = await Campaign.findById(campaignId).select('selectedCreators matching.creatorsWanted');
+  const allSelected = campaignDoc ? (campaignDoc.selectedCreators?.length || 1) >= (campaignDoc.matching?.creatorsWanted || 1) : true;
+  if (remaining === 0 && allSelected) {
+    await Campaign.updateOne({ _id: campaignId }, { $set: { status: 'completed' } });
+  }
 
   // Stats créateur : missions complétées + taux de livraison à temps
   if (creator) {
@@ -678,8 +684,9 @@ export async function getDelivery(req, res) {
     const reviews = await Review.find({ campaignId: idOf(delivery.campaignId) })
       .populate('reviewerId', 'profile.name role')
       .lean();
-    delivery.myReview = reviews.find(r => idOf(r.reviewerId) === user._id.toString()) || null;
-    delivery.receivedReview = reviews.find(r => idOf(r.revieweeId) === user._id.toString()) || null;
+    const otherId = idOf(delivery.brandId) === user._id.toString() ? idOf(delivery.creatorId) : idOf(delivery.brandId);
+    delivery.myReview = reviews.find(r => idOf(r.reviewerId) === user._id.toString() && idOf(r.revieweeId) === otherId) || null;
+    delivery.receivedReview = reviews.find(r => idOf(r.revieweeId) === user._id.toString() && idOf(r.reviewerId) === otherId) || null;
     delivery.canReview = ['approved', 'auto_approved'].includes(delivery.status) && !delivery.myReview;
 
     res.json({ delivery });

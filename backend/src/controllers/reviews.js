@@ -22,20 +22,26 @@ export async function createReview(req, res) {
       return res.status(400).json({ error: 'Campaign not completed yet' });
     }
     
-    // Determine reviewee
+    // Determine reviewee (multi-créateurs : la marque note un créateur précis via ?creatorId=)
     let revieweeId;
     if (reviewer.role === 'brand') {
-      revieweeId = campaign.selectedCreator;
+      const targetCreator = req.query.creatorId || req.body.creatorId;
+      const selected = (campaign.selectedCreators || []).map(String);
+      if (targetCreator && selected.includes(String(targetCreator))) revieweeId = targetCreator;
+      else if (selected.length <= 1 || !targetCreator) revieweeId = campaign.selectedCreators?.[0] || campaign.selectedCreator;
+      else return res.status(400).json({ error: 'Créateur invalide pour cette campagne' });
     } else if (reviewer.role === 'creator') {
       revieweeId = campaign.brandId;
     } else {
       return res.status(403).json({ error: 'Invalid role' });
     }
-    
+    if (!revieweeId) return res.status(400).json({ error: 'Aucun destinataire pour cet avis' });
+
     // Check if already reviewed
     const existingReview = await Review.findOne({
       campaignId,
       reviewerId: reviewer._id,
+      revieweeId,
     });
     
     if (existingReview) {

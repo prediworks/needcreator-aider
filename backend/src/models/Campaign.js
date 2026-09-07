@@ -185,11 +185,16 @@ const campaignSchema = new mongoose.Schema({
     },
   }],
   
+  // Premier créateur sélectionné (compatibilité) + liste complète (campagne multi-créateurs)
   selectedCreator: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
   },
-  
+  selectedCreators: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
+
   selectedAt: Date,
   
   // Analytics
@@ -243,24 +248,46 @@ campaignSchema.methods.canApply = function(creatorId) {
   const isPastDeadline = this.timeline.applicationDeadline && 
     new Date() > new Date(this.timeline.applicationDeadline);
   
+  const wanted = this.matching?.creatorsWanted || 1;
+  const selectedCount = (this.selectedCreators?.length) || (this.selectedCreator ? 1 : 0);
+
   return (
     this.status === 'active' &&
     !hasApplied &&
     !isExcluded &&
     !isPastDeadline &&
-    !this.selectedCreator
+    selectedCount < wanted
   );
 };
 
+campaignSchema.methods.remainingSlots = function() {
+  const wanted = this.matching?.creatorsWanted || 1;
+  const selectedCount = (this.selectedCreators?.length) || (this.selectedCreator ? 1 : 0);
+  return Math.max(0, wanted - selectedCount);
+};
+
+/**
+ * Sélectionne un créateur. La campagne reste ouverte tant que tous les postes ne sont pas pourvus,
+ * puis passe en production.
+ */
 campaignSchema.methods.selectCreator = function(creatorId) {
-  this.selectedCreator = creatorId;
-  this.selectedAt = new Date();
-  this.status = 'in_progress';
-  
-  // Update application status (modification en place des sous-documents)
   const idOf = (c) => (c && c._id ? c._id : c)?.toString();
+  if (!this.selectedCreators) this.selectedCreators = [];
+  if (!this.selectedCreators.some(id => idOf(id) === creatorId.toString())) {
+    this.selectedCreators.push(creatorId);
+  }
+  if (!this.selectedCreator) this.selectedCreator = creatorId;
+  this.selectedAt = new Date();
+
+  const wanted = this.matching?.creatorsWanted || 1;
+  if (this.selectedCreators.length >= wanted) {
+    this.status = 'in_progress';
+  }
+
+  // Candidature acceptée ; les autres sont refusées seulement quand tous les postes sont pourvus
   this.applications.forEach(app => {
-    app.status = idOf(app.creatorId) === creatorId.toString() ? 'accepted' : 'rejected';
+    if (idOf(app.creatorId) === creatorId.toString()) app.status = 'accepted';
+    else if (this.status === 'in_progress' && app.status === 'pending') app.status = 'rejected';
   });
 };
 

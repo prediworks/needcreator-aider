@@ -6,6 +6,9 @@ import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote } from '@/hooks/useCampaigns';
 import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import LevelBadges from '@/components/LevelBadges';
+import GroupPaymentCard from '@/components/GroupPaymentCard';
+import Badge2 from '@/components/ui/Badge';
+import { DELIVERY_STATUS } from '@/lib/labels';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -78,7 +81,8 @@ export default function CampaignDetailPage() {
   const handleSelect = async (creatorId: string, name: string, amount: number) => {
     if (!confirm(`Sélectionner ${name} pour ${formatCurrency(amount)} ?\n\nVous saisirez ensuite votre carte : le montant est bloqué (pas débité) et versé au créateur uniquement après votre validation de la livraison.`)) return;
     const result = await selectMutation.mutateAsync({ campaignId, creatorId });
-    if (result.delivery?._id) {
+    // Un seul créateur recherché : on va directement payer sur la livraison ; sinon on reste ici (paiement groupé)
+    if (result.delivery?._id && (campaign.matching?.creatorsWanted || 1) === 1) {
       router.push(`/deliveries/${result.delivery._id}`);
     }
   };
@@ -165,24 +169,45 @@ export default function CampaignDetailPage() {
               </Card>
             )}
 
-            {/* Lien livraison (marque ou créateur sélectionné) */}
-            {campaign.delivery && (
+            {/* Paiements groupés en attente (marque) */}
+            {isOwnCampaign && campaign.pendingPayments?.length > 0 && (
+              <GroupPaymentCard campaignId={campaignId} pending={campaign.pendingPayments} />
+            )}
+
+            {/* Livraisons (marque) */}
+            {isOwnCampaign && campaign.deliveries?.length > 0 && (
+              <Card className="p-6 bg-blue-50 border-blue-200">
+                <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                  <h3 className="font-semibold text-blue-900 flex items-center gap-2"><Package className="w-5 h-5" /> Créateurs sélectionnés ({campaign.deliveries.length}/{campaign.matching?.creatorsWanted || 1})</h3>
+                  {campaign.remainingSlots > 0 && <span className="text-xs text-blue-700">Encore {campaign.remainingSlots} place(s) : sélectionnez d&apos;autres devis ci-dessous</span>}
+                </div>
+                <div className="space-y-2">
+                  {campaign.deliveries.map((d: any) => (
+                    <div key={d._id} className="bg-white rounded-lg p-3 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{d.creatorId?.profile?.name}</span>
+                        <Badge2 map={DELIVERY_STATUS} value={d.status} />
+                        {['pending', 'failed'].includes(d.payment?.status) && d.payment?.stripePaymentIntentId && <span className="text-xs text-orange-700">paiement à confirmer</span>}
+                      </div>
+                      <Link href={`/deliveries/${d._id}`}><Button size="sm">Voir la livraison</Button></Link>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Livraison (créateur sélectionné) */}
+            {!isOwnCampaign && campaign.delivery && (
               <Card className="p-6 bg-blue-50 border-blue-200">
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <div className="flex items-center gap-3">
                     <Package className="w-6 h-6 text-blue-600" />
                     <div>
-                      <h3 className="font-semibold text-blue-900">
-                        {campaign.selectedCreator?.profile?.name
-                          ? `Créateur sélectionné : ${campaign.selectedCreator.profile.name}`
-                          : 'Mission en cours'}
-                      </h3>
-                      <p className="text-sm text-blue-700">Suivez la production et la validation des vidéos.</p>
+                      <h3 className="font-semibold text-blue-900">Votre mission</h3>
+                      <p className="text-sm text-blue-700">Suivez la production et la validation de vos vidéos.</p>
                     </div>
                   </div>
-                  <Link href={`/deliveries/${campaign.delivery._id}`}>
-                    <Button>Voir la livraison</Button>
-                  </Link>
+                  <Link href={`/deliveries/${campaign.delivery._id}`}><Button>Voir la livraison</Button></Link>
                 </div>
               </Card>
             )}
@@ -308,7 +333,7 @@ export default function CampaignDetailPage() {
                             <Link href={`/profile/${cid}`}>
                               <Button size="sm" variant="outline">Voir le portfolio</Button>
                             </Link>
-                            {app.status === 'pending' && campaign.status === 'active' && !campaign.selectedCreator && (
+                            {app.status === 'pending' && campaign.status === 'active' && (campaign.remainingSlots ?? 1) > 0 && (
                               <Button
                                 size="sm"
                                 onClick={() => handleSelect(cid, c.profile?.name || 'ce créateur', app.price)}
