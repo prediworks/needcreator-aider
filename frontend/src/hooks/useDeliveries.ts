@@ -1,24 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 
-export function useDeliveries(filters?: any) {
+export function useDeliveries(filters?: any, enabled = true) {
   return useQuery({
     queryKey: ['deliveries', filters],
     queryFn: async () => {
       const response = await api.get('/deliveries', { params: filters });
       return response.data;
     },
+    enabled,
   });
 }
 
-export function useDelivery(deliveryId: string) {
+export function useDelivery(deliveryId: string, enabled = true) {
   return useQuery({
     queryKey: ['delivery', deliveryId],
     queryFn: async () => {
       const response = await api.get(`/deliveries/${deliveryId}`);
       return response.data.delivery;
     },
-    enabled: !!deliveryId,
+    enabled: !!deliveryId && enabled,
   });
 }
 
@@ -35,9 +37,13 @@ export function useUploadDeliverables() {
       });
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      toast.success(`${data.files?.length || 0} fichier(s) envoyé(s)`);
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de l\'envoi des fichiers'));
     },
   });
 }
@@ -53,6 +59,10 @@ export function useSubmitDelivery() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      toast.success('Livraison soumise ! La marque a 7 jours pour valider.');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la soumission'));
     },
   });
 }
@@ -65,9 +75,18 @@ export function useApproveDelivery() {
       const response = await api.post(`/deliveries/${deliveryId}/approve`);
       return response.data;
     },
-    onSuccess: (_, deliveryId) => {
+    onSuccess: (data, deliveryId) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', deliveryId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      if (data.warning) {
+        toast.warning(`Livraison approuvée. ${data.warning}`, { duration: 8000 });
+      } else {
+        toast.success('Livraison approuvée, paiement versé au créateur.');
+      }
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de l\'approbation'));
     },
   });
 }
@@ -83,6 +102,10 @@ export function useRequestRevision() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
+      toast.success('Révision demandée, le créateur a été notifié.');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la demande de révision'));
     },
   });
 }

@@ -8,6 +8,10 @@ import {
   getUsers,
   suspendUser,
   reactivateUser,
+  runJobs,
+  getAdminCampaigns,
+  getAdminDeliveries,
+  getUserDetail,
 } from '../controllers/admin.js';
 
 const router = express.Router();
@@ -25,7 +29,15 @@ router.post('/creators/:userId/reject', rejectCreator);
 
 // User management
 router.get('/users', getUsers);
+router.get('/users/:userId', getUserDetail);
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
+
+// Supervision
+router.get('/campaigns', getAdminCampaigns);
+router.get('/deliveries', getAdminDeliveries);
+
+// Lance manuellement les tâches planifiées (auto-approbation, rappels) — utile pour tester
+router.post('/jobs/run', runJobs);
 
 export default router;

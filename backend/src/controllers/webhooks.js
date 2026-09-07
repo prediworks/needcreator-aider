@@ -22,6 +22,10 @@ export async function handleStripeWebhook(req, res) {
       case 'payment_intent.succeeded':
         await handlePaymentIntentSucceeded(event.data.object);
         break;
+
+      case 'payment_intent.amount_capturable_updated':
+        await handlePaymentAuthorized(event.data.object);
+        break;
         
       case 'payment_intent.payment_failed':
         await handlePaymentIntentFailed(event.data.object);
@@ -55,19 +59,24 @@ export async function handleStripeWebhook(req, res) {
  */
 async function handleAccountUpdated(account) {
   try {
-    const user = await User.findOne({ stripeAccountId: account.id });
+    const user = await User.findOne({
+      $or: [{ stripeAccountId: account.id }, { 'profile.stripeConnect.accountId': account.id }],
+    });
     
     if (!user) {
       logger.warn(`User not found for Stripe account: ${account.id}`);
       return;
     }
     
-    // Update verification status
+    user.set('profile.stripeConnect.chargesEnabled', !!account.charges_enabled);
+    user.set('profile.stripeConnect.payoutsEnabled', !!account.payouts_enabled);
+    user.set('profile.stripeConnect.detailsSubmitted', !!account.details_submitted);
+    user.set('profile.stripeConnect.onboardingComplete', !!(account.details_submitted && account.payouts_enabled));
     if (account.charges_enabled && account.payouts_enabled) {
       user.verification.identity = true;
-      await user.save();
-      logger.info(`User ${user._id} Stripe account verified`);
     }
+    await user.save();
+    logger.info(`User ${user._id} Stripe account updated (payouts=${account.payouts_enabled})`);
   } catch (error) {
     logger.error('Failed to handle account.updated:', error);
   }
@@ -90,6 +99,24 @@ async function handlePaymentIntentSucceeded(paymentIntent) {
     logger.info(`Payment succeeded for delivery: ${delivery._id}`);
   } catch (error) {
     logger.error('Failed to handle payment_intent.succeeded:', error);
+  }
+}
+
+/**
+ * Paiement autorisé (carte confirmée, montant bloqué)
+ */
+async function handlePaymentAuthorized(paymentIntent) {
+  try {
+    const delivery = await Delivery.findOne({ 'payment.stripePaymentIntentId': paymentIntent.id });
+    if (!delivery) return;
+    if (delivery.payment.status === 'pending' || delivery.payment.status === 'failed') {
+      delivery.payment.status = 'held';
+      delivery.payment.heldAt = new Date();
+      await delivery.save();
+      logger.info(`Payment authorized for delivery: ${delivery._id}`);
+    }
+  } catch (error) {
+    logger.error('Failed to handle amount_capturable_updated:', error);
   }
 }
 

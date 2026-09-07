@@ -65,13 +65,15 @@ npm install
 
 Vous pouvez commencer sans R2. Les uploads de fichiers ne fonctionneront pas mais le reste de l'app oui.
 
+> **Ports utilisés** : backend sur **3002**, frontend sur **3000** (le port 3001 est réservé à un autre service).
+
 ### 4. Configurer les fichiers .env
 
 **Backend** (`backend/.env`) :
 
 ```env
 NODE_ENV=development
-PORT=3000
+PORT=3002
 
 # MongoDB (remplacez avec votre connection string)
 MONGODB_URI=mongodb+srv://ugcuser:VOTRE_PASSWORD@cluster0.xxxxx.mongodb.net/ugc-platform-dev?retryWrites=true&w=majority
@@ -97,8 +99,20 @@ CLOUDFLARE_SECRET_ACCESS_KEY=
 CLOUDFLARE_BUCKET_NAME=
 CLOUDFLARE_PUBLIC_URL=
 
-# Frontend URL
-FRONTEND_URL=http://localhost:3001
+# Frontend URL (plusieurs origines possibles, séparées par des virgules)
+FRONTEND_URL=http://localhost:3000,http://95.111.238.135:3000
+
+# Email via SMTP (recommandé) — sinon SendGrid est utilisé
+SMTP_HOST=ssl0.ovh.net
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=noreply@votre-domaine.fr
+SMTP_PASS=xxxxx
+FROM_EMAIL=noreply@votre-domaine.fr
+
+# Optionnel
+MIN_CREATOR_VIDEOS=3        # vidéos de portfolio requises pour candidater
+JOBS_INTERVAL_MINUTES=60    # fréquence des tâches planifiées (auto-approbation, rappels)
 
 # Security
 JWT_SECRET=dev-secret-change-me
@@ -120,7 +134,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
 NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef
 
 # API Backend
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
+NEXT_PUBLIC_API_URL=http://localhost:3002/api
 
 # Stripe (clé publique TEST)
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
@@ -136,9 +150,9 @@ npm run dev
 
 Vous devriez voir :
 ```
-🚀 Server running on port 3000 in development mode
-📊 Health check: http://localhost:3000/health
-✅ MongoDB connected
+🚀 Server running on port 3002 in development mode
+📊 Health check: http://localhost:3002/health
+🌐 CORS autorisé pour : http://localhost:3000, ...
 ```
 
 **Terminal 2 - Frontend** :
@@ -150,12 +164,14 @@ npm run dev
 Vous devriez voir :
 ```
 ▲ Next.js 14.x.x
-- Local:        http://localhost:3001
+- Local:        http://localhost:3000
 ```
 
 ### 6. Tester l'application
 
-1. Ouvrez http://localhost:3001
+Voir le guide détaillé : [GUIDE-TEST.md](./GUIDE-TEST.md) (vérification de la configuration, test automatique de tous les flux, parcours manuels, compte admin).
+
+1. Ouvrez http://localhost:3000
 2. Cliquez sur "S'inscrire"
 3. Créez un compte créateur ou marque
 4. Explorez l'application !
@@ -213,7 +229,7 @@ Error: Firebase auth failed
 Access to fetch blocked by CORS policy
 ```
 
-**Solution** : Vérifiez que `FRONTEND_URL=http://localhost:3001` dans `backend/.env`
+**Solution** : Vérifiez que l'adresse du frontend figure dans `FRONTEND_URL` de `backend/.env` (plusieurs adresses possibles, séparées par des virgules)
 
 ### Port déjà utilisé
 
@@ -236,8 +252,13 @@ kill -9 <PID>
 # Backend
 cd backend
 npm run dev          # Démarrer en mode développement
-npm run lint         # Vérifier le code
-npm test            # Lancer les tests
+npm run check:env    # Vérifier MongoDB, Stripe, Firebase, email, R2
+npm run test:e2e -- --clean   # Tester tous les flux via l'API (backend démarré)
+npm run make-admin -- email@exemple.com   # Donner le rôle admin à un compte existant
+
+# Test navigateur (racine du projet, backend + frontend démarrés)
+npm install && npx playwright install chromium   # une seule fois
+npm run test:ui
 
 # Frontend
 cd frontend

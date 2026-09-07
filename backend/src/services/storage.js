@@ -15,6 +15,60 @@ const s3Client = new S3Client({
   },
 });
 
+const PRIVATE_ENDPOINT_MARKER = 'r2.cloudflarestorage.com';
+
+/**
+ * Le bucket est-il exposé via une URL publique (r2.dev ou domaine perso) ?
+ * Si non, on génère des liens signés temporaires pour la lecture.
+ */
+export function hasPublicUrl() {
+  const publicUrl = config.storage.cloudflare.publicUrl || '';
+  return publicUrl && !publicUrl.includes(PRIVATE_ENDPOINT_MARKER);
+}
+
+/**
+ * Extrait la clé (chemin dans le bucket) à partir d'une URL stockée en base
+ */
+export function keyFromUrl(url) {
+  if (!url) return null;
+  const publicUrl = config.storage.cloudflare.publicUrl || '';
+  if (publicUrl && url.startsWith(publicUrl)) {
+    return url.slice(publicUrl.length).replace(/^\//, '');
+  }
+  // Fallback : tout ce qui suit le nom du bucket
+  const idx = url.indexOf(`/${config.storage.cloudflare.bucketName}/`);
+  if (idx !== -1) return url.slice(idx + config.storage.cloudflare.bucketName.length + 2);
+  return null;
+}
+
+/**
+ * Retourne une URL lisible par le navigateur (publique ou signée 1h)
+ */
+export async function resolveUrl(url) {
+  if (!url) return url;
+  if (hasPublicUrl()) return url;
+  const key = keyFromUrl(url);
+  if (!key) return url;
+  try {
+    return await getPresignedUrl(key, 3600);
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Remplace les URLs d'un tableau d'objets ({url} ou {videoUrl, thumbnail}) par des URLs lisibles
+ */
+export async function resolveUrlsIn(items = []) {
+  return Promise.all(items.map(async (item) => {
+    const out = { ...item };
+    if (out.url) out.url = await resolveUrl(out.url);
+    if (out.videoUrl) out.videoUrl = await resolveUrl(out.videoUrl);
+    if (out.thumbnail) out.thumbnail = await resolveUrl(out.thumbnail);
+    return out;
+  }));
+}
+
 /**
  * Generate unique filename
  */
@@ -54,18 +108,25 @@ export async function uploadFile(buffer, originalName, contentType, folder = 'up
 /**
  * Upload video with metadata
  */
-export async function uploadVideo(buffer, originalName, metadata = {}) {
+export async function uploadVideo(buffer, originalName, metadata = {}, contentType = 'video/mp4') {
   try {
     const filename = generateFilename(originalName, 'videos/');
+    
+    // Les métadonnées S3 doivent être des chaînes ASCII
+    const safeMetadata = Object.fromEntries(
+      Object.entries(metadata)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [k, encodeURIComponent(String(v))])
+    );
     
     const command = new PutObjectCommand({
       Bucket: config.storage.cloudflare.bucketName,
       Key: filename,
       Body: buffer,
-      ContentType: 'video/mp4',
+      ContentType: contentType,
       Metadata: {
-        ...metadata,
-        uploadedAt: new Date().toISOString(),
+        ...safeMetadata,
+        uploadedat: new Date().toISOString(),
       },
     });
     

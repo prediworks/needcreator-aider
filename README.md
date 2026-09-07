@@ -37,6 +37,16 @@ Une plateforme complète pour connecter les marques avec des créateurs de conte
 - Compte Cloudflare R2
 - Compte SendGrid
 
+## 🧪 Vérifier et tester
+
+```bash
+cd backend && npm run check:env          # services externes OK ?
+cd backend && npm run test:e2e -- --clean # tous les flux métier via l'API
+npm run test:ui                           # parcours dans un vrai navigateur (racine)
+```
+
+Guide pas à pas : [docs/GUIDE-TEST.md](docs/GUIDE-TEST.md). Idées d'évolution : [docs/PROPOSITIONS-fonctionnalites.md](docs/PROPOSITIONS-fonctionnalites.md).
+
 ## 🛠️ Installation
 
 ### Backend

@@ -2,57 +2,55 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { useCampaign, useApplyToCampaign } from '@/hooks/useCampaigns';
+import { useRequireAuth } from '@/hooks/useAuth';
+import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator } from '@/hooks/useCampaigns';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  DollarSign, 
-  Clock, 
-  Users, 
+import Badge from '@/components/ui/Badge';
+import Spinner from '@/components/ui/Spinner';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Users,
   CheckCircle,
   Building2,
-  Video
+  Send,
+  XCircle,
+  Package,
+  Star,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
+import { NICHES, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS } from '@/lib/labels';
 import Link from 'next/link';
 
 export default function CampaignDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
+  const { user, ready } = useRequireAuth();
   const campaignId = params.id as string;
-  
-  const { data: campaign, isLoading } = useCampaign(campaignId);
+
+  const { data: campaign, isLoading, error } = useCampaign(campaignId, ready);
   const applyMutation = useApplyToCampaign();
-  
+  const publishMutation = usePublishCampaign();
+  const cancelMutation = useCancelCampaign();
+  const selectMutation = useSelectCreator();
+
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [proposal, setProposal] = useState('');
   const [price, setPrice] = useState('');
   const [estimatedDeliveryDays, setEstimatedDeliveryDays] = useState('7');
 
-  if (!isAuthenticated) {
-    router.push('/login');
-    return null;
-  }
+  if (!ready || isLoading) return <Spinner />;
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
-
-  if (!campaign) {
+  if (!campaign || error) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center">
           <h2 className="text-xl font-semibold mb-2">Campagne introuvable</h2>
-          <p className="text-neutral-600 mb-4">Cette campagne n'existe pas ou a été supprimée</p>
+          <p className="text-neutral-600 mb-4">Cette campagne n&apos;existe pas ou n&apos;est plus accessible</p>
           <Link href="/campaigns">
             <Button>Retour aux campagnes</Button>
           </Link>
@@ -61,9 +59,13 @@ export default function CampaignDetailPage() {
     );
   }
 
+  const isCreator = user?.role === 'creator';
+  const isBrand = user?.role === 'brand';
+  const userId = user?.id || user?._id;
+  const isOwnCampaign = isBrand && (campaign.brandId?._id || campaign.brandId) === userId;
+
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     await applyMutation.mutateAsync({
       campaignId,
       data: {
@@ -72,19 +74,27 @@ export default function CampaignDetailPage() {
         estimatedDeliveryDays: parseInt(estimatedDeliveryDays),
       },
     });
-    
     setShowApplicationForm(false);
-    router.refresh();
   };
 
-  const isCreator = user?.role === 'creator';
-  const isBrand = user?.role === 'brand';
-  const isOwnCampaign = campaign.brandId._id === user?.id;
+  const handleSelect = async (creatorId: string, name: string, amount: number) => {
+    if (!confirm(`Sélectionner ${name} pour ${formatCurrency(amount)} ?\n\nVous saisirez ensuite votre carte : le montant est bloqué (pas débité) et versé au créateur uniquement après votre validation de la livraison.`)) return;
+    const result = await selectMutation.mutateAsync({ campaignId, creatorId });
+    if (result.delivery?._id) {
+      router.push(`/deliveries/${result.delivery._id}`);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!confirm('Annuler définitivement cette campagne ?')) return;
+    await cancelMutation.mutateAsync(campaignId);
+  };
+
+  const suggestedPrice = campaign.budget.total;
 
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
       <div className="container mx-auto px-4 max-w-5xl">
-        {/* Back Button */}
         <Link href="/campaigns">
           <Button variant="ghost" size="sm" className="mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -105,26 +115,65 @@ export default function CampaignDetailPage() {
                   <h1 className="text-3xl font-bold text-neutral-900 mb-2">
                     {campaign.title}
                   </h1>
-                  <div className="flex items-center gap-4 text-sm text-neutral-600">
-                    <span className="font-medium">{campaign.brandId.profile.companyName}</span>
+                  <div className="flex items-center gap-3 text-sm text-neutral-600 flex-wrap">
+                    <span className="font-medium">{campaign.brandId?.profile?.companyName}</span>
                     <span>•</span>
-                    <span>{formatRelativeTime(campaign.timeline.publishedAt)}</span>
-                    <span>•</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      campaign.status === 'active' ? 'bg-green-100 text-green-700' :
-                      campaign.status === 'draft' ? 'bg-gray-100 text-gray-700' :
-                      'bg-blue-100 text-blue-700'
-                    }`}>
-                      {campaign.status}
+                    <span>
+                      {campaign.timeline?.publishedAt
+                        ? `Publiée ${formatRelativeTime(campaign.timeline.publishedAt)}`
+                        : `Créée ${formatRelativeTime(campaign.createdAt)}`}
                     </span>
+                    <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
                   </div>
                 </div>
               </div>
 
-              <p className="text-neutral-700 leading-relaxed">
+              <p className="text-neutral-700 leading-relaxed whitespace-pre-line">
                 {campaign.description}
               </p>
             </Card>
+
+            {/* Actions marque sur brouillon */}
+            {isOwnCampaign && campaign.status === 'draft' && (
+              <Card className="p-6 bg-primary-50 border-primary-200">
+                <h3 className="font-semibold text-neutral-900 mb-2">Cette campagne est en brouillon</h3>
+                <p className="text-sm text-neutral-700 mb-4">
+                  Publiez-la pour la rendre visible aux créateurs de vos niches. Ils seront notifiés par email.
+                </p>
+                <div className="flex gap-3 flex-wrap">
+                  <Button onClick={() => publishMutation.mutate(campaignId)} isLoading={publishMutation.isPending}>
+                    <Send className="w-4 h-4 mr-2" />
+                    Publier maintenant
+                  </Button>
+                  <Button variant="outline" onClick={handleCancel} isLoading={cancelMutation.isPending}>
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Annuler la campagne
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {/* Lien livraison (marque ou créateur sélectionné) */}
+            {campaign.delivery && (
+              <Card className="p-6 bg-blue-50 border-blue-200">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <Package className="w-6 h-6 text-blue-600" />
+                    <div>
+                      <h3 className="font-semibold text-blue-900">
+                        {campaign.selectedCreator?.profile?.name
+                          ? `Créateur sélectionné : ${campaign.selectedCreator.profile.name}`
+                          : 'Mission en cours'}
+                      </h3>
+                      <p className="text-sm text-blue-700">Suivez la production et la validation des vidéos.</p>
+                    </div>
+                  </div>
+                  <Link href={`/deliveries/${campaign.delivery._id}`}>
+                    <Button>Voir la livraison</Button>
+                  </Link>
+                </div>
+              </Card>
+            )}
 
             {/* Brief */}
             <Card className="p-6">
@@ -133,27 +182,27 @@ export default function CampaignDetailPage() {
               </h2>
 
               <div className="space-y-4">
-                <div>
-                  <h3 className="font-medium text-neutral-900 mb-2">Type de vidéo</h3>
-                  <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm">
-                    {campaign.brief.videoType}
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="font-medium text-neutral-900 mb-2">Durée</h3>
-                  <p className="text-neutral-600">{campaign.brief.duration} secondes</p>
-                </div>
-
-                <div>
-                  <h3 className="font-medium text-neutral-900 mb-2">Nombre de livrables</h3>
-                  <p className="text-neutral-600">{campaign.brief.deliverables} vidéos</p>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-neutral-500 mb-1">Type de vidéo</h3>
+                    <span className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm">
+                      {VIDEO_TYPES[campaign.brief.videoType] || campaign.brief.videoType}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-neutral-500 mb-1">Durée</h3>
+                    <p className="text-neutral-900">{campaign.brief.duration} secondes</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-neutral-500 mb-1">Livrables</h3>
+                    <p className="text-neutral-900">{campaign.brief.deliverables} vidéo(s)</p>
+                  </div>
                 </div>
 
                 {campaign.brief.requirements?.length > 0 && (
                   <div>
-                    <h3 className="font-medium text-neutral-900 mb-2">Exigences</h3>
-                    <ul className="list-disc list-inside space-y-1 text-neutral-600">
+                    <h3 className="text-sm font-medium text-neutral-500 mb-2">Consignes</h3>
+                    <ul className="list-disc list-inside space-y-1 text-neutral-700">
                       {campaign.brief.requirements.map((req: string, i: number) => (
                         <li key={i}>{req}</li>
                       ))}
@@ -162,11 +211,11 @@ export default function CampaignDetailPage() {
                 )}
 
                 <div>
-                  <h3 className="font-medium text-neutral-900 mb-2">Niches</h3>
+                  <h3 className="text-sm font-medium text-neutral-500 mb-2">Niches</h3>
                   <div className="flex flex-wrap gap-2">
                     {campaign.matching.niches.map((niche: string) => (
                       <span key={niche} className="px-2 py-1 bg-neutral-100 text-neutral-700 rounded text-sm">
-                        {niche}
+                        {NICHES[niche] || niche}
                       </span>
                     ))}
                   </div>
@@ -175,49 +224,77 @@ export default function CampaignDetailPage() {
             </Card>
 
             {/* Applications (for brand) */}
-            {isBrand && isOwnCampaign && campaign.applications?.length > 0 && (
+            {isOwnCampaign && (
               <Card className="p-6">
-                <h2 className="text-xl font-semibold text-neutral-900 mb-4">
-                  Candidatures ({campaign.applications.length})
+                <h2 className="text-xl font-semibold text-neutral-900 mb-1">
+                  Candidatures ({campaign.applications?.length || 0})
                 </h2>
-                <div className="space-y-4">
-                  {campaign.applications.map((app: any) => (
-                    <div key={app._id} className="border border-neutral-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                            <span className="text-primary-600 font-semibold">
-                              {app.creatorId.profile.name[0]}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-medium">{app.creatorId.profile.name}</div>
-                            <div className="text-sm text-neutral-500">
-                              Note: {app.creatorId.profile.stats.rating.toFixed(1)} ⭐
+                <p className="text-sm text-neutral-500 mb-4">Triées par score de matching (niches, budget, note, réactivité).</p>
+                {campaign.applications?.length > 0 ? (
+                  <div className="space-y-4">
+                    {campaign.applications.map((app: any) => {
+                      const c = app.creatorId || {};
+                      const cid = c._id || app.creatorId;
+                      const rating = c.profile?.stats?.rating || 0;
+                      const reviews = c.profile?.stats?.totalReviews || 0;
+                      return (
+                        <div key={app._id} className="border border-neutral-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden">
+                                {c.profile?.avatar ? (
+                                  <img src={c.profile.avatar} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-primary-600 font-semibold">{c.profile?.name?.[0] || '?'}</span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-medium">{c.profile?.name || 'Créateur'}</div>
+                                <div className="text-sm text-neutral-500 flex items-center gap-1">
+                                  <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
+                                  {reviews ? `${rating.toFixed(1)} (${reviews} avis)` : 'Nouveau créateur'}
+                                  <span className="mx-1">•</span>
+                                  {c.profile?.stats?.completedJobs || 0} mission(s)
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold text-primary-600 text-lg">
+                                {formatCurrency(app.price)}
+                              </div>
+                              <div className="text-sm text-neutral-500">
+                                Match <strong>{app.matchScore}%</strong> · {app.estimatedDeliveryDays} j
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-semibold text-primary-600">
-                            {formatCurrency(app.price)}
+                          {app.proposal && (
+                            <p className="text-sm text-neutral-600 mb-3 bg-neutral-50 rounded p-3">{app.proposal}</p>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge map={APPLICATION_STATUS} value={app.status} />
+                            <Link href={`/profile/${cid}`}>
+                              <Button size="sm" variant="outline">Voir le portfolio</Button>
+                            </Link>
+                            {app.status === 'pending' && campaign.status === 'active' && !campaign.selectedCreator && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleSelect(cid, c.profile?.name || 'ce créateur', app.price)}
+                                isLoading={selectMutation.isPending}
+                              >
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Sélectionner et payer
+                              </Button>
+                            )}
                           </div>
-                          <div className="text-sm text-neutral-500">
-                            Match: {app.matchScore}%
-                          </div>
                         </div>
-                      </div>
-                      {app.proposal && (
-                        <p className="text-sm text-neutral-600 mb-3">{app.proposal}</p>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Button size="sm">Voir le profil</Button>
-                        {app.status === 'pending' && (
-                          <Button size="sm" variant="outline">Accepter</Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-neutral-500 text-sm py-6 text-center">
+                    {campaign.status === 'draft' ? 'Publiez la campagne pour recevoir des candidatures.' : 'Aucune candidature pour le moment.'}
+                  </p>
+                )}
               </Card>
             )}
           </div>
@@ -227,27 +304,32 @@ export default function CampaignDetailPage() {
             {/* Budget */}
             <Card className="p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Budget</h3>
-              <div className="text-center py-4">
-                <div className="text-4xl font-bold text-primary-600 mb-2">
+              <div className="text-center py-2">
+                <div className="text-4xl font-bold text-primary-600 mb-1">
                   {formatCurrency(campaign.budget.perVideo)}
                 </div>
                 <div className="text-sm text-neutral-600">par vidéo</div>
                 <div className="text-xs text-neutral-500 mt-2">
-                  Total: {formatCurrency(campaign.budget.total)}
+                  Total : {formatCurrency(campaign.budget.total)} pour {campaign.brief.deliverables} vidéo(s)
                 </div>
+                {isCreator && (
+                  <div className="text-xs text-neutral-500 mt-1">
+                    Vous recevez 90% du prix accepté (commission 10%)
+                  </div>
+                )}
               </div>
             </Card>
 
             {/* Timeline */}
             <Card className="p-6">
-              <h3 className="font-semibold text-neutral-900 mb-4">Timeline</h3>
+              <h3 className="font-semibold text-neutral-900 mb-4">Calendrier</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-3 text-sm">
                   <Calendar className="w-4 h-4 text-neutral-400" />
                   <div>
-                    <div className="text-neutral-600">Date limite candidature</div>
+                    <div className="text-neutral-600">Date limite de candidature</div>
                     <div className="font-medium">
-                      {formatDate(campaign.timeline.applicationDeadline)}
+                      {campaign.timeline?.applicationDeadline ? formatDate(campaign.timeline.applicationDeadline) : '—'}
                     </div>
                   </div>
                 </div>
@@ -256,9 +338,9 @@ export default function CampaignDetailPage() {
                   <div>
                     <div className="text-neutral-600">Temps restant</div>
                     <div className="font-medium">
-                      {campaign.daysUntilDeadline > 0 
-                        ? `${campaign.daysUntilDeadline} jours`
-                        : 'Expiré'}
+                      {campaign.daysUntilDeadline > 0
+                        ? `${campaign.daysUntilDeadline} jour(s)`
+                        : 'Candidatures closes'}
                     </div>
                   </div>
                 </div>
@@ -272,78 +354,126 @@ export default function CampaignDetailPage() {
               </div>
             </Card>
 
-            {/* CTA */}
-            {isCreator && !campaign.userHasApplied && campaign.canApply && (
-              <Card className="p-6">
-                {!showApplicationForm ? (
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    onClick={() => setShowApplicationForm(true)}
-                  >
-                    Candidater maintenant
-                  </Button>
-                ) : (
-                  <form onSubmit={handleApply} className="space-y-4">
-                    <h3 className="font-semibold text-neutral-900">Votre candidature</h3>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-neutral-700 mb-1">
-                        Proposition (optionnel)
-                      </label>
-                      <textarea
-                        value={proposal}
-                        onChange={(e) => setProposal(e.target.value)}
-                        placeholder="Expliquez pourquoi vous êtes le bon créateur..."
-                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        rows={4}
-                      />
-                    </div>
-
-                    <Input
-                      label="Votre prix (€)"
-                      type="number"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      placeholder={user?.profile.pricing?.minPrice?.toString() || '100'}
-                      required
-                    />
-
-                    <Input
-                      label="Délai de livraison (jours)"
-                      type="number"
-                      value={estimatedDeliveryDays}
-                      onChange={(e) => setEstimatedDeliveryDays(e.target.value)}
-                      required
-                    />
-
-                    <div className="flex gap-2">
-                      <Button 
-                        type="submit" 
-                        className="flex-1"
-                        isLoading={applyMutation.isPending}
-                      >
-                        Envoyer
-                      </Button>
-                      <Button 
-                        type="button"
-                        variant="outline"
-                        onClick={() => setShowApplicationForm(false)}
-                      >
-                        Annuler
-                      </Button>
-                    </div>
-                  </form>
+            {/* CTA créateur */}
+            {isCreator && campaign.isSelected && (
+              <Card className="p-6 bg-green-50 border-green-200">
+                <div className="flex items-center gap-3 text-green-700 mb-3">
+                  <CheckCircle className="w-5 h-5" />
+                  <span className="font-medium">Vous avez été sélectionné !</span>
+                </div>
+                {campaign.delivery && (
+                  <Link href={`/deliveries/${campaign.delivery._id}`}>
+                    <Button className="w-full">Accéder à la livraison</Button>
+                  </Link>
                 )}
               </Card>
             )}
 
-            {isCreator && campaign.userHasApplied && (
+            {isCreator && !campaign.isSelected && campaign.userHasApplied && (
               <Card className="p-6 bg-green-50 border-green-200">
-                <div className="flex items-center gap-3 text-green-700">
+                <div className="flex items-center gap-3 text-green-700 mb-2">
                   <CheckCircle className="w-5 h-5" />
-                  <span className="font-medium">Vous avez déjà candidaté</span>
+                  <span className="font-medium">Candidature envoyée</span>
                 </div>
+                {campaign.myApplication && (
+                  <div className="text-sm text-neutral-700">
+                    Prix proposé : {formatCurrency(campaign.myApplication.price)} ·{' '}
+                    <Badge map={APPLICATION_STATUS} value={campaign.myApplication.status} />
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {isCreator && !campaign.userHasApplied && campaign.status === 'active' && (
+              <Card className="p-6">
+                {campaign.canApply ? (
+                  !showApplicationForm ? (
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={() => { setPrice(String(suggestedPrice)); setShowApplicationForm(true); }}
+                    >
+                      Candidater maintenant
+                    </Button>
+                  ) : (
+                    <form onSubmit={handleApply} className="space-y-4">
+                      <h3 className="font-semibold text-neutral-900">Votre candidature</h3>
+
+                      <div>
+                        <label className="block text-sm font-medium text-neutral-700 mb-1">
+                          Message à la marque (optionnel)
+                        </label>
+                        <textarea
+                          value={proposal}
+                          onChange={(e) => setProposal(e.target.value)}
+                          placeholder="Expliquez pourquoi vous êtes le bon créateur..."
+                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          rows={4}
+                          maxLength={500}
+                        />
+                      </div>
+
+                      <div>
+                        <Input
+                          label={`Votre prix total pour ${campaign.brief.deliverables} vidéo(s) (€)`}
+                          type="number"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                          min={50}
+                          max={10000}
+                          required
+                        />
+                        <p className="text-xs text-neutral-500 mt-1">
+                          Budget de la marque : {formatCurrency(campaign.budget.total)}. Vous recevrez {formatCurrency(Math.round((parseInt(price) || 0) * 0.9))} net.
+                        </p>
+                      </div>
+
+                      <Input
+                        label="Délai de livraison (jours)"
+                        type="number"
+                        value={estimatedDeliveryDays}
+                        onChange={(e) => setEstimatedDeliveryDays(e.target.value)}
+                        min={1}
+                        max={30}
+                        required
+                      />
+
+                      <div className="flex gap-2">
+                        <Button
+                          type="submit"
+                          className="flex-1"
+                          isLoading={applyMutation.isPending}
+                        >
+                          Envoyer
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setShowApplicationForm(false)}
+                        >
+                          Annuler
+                        </Button>
+                      </div>
+                    </form>
+                  )
+                ) : (
+                  <div>
+                    <div className="flex items-center gap-2 text-orange-700 mb-2">
+                      <AlertTriangle className="w-5 h-5" />
+                      <span className="font-medium">Candidature impossible pour l&apos;instant</span>
+                    </div>
+                    <ul className="text-sm text-neutral-700 list-disc list-inside space-y-1 mb-3">
+                      {(campaign.applyBlockers?.length ? campaign.applyBlockers : ['La période de candidature est terminée.']).map((b: string) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
+                    {campaign.applyBlockers?.length > 0 && (
+                      <Link href="/profile">
+                        <Button variant="outline" className="w-full" size="sm">Compléter mon profil</Button>
+                      </Link>
+                    )}
+                  </div>
+                )}
               </Card>
             )}
           </div>

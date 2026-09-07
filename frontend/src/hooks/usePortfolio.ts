@@ -1,19 +1,22 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
+import { toast } from 'sonner';
 
 export function useUploadPortfolioVideo() {
   const queryClient = useQueryClient();
+  const refreshUser = useAuthStore((s) => s.refreshUser);
 
   return useMutation({
-    mutationFn: async ({ 
-      file, 
-      title, 
-      description, 
-      videoType 
-    }: { 
-      file: File; 
-      title: string; 
-      description?: string; 
+    mutationFn: async ({
+      file,
+      title,
+      description,
+      videoType
+    }: {
+      file: File;
+      title: string;
+      description?: string;
       videoType: string;
     }) => {
       const formData = new FormData();
@@ -27,22 +30,33 @@ export function useUploadPortfolioVideo() {
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await refreshUser();
+      toast.success('Vidéo ajoutée au portfolio');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de l\'upload'));
     },
   });
 }
 
 export function useDeletePortfolioVideo() {
   const queryClient = useQueryClient();
+  const refreshUser = useAuthStore((s) => s.refreshUser);
 
   return useMutation({
     mutationFn: async (videoId: string) => {
       const response = await api.delete(`/portfolio/${videoId}`);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await refreshUser();
+      toast.success('Vidéo supprimée');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la suppression'));
     },
   });
 }

@@ -7,17 +7,26 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "test": "NODE_ENV=test jest --coverage --detectOpenHandles",
+    "test": "node scripts/e2e-test.js --clean",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:auth": "NODE_ENV=test jest src/tests/auth.test.js",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write src/**/*.js",
+    "check:env": "node scripts/check-env.js",
+    "make-admin": "node scripts/make-admin.js",
+    "test:e2e": "node scripts/e2e-test.js",
     "deploy:preprod": "bash scripts/deploy-preprod.sh",
     "deploy:prod": "bash scripts/deploy-production.sh",
     "wrangler:preprod": "wrangler dev --env preprod",
-    "wrangler:prod": "wrangler dev --env production"
+    "wrangler:prod": "wrangler dev --env production",
+    "test:unit": "NODE_ENV=test jest --coverage --detectOpenHandles"
   },
-  "keywords": ["ugc", "platform", "api", "mongodb"],
+  "keywords": [
+    "ugc",
+    "platform",
+    "api",
+    "mongodb"
+  ],
   "author": "UGC Platform Team",
   "license": "MIT",
   "dependencies": {

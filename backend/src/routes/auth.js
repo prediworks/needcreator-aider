@@ -1,11 +1,13 @@
 import express from 'express';
-import { authenticate, authenticateFirebase } from '../middleware/auth.js';
+import { authenticate, authenticateFirebase, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import {
   registerCreator,
   registerBrand,
   getProfile,
   updateProfile,
+  startStripeConnect,
+  getStripeConnectStatus,
 } from '../controllers/auth.js';
 import logger from '../utils/logger.js';
 
@@ -25,6 +27,10 @@ router.post('/register/brand', authenticateFirebase, validate(schemas.registerBr
 router.get('/profile', authenticate, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
+
+// Stripe Connect (créateurs) : démarrer l'onboarding et consulter le statut
+router.post('/stripe/connect', authenticate, authorize('creator'), validate(schemas.stripeConnect), startStripeConnect);
+router.get('/stripe/status', authenticate, authorize('creator'), getStripeConnectStatus);
 
 logger.info('Auth routes configured');
 

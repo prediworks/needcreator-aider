@@ -3,8 +3,10 @@ import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const stripe = new Stripe(config.stripe.secretKey, {
-  apiVersion: config.stripe.apiVersion,
+  ...(config.stripe.apiVersion && { apiVersion: config.stripe.apiVersion }),
 });
+
+export { stripe };
 
 /**
  * Create Stripe Connect account for creator (using Accounts v1, kept for onboarding)
@@ -76,6 +78,7 @@ export async function createPaymentIntent(amount, currency, customerId, metadata
       currency: currency.toLowerCase(),
       customer: customerId,
       capture_method: 'manual', // Hold the payment
+      payment_method_types: ['card'], // pas de moyens de paiement à redirection
       metadata,
     });
     
@@ -88,32 +91,83 @@ export async function createPaymentIntent(amount, currency, customerId, metadata
 }
 
 /**
- * Capture payment and transfer to creator
+ * Confirme un PaymentIntent avec une carte de test (hors production uniquement).
+ * Permet de tester le flux complet sans intégrer Stripe Elements côté front.
  */
-export async function captureAndTransfer(paymentIntentId, creatorAccountId, amount, platformFee) {
+export async function confirmWithTestCard(paymentIntentId) {
+  if (config.env === 'production') {
+    throw new Error('confirmWithTestCard is not allowed in production');
+  }
+  const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
+    payment_method: 'pm_card_visa',
+  });
+  logger.info(`Payment intent confirmed with test card: ${paymentIntent.id} (${paymentIntent.status})`);
+  return paymentIntent;
+}
+
+export async function retrievePaymentIntent(paymentIntentId) {
+  return stripe.paymentIntents.retrieve(paymentIntentId);
+}
+
+/**
+ * Capture payment (encaissement) — ne transfère pas encore au créateur
+ */
+export async function capturePayment(paymentIntentId) {
   try {
-    // Capture the payment
+    const current = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (current.status === 'succeeded') {
+      return current; // déjà capturé
+    }
     const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
-    
-    // Calculate amounts
-    const creatorAmount = amount - platformFee;
-    
-    // Transfer to creator
+    logger.info(`Payment captured: ${paymentIntent.id}`);
+    return paymentIntent;
+  } catch (error) {
+    logger.error('Failed to capture payment:', error);
+    throw error;
+  }
+}
+
+/**
+ * Transfert au créateur (montant déjà net de commission)
+ */
+export async function transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, currency = 'eur') {
+  try {
     const transfer = await stripe.transfers.create({
       amount: Math.round(creatorAmount * 100),
-      currency: paymentIntent.currency,
+      currency: currency.toLowerCase(),
       destination: creatorAccountId,
-      transfer_group: paymentIntent.id,
-      metadata: {
-        paymentIntentId: paymentIntent.id,
-      },
+      transfer_group: paymentIntentId,
+      metadata: { paymentIntentId },
     });
-    
-    logger.info(`Payment captured and transferred: ${transfer.id}`);
-    return { paymentIntent, transfer };
+    logger.info(`Transfer created: ${transfer.id} → ${creatorAccountId}`);
+    return transfer;
   } catch (error) {
-    logger.error('Failed to capture and transfer:', error);
+    logger.error('Failed to transfer to creator:', error);
     throw error;
+  }
+}
+
+/**
+ * Capture payment and transfer to creator.
+ * Si le créateur n'a pas encore de compte Stripe Connect opérationnel,
+ * le paiement est encaissé et le virement sera fait plus tard (transferred=false).
+ */
+export async function captureAndTransfer(paymentIntentId, creatorAccountId, amount, platformFee) {
+  const paymentIntent = await capturePayment(paymentIntentId);
+  const creatorAmount = amount - platformFee;
+  
+  if (!creatorAccountId) {
+    logger.warn(`No Stripe Connect account for creator — payment ${paymentIntentId} captured, transfer deferred`);
+    return { paymentIntent, transfer: null, transferred: false };
+  }
+  
+  try {
+    const transfer = await transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, paymentIntent.currency);
+    return { paymentIntent, transfer, transferred: true };
+  } catch (error) {
+    // Ne bloque pas l'approbation : l'argent est encaissé, le virement sera retenté
+    logger.error('Transfer failed, payment captured but not transferred:', error.message);
+    return { paymentIntent, transfer: null, transferred: false, transferError: error.message };
   }
 }
 

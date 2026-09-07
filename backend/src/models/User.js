@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { config } from '../config/index.js';
 
 const userSchema = new mongoose.Schema({
   // Firebase UID
@@ -193,7 +194,7 @@ userSchema.virtual('profileCompletion').get(function() {
   
   if (this.role === 'creator') {
     fields.push(
-      this.profile.portfolio?.length >= 3,
+      (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos,
       this.profile.niches?.length > 0,
       this.profile.pricing?.minPrice,
       this.profile.stripeConnect?.accountId,
@@ -214,13 +215,26 @@ userSchema.virtual('profileCompletion').get(function() {
 
 // Methods
 userSchema.methods.canApplyToCampaign = function() {
+  // Le compte Stripe n'est pas requis pour candidater : il est demandé avant le paiement
   return (
     this.role === 'creator' &&
     this.status === 'active' &&
     this.verification.portfolio &&
-    this.profile.portfolio?.length >= 3 &&
-    this.profile.stripeConnect?.accountId
+    (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos
   );
+};
+
+/**
+ * Explique pourquoi un créateur ne peut pas candidater (pour un message clair côté UI)
+ */
+userSchema.methods.applyBlockers = function() {
+  const blockers = [];
+  if (this.status === 'pending') blockers.push('Votre profil est en attente de validation par notre équipe.');
+  if (this.status === 'suspended' || this.status === 'banned') blockers.push('Votre compte est suspendu.');
+  if (!this.verification.portfolio && this.status === 'active') blockers.push('Votre portfolio n\'a pas encore été validé.');
+  const missing = config.business.minCreatorVideos - (this.profile.portfolio?.length || 0);
+  if (missing > 0) blockers.push(`Ajoutez encore ${missing} vidéo(s) à votre portfolio (minimum ${config.business.minCreatorVideos}).`);
+  return blockers;
 };
 
 userSchema.methods.canCreateCampaign = function() {

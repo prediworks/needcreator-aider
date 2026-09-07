@@ -82,7 +82,7 @@ reviewSchema.index({ campaignId: 1, reviewerId: 1 }, { unique: true });
 // Statics
 reviewSchema.statics.calculateAverageRating = async function(userId) {
   const result = await this.aggregate([
-    { $match: { revieweeId: mongoose.Types.ObjectId(userId) } },
+    { $match: { revieweeId: new mongoose.Types.ObjectId(userId) } },
     {
       $group: {
         _id: null,

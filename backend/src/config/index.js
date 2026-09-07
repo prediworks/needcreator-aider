@@ -27,7 +27,8 @@ export const config = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-    apiVersion: process.env.STRIPE_API_VERSION || '2026-08-26.dahlia',
+    // Laisser vide pour utiliser la version d'API épinglée par le SDK Stripe
+    apiVersion: process.env.STRIPE_API_VERSION || undefined,
     platformFeePercent: parseInt(process.env.STRIPE_PLATFORM_FEE_PERCENT || '10', 10),
   },
   
@@ -60,12 +61,21 @@ export const config = {
   security: {
     jwtSecret: process.env.JWT_SECRET,
     rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10),
-    rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+    rateLimitMaxRequests: parseInt(
+      process.env.RATE_LIMIT_MAX_REQUESTS || (process.env.NODE_ENV === 'production' ? '300' : '5000'),
+      10
+    ),
   },
   
   // CORS
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3003',
+    // Liste d'origines autorisées (séparées par des virgules dans FRONTEND_URL)
+    origins: (process.env.FRONTEND_URL || 'http://localhost:3000')
+      .split(',')
+      .map(o => o.trim())
+      .filter(Boolean),
+    // Première origine = URL principale du frontend (utilisée dans les emails)
+    origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim(),
   },
   
   // Business rules
@@ -73,8 +83,12 @@ export const config = {
     autoApprovalDays: 7,
     maxRevisions: 2,
     revisionDeadlineDays: 3,
-    minCreatorVideos: 3,
+    minCreatorVideos: parseInt(process.env.MIN_CREATOR_VIDEOS || '3', 10),
     maxVideoSizeMB: 500,
+    // STRIPE_AUTO_CONFIRM_TEST=true : confirme les paiements avec une carte de test sans écran de saisie (jamais en production)
+    autoConfirmTestPayments: process.env.NODE_ENV !== 'production' && process.env.STRIPE_AUTO_CONFIRM_TEST === 'true',
+    // Intervalle des tâches planifiées (auto-approbation, rappels), en minutes
+    jobsIntervalMinutes: parseInt(process.env.JOBS_INTERVAL_MINUTES || '60', 10),
   }
 };
 

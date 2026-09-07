@@ -10,6 +10,8 @@ import {
   requestRevision,
   getDeliveries,
   getDelivery,
+  getPaymentIntent,
+  confirmPayment,
 } from '../controllers/deliveries.js';
 
 const router = express.Router();
@@ -31,6 +33,8 @@ router.get('/:deliveryId', authenticate, getDelivery);
 router.post('/:deliveryId/upload', authenticate, authorize('creator'), upload.array('files', 10), uploadDeliverables);
 router.post('/:deliveryId/submit', authenticate, authorize('creator'), submitDelivery);
 router.post('/:deliveryId/approve', authenticate, authorize('brand'), approveDelivery);
+router.get('/:deliveryId/payment-intent', authenticate, authorize('brand'), getPaymentIntent);
+router.post('/:deliveryId/confirm-payment', authenticate, authorize('brand'), confirmPayment);
 router.post('/:deliveryId/revision', authenticate, authorize('brand'), validate(schemas.requestRevision), requestRevision);
 
 export default router;

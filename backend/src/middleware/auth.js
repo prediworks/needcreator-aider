@@ -77,9 +77,8 @@ export async function authenticate(req, res, next) {
     req.user = user;
     req.firebaseUser = decodedToken;
     
-    // Update last login
-    user.lastLoginAt = new Date();
-    await user.save();
+    // Update last login (sans re-valider tout le document)
+    User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
     
     next();
   } catch (error) {

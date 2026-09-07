@@ -20,10 +20,19 @@ const app = express();
 
 // Middleware
 app.use(helmet());
+app.set('trust proxy', 1);
 app.use(cors({
-  origin: config.cors.origin,
+  origin: (origin, callback) => {
+    // Autorise les requêtes sans origine (curl, tests) et les origines listées
+    if (!origin || config.cors.origins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origine non autorisée par CORS : ${origin}`));
+  },
   credentials: true,
 }));
+
+// Webhooks Stripe : doivent recevoir le corps brut (avant express.json)
+app.use('/api/webhooks', webhookRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -43,9 +52,6 @@ app.get('/health', (req, res) => {
     environment: config.env,
   });
 });
-
-// Webhooks (before body parser middleware)
-app.use('/api/webhooks', webhookRoutes);
 
 // API routes
 logger.info('Mounting API routes...');
@@ -90,19 +96,16 @@ async function startServer() {
     app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
-      logger.info(`📝 Note: Frontend should be on http://localhost:3003`);
+      logger.info(`🌐 CORS autorisé pour : ${config.cors.origins.join(', ')}`);
     });
     
-    // Schedule cron jobs (run every day at 2 AM)
-    if (config.env === 'production') {
-      setInterval(() => {
-        const now = new Date();
-        if (now.getHours() === 2 && now.getMinutes() === 0) {
-          runScheduledJobs();
-        }
-      }, 60000); // Check every minute
-      
-      logger.info('⏰ Scheduled jobs configured');
+    // Tâches planifiées (auto-approbation à J+7, rappels J+3/J+6)
+    // Exécutées au démarrage puis toutes les N minutes (JOBS_INTERVAL_MINUTES, 60 par défaut)
+    if (config.env !== 'test') {
+      const intervalMs = config.business.jobsIntervalMinutes * 60 * 1000;
+      setTimeout(() => runScheduledJobs(), 10000);
+      setInterval(() => runScheduledJobs(), intervalMs);
+      logger.info(`⏰ Scheduled jobs configured (every ${config.business.jobsIntervalMinutes} min)`);
     }
     
   } catch (error) {

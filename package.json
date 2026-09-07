@@ -16,7 +16,10 @@
     "test:frontend": "npm test --prefix frontend",
     "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
     "deploy:preprod": "npm run deploy:preprod --prefix backend",
-    "deploy:prod": "npm run deploy:prod --prefix backend"
+    "deploy:prod": "npm run deploy:prod --prefix backend",
+    "test:ui": "node scripts/ui-smoke.mjs",
+    "test:e2e": "npm run test:e2e --prefix backend -- --clean",
+    "check:env": "npm run check:env --prefix backend"
   },
   "keywords": [
     "ugc",
@@ -26,7 +29,8 @@
   "author": "UGC Platform Team",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "playwright": "^1.63.0"
   },
   "engines": {
     "node": ">=18.0.0",

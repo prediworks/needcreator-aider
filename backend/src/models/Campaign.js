@@ -182,9 +182,10 @@ campaignSchema.virtual('daysUntilDeadline').get(function() {
 
 // Methods
 campaignSchema.methods.canApply = function(creatorId) {
-  // Check if already applied
-  const hasApplied = this.applications.some(
-    app => app.creatorId.toString() === creatorId.toString()
+  // Check if already applied (creatorId peut être peuplé ou non)
+  const idOf = (c) => (c && c._id ? c._id : c)?.toString();
+  const hasApplied = (this.applications || []).some(
+    app => idOf(app.creatorId) === creatorId.toString()
   );
   
   // Check if excluded
@@ -210,13 +211,11 @@ campaignSchema.methods.selectCreator = function(creatorId) {
   this.selectedAt = new Date();
   this.status = 'in_progress';
   
-  // Update application status
-  this.applications = this.applications.map(app => ({
-    ...app,
-    status: app.creatorId.toString() === creatorId.toString() 
-      ? 'accepted' 
-      : 'rejected'
-  }));
+  // Update application status (modification en place des sous-documents)
+  const idOf = (c) => (c && c._id ? c._id : c)?.toString();
+  this.applications.forEach(app => {
+    app.status = idOf(app.creatorId) === creatorId.toString() ? 'accepted' : 'rejected';
+  });
 };
 
 // Statics

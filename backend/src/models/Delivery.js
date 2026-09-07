@@ -86,7 +86,7 @@ const deliverySchema = new mongoose.Schema({
     stripeTransferId: String,
     status: {
       type: String,
-      enum: ['pending', 'held', 'released', 'refunded'],
+      enum: ['pending', 'held', 'captured', 'released', 'refunded', 'failed'],
       default: 'pending',
     },
     heldAt: Date,
@@ -101,6 +101,7 @@ const deliverySchema = new mongoose.Schema({
   notes: {
     creator: String,
     brand: String,
+    lastReminderDay: Number, // dernier rappel d'auto-approbation envoyé (jours restants)
   },
   
 }, {
@@ -141,17 +142,24 @@ deliverySchema.methods.submit = function() {
   this.status = 'submitted';
   this.submittedAt = new Date();
   
+  // Marque la dernière révision comme résolue
+  const lastRevision = this.revisions?.[this.revisions.length - 1];
+  if (lastRevision && !lastRevision.resolvedAt) {
+    lastRevision.resolvedAt = new Date();
+  }
+  
   // Set auto-approval date (7 days from now)
   const autoApprovalDate = new Date();
   autoApprovalDate.setDate(autoApprovalDate.getDate() + config.business.autoApprovalDays);
   this.autoApprovalDate = autoApprovalDate;
 };
 
-deliverySchema.methods.approve = function(isAuto = false) {
+deliverySchema.methods.approve = function(isAuto = false, transferred = true) {
   this.status = isAuto ? 'auto_approved' : 'approved';
   this.approvedAt = new Date();
-  this.payment.status = 'released';
-  this.payment.releasedAt = new Date();
+  // 'released' = versé au créateur ; 'captured' = encaissé, versement en attente du compte Stripe du créateur
+  this.payment.status = transferred ? 'released' : 'captured';
+  if (transferred) this.payment.releasedAt = new Date();
 };
 
 deliverySchema.methods.requestRevision = function(feedback) {

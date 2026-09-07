@@ -3,7 +3,91 @@ import Campaign from '../models/Campaign.js';
 import Delivery from '../models/Delivery.js';
 import Review from '../models/Review.js';
 import { sendCreatorApproved } from '../services/email.js';
+import { runScheduledJobs } from '../jobs/autoApproval.js';
+import { resolveUrlsIn } from '../services/storage.js';
+
+/**
+ * Détail d'un utilisateur (portfolio lisible, même si le créateur est en attente)
+ */
+export async function getUserDetail(req, res) {
+  try {
+    const user = await User.findById(req.params.userId).select('-__v').lean();
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.profile?.portfolio?.length) {
+      user.profile.portfolio = await resolveUrlsIn(user.profile.portfolio);
+    }
+    res.json({ user: { ...user, id: user._id } });
+  } catch (error) {
+    logger.error('Failed to get user detail:', error);
+    res.status(500).json({ error: 'Failed to get user' });
+  }
+}
 import logger from '../utils/logger.js';
+
+/**
+ * Lance les tâches planifiées à la demande
+ */
+export async function runJobs(req, res) {
+  try {
+    const result = await runScheduledJobs();
+    res.json({ message: 'Jobs executed', ...result });
+  } catch (error) {
+    logger.error('Failed to run jobs:', error);
+    res.status(500).json({ error: 'Failed to run jobs' });
+  }
+}
+
+/**
+ * Liste toutes les campagnes (supervision)
+ */
+export async function getAdminCampaigns(req, res) {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const query = status ? { status } : {};
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [campaigns, total] = await Promise.all([
+      Campaign.find(query)
+        .populate('brandId', 'profile.companyName email')
+        .populate('selectedCreator', 'profile.name email')
+        .select('title status budget timeline analytics brandId selectedCreator createdAt')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Campaign.countDocuments(query),
+    ]);
+    res.json({ campaigns, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
+  } catch (error) {
+    logger.error('Failed to get admin campaigns:', error);
+    res.status(500).json({ error: 'Failed to get campaigns' });
+  }
+}
+
+/**
+ * Liste toutes les livraisons (supervision / litiges)
+ */
+export async function getAdminDeliveries(req, res) {
+  try {
+    const { status, page = 1, limit = 50 } = req.query;
+    const query = status ? { status } : {};
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [deliveries, total] = await Promise.all([
+      Delivery.find(query)
+        .populate('campaignId', 'title')
+        .populate('brandId', 'profile.companyName email')
+        .populate('creatorId', 'profile.name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Delivery.countDocuments(query),
+    ]);
+    res.json({ deliveries, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
+  } catch (error) {
+    logger.error('Failed to get admin deliveries:', error);
+    res.status(500).json({ error: 'Failed to get deliveries' });
+  }
+}
 
 /**
  * Get dashboard stats
@@ -110,8 +194,8 @@ export async function approveCreator(req, res) {
       return res.status(400).json({ error: 'User is not a creator' });
     }
     
-    if (user.status !== 'pending') {
-      return res.status(400).json({ error: 'User is not pending approval' });
+    if (user.status === 'active') {
+      return res.status(400).json({ error: 'User is already active' });
     }
     
     user.status = 'active';

@@ -1,19 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import api from '@/lib/api';
+import api, { getErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth';
+import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
+import { NICHES, NICHE_OPTIONS, INDUSTRIES } from '@/lib/labels';
 import { toast } from 'sonner';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const refreshUser = useAuthStore((s) => s.refreshUser);
+  const { firebaseUser, user, loading: authLoading } = useAuth();
+
   const [role, setRole] = useState<'creator' | 'brand'>('creator');
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -33,24 +39,34 @@ export default function RegisterPage() {
   const [website, setWebsite] = useState('');
   const [industry, setIndustry] = useState('');
 
+  // Cas "compte Firebase existant sans profil" : on finalise l'inscription sans recréer le compte
+  const completing = searchParams.get('complete') === '1' && !!firebaseUser && !user;
+
   useEffect(() => {
     const roleParam = searchParams.get('role');
     if (roleParam === 'brand' || roleParam === 'creator') {
       setRole(roleParam);
+      setStep(2);
     }
   }, [searchParams]);
 
-  const nicheOptions = [
-    'beauty', 'fashion', 'tech', 'food', 'travel',
-    'fitness', 'gaming', 'lifestyle', 'parenting', 'pets',
-    'home', 'business', 'education', 'health'
-  ];
+  useEffect(() => {
+    if (completing && firebaseUser?.email) {
+      setEmail(firebaseUser.email);
+      setStep(2);
+      toast.info('Votre compte existe déjà, il ne manque que votre profil.');
+    }
+  }, [completing, firebaseUser]);
+
+  useEffect(() => {
+    if (!authLoading && user) router.replace('/dashboard');
+  }, [authLoading, user, router]);
 
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
       prev.includes(niche)
         ? prev.filter(n => n !== niche)
-        : [...prev, niche]
+        : prev.length >= 5 ? prev : [...prev, niche]
     );
   };
 
@@ -59,55 +75,49 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      console.log('Starting registration process...', { role, email });
-      
-      // Create Firebase user
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      console.log('Firebase user created:', userCredential.user.uid);
-      
-      const idToken = await userCredential.user.getIdToken();
-      console.log('ID token obtained');
+      let idToken: string;
+      if (completing && auth.currentUser) {
+        idToken = await auth.currentUser.getIdToken();
+      } else {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        idToken = await userCredential.user.getIdToken();
+      }
 
-      // Register in backend
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
         ? { email, name, bio, niches, minPrice: parseInt(minPrice) }
         : { email, companyName, website, industry };
 
-      console.log('Sending registration to backend:', endpoint);
-      const response = await api.post(endpoint, data, {
+      await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
       });
-      console.log('Backend registration successful:', response.data);
 
-      // Wait for the auth state to update and user to be created in DB
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await refreshUser();
 
-      toast.success('Compte créé avec succès !');
+      toast.success(
+        role === 'creator'
+          ? 'Compte créé ! Votre profil sera validé par notre équipe sous 24h.'
+          : 'Compte créé ! Vous pouvez lancer votre première campagne.'
+      );
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
-      
-      // Better error messages
-      let errorMessage = 'Erreur lors de l\'inscription';
-      
+
+      let errorMessage = getErrorMessage(error, 'Erreur lors de l\'inscription');
+
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Cet email est déjà utilisé';
+        errorMessage = 'Cet email est déjà utilisé. Connectez-vous pour finaliser votre profil.';
       } else if (error.code === 'auth/weak-password') {
         errorMessage = 'Le mot de passe doit contenir au moins 6 caractères';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Email invalide';
       } else if (error.code === 'auth/operation-not-allowed') {
-        errorMessage = 'L\'inscription est temporairement désactivée';
-      } else if (error.code === 'auth/configuration-not-found') {
-        errorMessage = 'Firebase Authentication n\'est pas configuré. Vérifiez votre configuration Firebase.';
-      } else if (error.code === 'auth/invalid-api-key') {
-        errorMessage = 'Clé API Firebase invalide. Vérifiez votre fichier .env.local';
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
+        errorMessage = 'L\'inscription par email n\'est pas activée dans Firebase';
+      } else if (error.code === 'auth/configuration-not-found' || error.code === 'auth/invalid-api-key') {
+        errorMessage = 'Configuration Firebase invalide. Vérifiez frontend/.env.local';
       }
-      
-      toast.error(errorMessage);
+
+      toast.error(errorMessage, { duration: 8000 });
     } finally {
       setLoading(false);
     }
@@ -118,7 +128,7 @@ export default function RegisterPage() {
       <div className="max-w-2xl w-full">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-            Créer un compte
+            {completing ? 'Finaliser mon profil' : 'Créer un compte'}
           </h1>
           <p className="text-neutral-600">
             Rejoignez notre communauté de créateurs et marques
@@ -131,6 +141,7 @@ export default function RegisterPage() {
             <h2 className="text-xl font-semibold mb-4">Je suis...</h2>
             <div className="grid md:grid-cols-2 gap-4">
               <button
+                type="button"
                 onClick={() => setRole('creator')}
                 className={`p-6 border-2 rounded-lg text-left transition ${
                   role === 'creator'
@@ -146,6 +157,7 @@ export default function RegisterPage() {
               </button>
 
               <button
+                type="button"
                 onClick={() => setRole('brand')}
                 className={`p-6 border-2 rounded-lg text-left transition ${
                   role === 'brand'
@@ -171,10 +183,11 @@ export default function RegisterPage() {
         {step === 2 && (
           <Card className="p-6">
             <button
+              type="button"
               onClick={() => setStep(1)}
               className="text-sm text-neutral-600 hover:text-neutral-900 mb-4"
             >
-              ← Retour
+              ← Changer de type de compte ({role === 'creator' ? 'Créateur' : 'Marque'})
             </button>
 
             <form onSubmit={handleRegister} className="space-y-4">
@@ -185,46 +198,52 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="votre@email.com"
                 required
+                disabled={completing}
               />
 
-              <Input
-                label="Mot de passe"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              {!completing && (
+                <Input
+                  label="Mot de passe (6 caractères minimum)"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  minLength={6}
+                  required
+                />
+              )}
 
               {role === 'creator' ? (
                 <>
                   <Input
-                    label="Nom"
+                    label="Nom ou pseudo"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Votre nom"
+                    minLength={2}
                     required
                   />
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Bio
+                      Bio (optionnel)
                     </label>
                     <textarea
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
-                      placeholder="Parlez-nous de vous..."
+                      placeholder="Parlez-nous de vous, de votre style..."
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                       rows={3}
+                      maxLength={500}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">
-                      Niches (sélectionnez au moins 1)
+                      Niches (1 à 5)
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {nicheOptions.map(niche => (
+                      {NICHE_OPTIONS.map(niche => (
                         <button
                           key={niche}
                           type="button"
@@ -235,18 +254,20 @@ export default function RegisterPage() {
                               : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                           }`}
                         >
-                          {niche}
+                          {NICHES[niche]}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   <Input
-                    label="Prix minimum par vidéo (€)"
+                    label="Prix minimum par vidéo (€, entre 50 et 10 000)"
                     type="number"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
                     placeholder="100"
+                    min={50}
+                    max={10000}
                     required
                   />
                 </>
@@ -257,11 +278,12 @@ export default function RegisterPage() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder="Votre entreprise"
+                    minLength={2}
                     required
                   />
 
                   <Input
-                    label="Site web"
+                    label="Site web (avec https://)"
                     type="url"
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
@@ -271,7 +293,7 @@ export default function RegisterPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Secteur d'activité
+                      Secteur d&apos;activité
                     </label>
                     <select
                       value={industry}
@@ -280,13 +302,9 @@ export default function RegisterPage() {
                       required
                     >
                       <option value="">Sélectionnez...</option>
-                      <option value="ecommerce">E-commerce</option>
-                      <option value="tech">Tech</option>
-                      <option value="beauty">Beauté</option>
-                      <option value="fashion">Mode</option>
-                      <option value="food">Alimentation</option>
-                      <option value="health">Santé</option>
-                      <option value="other">Autre</option>
+                      {Object.entries(INDUSTRIES).map(([value, label]) => (
+                        <option key={value} value={value}>{label}</option>
+                      ))}
                     </select>
                   </div>
                 </>
@@ -298,19 +316,29 @@ export default function RegisterPage() {
                 isLoading={loading}
                 disabled={loading || (role === 'creator' && niches.length === 0)}
               >
-                Créer mon compte
+                {completing ? 'Enregistrer mon profil' : 'Créer mon compte'}
               </Button>
             </form>
 
-            <div className="mt-6 text-center text-sm">
-              <span className="text-neutral-600">Déjà un compte ? </span>
-              <Link href="/login" className="text-primary-500 hover:text-primary-600 font-medium">
-                Se connecter
-              </Link>
-            </div>
+            {!completing && (
+              <div className="mt-6 text-center text-sm">
+                <span className="text-neutral-600">Déjà un compte ? </span>
+                <Link href="/login" className="text-primary-500 hover:text-primary-600 font-medium">
+                  Se connecter
+                </Link>
+              </div>
+            )}
           </Card>
         )}
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

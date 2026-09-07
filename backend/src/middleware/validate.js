@@ -39,7 +39,7 @@ export const schemas = {
   registerCreator: Joi.object({
     email: Joi.string().email().required(),
     name: Joi.string().min(2).max(100).required(),
-    bio: Joi.string().max(500),
+    bio: Joi.string().max(500).allow(''),
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
     minPrice: Joi.number().min(50).max(10000).required(),
   }),
@@ -49,6 +49,17 @@ export const schemas = {
     companyName: Joi.string().min(2).max(100).required(),
     website: Joi.string().uri().required(),
     industry: Joi.string().required(),
+  }),
+  
+  // Stripe Connect onboarding
+  stripeConnect: Joi.object({
+    returnUrl: Joi.string().uri(),
+    refreshUrl: Joi.string().uri(),
+  }),
+  
+  // Admin moderation
+  moderationReason: Joi.object({
+    reason: Joi.string().max(500).allow(''),
   }),
   
   // Campaign creation
@@ -70,7 +81,7 @@ export const schemas = {
   
   // Application
   applyToCampaign: Joi.object({
-    proposal: Joi.string().max(500),
+    proposal: Joi.string().max(500).allow(''),
     price: Joi.number().min(50).max(10000).required(),
     estimatedDeliveryDays: Joi.number().min(1).max(30).required(),
   }),
@@ -78,7 +89,7 @@ export const schemas = {
   // Review
   createReview: Joi.object({
     rating: Joi.number().min(1).max(5).required(),
-    comment: Joi.string().max(500),
+    comment: Joi.string().max(500).allow(''),
     communication: Joi.number().min(1).max(5).required(),
     quality: Joi.number().min(1).max(5).required(),
     timeliness: Joi.number().min(1).max(5).required(),

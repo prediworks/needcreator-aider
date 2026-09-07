@@ -1,23 +1,30 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useState, Suspense } from 'react';
+import { useRequireAuth } from '@/hooks/useAuth';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { useUploadPortfolioVideo, useDeletePortfolioVideo } from '@/hooks/usePortfolio';
+import { useUserReviews } from '@/hooks/useReviews';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { ArrowLeft, Upload, Trash2, Save, Video, Plus } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import Spinner from '@/components/ui/Spinner';
+import VideoPlayer from '@/components/ui/VideoPlayer';
+import StripeConnectCard from '@/components/StripeConnectCard';
+import { Stars } from '@/components/ReviewForm';
+import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS } from '@/lib/labels';
+import { formatDate } from '@/lib/utils';
 
-export default function ProfilePage() {
-  const router = useRouter();
-  const { user, isAuthenticated } = useAuth();
-  const { data: profile, isLoading } = useProfile();
+function ProfileContent() {
+  const { user, ready } = useRequireAuth();
+  const { data: profile, isLoading } = useProfile(ready);
   const updateMutation = useUpdateProfile();
   const uploadVideoMutation = useUploadPortfolioVideo();
   const deleteVideoMutation = useDeletePortfolioVideo();
+  const { data: reviewsData } = useUserReviews(ready ? (user?.id || user?._id) : undefined);
 
   const [isEditing, setIsEditing] = useState(false);
   const [showVideoUpload, setShowVideoUpload] = useState(false);
@@ -37,33 +44,10 @@ export default function ProfilePage() {
   const [videoDescription, setVideoDescription] = useState('');
   const [videoType, setVideoType] = useState('testimonial');
 
-  const nicheOptions = [
-    'beauty', 'fashion', 'tech', 'food', 'travel',
-    'fitness', 'gaming', 'lifestyle', 'parenting', 'pets',
-    'home', 'business', 'education', 'health'
-  ];
+  if (!ready || isLoading || !profile) return <Spinner />;
 
-  const videoTypes = [
-    { value: 'testimonial', label: 'Témoignage' },
-    { value: 'unboxing', label: 'Unboxing' },
-    { value: 'demo', label: 'Démonstration' },
-    { value: 'tutorial', label: 'Tutoriel' },
-    { value: 'review', label: 'Avis' },
-    { value: 'lifestyle', label: 'Lifestyle' },
-  ];
-
-  if (!isAuthenticated) {
-    router.push('/login');
-    return null;
-  }
-
-  if (isLoading || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
+  const isCreator = profile.role === 'creator';
+  const blockers: string[] = profile.applyBlockers || [];
 
   const startEditing = () => {
     setName(profile.profile.name || '');
@@ -79,22 +63,15 @@ export default function ProfilePage() {
   const handleSave = async () => {
     const updates: any = {};
 
-    if (profile.role === 'creator') {
+    if (isCreator) {
       updates.profile = {
         name,
         bio,
         niches,
-        pricing: {
-          minPrice: parseInt(minPrice),
-        },
+        pricing: { minPrice: parseInt(minPrice) },
       };
-    } else if (profile.role === 'brand') {
-      updates.profile = {
-        name,
-        companyName,
-        website,
-        industry,
-      };
+    } else {
+      updates.profile = { name: companyName, companyName, website, industry };
     }
 
     await updateMutation.mutateAsync(updates);
@@ -105,20 +82,22 @@ export default function ProfilePage() {
     setNiches(prev =>
       prev.includes(niche)
         ? prev.filter(n => n !== niche)
-        : [...prev, niche]
+        : prev.length >= 5 ? prev : [...prev, niche]
     );
   };
 
   const handleVideoUpload = async () => {
     if (!selectedVideo) return;
-
+    if (selectedVideo.size > 500 * 1024 * 1024) {
+      alert('La vidéo dépasse 500 Mo');
+      return;
+    }
     await uploadVideoMutation.mutateAsync({
       file: selectedVideo,
       title: videoTitle,
       description: videoDescription,
       videoType,
     });
-
     setSelectedVideo(null);
     setVideoTitle('');
     setVideoDescription('');
@@ -126,12 +105,10 @@ export default function ProfilePage() {
   };
 
   const handleDeleteVideo = async (videoId: string) => {
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
+    if (confirm('Supprimer cette vidéo de votre portfolio ?')) {
       await deleteVideoMutation.mutateAsync(videoId);
     }
   };
-
-  const isCreator = profile.role === 'creator';
 
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
@@ -139,14 +116,29 @@ export default function ProfilePage() {
         <Link href="/dashboard">
           <Button variant="ghost" size="sm" className="mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour au dashboard
+            Retour au tableau de bord
           </Button>
         </Link>
 
         <div className="space-y-6">
+          {/* Statut créateur */}
+          {isCreator && profile.status === 'pending' && (
+            <Card className="p-4 bg-yellow-50 border-yellow-200">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                <div>
+                  <h3 className="font-semibold text-yellow-900">Profil en attente de validation</h3>
+                  <p className="text-sm text-yellow-800">
+                    Notre équipe vérifie votre profil sous 24h. Profitez-en pour ajouter au moins 3 vidéos à votre portfolio et connecter votre compte Stripe.
+                  </p>
+                </div>
+              </div>
+            </Card>
+          )}
+
           {/* Header */}
           <Card className="p-6">
-            <div className="flex items-start justify-between mb-6">
+            <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center">
                   <span className="text-3xl font-bold text-primary-600">
@@ -155,11 +147,12 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold text-neutral-900">
-                    {profile.profile.name || profile.profile.companyName}
+                    {profile.profile.companyName || profile.profile.name}
                   </h1>
-                  <p className="text-neutral-600">
-                    {profile.role === 'creator' ? 'Créateur UGC' : 'Marque'}
-                  </p>
+                  <div className="flex items-center gap-2 text-neutral-600">
+                    <span>{isCreator ? 'Créateur UGC' : profile.role === 'admin' ? 'Administrateur' : 'Marque'}</span>
+                    <Badge map={USER_STATUS} value={profile.status} />
+                  </div>
                   <div className="mt-2">
                     <div className="flex items-center gap-2">
                       <div className="w-32 h-2 bg-neutral-200 rounded-full overflow-hidden">
@@ -185,10 +178,15 @@ export default function ProfilePage() {
             {/* Profile Info */}
             {!isEditing ? (
               <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium text-neutral-700 mb-1">Email</h3>
+                  <p className="text-neutral-900">{profile.email}</p>
+                </div>
+
                 {profile.profile.bio && (
                   <div>
                     <h3 className="text-sm font-medium text-neutral-700 mb-1">Bio</h3>
-                    <p className="text-neutral-900">{profile.profile.bio}</p>
+                    <p className="text-neutral-900 whitespace-pre-line">{profile.profile.bio}</p>
                   </div>
                 )}
 
@@ -201,7 +199,7 @@ export default function ProfilePage() {
                           key={niche}
                           className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
                         >
-                          {niche}
+                          {NICHES[niche] || niche}
                         </span>
                       ))}
                     </div>
@@ -210,7 +208,7 @@ export default function ProfilePage() {
 
                 {isCreator && profile.profile.pricing?.minPrice && (
                   <div>
-                    <h3 className="text-sm font-medium text-neutral-700 mb-1">Tarif minimum</h3>
+                    <h3 className="text-sm font-medium text-neutral-700 mb-1">Tarif minimum par vidéo</h3>
                     <p className="text-2xl font-bold text-primary-600">
                       {profile.profile.pricing.minPrice}€
                     </p>
@@ -234,8 +232,8 @@ export default function ProfilePage() {
                     )}
                     {profile.profile.industry && (
                       <div>
-                        <h3 className="text-sm font-medium text-neutral-700 mb-1">Industrie</h3>
-                        <p className="text-neutral-900">{profile.profile.industry}</p>
+                        <h3 className="text-sm font-medium text-neutral-700 mb-1">Secteur</h3>
+                        <p className="text-neutral-900">{INDUSTRIES[profile.profile.industry] || profile.profile.industry}</p>
                       </div>
                     )}
                   </>
@@ -243,15 +241,14 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <Input
-                  label="Nom"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-
                 {isCreator && (
                   <>
+                    <Input
+                      label="Nom ou pseudo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">
                         Bio
@@ -267,10 +264,10 @@ export default function ProfilePage() {
 
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-2">
-                        Niches
+                        Niches (1 à 5)
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {nicheOptions.map(niche => (
+                        {NICHE_OPTIONS.map(niche => (
                           <button
                             key={niche}
                             type="button"
@@ -281,18 +278,19 @@ export default function ProfilePage() {
                                 : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                             }`}
                           >
-                            {niche}
+                            {NICHES[niche]}
                           </button>
                         ))}
                       </div>
                     </div>
 
                     <Input
-                      label="Tarif minimum (€)"
+                      label="Tarif minimum par vidéo (€)"
                       type="number"
                       value={minPrice}
                       onChange={(e) => setMinPrice(e.target.value)}
-                      min="50"
+                      min={50}
+                      max={10000}
                       required
                     />
                   </>
@@ -313,12 +311,18 @@ export default function ProfilePage() {
                       onChange={(e) => setWebsite(e.target.value)}
                       required
                     />
-                    <Input
-                      label="Industrie"
-                      value={industry}
-                      onChange={(e) => setIndustry(e.target.value)}
-                      required
-                    />
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Secteur</label>
+                      <select
+                        value={industry}
+                        onChange={(e) => setIndustry(e.target.value)}
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      >
+                        {Object.entries(INDUSTRIES).map(([value, l]) => (
+                          <option key={value} value={value}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
                   </>
                 )}
 
@@ -327,6 +331,7 @@ export default function ProfilePage() {
                     onClick={handleSave}
                     isLoading={updateMutation.isPending}
                     className="flex-1"
+                    disabled={isCreator && niches.length === 0}
                   >
                     <Save className="w-4 h-4 mr-2" />
                     Enregistrer
@@ -343,12 +348,15 @@ export default function ProfilePage() {
             )}
           </Card>
 
+          {/* Stripe Connect (créateur) */}
+          {isCreator && <StripeConnectCard />}
+
           {/* Portfolio (Creator only) */}
           {isCreator && (
             <Card className="p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                 <h2 className="text-xl font-semibold text-neutral-900">
-                  Portfolio ({profile.profile.portfolio?.length || 0} vidéos)
+                  Portfolio ({profile.profile.portfolio?.length || 0} vidéo{(profile.profile.portfolio?.length || 0) > 1 ? 's' : ''})
                 </h2>
                 <Button
                   size="sm"
@@ -358,6 +366,9 @@ export default function ProfilePage() {
                   Ajouter une vidéo
                 </Button>
               </div>
+              <p className="text-sm text-neutral-500 mb-6">
+                Les marques regardent vos vidéos directement ici. 3 vidéos minimum pour candidater, montrez votre meilleur travail.
+              </p>
 
               {/* Video Upload Form */}
               {showVideoUpload && (
@@ -366,7 +377,7 @@ export default function ProfilePage() {
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Fichier vidéo
+                      Fichier vidéo (MP4, MOV… jusqu&apos;à 500 Mo)
                     </label>
                     <input
                       type="file"
@@ -385,6 +396,7 @@ export default function ProfilePage() {
                     label="Titre"
                     value={videoTitle}
                     onChange={(e) => setVideoTitle(e.target.value)}
+                    placeholder="Ex : Unboxing skincare pour marque bio"
                     required
                   />
 
@@ -396,7 +408,7 @@ export default function ProfilePage() {
                       value={videoDescription}
                       onChange={(e) => setVideoDescription(e.target.value)}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      rows={3}
+                      rows={2}
                     />
                   </div>
 
@@ -409,7 +421,7 @@ export default function ProfilePage() {
                       onChange={(e) => setVideoType(e.target.value)}
                       className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
-                      {videoTypes.map(type => (
+                      {VIDEO_TYPE_OPTIONS.map(type => (
                         <option key={type.value} value={type.value}>
                           {type.label}
                         </option>
@@ -424,7 +436,7 @@ export default function ProfilePage() {
                       disabled={!selectedVideo || !videoTitle}
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      Uploader
+                      {uploadVideoMutation.isPending ? 'Envoi en cours…' : 'Envoyer'}
                     </Button>
                     <Button
                       variant="outline"
@@ -447,10 +459,10 @@ export default function ProfilePage() {
                   {profile.profile.portfolio.map((video: any) => (
                     <div
                       key={video._id}
-                      className="border border-neutral-200 rounded-lg p-4 hover:border-primary-500 transition"
+                      className="border border-neutral-200 rounded-lg overflow-hidden hover:border-primary-500 transition"
                     >
-                      <div className="flex items-start gap-3">
-                        <Video className="w-10 h-10 text-primary-500 flex-shrink-0" />
+                      <VideoPlayer src={video.videoUrl} title={video.title} className="rounded-none" />
+                      <div className="p-4 flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-neutral-900 mb-1">
                             {video.title}
@@ -462,13 +474,15 @@ export default function ProfilePage() {
                           )}
                           <div className="flex items-center gap-2 text-xs text-neutral-500">
                             <span className="px-2 py-1 bg-neutral-100 rounded">
-                              {video.videoType}
+                              {VIDEO_TYPES[video.videoType] || video.videoType}
                             </span>
+                            {video.uploadedAt && <span>{formatDate(video.uploadedAt)}</span>}
                           </div>
                         </div>
                         <button
                           onClick={() => handleDeleteVideo(video._id)}
                           className="text-red-500 hover:text-red-700 p-2"
+                          title="Supprimer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -488,13 +502,13 @@ export default function ProfilePage() {
             </Card>
           )}
 
-          {/* Stats */}
+          {/* Stats + avis */}
           {isCreator && (
             <Card className="p-6">
               <h2 className="text-xl font-semibold text-neutral-900 mb-6">
                 Statistiques
               </h2>
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-3 gap-6 mb-6">
                 <div>
                   <p className="text-sm text-neutral-600 mb-1">Missions complétées</p>
                   <p className="text-3xl font-bold text-neutral-900">
@@ -504,7 +518,7 @@ export default function ProfilePage() {
                 <div>
                   <p className="text-sm text-neutral-600 mb-1">Note moyenne</p>
                   <p className="text-3xl font-bold text-neutral-900">
-                    {profile.profile.stats?.rating?.toFixed(1) || '0.0'} ⭐
+                    {profile.profile.stats?.totalReviews ? `${profile.profile.stats.rating.toFixed(1)} ⭐` : '—'}
                   </p>
                 </div>
                 <div>
@@ -514,10 +528,41 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
+              {blockers.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                  <strong>Pour candidater :</strong> {blockers.join(' ')}
+                </div>
+              )}
+            </Card>
+          )}
+
+          {(reviewsData?.reviews?.length ?? 0) > 0 && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-neutral-900 mb-4">Avis reçus</h2>
+              <div className="space-y-4">
+                {(reviewsData?.reviews || []).map((r: any) => (
+                  <div key={r._id} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-neutral-900">{r.reviewerId?.profile?.companyName || r.reviewerId?.profile?.name}</span>
+                      <Stars value={r.rating} size="w-4 h-4" />
+                    </div>
+                    <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.createdAt)}</p>
+                    {r.comment && <p className="text-neutral-700">{r.comment}</p>}
+                  </div>
+                ))}
+              </div>
             </Card>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <ProfileContent />
+    </Suspense>
   );
 }

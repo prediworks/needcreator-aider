@@ -1,58 +1,69 @@
 'use client';
 
-import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useState, Suspense } from 'react';
+import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaigns } from '@/hooks/useCampaigns';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { Search, Filter, Plus } from 'lucide-react';
+import Badge from '@/components/ui/Badge';
+import Spinner from '@/components/ui/Spinner';
+import { Search, Plus } from 'lucide-react';
 import { formatCurrency, formatRelativeTime } from '@/lib/utils';
+import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS } from '@/lib/labels';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
-export default function CampaignsPage() {
-  const { user, isAuthenticated } = useAuth();
+function CampaignsContent() {
+  const { user, ready } = useRequireAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState('');
   const [selectedNiche, setSelectedNiche] = useState('');
   const [minBudget, setMinBudget] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
+  const [status, setStatus] = useState('');
+  const filter = searchParams.get('filter') || 'available';
 
-  const { data, isLoading } = useCampaigns({
-    search,
-    niche: selectedNiche,
-    minBudget,
-    maxBudget,
-  });
+  const isBrand = user?.role === 'brand';
 
-  const niches = [
-    'beauty', 'fashion', 'tech', 'food', 'travel',
-    'fitness', 'gaming', 'lifestyle', 'parenting', 'pets',
-    'home', 'business', 'education', 'health'
+  const { data, isLoading } = useCampaigns(
+    {
+      search: search || undefined,
+      niche: selectedNiche || undefined,
+      minBudget: minBudget || undefined,
+      maxBudget: maxBudget || undefined,
+      status: isBrand && status ? status : undefined,
+      filter: !isBrand ? filter : undefined,
+    },
+    ready
+  );
+
+  if (!ready) return <Spinner />;
+
+  const creatorTabs = [
+    { key: 'available', label: 'Disponibles' },
+    { key: 'applied', label: 'Mes candidatures' },
+    { key: 'selected', label: 'Mes missions' },
   ];
-
-  if (!isAuthenticated) {
-    router.push('/login');
-    return null;
-  }
 
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
       <div className="container mx-auto px-4">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-              {user?.role === 'brand' ? 'Mes campagnes' : 'Campagnes disponibles'}
+              {isBrand ? 'Mes campagnes' : 'Campagnes'}
             </h1>
             <p className="text-neutral-600">
-              {user?.role === 'brand' 
-                ? 'Gérez vos campagnes UGC' 
+              {isBrand
+                ? 'Gérez vos campagnes UGC'
                 : 'Trouvez des campagnes qui correspondent à votre profil'}
             </p>
           </div>
-          {user?.role === 'brand' && (
+          {isBrand && (
             <Link href="/campaigns/new">
               <Button size="lg">
                 <Plus className="w-5 h-5 mr-2" />
@@ -62,8 +73,26 @@ export default function CampaignsPage() {
           )}
         </div>
 
+        {/* Onglets créateur */}
+        {!isBrand && (
+          <div className="flex gap-2 mb-6 flex-wrap">
+            {creatorTabs.map((t) => (
+              <Link
+                key={t.key}
+                href={`/campaigns?filter=${t.key}`}
+                className={cn(
+                  'px-4 py-2 rounded-full text-sm font-medium transition',
+                  filter === t.key ? 'bg-primary-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:border-primary-300'
+                )}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+        )}
+
         {/* Filters */}
-        <Card className="p-6 mb-6">
+        <Card className="p-4 mb-6">
           <div className="grid md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
@@ -77,18 +106,29 @@ export default function CampaignsPage() {
               </div>
             </div>
 
-            <div>
+            {isBrand ? (
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="">Tous les statuts</option>
+                {Object.entries(CAMPAIGN_STATUS).map(([value, s]) => (
+                  <option key={value} value={value}>{s.label}</option>
+                ))}
+              </select>
+            ) : (
               <select
                 value={selectedNiche}
                 onChange={(e) => setSelectedNiche(e.target.value)}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="">Toutes les niches</option>
-                {niches.map(niche => (
-                  <option key={niche} value={niche}>{niche}</option>
+                {NICHE_OPTIONS.map(niche => (
+                  <option key={niche} value={niche}>{NICHES[niche]}</option>
                 ))}
               </select>
-            </div>
+            )}
 
             <div className="flex gap-2">
               <Input
@@ -109,53 +149,57 @@ export default function CampaignsPage() {
 
         {/* Campaigns Grid */}
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto"></div>
-          </div>
+          <Spinner fullScreen={false} />
         ) : data?.campaigns?.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {data.campaigns.map((campaign: any) => (
               <Card
                 key={campaign._id}
-                className="p-6 hover:shadow-lg transition cursor-pointer"
+                className="p-6 hover:shadow-lg transition cursor-pointer flex flex-col"
                 onClick={() => router.push(`/campaigns/${campaign._id}`)}
               >
                 {/* Brand Info */}
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
                     <span className="text-primary-600 font-semibold">
-                      {campaign.brandId?.profile?.companyName?.[0] || 'B'}
+                      {campaign.brandId?.profile?.companyName?.[0] || 'M'}
                     </span>
                   </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-neutral-900 truncate">
                       {campaign.brandId?.profile?.companyName || 'Marque'}
                     </div>
                     <div className="text-xs text-neutral-500">
-                      {formatRelativeTime(campaign.timeline.publishedAt)}
+                      {campaign.timeline?.publishedAt
+                        ? `Publiée ${formatRelativeTime(campaign.timeline.publishedAt)}`
+                        : `Créée ${formatRelativeTime(campaign.createdAt)}`}
                     </div>
                   </div>
+                  <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
                 </div>
 
                 {/* Campaign Info */}
                 <h3 className="font-semibold text-lg text-neutral-900 mb-2">
                   {campaign.title}
                 </h3>
-                <p className="text-sm text-neutral-600 mb-4 line-clamp-3">
+                <p className="text-sm text-neutral-600 mb-4 line-clamp-3 flex-1">
                   {campaign.description}
                 </p>
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className="px-2 py-1 bg-primary-50 text-primary-700 text-xs rounded">
-                    {campaign.brief.videoType}
+                    {VIDEO_TYPES[campaign.brief.videoType] || campaign.brief.videoType}
                   </span>
                   <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs rounded">
                     {campaign.brief.duration}s
                   </span>
                   <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs rounded">
-                    {campaign.brief.deliverables} vidéos
+                    {campaign.brief.deliverables} vidéo(s)
                   </span>
+                  {campaign.matching?.niches?.slice(0, 2).map((n: string) => (
+                    <span key={n} className="px-2 py-1 bg-neutral-100 text-neutral-600 text-xs rounded">{NICHES[n] || n}</span>
+                  ))}
                 </div>
 
                 {/* Footer */}
@@ -167,13 +211,17 @@ export default function CampaignsPage() {
                     <div className="text-xs text-neutral-500">par vidéo</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-neutral-900">
-                      {campaign.analytics?.applications || 0} candidatures
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      {campaign.daysUntilDeadline > 0 
-                        ? `${campaign.daysUntilDeadline}j restants`
-                        : 'Expiré'}
+                    {campaign.myApplication ? (
+                      <Badge map={APPLICATION_STATUS} value={campaign.myApplication.status} />
+                    ) : (
+                      <div className="text-sm font-medium text-neutral-900">
+                        {campaign.analytics?.applications || 0} candidature(s)
+                      </div>
+                    )}
+                    <div className="text-xs text-neutral-500 mt-1">
+                      {campaign.status === 'active'
+                        ? (campaign.daysUntilDeadline > 0 ? `${campaign.daysUntilDeadline}j restants` : 'Candidatures closes')
+                        : ''}
                     </div>
                   </div>
                 </div>
@@ -182,8 +230,12 @@ export default function CampaignsPage() {
           </div>
         ) : (
           <Card className="p-12 text-center">
-            <p className="text-neutral-600 mb-4">Aucune campagne trouvée</p>
-            {user?.role === 'brand' && (
+            <p className="text-neutral-600 mb-4">
+              {!isBrand && filter === 'applied' ? 'Vous n\'avez pas encore candidaté' :
+               !isBrand && filter === 'selected' ? 'Aucune mission en cours' :
+               'Aucune campagne trouvée'}
+            </p>
+            {isBrand && (
               <Link href="/campaigns/new">
                 <Button>
                   <Plus className="w-4 h-4 mr-2" />
@@ -193,22 +245,15 @@ export default function CampaignsPage() {
             )}
           </Card>
         )}
-
-        {/* Pagination */}
-        {data?.pagination && data.pagination.pages > 1 && (
-          <div className="mt-8 flex justify-center gap-2">
-            {Array.from({ length: data.pagination.pages }, (_, i) => i + 1).map(page => (
-              <Button
-                key={page}
-                variant={page === data.pagination.page ? 'primary' : 'outline'}
-                size="sm"
-              >
-                {page}
-              </Button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
+  );
+}
+
+export default function CampaignsPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <CampaignsContent />
+    </Suspense>
   );
 }

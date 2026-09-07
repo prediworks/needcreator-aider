@@ -3,12 +3,11 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/layout/Header';
 import { Providers } from './providers';
-import { Toaster } from 'sonner';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'UGC Platform - Créez du contenu authentique',
+  title: 'NeedCreator - Contenu UGC authentique',
   description: 'La plateforme UGC la plus simple et transparente du marché',
 };
 
@@ -23,7 +22,6 @@ export default function RootLayout({
         <Providers>
           <Header />
           <main>{children}</main>
-          <Toaster position="top-right" richColors />
         </Providers>
       </body>
     </html>
