@@ -129,6 +129,28 @@ export const schemas = {
     note: Joi.string().max(500).allow(''),
   }),
   
+  // Modification d'un brouillon (mêmes champs que la création, tous optionnels)
+  updateCampaign: Joi.object({
+    title: Joi.string().min(10).max(100),
+    description: Joi.string().min(50).max(1000),
+    videoType: Joi.string().valid(
+      'testimonial', 'unboxing', 'demo', 'tutorial',
+      'review', 'comparison', 'lifestyle', 'behind-the-scenes',
+      'interview', 'challenge', 'haul', 'vlog'
+    ),
+    duration: Joi.number().min(15).max(180),
+    deliverables: Joi.number().min(1).max(10),
+    requirements: Joi.array().items(Joi.string()).max(10),
+    budget: Joi.number().min(50).allow(null, ''),
+    niches: Joi.array().items(Joi.string()).min(1).max(5),
+    applicationDeadline: Joi.date().greater('now'),
+    deliveryTypes: Joi.array().items(Joi.string().valid('file', 'link')).min(1),
+    platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).max(8),
+    creatorsWanted: Joi.number().integer().min(1).max(20),
+    productShipping: Joi.boolean(),
+    productDescription: Joi.string().max(300).allow(''),
+  }).min(1),
+
   // Application = devis
   quote: Joi.object({
     proposal: Joi.string().max(1000).allow(''),

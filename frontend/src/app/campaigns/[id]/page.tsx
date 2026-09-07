@@ -164,6 +164,9 @@ export default function CampaignDetailPage() {
                     <Send className="w-4 h-4 mr-2" />
                     Publier maintenant
                   </Button>
+                  <Link href={`/campaigns/new?edit=${campaignId}`}>
+                    <Button variant="outline">Modifier le brouillon</Button>
+                  </Link>
                   <Button variant="outline" onClick={handleCancel} isLoading={cancelMutation.isPending}>
                     <XCircle className="w-4 h-4 mr-2" />
                     Annuler la campagne

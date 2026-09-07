@@ -28,7 +28,7 @@ router.post('/ai-brief', authenticate, authorize('brand'), validate(schemas.aiBr
 router.post('/', authenticate, authorize('brand'), validate(schemas.createCampaign), createCampaign);
 router.get('/', authenticate, getCampaigns);
 router.get('/:campaignId', authenticate, getCampaign);
-router.patch('/:campaignId', authenticate, authorize('brand'), updateCampaign);
+router.patch('/:campaignId', authenticate, authorize('brand'), validate(schemas.updateCampaign), updateCampaign);
 router.delete('/:campaignId', authenticate, authorize('brand'), cancelCampaign);
 
 // Campaign actions

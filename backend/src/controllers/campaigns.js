@@ -618,7 +618,7 @@ export async function updateCampaign(req, res) {
   try {
     const { campaignId } = req.params;
     const brand = req.user;
-    const updates = req.body;
+    const u = req.body;
 
     const campaign = await Campaign.findOne({
       _id: campaignId,
@@ -631,25 +631,34 @@ export async function updateCampaign(req, res) {
 
     if (campaign.status !== 'draft') {
       return res.status(400).json({
-        error: 'Cannot update published campaign'
+        error: 'Seule une campagne en brouillon peut être modifiée'
       });
     }
 
-    // Update allowed fields
-    const allowedFields = [
-      'title', 'description', 'brief', 'budget',
-      'matching', 'timeline'
-    ];
-
-    allowedFields.forEach(field => {
-      if (updates[field] === undefined) return;
-      if (typeof updates[field] === 'object' && !Array.isArray(updates[field])) {
-        Object.entries(updates[field]).forEach(([k, v]) => campaign.set(`${field}.${k}`, v));
+    if (u.title !== undefined) campaign.title = u.title;
+    if (u.description !== undefined) campaign.description = u.description;
+    if (u.videoType !== undefined) campaign.brief.videoType = u.videoType;
+    if (u.duration !== undefined) campaign.brief.duration = u.duration;
+    if (u.deliverables !== undefined) campaign.brief.deliverables = u.deliverables;
+    if (u.requirements !== undefined) campaign.brief.requirements = u.requirements;
+    if (u.deliveryTypes !== undefined) campaign.brief.deliveryTypes = u.deliveryTypes;
+    if (u.platforms !== undefined) campaign.brief.platforms = u.platforms;
+    if (u.productShipping !== undefined) campaign.brief.productShipping = u.productShipping;
+    if (u.productDescription !== undefined) campaign.brief.productDescription = u.productDescription;
+    if (u.niches !== undefined) campaign.matching.niches = u.niches;
+    if (u.creatorsWanted !== undefined) campaign.matching.creatorsWanted = u.creatorsWanted;
+    if (u.applicationDeadline !== undefined) {
+      const deadline = new Date(u.applicationDeadline);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(u.applicationDeadline))) deadline.setHours(23, 59, 59, 999);
+      campaign.timeline.applicationDeadline = deadline;
+    }
+    if (u.budget !== undefined) {
+      if (u.budget === null || u.budget === '') {
+        campaign.budget = {};
       } else {
-        campaign.set(field, updates[field]);
+        campaign.budget.total = u.budget;
       }
-    });
-
+    }
     if (campaign.budget?.total && campaign.brief?.deliverables) {
       campaign.budget.perVideo = Math.round(campaign.budget.total / campaign.brief.deliverables);
     }

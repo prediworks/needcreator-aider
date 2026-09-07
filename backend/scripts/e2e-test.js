@@ -179,10 +179,24 @@ await step('Campagne : détail brouillon visible par la marque', async () => {
   return 'OK';
 });
 
+await step('Campagne : modification du brouillon (puis refus une fois publiée)', async () => {
+  const res = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Vidéo UGC test de bout en bout (modifiée)', budget: 400, deliverables: 2, niches: ['beauty', 'lifestyle'], creatorsWanted: 1 });
+  expect(res.status === 200 && res.data.campaign.title.endsWith('(modifiée)') && res.data.campaign.budget.perVideo === 200, 'Modification du brouillon échouée', res);
+  const clear = await brandApi('PATCH', `/campaigns/${campaign._id}`, { budget: null });
+  expect(clear.status === 200 && !clear.data.campaign.budget?.total, 'Le budget devrait pouvoir être retiré', clear);
+  const back = await brandApi('PATCH', `/campaigns/${campaign._id}`, { budget: 300, title: 'Vidéo UGC test de bout en bout' });
+  expect(back.status === 200 && back.data.campaign.budget.perVideo === 150, 'Retour au budget initial échoué', back);
+  const bad = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'court' });
+  expect(bad.status === 400, 'Un titre trop court doit être refusé', bad);
+  return 'titre, budget, niches modifiés ; validation active';
+});
+
 await step('Campagne : publication', async () => {
   const res = await brandApi('POST', `/campaigns/${campaign._id}/publish`);
   expect(res.status === 200 && res.data.campaign.status === 'active', 'Publication échouée', res);
-  return `${res.data.notifiedCreators} créateur(s) notifié(s)`;
+  const locked = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Tentative après publication' });
+  expect(locked.status === 400, 'Une campagne publiée ne doit plus être modifiable', locked);
+  return `${res.data.notifiedCreators} créateur(s) notifié(s) ; modification verrouillée`;
 });
 
 await step('Candidature refusée tant que le créateur n\'est pas validé', async () => {

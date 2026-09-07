@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useAuth';
-import { useCreateCampaign, usePublishCampaign } from '@/hooks/useCampaigns';
+import { useCreateCampaign, usePublishCampaign, useUpdateCampaign, useCampaign } from '@/hooks/useCampaigns';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -30,9 +30,14 @@ Mentionner les 2 bénéfices principaux
 Terminer par un appel à l'action (ex : "lien en bio")
 Format vertical 9:16, lumière naturelle`;
 
-export default function NewCampaignPage() {
+function NewCampaignForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
   const { ready, user } = useRequireAuth({ roles: ['brand'] });
+  const updateMutation = useUpdateCampaign();
+  const { data: existing, isLoading: loadingExisting } = useCampaign(editId || '', ready && !!editId);
+  const [prefilled, setPrefilled] = useState(false);
   const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : PLATFORM_FEE_PERCENT;
   const createMutation = useCreateCampaign();
   const publishMutation = usePublishCampaign();
@@ -56,7 +61,44 @@ export default function NewCampaignPage() {
   const [productShipping, setProductShipping] = useState(false);
   const [productDescription, setProductDescription] = useState('');
 
-  if (!ready) return <Spinner />;
+  // Mode édition : pré-remplit le formulaire avec le brouillon existant
+  useEffect(() => {
+    if (!existing || prefilled) return;
+    setTitle(existing.title || '');
+    setDescription(existing.description || '');
+    setVideoType(existing.brief?.videoType || 'testimonial');
+    setDuration(String(existing.brief?.duration || 30));
+    setDeliverables(String(existing.brief?.deliverables || 1));
+    setRequirements((existing.brief?.requirements || []).join('\n'));
+    setBudget(existing.budget?.total ? String(existing.budget.total) : '');
+    setNiches(existing.matching?.niches || []);
+    setApplicationDeadline(existing.timeline?.applicationDeadline ? new Date(existing.timeline.applicationDeadline).toISOString().slice(0, 10) : '');
+    setDeliveryTypes(existing.brief?.deliveryTypes || ['file', 'link']);
+    setPlatforms(existing.brief?.platforms || []);
+    setCreatorsWanted(String(existing.matching?.creatorsWanted || 1));
+    setProductShipping(!!existing.brief?.productShipping);
+    setProductDescription(existing.brief?.productDescription || '');
+    setCreatedCampaignId(existing._id);
+    setPrefilled(true);
+  }, [existing, prefilled]);
+
+  if (!ready || (editId && loadingExisting)) return <Spinner />;
+
+  if (editId && existing && existing.status !== 'draft') {
+    return (
+      <div className="min-h-screen bg-neutral-50 py-8">
+        <div className="container mx-auto px-4 max-w-3xl">
+          <Card className="p-8 text-center">
+            <h1 className="text-xl font-semibold mb-2">Cette campagne n&apos;est plus modifiable</h1>
+            <p className="text-neutral-600 mb-4">Seules les campagnes en brouillon peuvent être modifiées. Une campagne publiée peut être annulée tant qu&apos;aucun créateur n&apos;est sélectionné.</p>
+            <Link href={`/campaigns/${editId}`}><Button>Retour à la campagne</Button></Link>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const isEdit = !!editId;
 
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
@@ -96,19 +138,23 @@ export default function NewCampaignPage() {
   const step1Valid = title.trim().length >= 10 && description.trim().length >= 50 && niches.length > 0;
   const step2Valid = (budgetNumber === 0 || budgetNumber >= 50) && !!applicationDeadline && deliveryTypes.length > 0;
 
-  const handleSaveDraft = async () => {
+  const saveDraft = async () => {
+    if (isEdit && createdCampaignId) {
+      await updateMutation.mutateAsync({ campaignId: createdCampaignId, data: payload() });
+      return createdCampaignId;
+    }
     const result = await createMutation.mutateAsync(payload());
     setCreatedCampaignId(result.campaign._id);
+    return result.campaign._id as string;
+  };
+
+  const handleSaveDraft = async () => {
+    await saveDraft();
     setStep(3);
   };
 
   const handlePublish = async () => {
-    let id = createdCampaignId;
-    if (!id) {
-      const result = await createMutation.mutateAsync(payload());
-      id = result.campaign._id;
-      setCreatedCampaignId(id);
-    }
+    const id = createdCampaignId && !isEdit ? createdCampaignId : await saveDraft();
     await publishMutation.mutateAsync(id!);
     router.push(`/campaigns/${id}`);
   };
@@ -127,7 +173,7 @@ export default function NewCampaignPage() {
 
         <Card className="p-8">
           <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-            Créer une campagne
+            {isEdit ? 'Modifier le brouillon' : 'Créer une campagne'}
           </h1>
           <p className="text-neutral-600 mb-8">
             5 minutes suffisent. Les créateurs correspondant à vos niches seront notifiés à la publication.
@@ -395,11 +441,11 @@ export default function NewCampaignPage() {
                 <Button
                   onClick={handleSaveDraft}
                   className="flex-1"
-                  isLoading={createMutation.isPending}
+                  isLoading={createMutation.isPending || updateMutation.isPending}
                   disabled={!step2Valid}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  Enregistrer le brouillon
+                  {isEdit ? 'Enregistrer les modifications' : 'Enregistrer le brouillon'}
                 </Button>
               </div>
             </div>
@@ -411,7 +457,7 @@ export default function NewCampaignPage() {
               <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
                 <div className="text-4xl mb-4">🎉</div>
                 <h2 className="text-xl font-semibold text-green-900 mb-2">
-                  Brouillon enregistré !
+                  {isEdit ? 'Modifications enregistrées !' : 'Brouillon enregistré !'}
                 </h2>
                 <p className="text-green-700">
                   Publiez la campagne pour que les créateurs puissent candidater. Vous ne payez qu&apos;au moment de sélectionner un créateur.
@@ -470,5 +516,13 @@ export default function NewCampaignPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function NewCampaignPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <NewCampaignForm />
+    </Suspense>
   );
 }
