@@ -206,11 +206,48 @@ await step('Admin : validation du créateur', async () => {
   return `créateur actif, ${stats.data.users.creators} créateur(s) au total`;
 });
 
-await step('Avant-première : un créateur non ambassadeur ne voit pas encore la campagne', async () => {
+await step('Créateur : réseaux sociaux et réalisations externes', async () => {
+  const res = await creatorApi('PATCH', '/auth/profile', {
+    socials: [
+      { network: 'tiktok', url: 'https://www.tiktok.com/@e2e', handle: '@e2e', followers: 12000, avgViews: 3000 },
+      { network: 'instagram', url: 'https://www.instagram.com/e2e', handle: '@e2e', followers: 8000 },
+      { network: 'tiktok', url: 'pas-une-url', followers: 1 },
+    ],
+    realisations: [{ url: 'https://www.instagram.com/reel/xyz', title: 'Unboxing crème', brandName: 'MarqueX', platform: 'instagram' }],
+  });
+  expect(res.status === 200, 'Mise à jour réseaux échouée', res);
+  expect(res.data.user.profile.socials.length === 2 && res.data.user.profile.stats.totalFollowers === 20000, 'Réseaux / abonnés incorrects', res);
+  expect(res.data.user.profile.realisations.length === 1, 'Réalisation externe non enregistrée', res);
+  return '2 réseaux (20 000 abonnés), 1 réalisation';
+});
+
+await step('Marque : invite le créateur (contourne l\'avant-première)', async () => {
+  const before = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  expect(before.status === 403, 'Avant invitation, le créateur ne devrait pas voir la campagne', before);
+  const res = await brandApi('POST', `/campaigns/${campaign._id}/invite/${creatorUser.id}`, { message: 'Votre style nous plaît !' });
+  expect(res.status === 200, 'Invitation échouée', res);
+  const dup = await brandApi('POST', `/campaigns/${campaign._id}/invite/${creatorUser.id}`, {});
+  expect(dup.status === 400, 'Double invitation devrait être refusée', dup);
+  const after = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  expect(after.status === 200 && after.data.campaign.invited === true, 'Le créateur invité devrait accéder à la campagne', after);
+  const feed = await creatorApi('GET', '/campaigns');
+  expect(feed.data.campaigns[0]?._id === campaign._id && feed.data.campaigns[0].invited, 'L\'invitation devrait être en tête du feed', feed);
+  return 'invité, campagne accessible et en tête du feed';
+});
+
+let earlyCampaign;
+await step('Avant-première : un créateur non ambassadeur ne voit pas encore une nouvelle campagne', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', {
+    title: 'Campagne avant-première test', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline,
+  });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  earlyCampaign = c.data.campaign;
   const res = await creatorApi('GET', '/campaigns');
-  const visible = res.data.campaigns.some(c => c._id === campaign._id);
+  const visible = res.data.campaigns.some(x => x._id === earlyCampaign._id);
   expect(!visible, 'La campagne vient d\'être publiée : elle devrait être réservée aux Ambassadeurs pendant 24 h', res);
-  const detail = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  const detail = await creatorApi('GET', `/campaigns/${earlyCampaign._id}`);
   expect(detail.status === 403 && /avant-première/i.test(detail.data.error), 'Le détail devrait expliquer l\'avant-première', detail);
   return 'campagne masquée, message explicatif';
 });
@@ -230,7 +267,7 @@ await step('Ambassadeur : vidéo soumise puis validée par l\'admin', async () =
   const profile = await creatorApi('GET', '/auth/profile');
   expect(profile.data.user.badges.includes('ambassador') && profile.data.user.level === 'new', 'Badges incorrects', profile);
   const feed = await creatorApi('GET', '/campaigns');
-  const found = feed.data.campaigns.find(c => c._id === campaign._id);
+  const found = feed.data.campaigns.find(c => c._id === earlyCampaign._id);
   expect(found && found.earlyAccess === true, 'L\'ambassadeur devrait voir la campagne en avant-première', feed);
   return `badges : ${profile.data.user.badges.join(', ')} — campagne visible en avant-première`;
 });
@@ -408,6 +445,22 @@ await step('Marque : approbation (encaissement Stripe)', async () => {
   return `paiement ${res.data.delivery.payment.status}${res.data.warning ? ' — ' + res.data.warning : ''}`;
 });
 
+await step('Marque : annuaire des créateurs (filtres) et collaborateurs', async () => {
+  const all = await brandApi('GET', '/creators?niches=beauty&network=tiktok&minFollowers=10000&sort=followers');
+  expect(all.status === 200 && all.data.creators.some(c => c.id === creatorUser.id), 'Le créateur devrait ressortir avec ces filtres', all);
+  const me = all.data.creators.find(c => c.id === creatorUser.id);
+  expect(me.collaborated === true && me.badges.includes('ambassador') && me.socials.length === 2, 'Fiche créateur incomplète dans la recherche', all);
+  const none = await brandApi('GET', '/creators?minFollowers=1000000');
+  expect(!none.data.creators.some(c => c.id === creatorUser.id), 'Le filtre abonnés devrait exclure le créateur', none);
+  const collab = await brandApi('GET', '/creators?collaborated=true');
+  expect(collab.data.creators.length >= 1 && collab.data.creators.every(c => c.collaborated), 'La liste des collaborateurs est incorrecte', collab);
+  const forbidden = await creatorApi('GET', '/creators');
+  expect(forbidden.status === 403, 'Un créateur ne doit pas accéder à l\'annuaire', forbidden);
+  const stats = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  expect(stats.data.campaign.brandId.profile.stats.avgValidationDays != null, 'La réactivité de la marque devrait être calculée', stats);
+  return `réactivité marque : validation ${stats.data.campaign.brandId.profile.stats.avgValidationDays} j, réponse ${stats.data.campaign.brandId.profile.stats.avgResponseDays} j`;
+});
+
 await step('Liens publics/privés : accord des deux parties', async () => {
   // Nouvelle campagne "devis libre" (sans budget), livrée par lien uniquement
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -434,14 +487,15 @@ await step('Liens publics/privés : accord des deux parties', async () => {
   await creatorApi('POST', `/deliveries/${d}/submit`, {});
   const ok = await brandApi('POST', `/deliveries/${d}/approve`);
   expect(ok.status === 200, 'Approbation échouée', ok);
+  const fromDeliveries = (list) => list.filter(r => r.source === 'delivery');
   let pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
-  expect(pub.realisations.length === 1 && pub.realisations[0].isPublic, 'Le lien devrait être public par défaut sur le profil', { status: 200, data: pub });
+  expect(fromDeliveries(pub.realisations).length === 1 && fromDeliveries(pub.realisations)[0].isPublic, 'Le lien devrait être public par défaut sur le profil', { status: 200, data: pub });
   const priv = await brandApi('PATCH', `/deliveries/${d}/links/${linkId}/visibility`, { public: false });
   expect(priv.status === 200 && priv.data.isPublic === false, 'La marque devrait pouvoir rendre le lien privé', priv);
   pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
-  expect(pub.realisations.length === 0, 'Un lien privé ne doit pas apparaître publiquement', { status: 200, data: pub });
+  expect(fromDeliveries(pub.realisations).length === 0, 'Un lien privé ne doit pas apparaître publiquement', { status: 200, data: pub });
   const asBrand = await brandApi('GET', `/portfolio/creator/${creatorUser.id}`);
-  expect(asBrand.data.realisations.length === 1 && asBrand.data.realisations[0].isPublic === false, 'La marque concernée doit voir le lien privé', asBrand);
+  expect(fromDeliveries(asBrand.data.realisations).length === 1 && fromDeliveries(asBrand.data.realisations)[0].isPublic === false, 'La marque concernée doit voir le lien privé', asBrand);
   return 'public par défaut, privé dès qu\'une partie refuse, visible par la marque concernée';
 });
 

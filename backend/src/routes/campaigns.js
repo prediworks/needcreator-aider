@@ -11,6 +11,7 @@ import {
   updateCampaign,
   cancelCampaign,
   updateQuote,
+  inviteCreator,
 } from '../controllers/campaigns.js';
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.delete('/:campaignId', authenticate, authorize('brand'), cancelCampaign);
 router.post('/:campaignId/publish', authenticate, authorize('brand'), publishCampaign);
 router.post('/:campaignId/apply', authenticate, authorize('creator'), validate(schemas.quote), applyToCampaign);
 router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
+router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
 router.post('/:campaignId/select/:creatorId', authenticate, authorize('brand'), selectCreator);
 
 export default router;

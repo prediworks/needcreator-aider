@@ -93,6 +93,26 @@ const userSchema = new mongoose.Schema({
       },
     },
     
+    // Réseaux sociaux (stats déclarées par le créateur)
+    socials: [{
+      network: { type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'other'], required: true },
+      url: { type: String, required: true },
+      handle: String,
+      followers: { type: Number, min: 0 },
+      avgViews: { type: Number, min: 0 },
+      updatedAt: { type: Date, default: Date.now },
+    }],
+
+    // Réalisations hors NeedCreator (liens vers des vidéos publiées)
+    realisations: [{
+      url: { type: String, required: true },
+      platform: { type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'], default: 'other' },
+      title: String,
+      description: String,
+      brandName: String,
+      addedAt: { type: Date, default: Date.now },
+    }],
+
     // Vidéo "parlez de NeedCreator" → badge Ambassadeur + accès anticipé aux campagnes
     ambassador: {
       status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
@@ -119,6 +139,11 @@ const userSchema = new mongoose.Schema({
       },
       responseTimeHours: Number, // Average response time
       onTimeDeliveryRate: Number, // Percentage
+      // Réactivité des marques (visible par les créateurs)
+      avgValidationDays: Number, // délai moyen soumission → validation
+      avgResponseDays: Number,   // délai moyen candidature → sélection
+      campaignsCompleted: Number,
+      totalFollowers: Number,    // somme des abonnés déclarés (créateurs)
     },
     
     // Brand-specific fields

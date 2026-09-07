@@ -212,8 +212,10 @@ function flatten(obj, prefix = '', out = {}) {
  */
 export async function updateProfile(req, res) {
   try {
-    const updates = flatten(req.body);
+    const { socials: _s, realisations: _r, ...rest } = req.body;
+    const updates = flatten(rest);
     const user = req.user;
+    let applied = 0;
 
     const allowedFields = user.role === 'creator'
       ? [
@@ -237,7 +239,25 @@ export async function updateProfile(req, res) {
           'preferences.language',
         ];
 
-    let applied = 0;
+    // Tableaux remplacés en bloc (réseaux sociaux, réalisations externes)
+    if (user.role === 'creator' && Array.isArray(req.body.socials)) {
+      const networks = ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'other'];
+      user.set('profile.socials', req.body.socials
+        .filter(sn => sn && networks.includes(sn.network) && /^https?:\/\//.test(sn.url || ''))
+        .slice(0, 10)
+        .map(sn => ({ network: sn.network, url: sn.url, handle: sn.handle, followers: Number(sn.followers) || 0, avgViews: Number(sn.avgViews) || 0, updatedAt: new Date() })));
+      user.set('profile.stats.totalFollowers', user.profile.socials.reduce((a, sn) => a + (sn.followers || 0), 0));
+      applied++;
+    }
+    if (user.role === 'creator' && Array.isArray(req.body.realisations)) {
+      const platforms = ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'];
+      user.set('profile.realisations', req.body.realisations
+        .filter(r => r && /^https?:\/\//.test(r.url || ''))
+        .slice(0, 500)
+        .map(r => ({ url: r.url, platform: platforms.includes(r.platform) ? r.platform : 'other', title: r.title, description: r.description, brandName: r.brandName, addedAt: r.addedAt || new Date() })));
+      applied++;
+    }
+
     Object.keys(updates).forEach(key => {
       if (allowedFields.includes(key) && updates[key] !== undefined) {
         user.set(key, updates[key]);

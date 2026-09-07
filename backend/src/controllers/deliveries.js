@@ -10,6 +10,7 @@ import {
   sendDeliveryApproved,
   sendRevisionRequested
 } from '../services/email.js';
+import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
@@ -491,6 +492,8 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   if (creator) {
     await User.updateOne({ _id: creator._id }, { $inc: { 'profile.stats.completedJobs': 1 } });
   }
+  // Réactivité de la marque
+  updateBrandStats(idOf(delivery.brandId));
 
   return { transferred, warning };
 }

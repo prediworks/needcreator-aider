@@ -25,6 +25,7 @@ export default function Header() {
         { href: '/dashboard', label: 'Tableau de bord' },
         { href: '/campaigns', label: 'Campagnes' },
         { href: '/deliveries', label: 'Livraisons' },
+        ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
         ...(user?.role === 'creator' ? [{ href: '/profile', label: 'Mon portfolio' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]

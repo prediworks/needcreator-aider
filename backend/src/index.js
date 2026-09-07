@@ -15,6 +15,7 @@ import reviewRoutes from './routes/reviews.js';
 import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import portfolioRoutes from './routes/portfolio.js';
+import creatorRoutes from './routes/creators.js';
 
 const app = express();
 
@@ -66,6 +67,7 @@ logger.info('✓ Review routes mounted at /api/reviews');
 app.use('/api/admin', adminRoutes);
 logger.info('✓ Admin routes mounted at /api/admin');
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/creators', creatorRoutes);
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler

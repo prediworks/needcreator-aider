@@ -255,3 +255,17 @@ export async function sendAmbassadorApproved(email, name) {
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Invitation d'une marque à candidater
+ */
+export async function sendCampaignInvitation(email, name, brandName, campaignTitle, campaignId, message = '') {
+  const subject = `${brandName} vous invite sur la campagne "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name} !</h1>
+    <p><strong>${brandName}</strong> a consulté votre profil et souhaite travailler avec vous sur la campagne <strong>${campaignTitle}</strong>.</p>
+    ${message ? `<blockquote>${message}</blockquote>` : ''}
+    <p><a href="${config.cors.origin}/campaigns/${campaignId}">Voir la campagne et envoyer un devis</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

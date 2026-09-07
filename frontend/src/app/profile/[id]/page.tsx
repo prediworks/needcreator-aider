@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { usePublicProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 import Card from '@/components/ui/Card';
@@ -9,25 +9,36 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { Stars } from '@/components/ReviewForm';
-import { ArrowLeft, Star, Briefcase, Video, Clock } from 'lucide-react';
+import LevelBadges from '@/components/LevelBadges';
+import SocialIcons, { PlatformIcon, formatFollowers } from '@/components/SocialIcons';
+import InviteCreatorButton from '@/components/InviteCreatorButton';
+import { ArrowLeft, Star, Briefcase, Video, Clock, Users, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, VIDEO_TYPES, PLATFORMS } from '@/lib/labels';
-import { Link2 } from 'lucide-react';
-import LevelBadges from '@/components/LevelBadges';
-import { formatDate } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+import { formatDate, cn } from '@/lib/utils';
+
+const PAGE_SIZE = 12;
 
 export default function PublicProfilePage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
   const creatorId = params.id as string;
+  const [tab, setTab] = useState<'portfolio' | 'realisations' | 'reviews'>('portfolio');
   const [typeFilter, setTypeFilter] = useState('');
+  const [platformFilter, setPlatformFilter] = useState('');
+  const [page, setPage] = useState(1);
 
   const { data, isLoading } = usePublicProfile(creatorId);
   const creator = data?.creator;
   const reviews = data?.reviews || [];
-  const realisations: any[] = (data as any)?.realisations || [];
+  const realisations: any[] = useMemo(() => (data as any)?.realisations || [], [data]);
+  const collaborated = !!(data as any)?.collaborated;
+
+  const realPlatforms = useMemo(() => Array.from(new Set(realisations.map((r) => r.platform).filter(Boolean))), [realisations]);
+  const filteredReal = platformFilter ? realisations.filter((r) => r.platform === platformFilter) : realisations;
+  const pages = Math.max(1, Math.ceil(filteredReal.length / PAGE_SIZE));
+  const pageItems = filteredReal.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   if (isLoading) return <Spinner />;
 
@@ -36,12 +47,8 @@ export default function PublicProfilePage() {
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center">
           <h2 className="text-xl font-semibold mb-2">Créateur introuvable</h2>
-          <p className="text-neutral-600 mb-4">
-            Ce créateur n&apos;existe pas ou son profil n&apos;est pas encore validé
-          </p>
-          <Link href="/campaigns">
-            <Button>Retour aux campagnes</Button>
-          </Link>
+          <p className="text-neutral-600 mb-4">Ce créateur n&apos;existe pas ou son profil n&apos;est pas encore validé</p>
+          <Link href="/campaigns"><Button>Retour aux campagnes</Button></Link>
         </Card>
       </div>
     );
@@ -49,192 +56,179 @@ export default function PublicProfilePage() {
 
   const portfolio: any[] = creator.profile.portfolio || [];
   const types = Array.from(new Set(portfolio.map((v) => v.videoType).filter(Boolean)));
-  const shown = typeFilter ? portfolio.filter((v) => v.videoType === typeFilter) : portfolio;
+  const shownPortfolio = typeFilter ? portfolio.filter((v) => v.videoType === typeFilter) : portfolio;
   const stats = creator.profile.stats || {};
+  const socials: any[] = creator.profile.socials || [];
+  const totalFollowers = socials.reduce((a, s) => a + (s.followers || 0), 0);
+
+  const tabs = [
+    { key: 'portfolio', label: `Portfolio (${portfolio.length})` },
+    { key: 'realisations', label: `Réalisations (${realisations.length})` },
+    { key: 'reviews', label: `Avis (${reviews.length})` },
+  ] as const;
 
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
       <div className="container mx-auto px-4 max-w-5xl">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="mb-6"
-          onClick={() => router.back()}
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Retour
+        <Button variant="ghost" size="sm" className="mb-6" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Retour
         </Button>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Header */}
-            <Card className="p-6">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {creator.profile.avatar ? (
-                    <img
-                      src={creator.profile.avatar}
-                      alt={creator.profile.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-3xl font-bold text-primary-600">
-                      {creator.profile.name[0]}
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-neutral-900 mb-1 flex items-center gap-2 flex-wrap">
-                    {creator.profile.name}
-                    <LevelBadges badges={creator.badges} />
-                  </h1>
-                  <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span className="font-medium">
-                        {stats.totalReviews ? stats.rating.toFixed(1) : 'Nouveau'}
-                      </span>
-                      <span className="text-neutral-500">
-                        ({stats.totalReviews || 0} avis)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Briefcase className="w-4 h-4" />
-                      <span>{stats.completedJobs || 0} mission(s)</span>
-                    </div>
-                    {creator.profile.pricing?.minPrice && (
-                      <div className="text-primary-700 font-medium">
-                        dès {creator.profile.pricing.minPrice}€ / vidéo
-                      </div>
-                    )}
-                  </div>
-                  {creator.profile.bio && (
-                    <p className="text-neutral-700 whitespace-pre-line">{creator.profile.bio}</p>
-                  )}
-                </div>
-              </div>
-
-              {creator.profile.niches?.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium text-neutral-700 mb-2">
-                    Spécialités
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {creator.profile.niches.map((niche: string) => (
-                      <span
-                        key={niche}
-                        className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
-                      >
-                        {NICHES[niche] || niche}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+        {/* En-tête */}
+        <Card className="p-6 mb-6">
+          <div className="flex items-start gap-5 flex-wrap">
+            <div className="w-24 h-24 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden">
+              {creator.profile.avatar ? (
+                <img src={creator.profile.avatar} alt={creator.profile.name} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-4xl font-bold text-primary-600">{creator.profile.name[0]}</span>
               )}
-            </Card>
+            </div>
+            <div className="flex-1 min-w-[240px]">
+              <div className="flex items-center gap-3 flex-wrap mb-1">
+                <h1 className="text-2xl font-bold text-neutral-900">{creator.profile.name}</h1>
+                <LevelBadges badges={creator.badges} />
+                {collaborated && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">Vous avez déjà collaboré</span>}
+              </div>
+              <div className="flex items-center gap-4 text-sm text-neutral-600 mb-3 flex-wrap">
+                <span className="flex items-center gap-1"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /><strong>{stats.totalReviews ? stats.rating.toFixed(1) : 'Nouveau'}</strong> ({stats.totalReviews || 0} avis)</span>
+                <span className="flex items-center gap-1"><Briefcase className="w-4 h-4" />{stats.completedJobs || 0} mission(s)</span>
+                {totalFollowers > 0 && <span className="flex items-center gap-1"><Users className="w-4 h-4" />{formatFollowers(totalFollowers)} abonnés cumulés</span>}
+                {creator.profile.pricing?.minPrice && <span className="text-primary-700 font-medium">dès {creator.profile.pricing.minPrice}€ / vidéo</span>}
+              </div>
+              {creator.profile.bio && <p className="text-neutral-700 whitespace-pre-line mb-3">{creator.profile.bio}</p>}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {(creator.profile.niches || []).map((niche: string) => (
+                  <span key={niche} className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm">{NICHES[niche] || niche}</span>
+                ))}
+              </div>
+              <SocialIcons socials={socials} />
+            </div>
+            {user?.role === 'brand' && (
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <InviteCreatorButton creatorId={creator.id || creator._id} creatorName={creator.profile.name} />
+                <Link href="/campaigns/new"><Button variant="outline" className="w-full">Créer une campagne</Button></Link>
+              </div>
+            )}
+          </div>
+        </Card>
 
-            {/* Portfolio */}
-            <Card className="p-6">
-              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-                <h2 className="text-xl font-semibold text-neutral-900">
-                  Portfolio ({portfolio.length} vidéo{portfolio.length > 1 ? 's' : ''})
-                </h2>
+        {/* Réseaux détaillés */}
+        {socials.length > 0 && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {socials.map((s: any, i: number) => (
+              <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="bg-white border border-neutral-200 rounded-lg p-3 hover:border-primary-400 transition">
+                <div className="flex items-center gap-2 text-sm font-medium text-neutral-900"><PlatformIcon platform={s.network} /> {PLATFORMS[s.network] || s.network}</div>
+                <div className="text-xs text-neutral-500 truncate">{s.handle || s.url}</div>
+                <div className="mt-1 text-sm text-neutral-800">
+                  {s.followers ? <><strong>{formatFollowers(s.followers)}</strong> abonnés</> : <span className="text-neutral-400">abonnés non renseignés</span>}
+                  {s.avgViews ? <span className="text-neutral-500"> · {formatFollowers(s.avgViews)} vues moy.</span> : null}
+                </div>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Onglets */}
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {tabs.map((t) => (
+                <button key={t.key} onClick={() => setTab(t.key)} className={cn('px-4 py-2 rounded-full text-sm font-medium transition', tab === t.key ? 'bg-primary-500 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:border-primary-300')}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'portfolio' && (
+              <Card className="p-6">
                 {types.length > 1 && (
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => setTypeFilter('')}
-                      className={cn('px-3 py-1 rounded-full text-xs', !typeFilter ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}
-                    >
-                      Tous
-                    </button>
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <button onClick={() => setTypeFilter('')} className={cn('px-3 py-1 rounded-full text-xs', !typeFilter ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}>Tous</button>
                     {types.map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTypeFilter(t)}
-                        className={cn('px-3 py-1 rounded-full text-xs', typeFilter === t ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}
-                      >
-                        {VIDEO_TYPES[t] || t}
-                      </button>
+                      <button key={t} onClick={() => setTypeFilter(t)} className={cn('px-3 py-1 rounded-full text-xs', typeFilter === t ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}>{VIDEO_TYPES[t] || t}</button>
                     ))}
                   </div>
                 )}
-              </div>
-
-              {shown.length > 0 ? (
-                <div className="grid md:grid-cols-2 gap-4">
-                  {shown.map((video: any, index: number) => (
-                    <div
-                      key={video._id || index}
-                      className="border border-neutral-200 rounded-lg overflow-hidden hover:border-primary-500 transition"
-                    >
-                      <VideoPlayer src={video.videoUrl} poster={video.thumbnail} title={video.title} className="rounded-none" />
-                      <div className="p-4">
-                        <h4 className="font-medium text-neutral-900 mb-1">
-                          {video.title}
-                        </h4>
-                        {video.description && (
-                          <p className="text-sm text-neutral-600 mb-2 line-clamp-2">
-                            {video.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs rounded">
-                            {VIDEO_TYPES[video.videoType] || video.videoType}
-                          </span>
-                          {video.stats?.views && (
-                            <span className="text-xs text-neutral-500">
-                              {video.stats.views.toLocaleString()} vues
-                            </span>
-                          )}
+                {shownPortfolio.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {shownPortfolio.map((video: any, index: number) => (
+                      <div key={video._id || index} className="border border-neutral-200 rounded-lg overflow-hidden hover:border-primary-500 transition">
+                        <VideoPlayer src={video.videoUrl} poster={video.thumbnail} title={video.title} className="rounded-none" />
+                        <div className="p-4">
+                          <h4 className="font-medium text-neutral-900 mb-1">{video.title}</h4>
+                          {video.description && <p className="text-sm text-neutral-600 mb-2 line-clamp-2">{video.description}</p>}
+                          <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs rounded">{VIDEO_TYPES[video.videoType] || video.videoType}</span>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-neutral-500">
-                  <Video className="w-16 h-16 mx-auto mb-4 text-neutral-300" />
-                  <p>Aucune vidéo dans le portfolio</p>
-                </div>
-              )}
-            </Card>
-
-            {/* Réalisations (liens de livraisons publiques) */}
-            {realisations.length > 0 && (
-              <Card className="p-6">
-                <h2 className="text-xl font-semibold text-neutral-900 mb-1">Réalisations pour des marques ({realisations.length})</h2>
-                <p className="text-sm text-neutral-500 mb-4">Vidéos livrées via NeedCreator et publiées avec l&apos;accord de la marque.</p>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {realisations.map((r: any) => (
-                    <a key={r._id} href={r.url} target="_blank" rel="noopener noreferrer" className="border border-neutral-200 rounded-lg p-3 hover:border-primary-500 transition flex items-start gap-3">
-                      <Link2 className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="font-medium text-neutral-900 truncate">{r.title}</div>
-                        <div className="text-xs text-neutral-500">{r.brandName} · {PLATFORMS[r.platform] || r.platform}{r.videoType ? ` · ${VIDEO_TYPES[r.videoType] || r.videoType}` : ''}{!r.isPublic ? ' · privé (visible par vous)' : ''}</div>
-                      </div>
-                    </a>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-neutral-500"><Video className="w-16 h-16 mx-auto mb-4 text-neutral-300" /><p>Aucune vidéo dans le portfolio</p></div>
+                )}
               </Card>
             )}
 
-            {/* Avis */}
-            {reviews.length > 0 && (
+            {tab === 'realisations' && (
               <Card className="p-6">
-                <h2 className="text-xl font-semibold text-neutral-900 mb-4">Avis des marques</h2>
-                <div className="space-y-4">
-                  {reviews.map((r: any) => (
-                    <div key={r._id} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-neutral-900">{r.reviewerId?.profile?.companyName || r.reviewerId?.profile?.name || 'Marque'}</span>
-                        <Stars value={r.rating} size="w-4 h-4" />
-                      </div>
-                      <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.createdAt)}</p>
-                      {r.comment && <p className="text-neutral-700">{r.comment}</p>}
+                <p className="text-sm text-neutral-500 mb-4">Vidéos publiées pour des marques, sur NeedCreator (avec l&apos;accord de la marque) et en dehors.</p>
+                {realPlatforms.length > 1 && (
+                  <div className="flex gap-2 flex-wrap mb-4">
+                    <button onClick={() => { setPlatformFilter(''); setPage(1); }} className={cn('px-3 py-1 rounded-full text-xs', !platformFilter ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}>Tous</button>
+                    {realPlatforms.map((p) => (
+                      <button key={p} onClick={() => { setPlatformFilter(p); setPage(1); }} className={cn('px-3 py-1 rounded-full text-xs', platformFilter === p ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700')}>{PLATFORMS[p] || p}</button>
+                    ))}
+                  </div>
+                )}
+                {pageItems.length ? (
+                  <>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {pageItems.map((r: any, i: number) => (
+                        <a key={r._id || i} href={r.url} target="_blank" rel="noopener noreferrer" className="border border-neutral-200 rounded-lg p-3 hover:border-primary-500 transition flex items-start gap-3">
+                          <PlatformIcon platform={r.platform} className="text-xl" />
+                          <div className="min-w-0">
+                            <div className="font-medium text-neutral-900 truncate">{r.title || r.url}</div>
+                            <div className="text-xs text-neutral-500">
+                              {r.brandName ? `${r.brandName} · ` : ''}{PLATFORMS[r.platform] || r.platform}
+                              {r.source === 'delivery' ? ' · via NeedCreator' : ''}{r.isPublic === false ? ' · privé' : ''}
+                              {r.date ? ` · ${formatDate(r.date)}` : ''}
+                            </div>
+                          </div>
+                        </a>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                    {pages > 1 && (
+                      <div className="mt-6 flex justify-center gap-2 flex-wrap">
+                        {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
+                          <Button key={p} size="sm" variant={p === page ? 'primary' : 'outline'} onClick={() => setPage(p)}>{p}</Button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-12 text-neutral-500"><Link2 className="w-16 h-16 mx-auto mb-4 text-neutral-300" /><p>Aucune réalisation publiée</p></div>
+                )}
+              </Card>
+            )}
+
+            {tab === 'reviews' && (
+              <Card className="p-6">
+                {reviews.length ? (
+                  <div className="space-y-4">
+                    {reviews.map((r: any) => (
+                      <div key={r._id} className="border-b border-neutral-100 pb-4 last:border-0 last:pb-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-neutral-900">{r.reviewerId?.profile?.companyName || r.reviewerId?.profile?.name || 'Marque'}</span>
+                          <Stars value={r.rating} size="w-4 h-4" />
+                        </div>
+                        <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.createdAt)}</p>
+                        {r.comment && <p className="text-neutral-700">{r.comment}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center py-12 text-neutral-500">Aucun avis pour le moment</p>
+                )}
               </Card>
             )}
           </div>
@@ -243,67 +237,30 @@ export default function PublicProfilePage() {
           <div className="space-y-6">
             <Card className="p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Statistiques</h3>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm text-neutral-600">Note moyenne</span>
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span className="font-semibold">
-                        {stats.totalReviews ? stats.rating.toFixed(1) : '—'}
-                      </span>
-                    </div>
+                    <span className="font-semibold flex items-center gap-1"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />{stats.totalReviews ? stats.rating.toFixed(1) : '—'}</span>
                   </div>
-                  <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-500"
-                      style={{ width: `${((stats.rating || 0) / 5) * 100}%` }}
-                    ></div>
-                  </div>
+                  <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden"><div className="h-full bg-yellow-500" style={{ width: `${((stats.rating || 0) / 5) * 100}%` }}></div></div>
                 </div>
-
-                <div className="pt-4 border-t border-neutral-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">Missions complétées</span>
-                    <span className="font-semibold">{stats.completedJobs || 0}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">Avis reçus</span>
-                    <span className="font-semibold">{stats.totalReviews || 0}</span>
-                  </div>
-                  {stats.onTimeDeliveryRate != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-neutral-600">Livraison à temps</span>
-                      <span className="font-semibold text-green-600">{stats.onTimeDeliveryRate}%</span>
-                    </div>
-                  )}
-                  {stats.responseTimeHours != null && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-neutral-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Temps de réponse</span>
-                      <span className="font-semibold">{stats.responseTimeHours}h</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">Membre depuis</span>
-                    <span className="font-semibold">{creator.createdAt ? formatDate(creator.createdAt) : '—'}</span>
-                  </div>
+                <div className="pt-3 border-t border-neutral-200 space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-neutral-600">Missions complétées</span><span className="font-semibold">{stats.completedJobs || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-neutral-600">Avis reçus</span><span className="font-semibold">{stats.totalReviews || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-neutral-600">Réalisations</span><span className="font-semibold">{realisations.length}</span></div>
+                  {totalFollowers > 0 && <div className="flex justify-between"><span className="text-neutral-600">Abonnés cumulés</span><span className="font-semibold">{formatFollowers(totalFollowers)}</span></div>}
+                  {stats.responseTimeHours != null && <div className="flex justify-between"><span className="text-neutral-600 flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> Temps de réponse</span><span className="font-semibold">{stats.responseTimeHours}h</span></div>}
+                  <div className="flex justify-between"><span className="text-neutral-600">Membre depuis</span><span className="font-semibold">{creator.createdAt ? formatDate(creator.createdAt) : '—'}</span></div>
                 </div>
               </div>
             </Card>
 
-            {user?.role !== 'creator' && (
+            {user?.role === 'brand' && (
               <Card className="p-6">
-                <h3 className="font-semibold text-neutral-900 mb-4">
-                  Travailler ensemble
-                </h3>
-                <p className="text-sm text-neutral-600 mb-4">
-                  Créez une campagne dans ses niches : ce créateur sera notifié et pourra candidater.
-                </p>
-                <Link href="/campaigns/new">
-                  <Button className="w-full">
-                    Créer une campagne
-                  </Button>
-                </Link>
+                <h3 className="font-semibold text-neutral-900 mb-2">Travailler ensemble</h3>
+                <p className="text-sm text-neutral-600 mb-4">Invitez ce créateur sur une campagne ouverte : il reçoit un email et peut envoyer un devis immédiatement.</p>
+                <InviteCreatorButton creatorId={creator.id || creator._id} creatorName={creator.profile.name} className="w-full" />
               </Card>
             )}
           </div>

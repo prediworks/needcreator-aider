@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Review from '../models/Review.js';
+import Delivery from '../models/Delivery.js';
 import { uploadVideo, deleteFile, keyFromUrl, resolveUrlsIn } from '../services/storage.js';
 import { publicRealisations } from './deliveries.js';
 import { levelFor, badgesFor } from '../utils/badges.js';
@@ -124,7 +125,7 @@ export async function getCreatorPortfolio(req, res) {
       role: 'creator',
       status: 'active',
     })
-      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing profile.ambassador.status createdAt')
+      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing profile.ambassador.status profile.socials profile.realisations createdAt')
       .lean();
 
     if (!creator) {
@@ -141,12 +142,22 @@ export async function getCreatorPortfolio(req, res) {
       .limit(10)
       .lean();
 
-    const realisations = await publicRealisations(creatorId, req.user?._id);
+    const fromDeliveries = await publicRealisations(creatorId, req.user?._id);
+    const external = (creator.profile.realisations || []).map(r => ({ ...r, source: 'external', isPublic: true, date: r.addedAt }));
+    const realisations = [...fromDeliveries, ...external].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    delete creator.profile.realisations;
+
+    // Collaboration passée avec la marque connectée ?
+    let collaborated = false;
+    if (req.user?.role === 'brand') {
+      collaborated = !!(await Delivery.exists({ creatorId, brandId: req.user._id }));
+    }
 
     res.json({
       creator: { ...creator, id: creator._id, level: levelFor(creator.profile?.stats), badges: badgesFor(creator) },
       reviews,
       realisations,
+      collaborated,
     });
   } catch (error) {
     logger.error('Failed to get creator portfolio:', error);

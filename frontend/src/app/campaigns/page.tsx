@@ -173,9 +173,14 @@ function CampaignsContent() {
                       {campaign.timeline?.publishedAt
                         ? `Publiée ${formatRelativeTime(campaign.timeline.publishedAt)}`
                         : `Créée ${formatRelativeTime(campaign.createdAt)}`}
+                      {!isBrand && campaign.brandId?.profile?.stats?.avgValidationDays != null && (
+                        <span title="Délai moyen de validation des livraisons par cette marque"> · valide en {campaign.brandId.profile.stats.avgValidationDays} j</span>
+                      )}
                     </div>
                   </div>
-                  {!isBrand && campaign.earlyAccess ? (
+                  {!isBrand && campaign.invited ? (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-secondary-100 text-secondary-800 whitespace-nowrap">✉️ Invitation</span>
+                  ) : !isBrand && campaign.earlyAccess ? (
                     <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 whitespace-nowrap">🌟 Avant-première</span>
                   ) : !isBrand && campaign.matchesMyNiches ? (
                     <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary-100 text-primary-800 whitespace-nowrap">Pour vous</span>

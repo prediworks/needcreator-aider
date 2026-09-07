@@ -128,6 +128,21 @@ export default function CampaignDetailPage() {
               <p className="text-neutral-700 leading-relaxed whitespace-pre-line">
                 {campaign.description}
               </p>
+
+              {isCreator && campaign.invited && (
+                <div className="mt-4 bg-secondary-50 border border-secondary-200 rounded-lg p-3 text-sm text-secondary-800">
+                  ✉️ Cette marque vous a invité personnellement à candidater.
+                </div>
+              )}
+
+              {isCreator && campaign.brandId?.profile?.stats && (campaign.brandId.profile.stats.avgValidationDays != null || campaign.brandId.profile.stats.avgResponseDays != null) && (
+                <div className="mt-4 flex gap-4 text-xs text-neutral-600 flex-wrap">
+                  <span className="font-medium text-neutral-800">Réactivité de la marque :</span>
+                  {campaign.brandId.profile.stats.avgResponseDays != null && <span>répond aux devis en {campaign.brandId.profile.stats.avgResponseDays} j</span>}
+                  {campaign.brandId.profile.stats.avgValidationDays != null && <span>valide les livraisons en {campaign.brandId.profile.stats.avgValidationDays} j</span>}
+                  {campaign.brandId.profile.stats.campaignsCompleted ? <span>{campaign.brandId.profile.stats.campaignsCompleted} campagne(s) terminée(s)</span> : null}
+                </div>
+              )}
             </Card>
 
             {/* Actions marque sur brouillon */}

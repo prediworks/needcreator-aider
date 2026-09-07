@@ -5,10 +5,12 @@ import {
   sendNewCampaignNotification,
   sendApplicationReceived,
   sendApplicationAccepted,
+  sendCampaignInvitation,
 } from '../services/email.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { levelFor, badgesFor, isAmbassador } from '../utils/badges.js';
+import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
@@ -180,7 +182,11 @@ export async function getCampaigns(req, res) {
         // Accès anticipé : les non-ambassadeurs voient les campagnes après le délai d'avant-première
         const hours = config.badges.earlyAccessHours;
         if (hours > 0 && !isAmbassador(user)) {
-          query['timeline.publishedAt'] = { $lte: new Date(Date.now() - hours * 3600 * 1000) };
+          // sauf si le créateur a été invité par la marque
+          query.$or = [
+            { 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } },
+            { 'invitations.creatorId': user._id },
+          ];
         }
       }
     } else if (status) {
@@ -196,14 +202,16 @@ export async function getCampaigns(req, res) {
     }
     if (search && String(search).trim()) {
       const regex = new RegExp(String(search).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [{ title: regex }, { description: regex }];
+      const textFilter = { $or: [{ title: regex }, { description: regex }] };
+      if (query.$or) { query.$and = [{ $or: query.$or }, textFilter]; delete query.$or; }
+      else Object.assign(query, textFilter);
     }
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     let [campaigns, total] = await Promise.all([
       Campaign.find(query)
-        .populate('brandId', 'profile.companyName profile.avatar')
+        .populate('brandId', 'profile.companyName profile.avatar profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
         .sort({ 'timeline.publishedAt': -1, createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -221,10 +229,12 @@ export async function getCampaigns(req, res) {
         c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
         const hours = config.badges.earlyAccessHours;
         c.earlyAccess = hours > 0 && c.timeline?.publishedAt && (Date.now() - new Date(c.timeline.publishedAt).getTime()) < hours * 3600 * 1000;
+        c.invited = (c.invitations || []).some(i => idOf(i.creatorId) === user._id.toString());
         delete c.applications; // ne pas exposer les autres candidatures
+        delete c.invitations;
       });
-      // Campagnes de mes niches en premier, puis les plus récentes
-      campaigns.sort((a, b) => Number(b.matchesMyNiches) - Number(a.matchesMyNiches));
+      // Invitations, puis campagnes de mes niches, puis les plus récentes
+      campaigns.sort((a, b) => (Number(b.invited) - Number(a.invited)) || (Number(b.matchesMyNiches) - Number(a.matchesMyNiches)));
     }
 
     res.json({
@@ -251,7 +261,7 @@ export async function getCampaign(req, res) {
     const user = req.user;
 
     const campaignDoc = await Campaign.findById(campaignId)
-      .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry')
+      .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
       .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status status')
       .populate('selectedCreator', 'profile.name profile.avatar');
 
@@ -270,7 +280,8 @@ export async function getCampaign(req, res) {
     if (user.role === 'creator' && campaign.status !== 'active' && !isSelectedCreator && !hasApplied) {
       return res.status(403).json({ error: 'Campaign not available' });
     }
-    if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isAmbassador(user) && config.badges.earlyAccessHours > 0) {
+    const isInvited = user.role === 'creator' && (campaign.invitations || []).some(i => idOf(i.creatorId) === user._id.toString());
+    if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isInvited && !isAmbassador(user) && config.badges.earlyAccessHours > 0) {
       const openAt = new Date(campaign.timeline.publishedAt).getTime() + config.badges.earlyAccessHours * 3600 * 1000;
       if (Date.now() < openAt) {
         return res.status(403).json({ error: 'Cette campagne est en avant-première pour les Ambassadeurs. Elle sera ouverte à tous dans quelques heures.', earlyAccessUntil: new Date(openAt) });
@@ -296,10 +307,12 @@ export async function getCampaign(req, res) {
         app => idOf(app.creatorId) === user._id.toString()
       ) || null;
       campaign.isSelected = isSelectedCreator;
+      campaign.invited = isInvited;
       campaign.canApply = Campaign.prototype.canApply.call(campaign, user._id) && user.canApplyToCampaign();
       campaign.applyBlockers = user.applyBlockers();
       // Ne pas exposer les autres candidatures aux créateurs
       delete campaign.applications;
+      delete campaign.invitations;
     } else if (isOwner) {
       // Nettoie les candidatures dont le créateur a été supprimé
       campaign.applications = (campaign.applications || []).filter(a => a.creatorId);
@@ -518,6 +531,7 @@ export async function selectCreator(req, res) {
     campaign.selectCreator(creatorId);
     if (application.quote) application.quote.acceptedAt = new Date();
     await campaign.save();
+    updateBrandStats(brand._id);
 
     // Crée la livraison + autorisation de paiement
     let delivery = null;
@@ -653,5 +667,42 @@ export async function cancelCampaign(req, res) {
   } catch (error) {
     logger.error('Failed to cancel campaign:', error);
     res.status(500).json({ error: 'Failed to cancel campaign' });
+  }
+}
+
+/**
+ * Invite un créateur à candidater sur une campagne ouverte (marque)
+ */
+export async function inviteCreator(req, res) {
+  try {
+    const { campaignId, creatorId } = req.params;
+    const brand = req.user;
+    const message = req.body?.message || '';
+
+    const campaign = await Campaign.findOne({ _id: campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.status !== 'active') return res.status(400).json({ error: 'La campagne doit être publiée pour inviter un créateur' });
+
+    const creator = await User.findOne({ _id: creatorId, role: 'creator', status: 'active' }).select('email profile.name');
+    if (!creator) return res.status(404).json({ error: 'Créateur introuvable' });
+
+    if (campaign.invitations.some(i => idOf(i.creatorId) === creatorId)) {
+      return res.status(400).json({ error: 'Ce créateur a déjà été invité sur cette campagne' });
+    }
+    if (campaign.applications.some(a => idOf(a.creatorId) === creatorId)) {
+      return res.status(400).json({ error: 'Ce créateur a déjà candidaté' });
+    }
+
+    campaign.invitations.push({ creatorId, message });
+    await campaign.save();
+
+    sendCampaignInvitation(creator.email, creator.profile.name, brand.profile.companyName || brand.profile.name, campaign.title, campaign._id, message)
+      .catch(err => logger.error('Invitation email failed:', err.message));
+
+    logger.info(`Creator ${creatorId} invited to campaign ${campaign._id}`);
+    res.json({ message: `${creator.profile.name} a été invité(e) par email`, invitations: campaign.invitations.length });
+  } catch (error) {
+    logger.error('Failed to invite creator:', error);
+    res.status(500).json({ error: 'Failed to invite creator' });
   }
 }

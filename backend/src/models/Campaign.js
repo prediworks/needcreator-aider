@@ -118,6 +118,12 @@ const campaignSchema = new mongoose.Schema({
     }
   },
   
+  invitations: [{
+    creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    invitedAt: { type: Date, default: Date.now },
+    message: String,
+  }],
+
   notifications: {
     ambassadorsNotifiedAt: Date,
     allNotifiedAt: Date,
