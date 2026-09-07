@@ -68,6 +68,9 @@ const campaignSchema = new mongoose.Schema({
     mentions: [String],
   },
   
+  // Commission plateforme appliquée à cette campagne (peut être réduite par un parrainage)
+  platformFeePercent: Number,
+
   // Budget facultatif : sans budget, le créateur propose son prix dans son devis
   budget: {
     total: {

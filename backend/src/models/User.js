@@ -198,6 +198,26 @@ const userSchema = new mongoose.Schema({
     },
   },
   
+  // Parrainage
+  referral: {
+    code: { type: String, unique: true, sparse: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    referredAt: Date,
+    // Marque : nombre de campagnes à commission réduite restantes
+    discountedCampaignsLeft: { type: Number, default: 0 },
+    // Récompenses obtenues (bonus créateur, remises marque)
+    rewards: [{
+      type: { type: String, enum: ['creator_bonus', 'brand_discount'] },
+      amount: Number,       // € pour un bonus, % pour une remise
+      description: String,
+      sourceUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+      status: { type: String, enum: ['pending', 'granted', 'paid'], default: 'granted' },
+      stripeTransferId: String,
+      createdAt: { type: Date, default: Date.now },
+    }],
+  },
+
   // Preferences
   preferences: {
     emailNotifications: {
@@ -257,6 +277,15 @@ userSchema.virtual('profileCompletion').get(function() {
   completion = (fields.filter(Boolean).length / fields.length) * 100;
   return Math.round(completion);
 });
+
+// Code de parrainage lisible (ex : LEA-7K3P2Q)
+userSchema.methods.ensureReferralCode = function() {
+  if (this.referral?.code) return this.referral.code;
+  const base = (this.profile?.companyName || this.profile?.name || 'NC').normalize('NFD').replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase() || 'NC';
+  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
+  this.set('referral.code', `${base}-${rand}`);
+  return this.referral.code;
+};
 
 // Methods
 userSchema.methods.canApplyToCampaign = function() {

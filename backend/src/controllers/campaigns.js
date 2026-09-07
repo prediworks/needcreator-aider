@@ -51,8 +51,18 @@ export async function createCampaign(req, res) {
       deadline.setHours(23, 59, 59, 999);
     }
 
+    // Commission : réduite si la marque dispose d'une campagne parrainée
+    let platformFeePercent = config.stripe.platformFeePercent;
+    if ((brand.referral?.discountedCampaignsLeft || 0) > 0) {
+      const own = brand.referral.rewards?.find(r => r.type === 'brand_discount');
+      platformFeePercent = own?.amount ?? config.referral.brandFeePercent;
+      brand.set('referral.discountedCampaignsLeft', brand.referral.discountedCampaignsLeft - 1);
+      await brand.save();
+    }
+
     const campaign = new Campaign({
       brandId: brand._id,
+      platformFeePercent,
       title,
       description,
       brief: {

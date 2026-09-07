@@ -30,7 +30,8 @@ Format vertical 9:16, lumière naturelle`;
 
 export default function NewCampaignPage() {
   const router = useRouter();
-  const { ready } = useRequireAuth({ roles: ['brand'] });
+  const { ready, user } = useRequireAuth({ roles: ['brand'] });
+  const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : PLATFORM_FEE_PERCENT;
   const createMutation = useCreateCampaign();
   const publishMutation = usePublishCampaign();
 
@@ -68,7 +69,7 @@ export default function NewCampaignPage() {
   const suggestedBudget = Math.round(((minMarket + maxMarket) / 2) * nbVideos);
   const budgetNumber = parseInt(budget) || 0;
   const perVideo = budgetNumber ? Math.round(budgetNumber / nbVideos) : 0;
-  const creatorShare = Math.round(budgetNumber * (1 - PLATFORM_FEE_PERCENT / 100));
+  const creatorShare = Math.round(budgetNumber * (1 - feePercent / 100));
 
   const payload = () => ({
     title,
@@ -337,7 +338,7 @@ export default function NewCampaignPage() {
                   {budgetNumber > 0 && (
                     <>
                       <div>Soit <strong>{formatCurrency(perVideo)}</strong> par vidéo affiché aux créateurs.</div>
-                      <div>Commission plateforme {PLATFORM_FEE_PERCENT}% incluse : le créateur reçoit {formatCurrency(creatorShare)}. Aucun frais caché.</div>
+                      <div>Commission plateforme {feePercent}% incluse{feePercent < PLATFORM_FEE_PERCENT ? ' (réduite grâce au parrainage 🎁)' : ''} : le créateur reçoit {formatCurrency(creatorShare)}. Aucun frais caché.</div>
                     </>
                   )}
                 </div>

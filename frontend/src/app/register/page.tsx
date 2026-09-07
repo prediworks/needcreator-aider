@@ -38,6 +38,7 @@ function RegisterForm() {
   const [companyName, setCompanyName] = useState('');
   const [website, setWebsite] = useState('');
   const [industry, setIndustry] = useState('');
+  const referralCode = searchParams.get('ref') || '';
 
   // Cas "compte Firebase existant sans profil" : on finalise l'inscription sans recréer le compte
   const completing = searchParams.get('complete') === '1' && !!firebaseUser && !user;
@@ -85,8 +86,8 @@ function RegisterForm() {
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
-        ? { email, name, bio, niches, minPrice: parseInt(minPrice) }
-        : { email, companyName, website, industry };
+        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode }
+        : { email, companyName, website, industry, referralCode };
 
       await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -189,6 +190,12 @@ function RegisterForm() {
             >
               ← Changer de type de compte ({role === 'creator' ? 'Créateur' : 'Marque'})
             </button>
+
+            {referralCode && (
+              <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
+                🎁 Vous êtes parrainé(e) avec le code <strong>{referralCode}</strong>{role === 'brand' ? ' : commission réduite sur votre première campagne.' : '.'}
+              </div>
+            )}
 
             <form onSubmit={handleRegister} className="space-y-4">
               <Input

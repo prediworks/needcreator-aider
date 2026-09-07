@@ -9,6 +9,8 @@ import {
   startStripeConnect,
   getStripeConnectStatus,
   submitAmbassadorVideo,
+  getReferral,
+  getEarnings,
 } from '../controllers/auth.js';
 import logger from '../utils/logger.js';
 
@@ -28,6 +30,10 @@ router.post('/register/brand', authenticateFirebase, validate(schemas.registerBr
 router.get('/profile', authenticate, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
+
+// Parrainage et revenus
+router.get('/referral', authenticate, getReferral);
+router.get('/earnings', authenticate, authorize('creator'), getEarnings);
 
 // Badge Ambassadeur : lien vers une vidéo qui parle de NeedCreator
 router.post('/ambassador', authenticate, authorize('creator'), validate(schemas.ambassadorVideo), submitAmbassadorVideo);

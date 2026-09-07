@@ -620,6 +620,68 @@ await step('Envoi de produit : adresse, expédition, réception, délai de produ
   return `expédié Colissimo 6A123, reçu, livraison attendue dans ${days} jours`;
 });
 
+await step('Parrainage : codes, marque parrainée (commission 5%), bonus créateur', async () => {
+  const myRef = await creatorApi('GET', '/auth/referral');
+  expect(myRef.status === 200 && /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(myRef.data.code) && myRef.data.link.includes('ref='), 'Code de parrainage créateur invalide', myRef);
+  const brandRef = await brandApi('GET', '/auth/referral');
+  expect(brandRef.status === 200 && brandRef.data.code, 'Code de parrainage marque invalide', brandRef);
+
+  // Créateur filleul (parrainé par notre créateur)
+  const c3Email = `e2e-creator3-${RUN}@needcreator-test.com`;
+  const c3 = await firebaseUser(c3Email);
+  const c3Api = client(c3.idToken);
+  const reg3 = await c3Api('POST', '/auth/register/creator', { email: c3Email, name: 'Filleul', bio: '', niches: ['beauty'], minPrice: 60, referralCode: myRef.data.code });
+  expect(reg3.status === 201, 'Inscription filleul échouée', reg3);
+  extraCleanup.push({ userId: reg3.data.user.id, uid: c3.uid });
+  const refAfter = await creatorApi('GET', '/auth/referral');
+  expect(refAfter.data.referred.some(r => r.id === reg3.data.user.id), 'Le filleul devrait apparaître', refAfter);
+
+  // Marque filleule (parrainée par notre marque) : commission 5% sur sa 1re campagne, marraine +1 campagne remisée
+  const b2Email = `e2e-brand2-${RUN}@needcreator-test.com`;
+  const b2 = await firebaseUser(b2Email);
+  const b2Api = client(b2.idToken);
+  const regB2 = await b2Api('POST', '/auth/register/brand', { email: b2Email, companyName: 'Marque Filleule', website: 'https://exemple.org', industry: 'beauty', referralCode: brandRef.data.code });
+  expect(regB2.status === 201 && regB2.data.user.referral.discountedCampaignsLeft === 1, 'La marque filleule devrait avoir 1 campagne remisée', regB2);
+  extraCleanup.push({ userId: regB2.data.user.id, uid: b2.uid });
+  const sponsor = await brandApi('GET', '/auth/profile');
+  expect(sponsor.data.user.referral.discountedCampaignsLeft >= 1, 'La marque marraine devrait avoir une campagne remisée', sponsor);
+
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await b2Api('POST', '/campaigns', {
+    title: 'Campagne marque parrainée', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
+    videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline,
+  });
+  expect(c.status === 201 && c.data.campaign.platformFeePercent === 5, 'La commission de la campagne parrainée devrait être 5%', c);
+  const b2After = await b2Api('GET', '/auth/profile');
+  expect(b2After.data.user.referral.discountedCampaignsLeft === 0, 'La remise devrait être consommée', b2After);
+
+  // Le filleul (activé) livre sa première mission → bonus 10€ au parrain
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: c3Email }, { $set: { status: 'active', 'verification.portfolio': true, 'profile.ambassador.status': 'approved' } });
+  for (let i = 1; i <= 3; i++) { const f = new FormData(); f.append('video', fakeVideo(`c3-${i}.mp4`)); f.append('title', `C3 ${i}`); f.append('videoType', 'demo'); await c3Api('POST', '/portfolio/upload', f, { form: true }); }
+  await b2Api('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const ap = await c3Api('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  expect(ap.status === 201, 'Candidature filleul échouée', ap);
+  const sel = await b2Api('POST', `/campaigns/${c.data.campaign._id}/select/${reg3.data.user.id}`);
+  expect(sel.status === 200 && sel.data.delivery.payment.platformFee === 5 && sel.data.delivery.payment.creatorAmount === 95, 'Commission 5% attendue sur la livraison', sel);
+  const { default: Stripe } = await import('stripe');
+  await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await b2Api('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});
+  const f = new FormData(); f.append('files', fakeVideo('r.mp4'));
+  await c3Api('POST', `/deliveries/${sel.data.delivery._id}/upload`, f, { form: true });
+  await c3Api('POST', `/deliveries/${sel.data.delivery._id}/submit`, {});
+  const ok = await b2Api('POST', `/deliveries/${sel.data.delivery._id}/approve`);
+  expect(ok.status === 200, 'Approbation échouée', ok);
+  const earnings = await creatorApi('GET', '/auth/earnings');
+  expect(earnings.status === 200 && earnings.data.bonuses.length === 1 && earnings.data.bonuses[0].amount === 10, 'Le parrain devrait avoir un bonus de 10€', earnings);
+  const csv = await fetch(`${API}/auth/earnings?format=csv`, { headers: { Authorization: `Bearer ${creator.idToken}` } });
+  const text = await csv.text();
+  expect(csv.ok && text.includes('Bonus parrainage') && text.includes('Net créateur'), 'Export CSV incorrect', { status: csv.status, data: text.slice(0, 200) });
+  // Nettoyage de la campagne filleule
+  await mongoose.connection.db.collection('campaigns').deleteMany({ brandId: new mongoose.Types.ObjectId(regB2.data.user.id) });
+  return `bonus ${earnings.data.bonuses[0].amount}€ (${earnings.data.bonuses[0].status}), commission filleule 5%, CSV OK`;
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);

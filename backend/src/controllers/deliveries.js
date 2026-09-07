@@ -69,7 +69,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     // Sans envoi de produit, le délai court dès la sélection
     productionDeadline: campaign.brief?.productShipping ? null : new Date(Date.now() + days * 86400000),
   });
-  delivery.calculatePaymentAmounts();
+  delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null);
 
   let warning = null;
   let clientSecret = null;
@@ -513,6 +513,41 @@ export async function publicRealisations(creatorId, viewerId = null) {
 }
 
 /**
+ * Bonus de parrainage : versé au parrain quand son filleul livre sa première mission
+ */
+async function grantCreatorReferralBonus(creatorId, delivery) {
+  try {
+    const referee = await User.findById(creatorId).select('referral.referredBy profile.name');
+    const referrerId = referee?.referral?.referredBy;
+    if (!referrerId) return;
+    const approvedCount = await Delivery.countDocuments({ creatorId, status: { $in: ['approved', 'auto_approved'] } });
+    if (approvedCount !== 1) return; // uniquement la première
+    const referrer = await User.findById(referrerId);
+    if (!referrer || referrer.role !== 'creator') return;
+    if (referrer.referral?.rewards?.some(r => r.type === 'creator_bonus' && String(r.sourceUserId) === String(creatorId))) return;
+
+    const amount = config.referral.creatorBonus;
+    const reward = { type: 'creator_bonus', amount, description: `Bonus parrainage : première mission livrée par ${referee.profile.name}`, sourceUserId: creatorId, campaignId: idOf(delivery.campaignId), status: 'pending' };
+    const accountId = referrer.profile?.stripeConnect?.payoutsEnabled ? (referrer.profile.stripeConnect.accountId || referrer.stripeAccountId) : null;
+    if (accountId) {
+      try {
+        const { transferToCreator } = await import('../services/stripe.js');
+        const t = await transferToCreator(`referral_${creatorId}`, accountId, amount, 'eur');
+        reward.status = 'paid';
+        reward.stripeTransferId = t.id;
+      } catch (err) {
+        logger.error('Referral bonus transfer failed:', err.message);
+      }
+    }
+    referrer.referral.rewards.push(reward);
+    await referrer.save();
+    logger.info(`Referral bonus ${amount}€ granted to ${referrer._id} (${reward.status})`);
+  } catch (error) {
+    logger.error('Failed to grant referral bonus:', error);
+  }
+}
+
+/**
  * Finalise une approbation (manuelle ou automatique) :
  * encaisse le paiement, tente le virement, clôture la campagne, met à jour les stats.
  */
@@ -567,6 +602,9 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   }
   // Réactivité de la marque
   updateBrandStats(idOf(delivery.brandId));
+
+  // Parrainage créateur : bonus au parrain à la première mission livrée du filleul
+  await grantCreatorReferralBonus(creator?._id || idOf(delivery.creatorId), delivery);
 
   return { transferred, warning };
 }

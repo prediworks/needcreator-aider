@@ -78,6 +78,13 @@ export const config = {
     origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim(),
   },
   
+  // Parrainage (montants configurables)
+  referral: {
+    brandFeePercent: parseFloat(process.env.REFERRAL_BRAND_FEE_PERCENT || '5'),          // commission de la marque parrainée sur sa 1re campagne
+    referrerBrandFeePercent: parseFloat(process.env.REFERRAL_REFERRER_FEE_PERCENT || '5'), // commission de la marque marraine sur sa campagne suivante
+    creatorBonus: parseFloat(process.env.REFERRAL_CREATOR_BONUS || '10'),                // bonus (€) au parrain créateur à la 1re mission livrée du filleul
+  },
+
   // Badges et niveaux des créateurs
   badges: {
     confirmedJobs: parseInt(process.env.BADGE_CONFIRMED_JOBS || '3', 10),

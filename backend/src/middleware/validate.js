@@ -42,6 +42,7 @@ export const schemas = {
     bio: Joi.string().max(500).allow(''),
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
     minPrice: Joi.number().min(50).max(10000).required(),
+    referralCode: Joi.string().max(20).allow(''),
   }),
   
   registerBrand: Joi.object({
@@ -49,6 +50,7 @@ export const schemas = {
     companyName: Joi.string().min(2).max(100).required(),
     website: Joi.string().uri().required(),
     industry: Joi.string().required(),
+    referralCode: Joi.string().max(20).allow(''),
   }),
   
   // Stripe Connect onboarding

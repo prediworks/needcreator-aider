@@ -133,15 +133,18 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
             </div>
           </Card>
 
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-neutral-600 text-sm">Gains (net)</span>
-              <TrendingUp className="w-5 h-5 text-green-500" />
-            </div>
-            <div className="text-3xl font-bold text-neutral-900">
-              {formatCurrency(earnings)}
-            </div>
-          </Card>
+          <Link href="/earnings">
+            <Card className="p-6 hover:border-primary-400 transition h-full">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-neutral-600 text-sm">Gains (net)</span>
+                <TrendingUp className="w-5 h-5 text-green-500" />
+              </div>
+              <div className="text-3xl font-bold text-neutral-900">
+                {formatCurrency(earnings)}
+              </div>
+              <div className="text-xs text-primary-600 mt-1">Voir mes revenus →</div>
+            </Card>
+          </Link>
         </div>
 
         {/* Main Content */}

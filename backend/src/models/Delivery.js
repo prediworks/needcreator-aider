@@ -96,6 +96,7 @@ const deliverySchema = new mongoose.Schema({
       default: 'EUR',
     },
     platformFee: Number,
+    platformFeePercent: Number,
     creatorAmount: Number,
     stripePaymentIntentId: String,
     stripeTransferId: String,
@@ -218,8 +219,9 @@ deliverySchema.methods.requestRevision = function(feedback) {
   this.autoApprovalDate = null;
 };
 
-deliverySchema.methods.calculatePaymentAmounts = function() {
-  const platformFeePercent = config.stripe.platformFeePercent;
+deliverySchema.methods.calculatePaymentAmounts = function(feePercent = null) {
+  const platformFeePercent = feePercent ?? config.stripe.platformFeePercent;
+  this.payment.platformFeePercent = platformFeePercent;
   this.payment.platformFee = Math.round(this.payment.amount * (platformFeePercent / 100));
   this.payment.creatorAmount = this.payment.amount - this.payment.platformFee;
 };

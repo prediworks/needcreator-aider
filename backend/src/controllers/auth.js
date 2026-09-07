@@ -8,6 +8,7 @@ import {
 } from '../services/stripe.js';
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
+import Delivery from '../models/Delivery.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import logger from '../utils/logger.js';
 
@@ -20,6 +21,11 @@ async function serializeUser(userDoc) {
     ...user,
     id: user._id,
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
+  };
+  out.referral = {
+    code: user.referral?.code,
+    discountedCampaignsLeft: user.referral?.discountedCampaignsLeft || 0,
+    rewardsTotal: (user.referral?.rewards || []).filter(r => r.type === 'creator_bonus').reduce((a, r) => a + (r.amount || 0), 0),
   };
   if (user.role === 'creator') {
     out.level = levelFor(user.profile?.stats);
@@ -35,11 +41,34 @@ async function serializeUser(userDoc) {
 }
 
 /**
+ * Rattache un nouvel utilisateur à son parrain (code de parrainage) et attribue les avantages marque
+ */
+async function applyReferral(user, referralCode) {
+  if (!referralCode) return;
+  const referrer = await User.findOne({ 'referral.code': String(referralCode).trim().toUpperCase() });
+  if (!referrer || referrer.role !== user.role) {
+    logger.warn(`Referral code ignored (${referralCode}): introuvable ou rôle différent`);
+    return;
+  }
+  user.set('referral.referredBy', referrer._id);
+  user.set('referral.referredAt', new Date());
+  if (user.role === 'brand') {
+    // Marque parrainée : commission réduite sur sa première campagne ; marraine : sur sa prochaine campagne
+    user.set('referral.discountedCampaignsLeft', 1);
+    user.referral.rewards.push({ type: 'brand_discount', amount: config.referral.brandFeePercent, description: 'Commission réduite sur votre première campagne (parrainage)', sourceUserId: referrer._id });
+    referrer.set('referral.discountedCampaignsLeft', (referrer.referral?.discountedCampaignsLeft || 0) + 1);
+    referrer.referral.rewards.push({ type: 'brand_discount', amount: config.referral.referrerBrandFeePercent, description: `Commission réduite sur votre prochaine campagne (parrainage de ${user.profile.companyName})`, sourceUserId: user._id });
+    await referrer.save();
+  }
+  logger.info(`User ${user._id} referred by ${referrer._id}`);
+}
+
+/**
  * Register new creator
  */
 export async function registerCreator(req, res) {
   try {
-    const { email, name, bio, niches, minPrice } = req.body;
+    const { email, name, bio, niches, minPrice, referralCode } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -73,6 +102,8 @@ export async function registerCreator(req, res) {
       status: 'pending', // Needs admin approval
     });
 
+    user.ensureReferralCode();
+    await applyReferral(user, referralCode);
     await user.save();
 
     // Send welcome email (non bloquant)
@@ -102,7 +133,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry } = req.body;
+    const { email, companyName, website, industry, referralCode } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -130,6 +161,8 @@ export async function registerBrand(req, res) {
       status: 'active', // Brands are active immediately
     });
 
+    user.ensureReferralCode();
+    await applyReferral(user, referralCode);
     await user.save();
 
     logger.info(`Brand user saved to database: ${user._id}`);
@@ -387,5 +420,104 @@ export async function submitAmbassadorVideo(req, res) {
   } catch (error) {
     logger.error('Failed to submit ambassador video:', error);
     res.status(500).json({ error: 'Failed to submit video' });
+  }
+}
+
+/**
+ * Mon programme de parrainage : code, lien, filleuls, récompenses
+ */
+export async function getReferral(req, res) {
+  try {
+    const user = req.user;
+    if (!user.referral?.code) {
+      user.ensureReferralCode();
+      await user.save();
+    }
+    const referred = await User.find({ 'referral.referredBy': user._id })
+      .select('profile.name profile.companyName role status createdAt profile.stats.completedJobs')
+      .sort({ createdAt: -1 }).lean();
+    res.json({
+      code: user.referral.code,
+      link: `${config.cors.origin}/register?role=${user.role}&ref=${user.referral.code}`,
+      discountedCampaignsLeft: user.referral.discountedCampaignsLeft || 0,
+      rewards: user.referral.rewards || [],
+      referred: referred.map(r => ({ id: r._id, name: r.profile.companyName || r.profile.name, role: r.role, status: r.status, since: r.createdAt, completedJobs: r.profile?.stats?.completedJobs || 0 })),
+      terms: {
+        brandFeePercent: config.referral.brandFeePercent,
+        referrerBrandFeePercent: config.referral.referrerBrandFeePercent,
+        creatorBonus: config.referral.creatorBonus,
+        standardFeePercent: config.stripe.platformFeePercent,
+      },
+    });
+  } catch (error) {
+    logger.error('Failed to get referral:', error);
+    res.status(500).json({ error: 'Failed to get referral' });
+  }
+}
+
+/**
+ * Mes revenus (créateur) : missions payées, en attente, bonus de parrainage, export CSV
+ */
+export async function getEarnings(req, res) {
+  try {
+    const user = req.user;
+    if (user.role !== 'creator') return res.status(403).json({ error: 'Réservé aux créateurs' });
+    const deliveries = await Delivery.find({ creatorId: user._id, status: { $in: ['approved', 'auto_approved'] } })
+      .populate('campaignId', 'title')
+      .populate('brandId', 'profile.companyName')
+      .select('campaignId brandId payment approvedAt status')
+      .sort({ approvedAt: -1 })
+      .lean();
+
+    const rows = deliveries.map(d => ({
+      deliveryId: d._id,
+      date: d.approvedAt,
+      campaign: d.campaignId?.title,
+      brand: d.brandId?.profile?.companyName,
+      amount: d.payment.amount,
+      platformFee: d.payment.platformFee,
+      platformFeePercent: d.payment.platformFeePercent ?? config.stripe.platformFeePercent,
+      net: d.payment.creatorAmount,
+      status: d.payment.status, // released = viré, captured = en attente du compte Stripe
+      releasedAt: d.payment.releasedAt,
+      stripeTransferId: d.payment.stripeTransferId,
+    }));
+
+    const bonuses = (user.referral?.rewards || []).filter(r => r.type === 'creator_bonus').map(r => ({
+      date: r.createdAt, description: r.description, amount: r.amount, status: r.status, stripeTransferId: r.stripeTransferId,
+    }));
+
+    const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
+    const totals = {
+      released: sum(rows.filter(r => r.status === 'released'), r => r.net) + sum(bonuses.filter(b => b.status === 'paid'), b => b.amount),
+      pendingPayout: sum(rows.filter(r => r.status === 'captured'), r => r.net) + sum(bonuses.filter(b => b.status !== 'paid'), b => b.amount),
+      gross: sum(rows, r => r.amount),
+      fees: sum(rows, r => r.platformFee),
+      bonuses: sum(bonuses, b => b.amount),
+    };
+
+    // Par mois (pour le récapitulatif fiscal)
+    const byMonth = {};
+    for (const r of rows) {
+      const key = r.date ? new Date(r.date).toISOString().slice(0, 7) : 'inconnu';
+      byMonth[key] = (byMonth[key] || 0) + (r.net || 0);
+    }
+
+    if (req.query.format === 'csv') {
+      const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines = [
+        ['Date', 'Campagne', 'Marque', 'Montant brut (€)', 'Commission (%)', 'Commission (€)', 'Net créateur (€)', 'Statut', 'Virement Stripe'].map(esc).join(';'),
+        ...rows.map(r => [r.date ? new Date(r.date).toLocaleDateString('fr-FR') : '', r.campaign, r.brand, r.amount, r.platformFeePercent, r.platformFee, r.net, r.status === 'released' ? 'Viré' : 'En attente', r.stripeTransferId || ''].map(esc).join(';')),
+        ...bonuses.map(b => [b.date ? new Date(b.date).toLocaleDateString('fr-FR') : '', 'Bonus parrainage', 'NeedCreator', b.amount, 0, 0, b.amount, b.status === 'paid' ? 'Viré' : 'En attente', b.stripeTransferId || ''].map(esc).join(';')),
+      ];
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="revenus-needcreator-${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.send('\ufeff' + lines.join('\n'));
+    }
+
+    res.json({ rows, bonuses, totals, byMonth, stripeConnected: !!user.profile?.stripeConnect?.payoutsEnabled });
+  } catch (error) {
+    logger.error('Failed to get earnings:', error);
+    res.status(500).json({ error: 'Failed to get earnings' });
   }
 }

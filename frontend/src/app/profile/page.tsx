@@ -16,6 +16,7 @@ import AmbassadorCard from '@/components/AmbassadorCard';
 import LevelBadges from '@/components/LevelBadges';
 import { SocialsEditor, RealisationsEditor } from '@/components/SocialsEditor';
 import AddressEditor from '@/components/AddressEditor';
+import ReferralCard from '@/components/ReferralCard';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -352,6 +353,9 @@ function ProfileContent() {
               </div>
             )}
           </Card>
+
+          {/* Parrainage */}
+          {(isCreator || profile.role === 'brand') && <ReferralCard role={isCreator ? 'creator' : 'brand'} />}
 
           {/* Ambassadeur (créateur) */}
           {isCreator && <AmbassadorCard ambassador={profile.profile.ambassador} />}

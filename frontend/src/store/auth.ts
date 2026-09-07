@@ -29,6 +29,7 @@ export interface User {
   badges?: string[];
   nextLevel?: { level: string; missingJobs: number; minRating: number; message: string } | null;
   stripeCustomerId?: string;
+  referral?: { code?: string; discountedCampaignsLeft?: number; rewardsTotal?: number };
 }
 
 interface AuthState {
