@@ -416,6 +416,37 @@ export async function setLinkVisibility(req, res) {
 }
 
 /**
+ * Saisie / mise à jour des performances d'une vidéo livrée (marque ou créateur)
+ */
+export async function updatePerformance(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const { itemId, platform, url, views, likes, comments, shares } = req.body;
+    const user = req.user;
+    const delivery = await Delivery.findById(deliveryId);
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    const isBrand = idOf(delivery.brandId) === user._id.toString();
+    const isCreator = idOf(delivery.creatorId) === user._id.toString();
+    if (!isBrand && !isCreator) return res.status(403).json({ error: 'Access denied' });
+    if (!['approved', 'auto_approved'].includes(delivery.status)) {
+      return res.status(400).json({ error: 'Les performances se renseignent après validation de la livraison' });
+    }
+    const key = itemId || url || 'global';
+    let entry = delivery.performance.find(p => (p.itemId || p.url || 'global') === key);
+    if (!entry) {
+      delivery.performance.push({ itemId, platform, url, views, likes, comments, shares, updatedBy: user._id });
+    } else {
+      Object.assign(entry, { platform, url: url || entry.url, views, likes, comments, shares, updatedAt: new Date(), updatedBy: user._id });
+    }
+    await delivery.save();
+    res.json({ message: 'Performances enregistrées', performance: delivery.performance });
+  } catch (error) {
+    logger.error('Failed to update performance:', error);
+    res.status(500).json({ error: 'Failed to update performance' });
+  }
+}
+
+/**
  * Suivi de l'envoi du produit : la marque marque "expédié", le créateur "reçu"
  */
 export async function updateShipping(req, res) {

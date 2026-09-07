@@ -123,6 +123,19 @@ const deliverySchema = new mongoose.Schema({
     receivedAt: Date,
     note: String,
   },
+  // Performances des vidéos livrées (saisie manuelle marque/créateur ; connexion aux réseaux plus tard)
+  performance: [{
+    itemId: String,             // _id du fichier ou du lien livré
+    platform: { type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'], default: 'other' },
+    url: String,                // lien de la publication
+    views: { type: Number, min: 0, default: 0 },
+    likes: { type: Number, min: 0, default: 0 },
+    comments: { type: Number, min: 0, default: 0 },
+    shares: { type: Number, min: 0, default: 0 },
+    updatedAt: { type: Date, default: Date.now },
+    updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  }],
+
   estimatedDeliveryDays: Number, // délai promis dans le devis
   productionDeadline: Date,      // reçu + délai (ou sélection + délai sans envoi)
 

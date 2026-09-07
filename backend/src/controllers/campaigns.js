@@ -316,6 +316,17 @@ export async function getCampaign(req, res) {
         .lean();
       campaign.deliveries = deliveries;
       campaign.delivery = deliveries[0] || null;
+      // Performances cumulées des vidéos livrées
+      const perf = await Delivery.find({ campaignId: campaign._id, 'performance.0': { $exists: true } }).select('performance creatorId').populate('creatorId', 'profile.name').lean();
+      const totals = { views: 0, likes: 0, comments: 0, shares: 0, videos: 0 };
+      const byCreator = [];
+      for (const d of perf) {
+        const t = { creator: d.creatorId?.profile?.name, deliveryId: d._id, views: 0, likes: 0, comments: 0, shares: 0, videos: d.performance.length };
+        for (const p of d.performance) { for (const k of ['views', 'likes', 'comments', 'shares']) { t[k] += p[k] || 0; totals[k] += p[k] || 0; } totals.videos++; }
+        byCreator.push(t);
+      }
+      const spent = deliveries.filter(d => ['approved', 'auto_approved'].includes(d.status)).reduce((a, d) => a + (d.payment?.amount || 0), 0);
+      campaign.performance = { totals, byCreator, spent, costPerThousandViews: totals.views ? Math.round((spent / totals.views) * 1000 * 100) / 100 : null };
       campaign.pendingPayments = deliveries.filter(d => d.payment?.stripePaymentIntentId && ['pending', 'failed'].includes(d.payment?.status));
       campaign.remainingSlots = Campaign.prototype.remainingSlots.call(campaign);
     } else if (isSelectedCreator) {

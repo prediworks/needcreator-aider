@@ -12,6 +12,7 @@ import { ArrowLeft, Save, Send, Info } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
 import { formatCurrency } from '@/lib/utils';
+import AiBriefCard from '@/components/AiBriefCard';
 
 const PLATFORM_FEE_PERCENT = 10;
 
@@ -151,6 +152,25 @@ export default function NewCampaignPage() {
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-6">
+              <AiBriefCard
+                videoType={videoType}
+                platforms={platforms}
+                niches={niches}
+                onGenerated={(b) => {
+                  setTitle(b.title || '');
+                  setDescription(b.description || '');
+                  const lines = [
+                    ...(b.requirements || []),
+                    ...((b.dos || []).map((d: string) => `À faire : ${d}`)),
+                    ...((b.donts || []).map((d: string) => `À éviter : ${d}`)),
+                  ];
+                  if (b.hashtags?.length) lines.push(`Hashtags : ${b.hashtags.map((h: string) => `#${h}`).join(' ')}`);
+                  setRequirements(lines.slice(0, 10).join('\n'));
+                  if (b.suggestedDuration) setDuration(String(b.suggestedDuration));
+                  if (b.suggestedDeliverables) setDeliverables(String(b.suggestedDeliverables));
+                }}
+              />
+
               <div>
                 <Input
                   label="Titre de la campagne (10 caractères minimum)"

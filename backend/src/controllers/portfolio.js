@@ -147,6 +147,14 @@ export async function getCreatorPortfolio(req, res) {
     const realisations = [...fromDeliveries, ...external].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
     delete creator.profile.realisations;
 
+    // Vues cumulées des vidéos livrées (performances déclarées)
+    const perfAgg = await Delivery.aggregate([
+      { $match: { creatorId: creator._id, 'performance.0': { $exists: true } } },
+      { $unwind: '$performance' },
+      { $group: { _id: null, views: { $sum: '$performance.views' }, likes: { $sum: '$performance.likes' } } },
+    ]);
+    creator.profile.stats = { ...(creator.profile.stats || {}), deliveredViews: perfAgg[0]?.views || 0, deliveredLikes: perfAgg[0]?.likes || 0 };
+
     // Collaboration passée avec la marque connectée ?
     let collaborated = false;
     if (req.user?.role === 'brand') {

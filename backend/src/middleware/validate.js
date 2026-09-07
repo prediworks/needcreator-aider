@@ -90,6 +90,29 @@ export const schemas = {
     productDescription: Joi.string().max(300).allow(''),
   }),
 
+  // Brief IA
+  aiBrief: Joi.object({
+    productDescription: Joi.string().min(10).max(2000).required(),
+    videoType: Joi.string().max(40).allow(''),
+    platforms: Joi.array().items(Joi.string()).default([]),
+    niches: Joi.array().items(Joi.string()).default([]),
+    goal: Joi.string().max(300).allow(''),
+    tone: Joi.string().max(100).allow(''),
+    duration: Joi.number().integer().min(15).max(180).allow(null),
+    deliverables: Joi.number().integer().min(1).max(10).allow(null),
+  }),
+
+  // Performances d'une vidéo livrée
+  performanceUpdate: Joi.object({
+    itemId: Joi.string().allow('', null),
+    platform: Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other').default('other'),
+    url: Joi.string().uri({ scheme: ['http', 'https'] }).allow(''),
+    views: Joi.number().integer().min(0).default(0),
+    likes: Joi.number().integer().min(0).default(0),
+    comments: Joi.number().integer().min(0).default(0),
+    shares: Joi.number().integer().min(0).default(0),
+  }),
+
   // Envoi de produit
   shippingUpdate: Joi.object({
     action: Joi.string().valid('shipped', 'received', 'not_required').required(),

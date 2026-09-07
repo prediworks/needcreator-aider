@@ -682,6 +682,35 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   return `bonus ${earnings.data.bonuses[0].amount}€ (${earnings.data.bonuses[0].status}), commission filleule 5%, CSV OK`;
 });
 
+await step('Performances des vidéos livrées (saisie manuelle) + agrégats campagne', async () => {
+  const d = await brandApi('GET', `/deliveries/${delivery._id}`);
+  const item = d.data.delivery.files.find(f => !f.superseded);
+  const res = await creatorApi('PATCH', `/deliveries/${delivery._id}/performance`, { itemId: item._id, platform: 'tiktok', url: 'https://www.tiktok.com/@e2e/video/9', views: 12000, likes: 800, comments: 40, shares: 15 });
+  expect(res.status === 200 && res.data.performance.length === 1, 'Saisie des performances échouée', res);
+  const upd = await brandApi('PATCH', `/deliveries/${delivery._id}/performance`, { itemId: item._id, platform: 'tiktok', views: 15000, likes: 900, comments: 50, shares: 20 });
+  expect(upd.status === 200 && upd.data.performance.length === 1 && upd.data.performance[0].views === 15000, 'La mise à jour devrait remplacer, pas dupliquer', upd);
+  const camp = await brandApi('GET', `/campaigns/${campaign._id}`);
+  const perf = camp.data.campaign.performance;
+  expect(perf.totals.views === 15000 && perf.byCreator.length === 1 && perf.costPerThousandViews > 0, 'Agrégats de campagne incorrects', camp);
+  const pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  expect(pub.creator.profile.stats.deliveredViews >= 15000, 'Les vues cumulées devraient apparaître sur le profil', { status: 200, data: pub.creator.profile.stats });
+  return `15 000 vues, ${perf.costPerThousandViews} € pour 1000 vues`;
+});
+
+await step('Brief IA : statut et génération (ou message clair si non configuré)', async () => {
+  const st = await brandApi('GET', '/campaigns/ai-brief/status');
+  expect(st.status === 200 && typeof st.data.configured === 'boolean', 'Statut IA indisponible', st);
+  const bad = await brandApi('POST', '/campaigns/ai-brief', { productDescription: 'court' });
+  expect(bad.status === 400, 'Une description trop courte doit être refusée', bad);
+  const res = await brandApi('POST', '/campaigns/ai-brief', { productDescription: 'Sérum visage à la vitamine C, bio, fabriqué en France, 29 euros. Cible : femmes 25-40 ans.', videoType: 'testimonial', platforms: ['tiktok'], niches: ['beauty'], goal: 'Publicité Meta' });
+  if (!st.data.configured) {
+    expect(res.status === 503 && /ANTHROPIC_API_KEY|OPENAI_API_KEY/.test(res.data.error), 'Sans clé, un message clair (503) est attendu', res);
+    return `non configuré (${st.data.provider}) : message clair renvoyé`;
+  }
+  expect(res.status === 200 && res.data.brief.title.length >= 10 && res.data.brief.requirements.length >= 3, 'Brief IA invalide', res);
+  return `brief généré par ${res.data.provider}/${res.data.model} : « ${res.data.brief.title} »`;
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);

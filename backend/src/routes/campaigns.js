@@ -16,7 +16,13 @@ import {
   payAllPending,
 } from '../controllers/campaigns.js';
 
+import { aiBrief, aiStatus } from '../controllers/ai.js';
+
 const router = express.Router();
+
+// Brief assisté par IA
+router.get('/ai-brief/status', authenticate, aiStatus);
+router.post('/ai-brief', authenticate, authorize('brand'), validate(schemas.aiBrief), aiBrief);
 
 // Campaign CRUD
 router.post('/', authenticate, authorize('brand'), validate(schemas.createCampaign), createCampaign);

@@ -199,6 +199,23 @@ export default function CampaignDetailPage() {
               </Card>
             )}
 
+            {/* Performances cumulées (marque) */}
+            {isOwnCampaign && campaign.performance?.totals?.videos > 0 && (
+              <Card className="p-6">
+                <h3 className="font-semibold text-neutral-900 mb-3">Performances des vidéos livrées</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center mb-3">
+                  {[['Vues', campaign.performance.totals.views], ['Likes', campaign.performance.totals.likes], ['Commentaires', campaign.performance.totals.comments], ['Partages', campaign.performance.totals.shares], ['Coût / 1000 vues', campaign.performance.costPerThousandViews != null ? `${campaign.performance.costPerThousandViews} €` : '—']].map(([l, v]: any) => (
+                    <div key={l} className="bg-neutral-50 rounded-lg p-3"><div className="text-xl font-bold text-neutral-900">{typeof v === 'number' ? v.toLocaleString('fr-FR') : v}</div><div className="text-xs text-neutral-500">{l}</div></div>
+                  ))}
+                </div>
+                <ul className="text-sm text-neutral-700 space-y-1">
+                  {campaign.performance.byCreator.map((c: any) => (
+                    <li key={c.deliveryId} className="flex justify-between"><span>{c.creator} · {c.videos} vidéo(s)</span><span>{c.views.toLocaleString('fr-FR')} vues · {c.likes.toLocaleString('fr-FR')} likes</span></li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
             {/* Livraison (créateur sélectionné) */}
             {!isOwnCampaign && campaign.delivery && (
               <Card className="p-6 bg-blue-50 border-blue-200">

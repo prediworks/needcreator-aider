@@ -21,6 +21,7 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import ReviewForm, { Stars } from '@/components/ReviewForm';
 import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
+import PerformanceCard from '@/components/PerformanceCard';
 import {
   ArrowLeft,
   Upload,
@@ -488,6 +489,9 @@ export default function DeliveryDetailPage() {
                 )}
               </Card>
             )}
+
+            {/* Performances (après validation) */}
+            {isDone && <PerformanceCard delivery={delivery} />}
 
             {/* Avis */}
             {isDone && (
