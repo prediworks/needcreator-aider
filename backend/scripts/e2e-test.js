@@ -333,6 +333,26 @@ await step('Créateur : modifie son devis (droits, conditions), version 2', asyn
   return 'devis v2 : 260€, droits 2 ans, exclusivité 3 mois';
 });
 
+await step('Messagerie : négociation du devis entre la marque et le créateur', async () => {
+  const forbidden = await brandApi('POST', `/campaigns/${campaign._id}/creator/000000000000000000000000`.replace('/campaigns/', '/messages/campaign/'), { text: 'x' });
+  expect(forbidden.status === 403 || forbidden.status === 404, 'Une discussion sans lien avec la campagne doit être refusée', forbidden);
+  const m1 = await brandApi('POST', `/messages/campaign/${campaign._id}/creator/${creatorUser.id}`, { text: 'Bonjour, pouvez-vous descendre à 240€ ?' });
+  expect(m1.status === 201, 'Envoi marque échoué', m1);
+  const list = await creatorApi('GET', '/messages');
+  expect(list.status === 200 && list.data.totalUnread === 1, 'Le créateur devrait avoir 1 message non lu', list);
+  const conv = await creatorApi('GET', `/messages/campaign/${campaign._id}`);
+  expect(conv.status === 200 && conv.data.conversation.messages.length === 1, 'Lecture de la conversation échouée', conv);
+  const after = await creatorApi('GET', '/messages/unread');
+  expect(after.data.totalUnread === 0, 'La lecture devrait remettre le compteur à zéro', after);
+  const m2 = await creatorApi('POST', `/messages/campaign/${campaign._id}`, { text: 'OK pour 250€ avec 2 ans de droits.' });
+  expect(m2.status === 201, 'Réponse créateur échouée', m2);
+  const brandList = await brandApi('GET', '/messages');
+  expect(brandList.data.totalUnread === 1 && brandList.data.conversations[0].lastMessagePreview.startsWith('OK pour'), 'La marque devrait voir la réponse', brandList);
+  const empty = await creatorApi('POST', `/messages/campaign/${campaign._id}`, { text: '   ' });
+  expect(empty.status === 400, 'Un message vide doit être refusé', empty);
+  return '2 messages échangés, compteurs non lus corrects';
+});
+
 await step('Marque : voit la candidature (score de matching)', async () => {
   const res = await brandApi('GET', `/campaigns/${campaign._id}`);
   expect(res.status === 200 && res.data.campaign.applications?.length === 1, 'Candidature invisible côté marque', res);

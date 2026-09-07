@@ -269,3 +269,17 @@ export async function sendCampaignInvitation(email, name, brandName, campaignTit
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Nouveau message (anti-spam : au plus un email toutes les 15 min par discussion)
+ */
+export async function sendNewMessageNotification(email, name, senderName, campaignTitle, campaignId, creatorId, text) {
+  const subject = `Nouveau message de ${senderName} — ${campaignTitle}`;
+  const html = `
+    <h1>Bonjour ${name}</h1>
+    <p><strong>${senderName}</strong> vous a écrit au sujet de la campagne <strong>${campaignTitle}</strong> :</p>
+    <blockquote style="border-left:3px solid #05ddb2;padding-left:12px;color:#444">${String(text).slice(0, 500).replace(/</g, '&lt;')}</blockquote>
+    <p><a href="${config.cors.origin}/messages?campaign=${campaignId}&creator=${creatorId}">Répondre sur NeedCreator</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

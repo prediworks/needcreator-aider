@@ -9,11 +9,21 @@ import { signOut } from 'firebase/auth';
 import Button from '@/components/ui/Button';
 import { User, LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 
 export default function Header() {
   const { user, isAuthenticated, loading } = useAuth();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  const { data: unread } = useQuery({
+    queryKey: ['messages', 'unread'],
+    queryFn: async () => (await api.get('/messages/unread')).data,
+    enabled: isAuthenticated && (user?.role === 'brand' || user?.role === 'creator'),
+    refetchInterval: 30000,
+  });
+  const unreadCount = unread?.totalUnread || 0;
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -25,6 +35,7 @@ export default function Header() {
         { href: '/dashboard', label: 'Tableau de bord' },
         { href: '/campaigns', label: 'Campagnes' },
         { href: '/deliveries', label: 'Livraisons' },
+        ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
         ...(user?.role === 'creator' ? [{ href: '/profile', label: 'Mon portfolio' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),

@@ -16,6 +16,7 @@ import webhookRoutes from './routes/webhooks.js';
 import adminRoutes from './routes/admin.js';
 import portfolioRoutes from './routes/portfolio.js';
 import creatorRoutes from './routes/creators.js';
+import messageRoutes from './routes/messages.js';
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api/admin', adminRoutes);
 logger.info('✓ Admin routes mounted at /api/admin');
 app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/creators', creatorRoutes);
+app.use('/api/messages', messageRoutes);
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler

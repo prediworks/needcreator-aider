@@ -7,6 +7,8 @@ import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign,
 import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import LevelBadges from '@/components/LevelBadges';
 import GroupPaymentCard from '@/components/GroupPaymentCard';
+import Conversation from '@/components/Conversation';
+import { MessageCircle } from 'lucide-react';
 import Badge2 from '@/components/ui/Badge';
 import { DELIVERY_STATUS } from '@/lib/labels';
 import Card from '@/components/ui/Card';
@@ -45,6 +47,7 @@ export default function CampaignDetailPage() {
 
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
+  const [openChat, setOpenChat] = useState<string | null>(null);
 
   if (!ready || isLoading) return <Spinner />;
 
@@ -212,6 +215,14 @@ export default function CampaignDetailPage() {
               </Card>
             )}
 
+            {/* Discussion avec la marque (créateur lié à la campagne) */}
+            {isCreator && (campaign.userHasApplied || campaign.invited || campaign.isSelected) && (
+              <Card className="p-6">
+                <Conversation campaignId={campaignId} title={`Discussion avec ${campaign.brandId?.profile?.companyName || 'la marque'}`} />
+                <p className="text-xs text-neutral-500 mt-2">Négociez votre devis ici, puis mettez-le à jour avec « Modifier mon devis ».</p>
+              </Card>
+            )}
+
             {/* Brief */}
             <Card className="p-6">
               <h2 className="text-xl font-semibold text-neutral-900 mb-4">
@@ -328,11 +339,19 @@ export default function CampaignDetailPage() {
                             <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Devis</div>
                             <QuoteSummary application={app} />
                           </div>
+                          {openChat === cid && (
+                            <div className="mb-3">
+                              <Conversation campaignId={campaignId} creatorId={cid} compact />
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge map={APPLICATION_STATUS} value={app.status} />
                             <Link href={`/profile/${cid}`}>
                               <Button size="sm" variant="outline">Voir le portfolio</Button>
                             </Link>
+                            <Button size="sm" variant="ghost" onClick={() => setOpenChat(openChat === cid ? null : cid)}>
+                              <MessageCircle className="w-4 h-4 mr-1" /> {openChat === cid ? 'Fermer' : 'Discuter'}
+                            </Button>
                             {app.status === 'pending' && campaign.status === 'active' && (campaign.remainingSlots ?? 1) > 0 && (
                               <Button
                                 size="sm"
