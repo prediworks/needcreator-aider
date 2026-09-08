@@ -21,10 +21,10 @@ REPO_URL="https://github.com/prediworks/needcreator-aider.git"
 DEPLOY_USER="needcreator"                # utilisateur non-root qui fait tourner l'app
 SSH_PORT="22"                            # changez-le (ex. 2222) pour réduire le bruit
 ADMIN_SSH_PUBKEY=""                      # votre clé publique SSH (obligatoire pour désactiver le mot de passe)
-CLOUDFLARE_ONLY="false"                  # "true" = n'accepter le web (80/443) que depuis Cloudflare
+CLOUDFLARE_ONLY="true"                  # "true" = n'accepter le web (80/443) que depuis Cloudflare
 # -----------------------------------------------------------------------------
 
-APP_DIR="/home/${DEPLOY_USER}/needcreator-aider"
+APP_DIR="/home/${DEPLOY_USER}/dev/needcreator-aider"
 BACKEND_PORT=3002
 FRONTEND_PORT=3000
 
@@ -90,6 +90,11 @@ fi
 if ! id "$DEPLOY_USER" &>/dev/null; then
   log "Création de l'utilisateur $DEPLOY_USER"
   adduser --disabled-password --gecos "" "$DEPLOY_USER"
+fi
+usermod -aG sudo "$DEPLOY_USER"
+if [[ -z "$ADMIN_SSH_PUBKEY" ]] && ! passwd -S "$DEPLOY_USER" | grep -q " P "; then
+  log "Mot de passe pour $DEPLOY_USER (connexion SSH sans clé : root ne pourra plus se connecter par mot de passe)"
+  passwd "$DEPLOY_USER"
 fi
 if [[ -n "$ADMIN_SSH_PUBKEY" ]]; then
   for u in root "$DEPLOY_USER"; do
@@ -318,6 +323,8 @@ cat <<EOF
 
 =====================================================================
  Installation terminée. Étapes restantes :
+
+ 0. Connexion SSH désormais avec l'utilisateur $DEPLOY_USER (sudo disponible), port $SSH_PORT.
 
  1. Remplir les secrets (en tant que $DEPLOY_USER) :
       nano $APP_DIR/backend/.env
