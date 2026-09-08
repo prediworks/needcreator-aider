@@ -9,7 +9,8 @@ import {
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
-import { evaluateBusiness, isFreeEmail } from '../utils/business.js';
+import { evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
+import { getSetting, SETTINGS } from '../models/Setting.js';
 import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import logger from '../utils/logger.js';
@@ -552,7 +553,33 @@ export async function verifyBusiness(req, res) {
     if (website) user.set('profile.website', website);
     user.set('profile.company', { siret: siret ? String(siret).replace(/\s/g, '') : undefined, vatNumber: vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : undefined });
     const result = evaluateBusiness({ siret, vatNumber, website: user.profile.website, email: user.email });
-    const status = result.status === 'rejected' ? 'rejected' : result.status;
+    let status = result.status === 'rejected' ? 'rejected' : result.status;
+    let registry = null;
+
+    // Contrôle au registre national (désactivable depuis l'admin ou BUSINESS_REGISTRY_CHECK=false)
+    const registryEnabled = await getSetting(SETTINGS.businessRegistryCheck.key, SETTINGS.businessRegistryCheck.default);
+    if (registryEnabled && result.identifierValid) {
+      const cleanSiret = siret ? String(siret).replace(/\s/g, '') : null;
+      const cleanVat = vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : null;
+      const siren = !cleanSiret && cleanVat?.startsWith('FR') ? cleanVat.slice(4) : null;
+      if (cleanSiret || siren) {
+        registry = await lookupRegistry({ siret: cleanSiret, siren });
+        if (registry.error) {
+          result.reasons.push(`${registry.error} : contrôle formel uniquement`);
+        } else if (!registry.found) {
+          status = 'rejected';
+          result.reasons.push(cleanSiret ? 'SIRET introuvable au registre des entreprises' : 'SIREN introuvable au registre des entreprises');
+        } else if (!registry.active) {
+          status = 'pending';
+          result.reasons.push(`Établissement fermé ou inactif au registre (${registry.legalName})`);
+        } else {
+          user.set('profile.company.legalName', registry.legalName);
+          user.set('profile.company.registryAddress', registry.address);
+          user.set('profile.company.registryChecked', true);
+        }
+      }
+    }
+
     user.set('verification.business', { status, method: 'auto', checkedAt: new Date(), note: result.reasons.join(' · ') || null });
     await user.save();
     logger.info(`Business verification for ${user._id}: ${status} (${result.reasons.join(', ') || 'ok'})`);
@@ -561,6 +588,8 @@ export async function verifyBusiness(req, res) {
       business: user.verification.business,
       reasons: result.reasons,
       freeEmail: isFreeEmail(user.email),
+      registry: registry && registry.found ? { legalName: registry.legalName, address: registry.address, active: registry.active } : null,
+      registryChecked: !!registryEnabled,
     });
   } catch (error) {
     logger.error('Business verification failed:', error);

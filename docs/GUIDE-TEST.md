@@ -50,7 +50,7 @@ Vous aurez besoin de 3 comptes (3 emails différents). Astuce : Gmail accepte `v
 
 | Rôle | Comment |
 |------|---------|
-| Marque | Page d'inscription → "Marque", puis vérification d'entreprise dans le profil (SIRET de test : 732 829 320 00074) avant de publier |
+| Marque | Page d'inscription → "Marque", puis vérification d'entreprise dans le profil (SIRET réel de test : 356 000 000 00048) avant de publier |
 | Créateur | Page d'inscription → "Créateur" |
 | Admin | Créez un compte marque, puis dans un terminal : `cd backend && npm run make-admin -- email@du.compte`. Reconnectez-vous : le menu "Administration" apparaît. |
 
@@ -116,7 +116,7 @@ Sans réponse de la marque, la livraison est validée automatiquement. Pour test
 | Performances | Page livraison après validation | Renseignez vues / likes par vidéo ; cumul et coût pour 1 000 vues sur la page campagne (marque). |
 | Brief IA | Création de campagne, étape 1 | Nécessite une clé dans `backend/.env` (`ANTHROPIC_API_KEY` ou `OPENAI_API_KEY`, `AI_PROVIDER`). Prompts modifiables dans `backend/config/prompts/`. |
 | Pack prêt à diffuser | Page livraison après validation (marque) | Choisissez les formats, payez (`READY_PACK_PRICE`, 0 = inclus), téléchargez les déclinaisons. Sous-titres si `OPENAI_API_KEY` est renseignée. |
-| Vérification d'entreprise | Profil marque → « Vérification de l'entreprise » | SIRET (ex. de test valide : 732 829 320 00074) ou TVA + site web. Email pro → immédiat ; email grand public → onglet admin « Marques à vérifier ». Sans vérification, pas de publication. |
+| Vérification d'entreprise | Profil marque → « Vérification de l'entreprise » | SIRET ou TVA + site web. Le SIRET est vérifié au registre national des entreprises (existence et activité, raison sociale affichée). Email pro → immédiat ; email grand public → onglet admin « Marques à vérifier ». Sans vérification, pas de publication. Pour désactiver le contrôle au registre (friction) : Admin → Réglages, ou `BUSINESS_REGISTRY_CHECK=false`. SIRET de test réel : 356 000 000 00048 (La Poste). |
 | Abonnement Pro | Profil marque → « NeedCreator Pro » | 14 jours d'essai offerts à l'inscription. « Souscrire » ouvre Stripe Checkout (carte test 4242…). Commission 8 %, brief IA illimité, gifting, multi-créateurs. |
 | Quota brief IA | Création de campagne | 3 briefs / mois en gratuit (compteur affiché), illimité en Pro. |
 | Limites nouvelle marque | Publication, invitations, messages | 2 campagnes ouvertes, 5 invitations / jour, 20 messages / jour tant qu'aucune campagne n'est terminée. |

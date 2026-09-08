@@ -67,7 +67,7 @@ await step('Marque : inscription via le formulaire', async () => {
 await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', async () => {
   await bp.goto(`${FRONT}/profile`);
   await bp.getByText('Vérification de l\'entreprise').waitFor({ timeout: 20000 });
-  await bp.getByLabel(/SIRET/).fill('732 829 320 00074');
+  await bp.getByLabel(/SIRET/).fill('356 000 000 00048');
   await bp.getByRole('button', { name: 'Vérifier mon entreprise' }).click();
   await bp.getByText('Entreprise vérifiée').first().waitFor({ timeout: 20000 });
   await bp.getByText('NeedCreator Pro').first().waitFor({ timeout: 20000 });

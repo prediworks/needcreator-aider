@@ -81,7 +81,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Sujet | Décision | Réglage |
 |---|---|---|
-| Vérification des marques | SIRET ou TVA (format vérifié), site web, email pro. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | — |
+| Vérification des marques | SIRET ou TVA (format + registre national des entreprises), site web, email pro. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | Admin → Réglages, `BUSINESS_REGISTRY_CHECK` |
 | Limites progressives (tant qu'aucune campagne terminée) | 2 campagnes ouvertes, 5 invitations / jour, 20 messages / jour | `LIMIT_NEW_BRAND_*` |
 | Brief IA | 3 / mois en gratuit, illimité en Pro | `AI_BRIEF_FREE_QUOTA` |
 | Abonnement Pro | 79 € / mois, essai 14 jours sans carte à l'inscription, commission 8 % au lieu de 10 %, débloque gifting et multi-créateurs | `PRO_PRICE_EUR`, `PRO_TRIAL_DAYS`, `PRO_FEE_PERCENT`, `STRIPE_PRO_PRICE_ID` |

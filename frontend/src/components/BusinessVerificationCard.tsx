@@ -24,7 +24,7 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
   const verify = useMutation({
     mutationFn: async () => (await api.post('/auth/business-verification', { siret: siret || undefined, vatNumber: vat || undefined, website: website || undefined })).data,
     onSuccess: async (d) => {
-      if (d.business.status === 'verified') toast.success(d.message);
+      if (d.business.status === 'verified') toast.success(d.registry?.legalName ? `${d.message} : ${d.registry.legalName}` : d.message);
       else if (d.business.status === 'pending') toast.info(d.message, { duration: 8000 });
       else toast.error(`${d.message} : ${d.reasons.join(', ')}`, { duration: 8000 });
       await refreshUser();
@@ -48,6 +48,9 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
         {business.status === 'verified' && !open && <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>Modifier</Button>}
       </div>
       <div className={`text-sm rounded-lg border p-3 flex items-center gap-2 mb-3 ${badge.cls}`}><Icon className="w-4 h-4" /> {badge.label}{business.note && business.status !== 'verified' ? ` — ${business.note}` : ''}</div>
+      {profile.profile?.company?.legalName && (
+        <p className="text-sm text-neutral-700 mb-3">Registre des entreprises : <strong>{profile.profile.company.legalName}</strong>{profile.profile.company.registryAddress ? ` — ${profile.profile.company.registryAddress}` : ''}</p>
+      )}
       {open && (
         <div className="space-y-3">
           <p className="text-sm text-neutral-600">Indiquez votre SIRET ou votre numéro de TVA intracommunautaire. Avec un site web et un email professionnel, la vérification est immédiate ; sinon notre équipe contrôle sous 24 h.</p>

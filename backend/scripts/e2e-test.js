@@ -141,10 +141,30 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   expect(me.data.user.plan?.plan === 'pro' && me.data.user.plan.status === 'trialing', 'La marque devrait être en essai Pro', me);
   expect(me.data.user.businessVerified === false, 'La marque ne devrait pas encore être vérifiée', me);
   const bad = await brandApi('POST', '/auth/business-verification', { siret: '12345678901234' });
-  expect(bad.status === 200 && bad.data.business.status === 'rejected', 'Un SIRET invalide doit être refusé', bad);
-  const ok = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
-  expect(ok.status === 200 && ok.data.business.status === 'verified' && ok.data.business.method === 'auto', 'La vérification automatique devrait réussir (SIRET valide, site, email pro)', ok);
-  return 'essai Pro actif, entreprise vérifiée automatiquement';
+  expect(bad.status === 200 && bad.data.business.status === 'rejected', 'Un SIRET au format invalide doit être refusé', bad);
+  const users = mongoose.connection.db.collection('users');
+  const settings = mongoose.connection.db.collection('settings');
+  await settings.updateOne({ key: 'businessRegistryCheck' }, { $set: { value: true } }, { upsert: true });
+  await new Promise(r => setTimeout(r, 100));
+  const fake = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
+  if (fake.data.registryChecked && !/injoignable/.test(fake.data.business.note || '')) {
+    expect(fake.status === 200 && fake.data.business.status === 'rejected' && /introuvable/.test(fake.data.business.note), 'Un SIRET bien formé mais inexistant au registre doit être refusé', fake);
+  }
+  const ok = await brandApi('POST', '/auth/business-verification', { siret: '356 000 000 00048', website: 'https://exemple.fr' });
+  expect(ok.status === 200 && ok.data.business.status === 'verified' && ok.data.business.method === 'auto', 'La vérification automatique devrait réussir (SIRET réel, site, email pro)', ok);
+  const registryOk = ok.data.registry?.legalName === 'LA POSTE' || /injoignable/.test(ok.data.business.note || '');
+  expect(registryOk, 'Le registre devrait renvoyer la raison sociale', ok);
+  // Désactivation depuis l'admin : le SIRET fictif passe alors le contrôle formel
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const list = await brandApi('GET', '/admin/settings');
+  expect(list.status === 200 && list.data.settings.some(x => x.key === 'businessRegistryCheck'), 'Réglage registre absent', list);
+  const off = await brandApi('PUT', '/admin/settings/businessRegistryCheck', { value: false });
+  expect(off.status === 200, 'Désactivation du registre échouée', off);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const formal = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
+  expect(formal.status === 200 && formal.data.business.status === 'verified' && formal.data.registryChecked === false, 'Registre désactivé : contrôle formel seulement', formal);
+  await settings.updateOne({ key: 'businessRegistryCheck' }, { $set: { value: true } });
+  return `registre : ${ok.data.registry?.legalName || 'injoignable, contrôle formel'} ; désactivation admin OK`;
 });
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
@@ -693,7 +713,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const sponsor = await brandApi('GET', '/auth/profile');
   expect(sponsor.data.user.referral.discountedCampaignsLeft >= 1, 'La marque marraine devrait avoir une campagne remisée', sponsor);
 
-  const ver = await b2Api('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.org' });
+  const ver = await b2Api('POST', '/auth/business-verification', { siret: '35600000000048', website: 'https://exemple.org' });
   expect(ver.status === 200 && ver.data.business.status === 'verified', 'Vérification de la marque filleule échouée', ver);
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await b2Api('POST', '/campaigns', {

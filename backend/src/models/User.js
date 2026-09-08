@@ -168,6 +168,9 @@ const userSchema = new mongoose.Schema({
     company: {
       siret: String,
       vatNumber: String,
+      legalName: String,      // raison sociale trouvée au registre
+      registryAddress: String,
+      registryChecked: Boolean,
     },
   },
   

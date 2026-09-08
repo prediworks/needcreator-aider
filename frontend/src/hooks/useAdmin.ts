@@ -90,6 +90,18 @@ export function useResolveReport() {
   });
 }
 
+export function useAdminSettings(enabled = true) {
+  return useQuery({ queryKey: ['admin', 'settings'], queryFn: async () => (await api.get('/admin/settings')).data, enabled });
+}
+export function useUpdateSetting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: any }) => (await api.put(`/admin/settings/${key}`, { value })).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin', 'settings'] }); toast.success(d.message); },
+    onError: (e: any) => toast.error(getErrorMessage(e)),
+  });
+}
+
 export function useRunJobs() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -16,6 +16,8 @@ import {
   reviewAmbassador,
   getPendingBusinesses,
   reviewBusiness,
+  getSettings,
+  updateSetting,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
 
@@ -42,6 +44,10 @@ router.post('/users/:userId/reactivate', reactivateUser);
 router.get('/ambassadors/pending', getPendingAmbassadors);
 router.post('/ambassadors/:userId/approve', reviewAmbassador);
 router.post('/ambassadors/:userId/reject', reviewAmbassador);
+
+// Réglages
+router.get('/settings', getSettings);
+router.put('/settings/:key', updateSetting);
 
 // Vérification des entreprises (marques)
 router.get('/businesses/pending', getPendingBusinesses);

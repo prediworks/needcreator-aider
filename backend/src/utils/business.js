@@ -68,3 +68,37 @@ export function evaluateBusiness({ siret, vatNumber, website, email }) {
     identifierValid: siretOk || vatOk,
   };
 }
+
+/**
+ * Interroge le registre national des entreprises (API publique, sans clé).
+ * Retourne { found, active, legalName, address, siren, siret } ou { error } si le service ne répond pas.
+ */
+export async function lookupRegistry({ siret, siren }, timeoutMs = 6000) {
+  const q = siret ? String(siret).replace(/\s/g, '') : String(siren || '').replace(/\s/g, '');
+  if (!q) return { found: false };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(q)}&per_page=1`, { signal: controller.signal, headers: { 'User-Agent': 'NeedCreator/1.0' } });
+    if (!res.ok) return { error: `registre HTTP ${res.status}` };
+    const data = await res.json();
+    const r = data.results?.[0];
+    if (!r) return { found: false };
+    const etab = siret ? (r.matching_etablissements || []).find(e => e.siret === q) || (r.siege?.siret === q ? r.siege : null) : r.siege;
+    if (siret && !etab) return { found: false };
+    const active = (etab?.etat_administratif || r.etat_administratif) === 'A' && r.etat_administratif === 'A';
+    return {
+      found: true,
+      active,
+      legalName: r.nom_raison_sociale || r.nom_complet,
+      address: etab?.adresse || r.siege?.adresse || null,
+      siren: r.siren,
+      siret: etab?.siret || r.siege?.siret || null,
+      activity: etab?.activite_principale || r.siege?.activite_principale || null,
+    };
+  } catch (err) {
+    return { error: err.name === 'AbortError' ? 'registre injoignable (délai dépassé)' : `registre injoignable (${err.message})` };
+  } finally {
+    clearTimeout(timer);
+  }
+}

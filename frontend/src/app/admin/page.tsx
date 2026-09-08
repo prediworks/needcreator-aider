@@ -8,6 +8,7 @@ import {
   useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, useRunJobs,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
+  useAdminSettings, useUpdateSetting,
 } from '@/hooks/useAdmin';
 import { REPORT_REASONS } from '@/components/ReportButton';
 import Card from '@/components/ui/Card';
@@ -19,7 +20,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -39,6 +40,8 @@ export default function AdminPage() {
   const approveBiz = useApproveBusiness();
   const rejectBiz = useRejectBusiness();
   const { data: reports } = useReports('open', ready && tab === 'reports');
+  const { data: settings } = useAdminSettings(ready && tab === 'settings');
+  const updateSetting = useUpdateSetting();
   const resolveReport = useResolveReport();
   const approve = useApproveCreator();
   const reject = useRejectCreator();
@@ -56,6 +59,7 @@ export default function AdminPage() {
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
+    { key: 'settings', label: 'Réglages' },
   ];
 
   return (
@@ -209,7 +213,7 @@ export default function AdminPage() {
                   <div key={b._id} className="border border-neutral-200 rounded-lg p-4 flex items-center justify-between gap-4 flex-wrap">
                     <div className="text-sm">
                       <div className="font-medium">{b.profile?.companyName} <span className="text-neutral-500 font-normal">· {b.email}</span> <Badge map={{ pending: { label: 'En attente', className: 'bg-orange-100 text-orange-800' }, rejected: { label: 'Refusée', className: 'bg-red-100 text-red-800' } }} value={b.verification?.business?.status} /></div>
-                      <div className="text-neutral-600">SIRET : {b.profile?.company?.siret || '—'} · TVA : {b.profile?.company?.vatNumber || '—'} · <a href={b.profile?.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">{b.profile?.website}</a></div>
+                      <div className="text-neutral-600">SIRET : {b.profile?.company?.siret || '—'} · TVA : {b.profile?.company?.vatNumber || '—'}{b.profile?.company?.legalName ? ` · registre : ${b.profile.company.legalName}` : ''} · <a href={b.profile?.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">{b.profile?.website}</a></div>
                       <div className="text-xs text-neutral-500">{b.verification?.business?.note}</div>
                     </div>
                     <div className="flex gap-2">
@@ -249,6 +253,25 @@ export default function AdminPage() {
                 ))}
               </div>
             ) : <p className="text-neutral-500 text-center py-8">Aucun signalement ouvert 🎉</p>}
+          </Card>
+        )}
+
+        {/* Settings */}
+        {tab === 'settings' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-1">Réglages</h2>
+            <p className="text-sm text-neutral-500 mb-4">Modifiables immédiatement, sans redémarrage.</p>
+            <div className="space-y-3">
+              {(settings?.settings || []).map((s: any) => (
+                <label key={s.key} className="flex items-start gap-3 border border-neutral-200 rounded-lg p-4 cursor-pointer">
+                  <input type="checkbox" className="mt-1" checked={!!s.value} onChange={(e) => updateSetting.mutate({ key: s.key, value: e.target.checked })} />
+                  <div>
+                    <div className="font-medium text-neutral-900">{s.label}</div>
+                    <div className="text-sm text-neutral-600">{s.description}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
           </Card>
         )}
 
