@@ -21,6 +21,7 @@ REPO_URL="https://github.com/prediworks/needcreator-aider.git"
 DEPLOY_USER="needcreator"                # utilisateur non-root qui fait tourner l'app
 SSH_PORT="22"                            # changez-le (ex. 2222) pour réduire le bruit
 ADMIN_SSH_PUBKEY=""                      # votre clé publique SSH (obligatoire pour désactiver le mot de passe)
+KEEP_ROOT_PASSWORD="true"                # "true" = root garde sa connexion par mot de passe (config root inchangée)
 CLOUDFLARE_ONLY="true"                  # "true" = n'accepter le web (80/443) que depuis Cloudflare
 # -----------------------------------------------------------------------------
 
@@ -92,8 +93,8 @@ if ! id "$DEPLOY_USER" &>/dev/null; then
   adduser --disabled-password --gecos "" "$DEPLOY_USER"
 fi
 usermod -aG sudo "$DEPLOY_USER"
-if [[ -z "$ADMIN_SSH_PUBKEY" ]] && ! passwd -S "$DEPLOY_USER" | grep -q " P "; then
-  log "Mot de passe pour $DEPLOY_USER (connexion SSH sans clé : root ne pourra plus se connecter par mot de passe)"
+if [[ -z "$ADMIN_SSH_PUBKEY" && "$KEEP_ROOT_PASSWORD" != "true" ]] && ! passwd -S "$DEPLOY_USER" | grep -q " P "; then
+  log "Mot de passe pour $DEPLOY_USER (root ne pourra plus se connecter par mot de passe)"
   passwd "$DEPLOY_USER"
 fi
 if [[ -n "$ADMIN_SSH_PUBKEY" ]]; then
@@ -111,17 +112,19 @@ log "Durcissement SSH (port $SSH_PORT)"
 mkdir -p /etc/ssh/sshd_config.d
 cat >/etc/ssh/sshd_config.d/99-hardening.conf <<EOF
 Port $SSH_PORT
-PermitRootLogin prohibit-password
 MaxAuthTries 3
 LoginGraceTime 30
 X11Forwarding no
 ClientAliveInterval 300
 ClientAliveCountMax 2
 EOF
-if [[ -n "$ADMIN_SSH_PUBKEY" ]]; then
+if [[ "$KEEP_ROOT_PASSWORD" != "true" ]]; then
+  echo "PermitRootLogin prohibit-password" >> /etc/ssh/sshd_config.d/99-hardening.conf
+fi
+if [[ -n "$ADMIN_SSH_PUBKEY" && "$KEEP_ROOT_PASSWORD" != "true" ]]; then
   echo "PasswordAuthentication no" >> /etc/ssh/sshd_config.d/99-hardening.conf
 else
-  warn "ADMIN_SSH_PUBKEY vide : l'authentification par mot de passe reste active. Ajoutez votre clé puis relancez."
+  warn "Authentification par mot de passe conservée (protégée par Fail2ban et UFW). Utilisez un mot de passe long."
 fi
 sshd -t && systemctl restart ssh
 
@@ -324,7 +327,7 @@ cat <<EOF
 =====================================================================
  Installation terminée. Étapes restantes :
 
- 0. Connexion SSH désormais avec l'utilisateur $DEPLOY_USER (sudo disponible), port $SSH_PORT.
+ 0. Connexion SSH : port $SSH_PORT. Root inchangé si KEEP_ROOT_PASSWORD=true, sinon utilisez $DEPLOY_USER (sudo).
 
  1. Remplir les secrets (en tant que $DEPLOY_USER) :
       nano $APP_DIR/backend/.env
