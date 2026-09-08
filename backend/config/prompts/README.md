@@ -26,7 +26,7 @@ GROQ_API_KEY=gsk_...
 
 # Novita
 AI_PROVIDER=novita
-AI_MODEL=meta-llama/llama-3.1-70b-instruct
+AI_MODEL=deepseek/deepseek-v4-flash
 AI_API_KEY=...
 
 # Fournisseur compatible OpenAI non listé

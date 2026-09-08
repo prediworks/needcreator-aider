@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateObject, generateText, NoObjectGeneratedError } from 'ai';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -109,15 +109,69 @@ export const briefSchema = z.object({
   rationale: z.string().max(400),
 });
 
+// Correspondances tolérantes : certains modèles renvoient des clés en français ou des nombres en texte
+const KEY_ALIASES = {
+  title: ['title', 'titre', 'titre_campagne', 'titreCampagne'],
+  description: ['description'],
+  requirements: ['requirements', 'consignes', 'instructions'],
+  dos: ['dos', 'a_faire', 'aFaire', 'à_faire', 'do'],
+  donts: ['donts', 'a_eviter', 'aEviter', 'à_éviter', 'dont'],
+  hashtags: ['hashtags', 'hashtag'],
+  suggestedDuration: ['suggestedDuration', 'duree', 'durée', 'duration', 'duree_recommandee'],
+  suggestedDeliverables: ['suggestedDeliverables', 'nombre_videos', 'deliverables', 'nombreVideos'],
+  rationale: ['rationale', 'explication', 'justification'],
+};
+
+function normalizeBrief(raw) {
+  const out = {};
+  for (const [key, aliases] of Object.entries(KEY_ALIASES)) {
+    const found = aliases.find(a => raw[a] !== undefined);
+    out[key] = found ? raw[found] : undefined;
+  }
+  const clean = (arr) => (Array.isArray(arr) ? arr : []).map(x => String(x).replace(/^#/, '').trim()).filter(Boolean);
+  const num = (v, d) => { const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? n : d; };
+  return {
+    title: String(out.title || '').trim().slice(0, 100),
+    description: String(out.description || '').trim().slice(0, 1000),
+    requirements: clean(out.requirements).slice(0, 10),
+    dos: clean(out.dos).slice(0, 6),
+    donts: clean(out.donts).slice(0, 6),
+    hashtags: clean(out.hashtags).slice(0, 8),
+    suggestedDuration: Math.min(180, Math.max(15, num(out.suggestedDuration, 30))),
+    suggestedDeliverables: Math.min(10, Math.max(1, num(out.suggestedDeliverables, 1))),
+    rationale: String(out.rationale || '').trim().slice(0, 400),
+  };
+}
+
+function parseJsonLoose(text) {
+  const cleaned = String(text).replace(/```(?:json)?/gi, '').trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end === -1) throw new Error('Réponse sans JSON');
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
 /**
- * Génère un brief structuré
+ * Génère un brief structuré. Essaie d'abord la sortie structurée native du fournisseur,
+ * puis se rabat sur une génération texte + lecture tolérante du JSON.
  */
 export async function generateBrief(variables) {
   const model = await getModel();
   const system = loadPrompt('brief-system', variables);
   const prompt = loadPrompt('brief-user', variables);
   const started = Date.now();
-  const { object, usage } = await generateObject({ model, schema: briefSchema, system, prompt, maxRetries: 1 });
+  let raw;
+  let usage;
+  try {
+    const r = await generateObject({ model, schema: briefSchema, system, prompt, maxRetries: 1 });
+    raw = r.object; usage = r.usage;
+  } catch (err) {
+    if (!NoObjectGeneratedError.isInstance(err) && !/schema|JSON|object/i.test(err.message)) throw err;
+    logger.warn(`AI structured output failed (${err.message.slice(0, 80)}), fallback to text parsing`);
+    const r = await generateText({ model, system, prompt, maxRetries: 1 });
+    raw = parseJsonLoose(err.text || r.text); usage = r.usage;
+  }
+  const brief = briefSchema.parse(normalizeBrief(raw));
   logger.info(`AI brief generated in ${Date.now() - started} ms (${aiConfig().provider}/${aiConfig().model}, ${usage?.totalTokens ?? '?'} tokens)`);
-  return object;
+  return brief;
 }

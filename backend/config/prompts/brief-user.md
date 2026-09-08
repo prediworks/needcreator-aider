@@ -16,3 +16,17 @@ Produis :
 4. 3 à 5 choses à faire (dos) et 3 à 5 choses à éviter (donts), courtes.
 5. 3 à 6 hashtags pertinents (sans le #).
 6. Une durée recommandée en secondes (15 à 90) et un nombre de vidéos recommandé (1 à 5) avec une phrase d'explication.
+
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour ni balises de code, en utilisant exactement ces clés (en anglais) :
+{
+  "title": "string (10 à 80 caractères)",
+  "description": "string (150 à 600 caractères)",
+  "requirements": ["string", "..."],
+  "dos": ["string", "..."],
+  "donts": ["string", "..."],
+  "hashtags": ["string sans #", "..."],
+  "suggestedDuration": 30,
+  "suggestedDeliverables": 2,
+  "rationale": "string (une phrase)"
+}
+Les valeurs (textes) sont en français.
