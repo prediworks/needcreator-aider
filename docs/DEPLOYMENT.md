@@ -30,9 +30,11 @@ Pour une exigence de données hébergées en France : VPS Scaleway ou OVH pour l
 Le script `scripts/vps-setup.sh` installe tout sur un Ubuntu 22.04/24.04 neuf : mises à jour de sécurité automatiques, utilisateur non-root, SSH durci, pare-feu UFW, Fail2ban, Node 20, PM2, Nginx avec limitation de débit, HTTPS Let's Encrypt, clonage et installation du backend et du frontend. Option `CLOUDFLARE_ONLY=true` pour n'accepter le trafic web que via le proxy Cloudflare (protection DDoS, Bot Fight Mode, WAF).
 
 ```bash
+apt-get install -y screen
 wget https://raw.githubusercontent.com/prediworks/needcreator-aider/main/scripts/vps-setup.sh
 nano vps-setup.sh            # section CONFIGURATION : domaines, email, clé SSH
-sudo bash vps-setup.sh       # installation
+screen -S setup              # protège l'installation d'une coupure SSH (reprise : screen -r setup)
+bash vps-setup.sh            # installation (journal : /var/log/vps-setup.log)
 # remplir backend/.env et frontend/.env.local, puis :
 sudo bash vps-setup.sh --finish
 ```

@@ -3,9 +3,13 @@
 # Installation complète de NeedCreator sur un VPS Ubuntu 22.04 / 24.04 neuf
 #
 # Usage (en root, sur le serveur) :
+#   apt-get install -y screen
 #   wget https://raw.githubusercontent.com/prediworks/needcreator-aider/main/scripts/vps-setup.sh
 #   nano vps-setup.sh        # remplir la section CONFIGURATION
+#   screen -S setup          # le script survit à une coupure SSH ; reprendre avec : screen -r setup
 #   bash vps-setup.sh
+#
+# Journal : /var/log/vps-setup.log
 #
 # Le script peut être relancé sans casser ce qui est déjà installé.
 # À la fin, il reste deux étapes manuelles : remplir les fichiers .env,
@@ -33,6 +37,10 @@ log() { echo -e "\n\033[1;32m==> $*\033[0m"; }
 warn() { echo -e "\033[1;33m!!  $*\033[0m"; }
 
 [[ $EUID -eq 0 ]] || { echo "Lancez ce script en root (sudo bash vps-setup.sh)"; exit 1; }
+
+# Journal complet dans /var/log/vps-setup.log (utile si la session SSH tombe)
+exec > >(tee -a /var/log/vps-setup.log) 2>&1
+echo "=== $(date) : lancement $0 ${1:-} ==="
 
 # =============================================================================
 # --finish : build + démarrage, une fois les .env remplis
@@ -126,7 +134,13 @@ if [[ -n "$ADMIN_SSH_PUBKEY" && "$KEEP_ROOT_PASSWORD" != "true" ]]; then
 else
   warn "Authentification par mot de passe conservée (protégée par Fail2ban et UFW). Utilisez un mot de passe long."
 fi
-sshd -t && systemctl restart ssh
+sshd -t
+# Ubuntu 24.04 : SSH est piloté par ssh.socket, qui doit être rechargé pour prendre le nouveau port
+systemctl daemon-reload
+if systemctl is-enabled ssh.socket >/dev/null 2>&1; then
+  systemctl restart ssh.socket || true
+fi
+systemctl reload ssh || systemctl restart ssh
 
 # =============================================================================
 # 5. Pare-feu UFW
@@ -136,6 +150,11 @@ ufw --force reset >/dev/null
 ufw default deny incoming
 ufw default allow outgoing
 ufw limit "$SSH_PORT"/tcp comment 'SSH (limité)'
+if [[ "$SSH_PORT" != "22" ]]; then
+  # On garde le port 22 ouvert tant que le nouveau port n'est pas confirmé
+  ufw limit 22/tcp comment 'SSH ancien port (à supprimer : ufw delete limit 22/tcp)'
+  warn "Port 22 laissé ouvert. Une fois connecté sur $SSH_PORT : ufw delete limit 22/tcp"
+fi
 if [[ "$CLOUDFLARE_ONLY" == "true" ]]; then
   log "Web autorisé uniquement depuis les IP Cloudflare"
   for ip in $(curl -fsSL https://www.cloudflare.com/ips-v4) $(curl -fsSL https://www.cloudflare.com/ips-v6); do
