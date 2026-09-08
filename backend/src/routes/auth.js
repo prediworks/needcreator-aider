@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate, authenticateFirebase, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
+import { verifyTurnstile } from '../middleware/turnstile.js';
 import {
   registerCreator,
   registerBrand,
@@ -24,8 +25,8 @@ router.use((req, res, next) => {
 });
 
 // Registration (authenticateFirebase only, user doesn't exist yet)
-router.post('/register/creator', authenticateFirebase, validate(schemas.registerCreator), registerCreator);
-router.post('/register/brand', authenticateFirebase, validate(schemas.registerBrand), registerBrand);
+router.post('/register/creator', authenticateFirebase, verifyTurnstile, validate(schemas.registerCreator), registerCreator);
+router.post('/register/brand', authenticateFirebase, verifyTurnstile, validate(schemas.registerBrand), registerBrand);
 
 // Profile (authenticate required)
 router.get('/profile', authenticate, getProfile);

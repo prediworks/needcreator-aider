@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import { NICHES, NICHE_OPTIONS, INDUSTRIES } from '@/lib/labels';
+import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 import { toast } from 'sonner';
 
 function RegisterForm() {
@@ -39,6 +40,8 @@ function RegisterForm() {
   const [website, setWebsite] = useState('');
   const [industry, setIndustry] = useState('');
   const referralCode = searchParams.get('ref') || '';
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [turnstileReset, setTurnstileReset] = useState(0);
 
   // Cas "compte Firebase existant sans profil" : on finalise l'inscription sans recréer le compte
   const completing = searchParams.get('complete') === '1' && !!firebaseUser && !user;
@@ -86,8 +89,8 @@ function RegisterForm() {
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
-        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode }
-        : { email, companyName, website, industry, referralCode };
+        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode, turnstileToken }
+        : { email, companyName, website, industry, referralCode, turnstileToken };
 
       await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -119,6 +122,8 @@ function RegisterForm() {
       }
 
       toast.error(errorMessage, { duration: 8000 });
+      // Un jeton Turnstile ne sert qu'une fois : nouveau défi
+      setTurnstileReset((n) => n + 1);
     } finally {
       setLoading(false);
     }
@@ -317,11 +322,13 @@ function RegisterForm() {
                 </>
               )}
 
+              <Turnstile onToken={setTurnstileToken} resetKey={turnstileReset} />
+
               <Button
                 type="submit"
                 className="w-full"
                 isLoading={loading}
-                disabled={loading || (role === 'creator' && niches.length === 0)}
+                disabled={loading || (role === 'creator' && niches.length === 0) || (turnstileEnabled && !turnstileToken)}
               >
                 {completing ? 'Enregistrer mon profil' : 'Créer mon compte'}
               </Button>

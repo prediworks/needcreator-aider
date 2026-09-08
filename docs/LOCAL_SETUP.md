@@ -64,6 +64,7 @@ Un serveur SMTP suffit (`SMTP_*` + `FROM_EMAIL`). SendGrid n'est utilisé qu'en 
 | Fournisseur IA (Anthropic, OpenAI, Groq, Novita…) | Brief assisté par IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL` — détails dans `backend/config/prompts/README.md` |
 | OpenAI | Sous-titres automatiques du pack vidéo | `OPENAI_API_KEY` |
 | Shopify | Import produit, publication des vidéos sur la fiche produit | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` (application créée sur partners.shopify.com) |
+| Cloudflare Turnstile | Anti-robot sur le formulaire d'inscription | `TURNSTILE_SECRET_KEY` (backend) et `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend). Création : dash.cloudflare.com → Turnstile → Add site (mode « Managed »). Clés de test : `1x00000000000000000000AA` / `1x0000000000000000000000000000000AA` |
 
 ## 5. Fichiers de configuration
 
@@ -91,6 +92,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |
 | Parrainage | `REFERRAL_BRAND_FEE_PERCENT=5`, `REFERRAL_REFERRER_FEE_PERCENT=5`, `REFERRAL_CREATOR_BONUS=10` | |
 | Vérification des marques | `BUSINESS_REGISTRY_CHECK=true` | contrôle au registre national des entreprises ; modifiable aussi dans Admin → Réglages |
+| Anti-robot | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile sur l'inscription ; vide = désactivé. Clé de site côté frontend : `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
 | Pack vidéo | `READY_PACK_PRICE=15`, `AI_TRANSCRIPTION_MODEL=whisper-1` | 0 = inclus |
 | IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
@@ -107,6 +109,7 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=                      # facultatif, voir ci-dessus
 ```
 
 Le fichier `.env` n'est pas rechargé à chaud : redémarrez le backend après une modification.

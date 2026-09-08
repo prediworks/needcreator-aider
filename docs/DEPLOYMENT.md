@@ -102,6 +102,7 @@ Alternative sur le VPS : `cd frontend && npm ci && npm run build && pm2 start "n
 - [ ] Domaine public R2 actif et `CLOUDFLARE_PUBLIC_URL` mis à jour
 - [ ] `npm run check:env` sur le serveur : tout ✅
 - [ ] Compte admin créé (`npm run make-admin -- email`)
+- [ ] Turnstile : site créé sur Cloudflare pour `app.needcreator.com`, clés dans `frontend/.env.local` et `backend/.env`
 - [ ] Sauvegardes MongoDB Atlas activées
 - [ ] Monitoring : `pm2 logs needcreator-api`, et un outil externe (UptimeRobot sur `/health`, Sentry) recommandé
 - [ ] Test complet en conditions réelles : inscription marque, vérification SIRET, campagne, sélection, carte, livraison, virement à un créateur
