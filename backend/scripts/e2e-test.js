@@ -714,11 +714,21 @@ await step('Performances des vidéos livrées (saisie manuelle) + agrégats camp
 await step('Brief IA : statut et génération (ou message clair si non configuré)', async () => {
   const st = await brandApi('GET', '/campaigns/ai-brief/status');
   expect(st.status === 200 && typeof st.data.configured === 'boolean', 'Statut IA indisponible', st);
+  // Résolution de configuration par fournisseur (sans appel réseau)
+  const { aiConfig } = await import('../src/services/ai.js');
+  const saved = { P: process.env.AI_PROVIDER, M: process.env.AI_MODEL, K: process.env.AI_API_KEY, U: process.env.AI_BASE_URL };
+  Object.assign(process.env, { AI_PROVIDER: 'groq', AI_MODEL: '', AI_API_KEY: 'gsk_test', AI_BASE_URL: '' });
+  expect(aiConfig().configured && aiConfig().model === 'llama-3.3-70b-versatile', 'Groq devrait être configuré avec un modèle par défaut', { status: 200, data: aiConfig() });
+  Object.assign(process.env, { AI_PROVIDER: 'novita', AI_MODEL: 'meta-llama/llama-3.1-70b-instruct', AI_API_KEY: 'nv_test' });
+  expect(aiConfig().configured && aiConfig().baseURL === 'https://api.novita.ai/v3/openai', 'Novita devrait utiliser l\'URL compatible OpenAI', { status: 200, data: aiConfig() });
+  Object.assign(process.env, { AI_PROVIDER: 'openai-compatible', AI_BASE_URL: '' });
+  expect(aiConfig().configured === false, 'openai-compatible sans AI_BASE_URL ne doit pas être considéré configuré', { status: 200, data: aiConfig() });
+  process.env.AI_PROVIDER = saved.P || ''; process.env.AI_MODEL = saved.M || ''; process.env.AI_API_KEY = saved.K || ''; process.env.AI_BASE_URL = saved.U || '';
   const bad = await brandApi('POST', '/campaigns/ai-brief', { productDescription: 'court' });
   expect(bad.status === 400, 'Une description trop courte doit être refusée', bad);
   const res = await brandApi('POST', '/campaigns/ai-brief', { productDescription: 'Sérum visage à la vitamine C, bio, fabriqué en France, 29 euros. Cible : femmes 25-40 ans.', videoType: 'testimonial', platforms: ['tiktok'], niches: ['beauty'], goal: 'Publicité Meta' });
   if (!st.data.configured) {
-    expect(res.status === 503 && /ANTHROPIC_API_KEY|OPENAI_API_KEY/.test(res.data.error), 'Sans clé, un message clair (503) est attendu', res);
+    expect(res.status === 503 && /_API_KEY|AI_MODEL|AI_BASE_URL/.test(res.data.error), 'Sans clé, un message clair (503) est attendu', res);
     return `non configuré (${st.data.provider}) : message clair renvoyé`;
   }
   expect(res.status === 200 && res.data.brief.title.length >= 10 && res.data.brief.requirements.length >= 3, 'Brief IA invalide', res);
