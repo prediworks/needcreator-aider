@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -15,6 +15,7 @@ import { ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
  */
 export default function BusinessVerificationCard({ profile }: { profile: any }) {
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  const queryClient = useQueryClient();
   const business = profile.verification?.business || { status: 'unverified' };
   const [siret, setSiret] = useState(profile.profile?.company?.siret || '');
   const [vat, setVat] = useState(profile.profile?.company?.vatNumber || '');
@@ -27,7 +28,7 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
       if (d.business.status === 'verified') toast.success(d.registry?.legalName ? `${d.message} : ${d.registry.legalName}` : d.message);
       else if (d.business.status === 'pending') toast.info(d.message, { duration: 8000 });
       else toast.error(`${d.message} : ${d.reasons.join(', ')}`, { duration: 8000 });
-      await refreshUser();
+      await Promise.all([refreshUser(), queryClient.invalidateQueries({ queryKey: ['profile'] })]);
       if (d.business.status === 'verified') setOpen(false);
     },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),

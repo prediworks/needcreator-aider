@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -15,6 +15,7 @@ import { Megaphone, CheckCircle, Clock } from 'lucide-react';
  */
 export default function AmbassadorCard({ ambassador, compact = false }: { ambassador?: any; compact?: boolean }) {
   const refreshUser = useAuthStore((s) => s.refreshUser);
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const status = ambassador?.status || 'none';
 
@@ -23,7 +24,7 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
     onSuccess: async (data) => {
       toast.success(data.message);
       setUrl('');
-      await refreshUser();
+      await Promise.all([refreshUser(), queryClient.invalidateQueries({ queryKey: ['profile'] })]);
     },
     onError: (e: any) => toast.error(getErrorMessage(e)),
   });
