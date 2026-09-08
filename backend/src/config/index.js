@@ -78,6 +78,30 @@ export const config = {
     origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim(),
   },
   
+  // Abonnement Pro (marques)
+  plans: {
+    proPriceEur: parseFloat(process.env.PRO_PRICE_EUR || '79'),
+    proTrialDays: parseInt(process.env.PRO_TRIAL_DAYS || '14', 10),
+    proFeePercent: parseFloat(process.env.PRO_FEE_PERCENT || '8'),
+    stripeProPriceId: process.env.STRIPE_PRO_PRICE_ID || null,
+    aiBriefFreeQuota: parseInt(process.env.AI_BRIEF_FREE_QUOTA || '3', 10),
+  },
+
+  // Limites progressives des nouvelles marques (aucune campagne terminée)
+  limits: {
+    newBrandOpenCampaigns: parseInt(process.env.LIMIT_NEW_BRAND_OPEN_CAMPAIGNS || '2', 10),
+    newBrandInvitesPerDay: parseInt(process.env.LIMIT_NEW_BRAND_INVITES_PER_DAY || '5', 10),
+    newBrandMessagesPerDay: parseInt(process.env.LIMIT_NEW_BRAND_MESSAGES_PER_DAY || '20', 10),
+  },
+
+  // Gifting (produit offert, pas de rémunération)
+  gifting: {
+    minProductValue: parseFloat(process.env.GIFTING_MIN_PRODUCT_VALUE || '30'),
+    maxDeliverables: parseInt(process.env.GIFTING_MAX_DELIVERABLES || '2', 10),
+    maxPerMonth: parseInt(process.env.GIFTING_MAX_PER_MONTH || '2', 10),
+    feePerVideo: parseFloat(process.env.GIFTING_FEE_PER_VIDEO || '5'),
+  },
+
   // Pack "vidéo prête à diffuser" (€ par vidéo ; 0 = inclus)
   readyPack: {
     pricePerVideo: parseFloat(process.env.READY_PACK_PRICE || '15'),

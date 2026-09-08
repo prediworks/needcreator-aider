@@ -11,6 +11,7 @@ import {
   submitAmbassadorVideo,
   getReferral,
   getEarnings,
+  verifyBusiness,
 } from '../controllers/auth.js';
 import logger from '../utils/logger.js';
 
@@ -30,6 +31,9 @@ router.post('/register/brand', authenticateFirebase, validate(schemas.registerBr
 router.get('/profile', authenticate, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
+
+// Vérification d'entreprise (marques)
+router.post('/business-verification', authenticate, authorize('brand'), validate(schemas.businessVerification), verifyBusiness);
 
 // Parrainage et revenus
 router.get('/referral', authenticate, getReferral);

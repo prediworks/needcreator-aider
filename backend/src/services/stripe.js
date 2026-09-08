@@ -166,6 +166,11 @@ export async function transferToCreator(paymentIntentId, creatorAccountId, creat
 export async function captureAndTransfer(paymentIntentId, creatorAccountId, amount, platformFee) {
   const paymentIntent = await capturePayment(paymentIntentId);
   const creatorAmount = amount - platformFee;
+
+  if (creatorAmount <= 0) {
+    // Rien à reverser (campagne gifting : frais de plateforme uniquement)
+    return { paymentIntent, transfer: null, transferred: true };
+  }
   
   if (!creatorAccountId) {
     logger.warn(`No Stripe Connect account for creator — payment ${paymentIntentId} captured, transfer deferred`);

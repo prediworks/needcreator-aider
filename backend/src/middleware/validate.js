@@ -63,6 +63,21 @@ export const schemas = {
     videoUrl: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
   }),
 
+  // Vérification d'entreprise (marque)
+  businessVerification: Joi.object({
+    siret: Joi.string().pattern(/^[0-9 ]{14,17}$/).allow(''),
+    vatNumber: Joi.string().pattern(/^[A-Za-z]{2}[A-Za-z0-9 ]{2,13}$/).allow(''),
+    website: Joi.string().uri().allow(''),
+  }).or('siret', 'vatNumber'),
+
+  // Signalement
+  report: Joi.object({
+    targetType: Joi.string().valid('campaign', 'user', 'message', 'delivery').required(),
+    targetId: Joi.string().hex().length(24).required(),
+    reason: Joi.string().valid('free_work', 'off_platform', 'scam', 'inappropriate', 'spam', 'fake', 'other').required(),
+    details: Joi.string().max(1000).allow(''),
+  }),
+
   // Admin moderation
   moderationReason: Joi.object({
     reason: Joi.string().max(500).allow(''),
@@ -88,6 +103,9 @@ export const schemas = {
     creatorsWanted: Joi.number().integer().min(1).max(20).default(1),
     productShipping: Joi.boolean().default(false),
     productDescription: Joi.string().max(300).allow(''),
+    type: Joi.string().valid('paid', 'gifting').default('paid'),
+    giftingProductName: Joi.string().max(200).allow(''),
+    giftingProductValue: Joi.number().min(0).allow(null),
   }),
 
   // Pack prêt à diffuser
@@ -149,12 +167,15 @@ export const schemas = {
     creatorsWanted: Joi.number().integer().min(1).max(20),
     productShipping: Joi.boolean(),
     productDescription: Joi.string().max(300).allow(''),
+    type: Joi.string().valid('paid', 'gifting'),
+    giftingProductName: Joi.string().max(200).allow(''),
+    giftingProductValue: Joi.number().min(0).allow(null),
   }).min(1),
 
   // Application = devis
   quote: Joi.object({
     proposal: Joi.string().max(1000).allow(''),
-    price: Joi.number().min(50).max(10000).required(),
+    price: Joi.number().min(0).max(10000).required(), // 0 uniquement pour le gifting (contrôlé dans le contrôleur)
     estimatedDeliveryDays: Joi.number().min(1).max(60).required(),
     rights: Joi.object({
       duration: Joi.string().valid('6m', '1y', '2y', '3y', 'unlimited').default('1y'),

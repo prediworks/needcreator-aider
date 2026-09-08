@@ -1,4 +1,5 @@
 import { generateBrief, aiConfig } from '../services/ai.js';
+import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const VIDEO_TYPE_LABELS = {
@@ -12,7 +13,14 @@ const VIDEO_TYPE_LABELS = {
  */
 export function aiStatus(req, res) {
   const { provider, model, configured } = aiConfig();
-  res.json({ configured, provider, model });
+  const user = req.user;
+  let quota = null;
+  if (user?.role === 'brand') {
+    user.rollUsage();
+    const pro = user.isPro();
+    quota = { pro, limit: pro ? null : config.plans.aiBriefFreeQuota, used: user.usage?.aiBriefCount || 0, remaining: pro ? null : Math.max(0, config.plans.aiBriefFreeQuota - (user.usage?.aiBriefCount || 0)) };
+  }
+  res.json({ configured, provider, model, quota });
 }
 
 /**
@@ -21,6 +29,13 @@ export function aiStatus(req, res) {
 export async function aiBrief(req, res) {
   try {
     const brand = req.user;
+    brand.rollUsage();
+    if (!brand.isPro() && (brand.usage.aiBriefCount || 0) >= config.plans.aiBriefFreeQuota) {
+      return res.status(402).json({
+        error: `Vous avez utilisé vos ${config.plans.aiBriefFreeQuota} briefs IA gratuits ce mois-ci. Passez en Pro pour un accès illimité.`,
+        code: 'AI_QUOTA_EXCEEDED',
+      });
+    }
     const { productDescription, videoType, platforms, niches, goal, tone, duration, deliverables } = req.body;
     const brief = await generateBrief({
       productDescription,
@@ -35,7 +50,9 @@ export async function aiBrief(req, res) {
       duration,
       deliverables,
     });
-    res.json({ brief, ...aiConfig() });
+    brand.usage.aiBriefCount = (brand.usage.aiBriefCount || 0) + 1;
+    await brand.save();
+    res.json({ brief, ...aiConfig(), remaining: brand.isPro() ? null : Math.max(0, config.plans.aiBriefFreeQuota - brand.usage.aiBriefCount) });
   } catch (error) {
     if (error.status === 503) return res.status(503).json({ error: error.message });
     logger.error('AI brief failed:', error);

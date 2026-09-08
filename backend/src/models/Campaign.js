@@ -68,7 +68,14 @@ const campaignSchema = new mongoose.Schema({
     mentions: [String],
   },
   
-  // Commission plateforme appliquée à cette campagne (peut être réduite par un parrainage)
+  // Type : rémunérée (paid) ou produit offert (gifting)
+  type: { type: String, enum: ['paid', 'gifting'], default: 'paid', index: true },
+  gifting: {
+    productName: String,
+    productValue: Number, // valeur du produit offert (€)
+  },
+
+  // Commission plateforme appliquée à cette campagne (peut être réduite par un parrainage ou l'abonnement Pro)
   platformFeePercent: Number,
 
   // Budget facultatif : sans budget, le créateur propose son prix dans son devis

@@ -64,6 +64,16 @@ await step('Marque : inscription via le formulaire', async () => {
   return 'arrivée sur le tableau de bord';
 });
 
+await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', async () => {
+  await bp.goto(`${FRONT}/profile`);
+  await bp.getByText('Vérification de l\'entreprise').waitFor({ timeout: 20000 });
+  await bp.getByLabel(/SIRET/).fill('732 829 320 00074');
+  await bp.getByRole('button', { name: 'Vérifier mon entreprise' }).click();
+  await bp.getByText('Entreprise vérifiée').first().waitFor({ timeout: 20000 });
+  await bp.getByText('NeedCreator Pro').first().waitFor({ timeout: 20000 });
+  return 'vérifiée automatiquement, essai Pro affiché';
+});
+
 await step('Marque : création + publication d\'une campagne', async () => {
   await bp.goto(`${FRONT}/campaigns/new`);
   await bp.getByLabel(/Titre de la campagne/).fill('Campagne test interface utilisateur');

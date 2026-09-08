@@ -25,8 +25,9 @@ export default function PricingPage() {
         <div className="grid md:grid-cols-2 gap-8 mb-8">
           <Card className="p-8">
             <h2 className="text-2xl font-bold text-neutral-900 mb-2">Marques</h2>
-            <div className="text-4xl font-bold text-primary-600 mb-1">0€</div>
-            <p className="text-neutral-600 mb-6">d&apos;abonnement. Vous fixez le budget de chaque campagne.</p>
+            <div className="text-4xl font-bold text-primary-600 mb-1">0€ <span className="text-base font-normal text-neutral-500">ou Pro 79 €/mois</span></div>
+            <p className="text-neutral-600 mb-2">Gratuit : commission 10 %, 3 briefs IA par mois, 1 créateur par campagne.</p>
+            <p className="text-neutral-600 mb-6">Pro : commission 8 %, brief IA illimité, gifting, multi-créateurs, sans limites. 14 jours d&apos;essai offerts à l&apos;inscription.</p>
             <ul className="space-y-2 text-sm text-neutral-700">
               {[
                 'Vidéos UGC à partir de 80€',

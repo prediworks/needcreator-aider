@@ -38,7 +38,7 @@ function NewCampaignForm() {
   const updateMutation = useUpdateCampaign();
   const { data: existing, isLoading: loadingExisting } = useCampaign(editId || '', ready && !!editId);
   const [prefilled, setPrefilled] = useState(false);
-  const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : PLATFORM_FEE_PERCENT;
+  const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : ((user as any)?.plan?.feePercent ?? PLATFORM_FEE_PERCENT);
   const createMutation = useCreateCampaign();
   const publishMutation = usePublishCampaign();
 
@@ -60,6 +60,9 @@ function NewCampaignForm() {
   const [creatorsWanted, setCreatorsWanted] = useState('1');
   const [productShipping, setProductShipping] = useState(false);
   const [productDescription, setProductDescription] = useState('');
+  const [campaignType, setCampaignType] = useState<'paid' | 'gifting'>('paid');
+  const [giftingValue, setGiftingValue] = useState('');
+  const isPro = !!(user as any)?.isPro;
 
   // Mode édition : pré-remplit le formulaire avec le brouillon existant
   useEffect(() => {
@@ -78,6 +81,8 @@ function NewCampaignForm() {
     setCreatorsWanted(String(existing.matching?.creatorsWanted || 1));
     setProductShipping(!!existing.brief?.productShipping);
     setProductDescription(existing.brief?.productDescription || '');
+    setCampaignType(existing.type === 'gifting' ? 'gifting' : 'paid');
+    setGiftingValue(existing.gifting?.productValue ? String(existing.gifting.productValue) : '');
     setCreatedCampaignId(existing._id);
     setPrefilled(true);
   }, [existing, prefilled]);
@@ -128,15 +133,19 @@ function NewCampaignForm() {
     deliveryTypes,
     platforms,
     creatorsWanted: Math.max(1, parseInt(creatorsWanted) || 1),
-    productShipping,
-    productDescription: productShipping ? productDescription : '',
+    productShipping: campaignType === 'gifting' ? true : productShipping,
+    productDescription: (campaignType === 'gifting' || productShipping) ? productDescription : '',
+    type: campaignType,
+    giftingProductName: campaignType === 'gifting' ? productDescription : '',
+    giftingProductValue: campaignType === 'gifting' ? parseFloat(giftingValue) || null : null,
   });
 
   const toggleIn = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
   const step1Valid = title.trim().length >= 10 && description.trim().length >= 50 && niches.length > 0;
-  const step2Valid = (budgetNumber === 0 || budgetNumber >= 50) && !!applicationDeadline && deliveryTypes.length > 0;
+  const step2Valid = (budgetNumber === 0 || budgetNumber >= 50) && !!applicationDeadline && deliveryTypes.length > 0
+    && (campaignType !== 'gifting' || ((parseFloat(giftingValue) || 0) >= 30 && !!productDescription.trim() && nbVideos <= 2));
 
   const saveDraft = async () => {
     if (isEdit && createdCampaignId) {
@@ -294,6 +303,35 @@ function NewCampaignForm() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Type de campagne</label>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {[
+                    { v: 'paid', t: 'Rémunérée', d: 'Vous payez le créateur (devis). Paiement bloqué à la sélection, versé à la validation.' },
+                    { v: 'gifting', t: '🎁 Gifting (produit offert)', d: `Vous envoyez un produit (valeur ≥ 30 €) à la place d'une rémunération. 2 vidéos max, 2 campagnes par mois, 5 € de frais par vidéo livrée.${isPro ? '' : ' Réservé au plan Pro.'}` },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      disabled={o.v === 'gifting' && !isPro}
+                      onClick={() => setCampaignType(o.v as any)}
+                      className={`text-left p-4 rounded-lg border-2 transition ${campaignType === o.v ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'} ${o.v === 'gifting' && !isPro ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="font-semibold text-neutral-900">{o.t}</div>
+                      <div className="text-xs text-neutral-600 mt-1">{o.d}</div>
+                    </button>
+                  ))}
+                </div>
+                {!isPro && <p className="text-xs text-neutral-500 mt-2">Le gifting et les campagnes multi-créateurs sont réservés au <Link href="/profile" className="text-primary-600 underline">plan Pro</Link>.</p>}
+              </div>
+
+              {campaignType === 'gifting' && (
+                <div className="grid sm:grid-cols-2 gap-3 bg-pink-50 border border-pink-100 rounded-lg p-4">
+                  <Input label="Produit offert" value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Ex : Sérum vitamine C 30 ml" maxLength={200} required />
+                  <Input label="Valeur du produit (€, minimum 30)" type="number" min={30} value={giftingValue} onChange={(e) => setGiftingValue(e.target.value)} required />
+                </div>
+              )}
+
+              <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
                   Type de vidéo
                 </label>
@@ -358,12 +396,13 @@ function NewCampaignForm() {
                   </div>
                 </div>
                 <Input
-                  label="Nombre de créateurs recherchés"
+                  label={`Nombre de créateurs recherchés${isPro ? '' : ' (Pro pour plus d\'un)'}`}
                   type="number"
                   value={creatorsWanted}
                   onChange={(e) => setCreatorsWanted(e.target.value)}
                   min={1}
-                  max={20}
+                  max={isPro ? 20 : 1}
+                  disabled={!isPro}
                 />
               </div>
 
@@ -394,7 +433,7 @@ function NewCampaignForm() {
                 </div>
               </div>
 
-              <div>
+              {campaignType === 'paid' && <div>
                 <Input
                   label="Budget total (€) — facultatif"
                   type="number"
@@ -415,11 +454,14 @@ function NewCampaignForm() {
                   {budgetNumber > 0 && (
                     <>
                       <div>Soit <strong>{formatCurrency(perVideo)}</strong> par vidéo affiché aux créateurs.</div>
-                      <div>Commission plateforme {feePercent}% incluse{feePercent < PLATFORM_FEE_PERCENT ? ' (réduite grâce au parrainage 🎁)' : ''} : le créateur reçoit {formatCurrency(creatorShare)}. Aucun frais caché.</div>
+                      <div>Commission plateforme {feePercent}% incluse{feePercent < PLATFORM_FEE_PERCENT ? ' (réduite)' : ''} : le créateur reçoit {formatCurrency(creatorShare)}. Aucun frais caché.</div>
                     </>
                   )}
                 </div>
-              </div>
+              </div>}
+              {campaignType === 'gifting' && (
+                <div className="text-sm text-neutral-700 bg-neutral-50 rounded-lg p-3">Pas de budget : les créateurs candidatent pour recevoir le produit. À la sélection, seuls les frais de plateforme (5 € par vidéo) sont bloqués.</div>
+              )}
 
               <Input
                 label="Date limite de candidature"

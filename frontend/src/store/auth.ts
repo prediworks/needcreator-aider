@@ -30,6 +30,12 @@ export interface User {
   nextLevel?: { level: string; missingJobs: number; minRating: number; message: string } | null;
   stripeCustomerId?: string;
   referral?: { code?: string; discountedCampaignsLeft?: number; rewardsTotal?: number };
+  plan?: { plan: string; status: string; trialEndsAt?: string | null; feePercent: number; aiBriefQuota: number | null; price: number };
+  isPro?: boolean;
+  businessVerified?: boolean;
+  acceptsGifting?: boolean;
+  aiBriefsUsed?: number;
+  verification?: any;
 }
 
 interface AuthState {

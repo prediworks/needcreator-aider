@@ -14,7 +14,10 @@ import {
   getUserDetail,
   getPendingAmbassadors,
   reviewAmbassador,
+  getPendingBusinesses,
+  reviewBusiness,
 } from '../controllers/admin.js';
+import { listReports, resolveReport } from '../controllers/reports.js';
 
 const router = express.Router();
 
@@ -39,6 +42,15 @@ router.post('/users/:userId/reactivate', reactivateUser);
 router.get('/ambassadors/pending', getPendingAmbassadors);
 router.post('/ambassadors/:userId/approve', reviewAmbassador);
 router.post('/ambassadors/:userId/reject', reviewAmbassador);
+
+// Vérification des entreprises (marques)
+router.get('/businesses/pending', getPendingBusinesses);
+router.post('/businesses/:userId/approve', reviewBusiness);
+router.post('/businesses/:userId/reject', reviewBusiness);
+
+// Signalements
+router.get('/reports', listReports);
+router.post('/reports/:reportId/resolve', resolveReport);
 
 // Supervision
 router.get('/campaigns', getAdminCampaigns);

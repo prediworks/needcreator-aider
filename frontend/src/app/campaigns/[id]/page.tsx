@@ -8,6 +8,8 @@ import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import LevelBadges from '@/components/LevelBadges';
 import GroupPaymentCard from '@/components/GroupPaymentCard';
 import Conversation from '@/components/Conversation';
+import ReportButton from '@/components/ReportButton';
+import { CAMPAIGN_TYPES } from '@/lib/labels';
 import { MessageCircle } from 'lucide-react';
 import Badge2 from '@/components/ui/Badge';
 import { DELIVERY_STATUS } from '@/lib/labels';
@@ -128,9 +130,17 @@ export default function CampaignDetailPage() {
                         : `Créée ${formatRelativeTime(campaign.createdAt)}`}
                     </span>
                     <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
+                    {campaign.type === 'gifting' && <Badge map={CAMPAIGN_TYPES} value="gifting" />}
                   </div>
                 </div>
+                {isCreator && <ReportButton targetType="campaign" targetId={campaignId} />}
               </div>
+
+              {campaign.type === 'gifting' && (
+                <div className="mb-3 bg-pink-50 border border-pink-100 rounded-lg p-3 text-sm text-pink-900">
+                  🎁 Campagne gifting : pas de rémunération, vous recevez <strong>{campaign.gifting?.productName || 'le produit'}</strong> (valeur {formatCurrency(campaign.gifting?.productValue || 0)}) en échange de {campaign.brief.deliverables} vidéo(s).
+                </div>
+              )}
 
               <p className="text-neutral-700 leading-relaxed whitespace-pre-line">
                 {campaign.description}
@@ -385,7 +395,7 @@ export default function CampaignDetailPage() {
                                 isLoading={selectMutation.isPending}
                               >
                                 <CheckCircle className="w-4 h-4 mr-1" />
-                                Accepter le devis et payer
+                                {campaign.type === 'gifting' ? 'Sélectionner (frais de plateforme)' : 'Accepter le devis et payer'}
                               </Button>
                             )}
                           </div>
@@ -408,7 +418,12 @@ export default function CampaignDetailPage() {
             <Card className="p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Budget</h3>
               <div className="text-center py-2">
-                {campaign.budget?.total ? (
+                {campaign.type === 'gifting' ? (
+                  <>
+                    <div className="text-2xl font-bold text-pink-700 mb-1">🎁 Produit offert</div>
+                    <div className="text-sm text-neutral-600">{campaign.gifting?.productName} · valeur {formatCurrency(campaign.gifting?.productValue || 0)}</div>
+                  </>
+                ) : campaign.budget?.total ? (
                   <>
                     <div className="text-4xl font-bold text-primary-600 mb-1">
                       {formatCurrency(campaign.budget.perVideo)}

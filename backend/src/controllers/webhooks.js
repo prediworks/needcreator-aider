@@ -18,6 +18,12 @@ export async function handleStripeWebhook(req, res) {
       case 'account.updated':
         await handleAccountUpdated(event.data.object);
         break;
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+      case 'customer.subscription.deleted':
+        await handleSubscription(event.data.object);
+        break;
         
       case 'payment_intent.succeeded':
         await handlePaymentIntentSucceeded(event.data.object);
@@ -51,6 +57,21 @@ export async function handleStripeWebhook(req, res) {
   } catch (error) {
     logger.error('Webhook error:', error);
     res.status(400).json({ error: 'Webhook error' });
+  }
+}
+
+/**
+ * Abonnement Pro : synchronise l'état Stripe sur la marque
+ */
+async function handleSubscription(subscription) {
+  try {
+    const user = await User.findOne({ stripeCustomerId: subscription.customer });
+    if (!user) { logger.warn(`Brand not found for customer ${subscription.customer}`); return; }
+    const { applyStripeSubscription } = await import('./billing.js');
+    await applyStripeSubscription(user, subscription);
+    logger.info(`Subscription ${subscription.status} applied to ${user._id}`);
+  } catch (error) {
+    logger.error('Failed to handle subscription event:', error);
   }
 }
 

@@ -16,6 +16,41 @@ import logger from '../utils/logger.js';
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
 
 /**
+ * Règles Pro / gifting / limites progressives. Retourne un message d'erreur ou null.
+ */
+async function checkCampaignRules(brand, { type, creatorsWanted, deliverables, giftingProductValue }, excludeCampaignId = null) {
+  const pro = brand.isPro();
+  if ((creatorsWanted || 1) > 1 && !pro) {
+    return 'Les campagnes multi-créateurs sont réservées à l\'abonnement Pro.';
+  }
+  if (type === 'gifting') {
+    if (!pro) return 'Les campagnes gifting (produit offert) sont réservées à l\'abonnement Pro.';
+    if (!giftingProductValue || giftingProductValue < config.gifting.minProductValue) {
+      return `La valeur du produit offert doit être d'au moins ${config.gifting.minProductValue} €.`;
+    }
+    if ((deliverables || 1) > config.gifting.maxDeliverables) {
+      return `Une campagne gifting est limitée à ${config.gifting.maxDeliverables} vidéo(s).`;
+    }
+    const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+    const q = { brandId: brand._id, type: 'gifting', createdAt: { $gte: monthStart }, status: { $ne: 'cancelled' } };
+    if (excludeCampaignId) q._id = { $ne: excludeCampaignId };
+    const count = await Campaign.countDocuments(q);
+    if (count >= config.gifting.maxPerMonth) {
+      return `Vous avez atteint la limite de ${config.gifting.maxPerMonth} campagnes gifting par mois.`;
+    }
+  }
+  return null;
+}
+
+/**
+ * Marque "établie" = au moins une campagne terminée (les limites progressives ne s'appliquent plus)
+ */
+async function isEstablishedBrand(brand) {
+  if (brand.isPro() && brand.subscription?.status === 'active') return true;
+  return (await Campaign.countDocuments({ brandId: brand._id, status: 'completed' })) > 0;
+}
+
+/**
  * Create new campaign
  */
 export async function createCampaign(req, res) {
@@ -43,7 +78,13 @@ export async function createCampaign(req, res) {
       creatorsWanted,
       productShipping,
       productDescription,
+      type = 'paid',
+      giftingProductName,
+      giftingProductValue,
     } = req.body;
+
+    const gate = await checkCampaignRules(brand, { type, creatorsWanted, deliverables, giftingProductValue });
+    if (gate) return res.status(403).json({ error: gate });
 
     // La date limite est prise en fin de journée (23:59:59)
     const deadline = new Date(applicationDeadline);
@@ -51,8 +92,8 @@ export async function createCampaign(req, res) {
       deadline.setHours(23, 59, 59, 999);
     }
 
-    // Commission : réduite si la marque dispose d'une campagne parrainée
-    let platformFeePercent = config.stripe.platformFeePercent;
+    // Commission : Pro → réduite ; parrainage → réduite sur une campagne
+    let platformFeePercent = brand.isPro() ? config.plans.proFeePercent : config.stripe.platformFeePercent;
     if ((brand.referral?.discountedCampaignsLeft || 0) > 0) {
       const own = brand.referral.rewards?.find(r => r.type === 'brand_discount');
       platformFeePercent = own?.amount ?? config.referral.brandFeePercent;
@@ -63,6 +104,8 @@ export async function createCampaign(req, res) {
     const campaign = new Campaign({
       brandId: brand._id,
       platformFeePercent,
+      type,
+      gifting: type === 'gifting' ? { productName: giftingProductName || productDescription, productValue: giftingProductValue } : undefined,
       title,
       description,
       brief: {
@@ -75,7 +118,7 @@ export async function createCampaign(req, res) {
         productShipping: !!productShipping,
         productDescription,
       },
-      budget: budget
+      budget: budget && type !== 'gifting'
         ? { total: budget, perVideo: Math.round(budget / deliverables) }
         : {},
       matching: {
@@ -122,6 +165,24 @@ export async function publishCampaign(req, res) {
     if (campaign.status !== 'draft') {
       return res.status(400).json({ error: 'Campaign already published' });
     }
+
+    if (!brand.isBusinessVerified()) {
+      return res.status(403).json({
+        error: 'Vérifiez votre entreprise (SIRET ou TVA, site web) dans votre profil avant de publier une campagne.',
+        code: 'BUSINESS_NOT_VERIFIED',
+      });
+    }
+    if (!(await isEstablishedBrand(brand))) {
+      const open = await Campaign.countDocuments({ brandId: brand._id, status: { $in: ['active', 'in_progress'] } });
+      if (open >= config.limits.newBrandOpenCampaigns) {
+        return res.status(403).json({
+          error: `Nouvelle marque : ${config.limits.newBrandOpenCampaigns} campagnes ouvertes maximum tant qu'aucune campagne n'est terminée.`,
+          code: 'LIMIT_OPEN_CAMPAIGNS',
+        });
+      }
+    }
+    const gate = await checkCampaignRules(brand, { type: campaign.type, creatorsWanted: campaign.matching?.creatorsWanted, deliverables: campaign.brief?.deliverables, giftingProductValue: campaign.gifting?.productValue }, campaign._id);
+    if (gate) return res.status(403).json({ error: gate });
 
     campaign.status = 'active';
     campaign.timeline.publishedAt = new Date();
@@ -192,6 +253,7 @@ export async function getCampaigns(req, res) {
         // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
         query['matching.excludedCreators'] = { $ne: user._id };
+        if (!user.acceptsGifting(levelFor(user.profile?.stats))) query.type = { $ne: 'gifting' };
         // Accès anticipé : les non-ambassadeurs voient les campagnes après le délai d'avant-première
         const hours = config.badges.earlyAccessHours;
         if (hours > 0 && !isAmbassador(user)) {
@@ -422,12 +484,22 @@ export async function applyToCampaign(req, res) {
       return res.status(400).json({ error: 'Vous ne pouvez pas (ou plus) candidater à cette campagne' });
     }
 
-    const matchScore = computeMatchScore(campaign, creator, price);
+    let finalPrice = price;
+    if (campaign.type === 'gifting') {
+      if (!creator.acceptsGifting(levelFor(creator.profile?.stats))) {
+        return res.status(403).json({ error: 'Vous avez désactivé les campagnes gifting dans votre profil' });
+      }
+      finalPrice = 0; // produit offert, pas de rémunération
+    } else if (price < 50) {
+      return res.status(400).json({ error: 'Le prix minimum est de 50 €' });
+    }
+
+    const matchScore = computeMatchScore(campaign, creator, finalPrice);
 
     campaign.applications.push({
       creatorId: creator._id,
       proposal,
-      price,
+      price: finalPrice,
       estimatedDeliveryDays,
       matchScore,
       status: 'pending',
@@ -503,7 +575,8 @@ export async function updateQuote(req, res) {
     });
 
     application.proposal = proposal ?? application.proposal;
-    application.price = price;
+    application.price = campaign.type === 'gifting' ? 0 : price;
+    if (campaign.type !== 'gifting' && price < 50) return res.status(400).json({ error: 'Le prix minimum est de 50 €' });
     application.estimatedDeliveryDays = estimatedDeliveryDays;
     application.matchScore = computeMatchScore(campaign, creator, price);
     application.quote.version = (application.quote.version || 1) + 1;
@@ -652,6 +725,12 @@ export async function updateCampaign(req, res) {
       if (/^\d{4}-\d{2}-\d{2}$/.test(String(u.applicationDeadline))) deadline.setHours(23, 59, 59, 999);
       campaign.timeline.applicationDeadline = deadline;
     }
+    if (u.type !== undefined) campaign.type = u.type;
+    if (u.giftingProductName !== undefined) campaign.set('gifting.productName', u.giftingProductName);
+    if (u.giftingProductValue !== undefined) campaign.set('gifting.productValue', u.giftingProductValue);
+    const gate = await checkCampaignRules(brand, { type: campaign.type, creatorsWanted: campaign.matching?.creatorsWanted, deliverables: campaign.brief?.deliverables, giftingProductValue: campaign.gifting?.productValue }, campaign._id);
+    if (gate) return res.status(403).json({ error: gate });
+    if (campaign.type === 'gifting') campaign.budget = {};
     if (u.budget !== undefined) {
       if (u.budget === null || u.budget === '') {
         campaign.budget = {};
@@ -738,6 +817,12 @@ export async function inviteCreator(req, res) {
     if (campaign.invitations.some(i => idOf(i.creatorId) === creatorId)) {
       return res.status(400).json({ error: 'Ce créateur a déjà été invité sur cette campagne' });
     }
+    brand.rollUsage();
+    if (!(await isEstablishedBrand(brand)) && (brand.usage.invitesToday || 0) >= config.limits.newBrandInvitesPerDay) {
+      return res.status(429).json({ error: `Nouvelle marque : ${config.limits.newBrandInvitesPerDay} invitations par jour maximum tant qu'aucune campagne n'est terminée.` });
+    }
+    brand.usage.invitesToday = (brand.usage.invitesToday || 0) + 1;
+    await brand.save();
     if (campaign.applications.some(a => idOf(a.creatorId) === creatorId)) {
       return res.status(400).json({ error: 'Ce créateur a déjà candidaté' });
     }

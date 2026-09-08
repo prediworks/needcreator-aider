@@ -18,6 +18,8 @@ import { SocialsEditor, RealisationsEditor } from '@/components/SocialsEditor';
 import AddressEditor from '@/components/AddressEditor';
 import ReferralCard from '@/components/ReferralCard';
 import ShopifyCard from '@/components/ShopifyCard';
+import BusinessVerificationCard from '@/components/BusinessVerificationCard';
+import SubscriptionCard from '@/components/SubscriptionCard';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -354,6 +356,26 @@ function ProfileContent() {
               </div>
             )}
           </Card>
+
+          {/* Vérification et abonnement (marque) */}
+          {profile.role === 'brand' && <BusinessVerificationCard profile={profile} />}
+          {profile.role === 'brand' && <SubscriptionCard />}
+
+          {/* Gifting (créateur) */}
+          {isCreator && (
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold text-neutral-900 mb-1">🎁 Campagnes gifting</h2>
+              <p className="text-sm text-neutral-600 mb-3">Certaines marques proposent un produit offert (valeur minimale 30 €) à la place d&apos;une rémunération, en échange d&apos;une ou deux vidéos. Vous choisissez de les voir ou non.</p>
+              <label className="flex items-center gap-2 text-sm text-neutral-800">
+                <input
+                  type="checkbox"
+                  checked={!!profile.acceptsGifting}
+                  onChange={(e) => updateMutation.mutate({ preferences: { acceptGifting: e.target.checked } })}
+                />
+                J&apos;accepte de recevoir des campagnes gifting
+              </label>
+            </Card>
+          )}
 
           {/* Shopify (marque) */}
           {profile.role === 'brand' && <ShopifyCard />}

@@ -7,7 +7,9 @@ import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
   useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, useRunJobs,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
+  usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
 } from '@/hooks/useAdmin';
+import { REPORT_REASONS } from '@/components/ReportButton';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -17,7 +19,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'users' | 'campaigns' | 'deliveries';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -33,6 +35,11 @@ export default function AdminPage() {
   const { data: ambassadors } = usePendingAmbassadors(ready && tab === 'ambassadors');
   const approveAmb = useApproveAmbassador();
   const rejectAmb = useRejectAmbassador();
+  const { data: businesses } = usePendingBusinesses(ready && tab === 'businesses');
+  const approveBiz = useApproveBusiness();
+  const rejectBiz = useRejectBusiness();
+  const { data: reports } = useReports('open', ready && tab === 'reports');
+  const resolveReport = useResolveReport();
   const approve = useApproveCreator();
   const reject = useRejectCreator();
   const suspend = useSuspendUser();
@@ -44,6 +51,8 @@ export default function AdminPage() {
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: 'pending', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
     { key: 'ambassadors', label: 'Vidéos Ambassadeur' },
+    { key: 'businesses', label: 'Marques à vérifier' },
+    { key: 'reports', label: 'Signalements' },
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
@@ -186,6 +195,60 @@ export default function AdminPage() {
             ) : (
               <p className="text-neutral-500 text-center py-8">Aucune vidéo en attente</p>
             )}
+          </Card>
+        )}
+
+        {/* Businesses */}
+        {tab === 'businesses' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-1">Marques en attente de vérification</h2>
+            <p className="text-sm text-neutral-500 mb-4">Contrôle manuel (email grand public ou identifiant douteux). Vérifiez le SIRET sur annuaire-entreprises.data.gouv.fr et le site web.</p>
+            {businesses?.brands?.length ? (
+              <div className="space-y-3">
+                {businesses.brands.map((b: any) => (
+                  <div key={b._id} className="border border-neutral-200 rounded-lg p-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="text-sm">
+                      <div className="font-medium">{b.profile?.companyName} <span className="text-neutral-500 font-normal">· {b.email}</span> <Badge map={{ pending: { label: 'En attente', className: 'bg-orange-100 text-orange-800' }, rejected: { label: 'Refusée', className: 'bg-red-100 text-red-800' } }} value={b.verification?.business?.status} /></div>
+                      <div className="text-neutral-600">SIRET : {b.profile?.company?.siret || '—'} · TVA : {b.profile?.company?.vatNumber || '—'} · <a href={b.profile?.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">{b.profile?.website}</a></div>
+                      <div className="text-xs text-neutral-500">{b.verification?.business?.note}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => approveBiz.mutate({ userId: b._id })} isLoading={approveBiz.isPending}><CheckCircle className="w-4 h-4 mr-1" /> Vérifier</Button>
+                      <Button size="sm" variant="outline" onClick={() => rejectBiz.mutate({ userId: b._id, reason: prompt('Motif :') || '' })} isLoading={rejectBiz.isPending}><XCircle className="w-4 h-4 mr-1" /> Refuser</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-neutral-500 text-center py-8">Aucune marque en attente</p>}
+          </Card>
+        )}
+
+        {/* Reports */}
+        {tab === 'reports' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-4">Signalements ouverts ({reports?.reports?.length || 0})</h2>
+            {reports?.reports?.length ? (
+              <div className="space-y-3">
+                {reports.reports.map((r: any) => (
+                  <div key={r._id} className="border border-neutral-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="text-sm">
+                        <div className="font-medium">{REPORT_REASONS[r.reason] || r.reason} <span className="text-xs text-neutral-500">· {r.targetType} · {formatDate(r.createdAt)}</span></div>
+                        <div className="text-neutral-700">Signalé par {r.reporterId?.profile?.companyName || r.reporterId?.profile?.name} ({r.reporterId?.role}) → <strong>{r.targetUserId?.profile?.companyName || r.targetUserId?.profile?.name}</strong> ({r.targetUserId?.role}, {r.targetUserId?.email})</div>
+                        {r.details && <div className="text-neutral-600 mt-1 whitespace-pre-line">{r.details}</div>}
+                        {r.targetType === 'campaign' && <Link href={`/campaigns/${r.targetId}`} className="text-primary-600 underline text-xs">Voir la campagne</Link>}
+                        {r.targetType === 'user' && <Link href={`/admin/creators/${r.targetId}`} className="text-primary-600 underline text-xs">Voir le profil</Link>}
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button size="sm" variant="outline" onClick={() => resolveReport.mutate({ reportId: r._id, action: 'dismiss' })}>Sans suite</Button>
+                        <Button size="sm" onClick={() => resolveReport.mutate({ reportId: r._id, action: 'resolve', note: prompt('Action prise :') || '' })}>Traité</Button>
+                        <Button size="sm" variant="secondary" onClick={() => { if (confirm('Suspendre cet utilisateur ?')) resolveReport.mutate({ reportId: r._id, action: 'suspend' }); }}>Suspendre</Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-neutral-500 text-center py-8">Aucun signalement ouvert 🎉</p>}
           </Card>
         )}
 

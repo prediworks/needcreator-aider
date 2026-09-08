@@ -124,6 +124,8 @@ await step('Comptes Firebase de test', async () => {
   return `${brandEmail}, ${creatorEmail}`;
 });
 
+await mongoose.connect(process.env.MONGODB_URI);
+
 await step('Inscription marque (+ client Stripe)', async () => {
   const res = await brandApi('POST', '/auth/register/brand', {
     email: brandEmail, companyName: 'Marque Test E2E', website: 'https://exemple.fr', industry: 'ecommerce',
@@ -132,6 +134,17 @@ await step('Inscription marque (+ client Stripe)', async () => {
   brandUser = res.data.user;
   expect(brandUser.stripeCustomerId, 'Client Stripe non créé', res);
   return `id ${brandUser.id}, Stripe ${brandUser.stripeCustomerId}`;
+});
+
+await step('Marque : essai Pro offert à l\'inscription + vérification d\'entreprise (SIRET)', async () => {
+  const me = await brandApi('GET', '/auth/profile');
+  expect(me.data.user.plan?.plan === 'pro' && me.data.user.plan.status === 'trialing', 'La marque devrait être en essai Pro', me);
+  expect(me.data.user.businessVerified === false, 'La marque ne devrait pas encore être vérifiée', me);
+  const bad = await brandApi('POST', '/auth/business-verification', { siret: '12345678901234' });
+  expect(bad.status === 200 && bad.data.business.status === 'rejected', 'Un SIRET invalide doit être refusé', bad);
+  const ok = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
+  expect(ok.status === 200 && ok.data.business.status === 'verified' && ok.data.business.method === 'auto', 'La vérification automatique devrait réussir (SIRET valide, site, email pro)', ok);
+  return 'essai Pro actif, entreprise vérifiée automatiquement';
 });
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
@@ -191,6 +204,15 @@ await step('Campagne : modification du brouillon (puis refus une fois publiée)'
   return 'titre, budget, niches modifiés ; validation active';
 });
 
+await step('Campagne : publication refusée tant que l\'entreprise n\'est pas vérifiée', async () => {
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { 'verification.business.status': 'pending' } });
+  const res = await brandApi('POST', `/campaigns/${campaign._id}/publish`);
+  await users.updateOne({ email: brandEmail }, { $set: { 'verification.business.status': 'verified' } });
+  expect(res.status === 403 && res.data.code === 'BUSINESS_NOT_VERIFIED', 'La publication doit être bloquée sans vérification', res);
+  return res.data.error;
+});
+
 await step('Campagne : publication', async () => {
   const res = await brandApi('POST', `/campaigns/${campaign._id}/publish`);
   expect(res.status === 200 && res.data.campaign.status === 'active', 'Publication échouée', res);
@@ -207,7 +229,6 @@ await step('Candidature refusée tant que le créateur n\'est pas validé', asyn
 
 await step('Admin : validation du créateur', async () => {
   // Promotion temporaire de la marque en admin pour valider le créateur
-  await mongoose.connect(process.env.MONGODB_URI);
   const users = mongoose.connection.db.collection('users');
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   adminApi = brandApi;
@@ -265,6 +286,18 @@ await step('Avant-première : un créateur non ambassadeur ne voit pas encore un
   const detail = await creatorApi('GET', `/campaigns/${earlyCampaign._id}`);
   expect(detail.status === 403 && /avant-première/i.test(detail.data.error), 'Le détail devrait expliquer l\'avant-première', detail);
   return 'campagne masquée, message explicatif';
+});
+
+await step('Limites nouvelle marque : 2 campagnes ouvertes max, puis coordonnées masquées dans les messages', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Troisième campagne limite', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  const pub = await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  expect(pub.status === 403 && pub.data.code === 'LIMIT_OPEN_CAMPAIGNS', 'La 3e campagne ouverte doit être refusée pour une nouvelle marque', pub);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  const msg = await brandApi('POST', `/messages/campaign/${campaign._id}/creator/${creatorUser.id}`, { text: 'Écrivez-moi sur contact@marque.fr ou au 06 12 34 56 78, ou WhatsApp @marque' });
+  expect(msg.status === 201 && msg.data.masked === true && !/contact@|06 12/.test(msg.data.sent.text), 'Les coordonnées devraient être masquées avant sélection', msg);
+  await creatorApi('GET', `/messages/campaign/${campaign._id}`); // marque comme lu
+  return `3e campagne refusée ; message masqué : « ${msg.data.sent.text.slice(0, 70)}… »`;
 });
 
 await step('Ambassadeur : vidéo soumise puis validée par l\'admin', async () => {
@@ -355,7 +388,7 @@ await step('Messagerie : négociation du devis entre la marque et le créateur',
   const list = await creatorApi('GET', '/messages');
   expect(list.status === 200 && list.data.totalUnread === 1, 'Le créateur devrait avoir 1 message non lu', list);
   const conv = await creatorApi('GET', `/messages/campaign/${campaign._id}`);
-  expect(conv.status === 200 && conv.data.conversation.messages.length === 1, 'Lecture de la conversation échouée', conv);
+  expect(conv.status === 200 && conv.data.conversation.messages.length >= 1, 'Lecture de la conversation échouée', conv);
   const after = await creatorApi('GET', '/messages/unread');
   expect(after.data.totalUnread === 0, 'La lecture devrait remettre le compteur à zéro', after);
   const m2 = await creatorApi('POST', `/messages/campaign/${campaign._id}`, { text: 'OK pour 250€ avec 2 ans de droits.' });
@@ -660,6 +693,8 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const sponsor = await brandApi('GET', '/auth/profile');
   expect(sponsor.data.user.referral.discountedCampaignsLeft >= 1, 'La marque marraine devrait avoir une campagne remisée', sponsor);
 
+  const ver = await b2Api('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.org' });
+  expect(ver.status === 200 && ver.data.business.status === 'verified', 'Vérification de la marque filleule échouée', ver);
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await b2Api('POST', '/campaigns', {
     title: 'Campagne marque parrainée', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
@@ -714,6 +749,15 @@ await step('Performances des vidéos livrées (saisie manuelle) + agrégats camp
 await step('Brief IA : statut et génération (ou message clair si non configuré)', async () => {
   const st = await brandApi('GET', '/campaigns/ai-brief/status');
   expect(st.status === 200 && typeof st.data.configured === 'boolean', 'Statut IA indisponible', st);
+  expect(st.data.quota?.pro === true, 'En essai Pro, le quota devrait être illimité', st);
+  // Quota du plan gratuit : on simule un essai expiré
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { 'subscription.trialEndsAt': new Date(Date.now() - 1000), 'usage.aiBriefCount': 3, 'usage.aiBriefMonth': new Date().toISOString().slice(0, 7) } });
+  const free = await brandApi('GET', '/campaigns/ai-brief/status');
+  expect(free.data.quota?.pro === false && free.data.quota.remaining === 0, 'Le quota gratuit devrait être épuisé', free);
+  const blocked = await brandApi('POST', '/campaigns/ai-brief', { productDescription: 'Sérum visage à la vitamine C, bio, fabriqué en France.' });
+  expect(blocked.status === 402 && blocked.data.code === 'AI_QUOTA_EXCEEDED', 'Au-delà du quota, un 402 est attendu', blocked);
+  await users.updateOne({ email: brandEmail }, { $set: { 'subscription.trialEndsAt': new Date(Date.now() + 86400000), 'usage.aiBriefCount': 0 } });
   // Résolution de configuration par fournisseur (sans appel réseau)
   const { aiConfig } = await import('../src/services/ai.js');
   const saved = { P: process.env.AI_PROVIDER, M: process.env.AI_MODEL, K: process.env.AI_API_KEY, U: process.env.AI_BASE_URL };
@@ -814,6 +858,66 @@ await step('Shopify : statut, installation (non configurée → message clair), 
   return st.data.configured ? 'configurée, URL OAuth générée' : 'non configurée : message clair, signatures vérifiées';
 });
 
+await step('Gifting : campagne produit offert (Pro), candidature à 0 €, frais de plateforme, opt-in créateur', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const tooCheap = await brandApi('POST', '/campaigns', { title: 'Gifting valeur trop faible', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Échantillon', giftingProductValue: 10 });
+  expect(tooCheap.status === 403 && /30/.test(tooCheap.data.error), 'Un produit < 30 € doit être refusé', tooCheap);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne gifting sérum offert', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 2, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Coffret sérum', giftingProductValue: 45 });
+  expect(c.status === 201 && c.data.campaign.type === 'gifting' && !c.data.campaign.budget?.total, 'Création gifting échouée', c);
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  // Le créateur (niveau Nouveau) accepte le gifting par défaut ; s'il refuse, la campagne disparaît de son feed
+  const off = await creatorApi('PATCH', '/auth/profile', { preferences: { acceptGifting: false } });
+  expect(off.status === 200 && off.data.user.acceptsGifting === false, 'Désactivation du gifting échouée', off);
+  const hidden = await creatorApi('GET', '/campaigns');
+  expect(!hidden.data.campaigns.some(x => x._id === c.data.campaign._id), 'Le gifting devrait être masqué quand le créateur le refuse', hidden);
+  const refused = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 0, estimatedDeliveryDays: 4 });
+  expect(refused.status === 403, 'Candidature gifting refusée si opt-out', refused);
+  await creatorApi('PATCH', '/auth/profile', { preferences: { acceptGifting: true } });
+  const ap = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 999, estimatedDeliveryDays: 4 });
+  expect(ap.status === 201 && ap.data.application.price === 0, 'Le prix d\'une candidature gifting est forcé à 0', ap);
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel.status === 200 && sel.data.delivery.payment.amount === 10 && sel.data.delivery.payment.creatorAmount === 0 && sel.data.delivery.payment.platformFee === 10, 'Frais gifting attendus : 5 € × 2 vidéos, créateur 0 €', sel);
+  const { default: Stripe } = await import('stripe');
+  await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await brandApi('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});
+  const f = new FormData(); f.append('files', fakeVideo('g1.mp4')); f.append('files', fakeVideo('g2.mp4'));
+  await creatorApi('POST', `/deliveries/${sel.data.delivery._id}/upload`, f, { form: true });
+  await creatorApi('POST', `/deliveries/${sel.data.delivery._id}/submit`, {});
+  const ok = await brandApi('POST', `/deliveries/${sel.data.delivery._id}/approve`);
+  expect(ok.status === 200 && ok.data.delivery.payment.status === 'released' && !ok.data.warning, 'Approbation gifting : frais encaissés, rien à reverser', ok);
+  // Limite mensuelle : 2 campagnes gifting max
+  await brandApi('POST', '/campaigns', { title: 'Deuxième gifting du mois', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Crème', giftingProductValue: 40 });
+  const third = await brandApi('POST', '/campaigns', { title: 'Troisième gifting du mois', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Crème', giftingProductValue: 40 });
+  expect(third.status === 403 && /limite/i.test(third.data.error), 'La 3e campagne gifting du mois doit être refusée', third);
+  return 'gifting : 10 € de frais encaissés, créateur 0 €, opt-in respecté, limite mensuelle active';
+});
+
+await step('Abonnement Pro : session Stripe Checkout, synchronisation, portail', async () => {
+  const st = await brandApi('GET', '/billing/status');
+  expect(st.status === 200 && st.data.plan === 'pro' && st.data.status === 'trialing' && st.data.feePercent === 8, 'Statut abonnement incorrect', st);
+  const co = await brandApi('POST', '/billing/checkout');
+  expect(co.status === 200 && /checkout\.stripe\.com/.test(co.data.url), 'Session Checkout non créée', co);
+  const sync = await brandApi('POST', '/billing/sync');
+  expect(sync.status === 200 && sync.data.plan === 'pro', 'Synchronisation échouée', sync);
+  return `checkout ${co.data.sessionId}`;
+});
+
+await step('Signalement : créateur → campagne, traitement admin', async () => {
+  const rep = await creatorApi('POST', '/reports', { targetType: 'campaign', targetId: campaign._id, reason: 'free_work', details: 'La marque demande des vidéos supplémentaires non prévues.' });
+  expect(rep.status === 201, 'Signalement échoué', rep);
+  const dup = await creatorApi('POST', '/reports', { targetType: 'campaign', targetId: campaign._id, reason: 'spam' });
+  expect(dup.status === 400, 'Un double signalement doit être refusé', dup);
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const list = await brandApi('GET', '/admin/reports');
+  expect(list.status === 200 && list.data.reports.some(r => r._id === rep.data.report._id), 'Le signalement devrait apparaître dans l\'admin', list);
+  const done = await brandApi('POST', `/admin/reports/${rep.data.report._id}/resolve`, { action: 'dismiss' });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(done.status === 200 && done.data.report.status === 'dismissed', 'Traitement du signalement échoué', done);
+  await mongoose.connection.db.collection('reports').deleteMany({ reporterId: new mongoose.Types.ObjectId(creatorUser.id) });
+  return 'signalé, listé, classé sans suite';
+});
+
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
   expect(r1.status === 201, 'Avis marque échoué', r1);
@@ -892,6 +996,7 @@ if (CLEAN) {
     const camps = await db.collection('campaigns').find({ brandId: ids[0] }).project({ _id: 1 }).toArray();
     const campIds = camps.map(c => c._id);
     await db.collection('reviews').deleteMany({ campaignId: { $in: campIds } });
+    await db.collection('reports').deleteMany({ $or: [{ reporterId: { $in: ids } }, { targetUserId: { $in: ids } }] });
     await db.collection('deliveries').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('campaigns').deleteMany({ _id: { $in: campIds } });
     const extraIds = extraCleanup.map(e => new mongoose.Types.ObjectId(e.userId));

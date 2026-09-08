@@ -543,8 +543,9 @@ export default function DeliveryDetailPage() {
             <Card className="p-6">
               <h3 className="font-semibold text-neutral-900 mb-4">Paiement</h3>
               <div className="space-y-3">
+                {campaign.type === 'gifting' && <div className="text-xs text-pink-800 bg-pink-50 rounded p-2 mb-2">🎁 Gifting : produit offert ({campaign.gifting?.productName}, {formatCurrency(campaign.gifting?.productValue || 0)}). La marque paie uniquement les frais de plateforme.</div>}
                 <div className="flex justify-between">
-                  <span className="text-neutral-600">Prix de la mission</span>
+                  <span className="text-neutral-600">{campaign.type === 'gifting' ? 'Frais de plateforme' : 'Prix de la mission'}</span>
                   <span className="font-semibold">{formatCurrency(delivery.payment?.amount)}</span>
                 </div>
                 <div className="flex justify-between text-sm">

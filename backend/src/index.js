@@ -18,6 +18,8 @@ import portfolioRoutes from './routes/portfolio.js';
 import creatorRoutes from './routes/creators.js';
 import messageRoutes from './routes/messages.js';
 import integrationRoutes from './routes/integrations.js';
+import billingRoutes from './routes/billing.js';
+import reportRoutes from './routes/reports.js';
 
 const app = express();
 
@@ -72,6 +74,8 @@ app.use('/api/portfolio', portfolioRoutes);
 app.use('/api/creators', creatorRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/integrations', integrationRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/reports', reportRoutes);
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler

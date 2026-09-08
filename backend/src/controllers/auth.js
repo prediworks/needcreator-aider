@@ -9,6 +9,8 @@ import {
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
+import { evaluateBusiness, isFreeEmail } from '../utils/business.js';
+import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import logger from '../utils/logger.js';
 
@@ -23,6 +25,16 @@ async function serializeUser(userDoc) {
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
   };
   if (out.integrations?.shopify) out.integrations = { shopify: { shop: out.integrations.shopify.shop, installedAt: out.integrations.shopify.installedAt, connected: !!user.integrations?.shopify?.accessToken } };
+  if (user.role === 'brand') {
+    userDoc.rollUsage?.();
+    out.plan = planInfo(userDoc);
+    out.aiBriefsUsed = userDoc.usage?.aiBriefCount || 0;
+    out.businessVerified = userDoc.isBusinessVerified?.() || false;
+    out.isPro = userDoc.isPro?.() || false;
+  }
+  if (user.role === 'creator') {
+    out.acceptsGifting = userDoc.acceptsGifting?.(levelFor(user.profile?.stats));
+  }
   out.referral = {
     code: user.referral?.code,
     discountedCampaignsLeft: user.referral?.discountedCampaignsLeft || 0,
@@ -160,6 +172,11 @@ export async function registerBrand(req, res) {
       },
       stripeCustomerId: stripeCustomer.id,
       status: 'active', // Brands are active immediately
+      // Essai Pro offert à l'inscription (sans carte)
+      subscription: config.plans.proTrialDays > 0 ? {
+        plan: 'pro', status: 'trialing',
+        trialEndsAt: new Date(Date.now() + config.plans.proTrialDays * 86400000),
+      } : undefined,
     });
 
     user.ensureReferralCode();
@@ -274,6 +291,7 @@ export async function updateProfile(req, res) {
           'preferences.emailNotifications',
           'preferences.language',
         ];
+    if (user.role === 'creator') allowedFields.push('preferences.acceptGifting');
 
     // Tableaux remplacés en bloc (réseaux sociaux, réalisations externes)
     if (user.role === 'creator' && Array.isArray(req.body.socials)) {
@@ -520,5 +538,32 @@ export async function getEarnings(req, res) {
   } catch (error) {
     logger.error('Failed to get earnings:', error);
     res.status(500).json({ error: 'Failed to get earnings' });
+  }
+}
+
+/**
+ * Vérification d'entreprise (marque) : SIRET / TVA + site web + email pro → automatique, sinon contrôle admin
+ */
+export async function verifyBusiness(req, res) {
+  try {
+    const user = req.user;
+    if (user.role !== 'brand') return res.status(403).json({ error: 'Réservé aux marques' });
+    const { siret, vatNumber, website } = req.body;
+    if (website) user.set('profile.website', website);
+    user.set('profile.company', { siret: siret ? String(siret).replace(/\s/g, '') : undefined, vatNumber: vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : undefined });
+    const result = evaluateBusiness({ siret, vatNumber, website: user.profile.website, email: user.email });
+    const status = result.status === 'rejected' ? 'rejected' : result.status;
+    user.set('verification.business', { status, method: 'auto', checkedAt: new Date(), note: result.reasons.join(' · ') || null });
+    await user.save();
+    logger.info(`Business verification for ${user._id}: ${status} (${result.reasons.join(', ') || 'ok'})`);
+    res.json({
+      message: status === 'verified' ? 'Entreprise vérifiée' : status === 'pending' ? 'Informations reçues : vérification manuelle sous 24 h' : 'Identifiant d\'entreprise invalide',
+      business: user.verification.business,
+      reasons: result.reasons,
+      freeEmail: isFreeEmail(user.email),
+    });
+  } catch (error) {
+    logger.error('Business verification failed:', error);
+    res.status(500).json({ error: 'Failed to verify business' });
   }
 }

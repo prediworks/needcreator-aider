@@ -60,7 +60,8 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
-  const priceNumber = parseInt(price) || 0;
+  const isGifting = campaign?.type === 'gifting';
+  const priceNumber = isGifting ? 0 : (parseInt(price) || 0);
   const allowedTypes: string[] = campaign?.brief?.deliveryTypes || ['file', 'link'];
 
   const submit = async (e: React.FormEvent) => {
@@ -80,9 +81,10 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
   return (
     <form onSubmit={submit} className="space-y-5">
       <div>
-        <h4 className="font-semibold text-neutral-900 mb-2">1. Prix et délai</h4>
+        <h4 className="font-semibold text-neutral-900 mb-2">1. {isGifting ? 'Délai' : 'Prix et délai'}</h4>
+        {isGifting && <p className="text-sm text-pink-800 bg-pink-50 rounded p-2 mb-2">🎁 Campagne gifting : pas de rémunération, vous recevez {campaign.gifting?.productName || 'le produit'} (valeur {formatCurrency(campaign.gifting?.productValue || 0)}).</p>}
         <div className="grid sm:grid-cols-2 gap-3">
-          <div>
+          {!isGifting && <div>
             <Input
               label={`Prix total pour ${deliverables} vidéo(s) (€)`}
               type="number"
@@ -98,7 +100,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
                 : 'La marque n\'a pas fixé de budget : proposez votre prix.'}{' '}
               Vous recevrez {formatCurrency(Math.round(priceNumber * 0.9))} net (commission 10%).
             </p>
-          </div>
+          </div>}
           <Input
             label="Délai de livraison (jours)"
             type="number"
@@ -182,7 +184,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
       </div>
 
       <div className="flex gap-2">
-        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={priceNumber < 50 || deliveryTypes.length === 0}>
+        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < 50) || deliveryTypes.length === 0}>
           {submitLabel}
         </Button>
         {onCancel && (
@@ -201,7 +203,7 @@ export function QuoteSummary({ application, compact = false }: { application: an
   const r = q.rights || {};
   return (
     <div className={cn('text-sm text-neutral-700 space-y-1', compact && 'text-xs')}>
-      <div><span className="text-neutral-500">Prix :</span> <strong>{formatCurrency(application.price)}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? 2} révision(s)</div>
+      <div><span className="text-neutral-500">Prix :</span> <strong>{application.price ? formatCurrency(application.price) : 'Produit offert (gifting)'}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? 2} révision(s)</div>
       <div>
         <span className="text-neutral-500">Droits :</span> {RIGHTS_DURATION[r.duration] || '1 an'} · {(r.supports || []).map((s: string) => RIGHTS_SUPPORTS[s]).join(', ') || 'réseaux sociaux'} · {r.territories || 'France'}
         {r.exclusivity ? ` · exclusivité ${r.exclusivityMonths || ''} mois` : ''}

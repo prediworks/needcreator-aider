@@ -137,3 +137,8 @@ export const LEVELS: Record<string, { label: string; className: string; descript
   expert: { label: 'Expert', className: 'bg-purple-100 text-purple-800', description: '10 missions ou plus, note ≥ 4,7' },
   ambassador: { label: '🌟 Ambassadeur', className: 'bg-yellow-100 text-yellow-800', description: 'A parlé de NeedCreator sur ses réseaux' },
 };
+
+export const CAMPAIGN_TYPES: Record<string, { label: string; className: string }> = {
+  paid: { label: 'Rémunérée', className: 'bg-green-100 text-green-800' },
+  gifting: { label: '🎁 Gifting (produit offert)', className: 'bg-pink-100 text-pink-800' },
+};

@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { Send, MessageCircle } from 'lucide-react';
+import ReportButton from '@/components/ReportButton';
 import { formatRelativeTime, cn } from '@/lib/utils';
 
 interface ConversationProps {
@@ -37,8 +38,9 @@ export default function Conversation({ campaignId, creatorId, title, compact = f
 
   const send = useMutation({
     mutationFn: async (t: string) => (await api.post(path, { text: t })).data,
-    onSuccess: () => {
+    onSuccess: (d) => {
       setText('');
+      if (d?.masked) toast.info('Les coordonnées (email, téléphone) sont masquées tant que le créateur n\'est pas sélectionné.');
       queryClient.invalidateQueries({ queryKey: ['conversation', campaignId] });
       queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
@@ -57,9 +59,14 @@ export default function Conversation({ campaignId, creatorId, title, compact = f
   return (
     <div className="flex flex-col">
       {title !== undefined && (
-        <div className="flex items-center gap-2 mb-3">
-          <MessageCircle className="w-5 h-5 text-primary-500" />
-          <h3 className="font-semibold text-neutral-900">{title || `Discussion avec ${other || ''}`}</h3>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-primary-500" />
+            <h3 className="font-semibold text-neutral-900">{title || `Discussion avec ${other || ''}`}</h3>
+          </div>
+          {(user?.role === 'brand' ? data?.creatorId?._id : data?.brandId?._id) && (
+            <ReportButton targetType="user" targetId={String(user?.role === 'brand' ? data?.creatorId?._id : data?.brandId?._id)} />
+          )}
         </div>
       )}
       <div className={cn('overflow-y-auto space-y-2 bg-neutral-50 rounded-lg p-3 border border-neutral-100', compact ? 'max-h-64' : 'max-h-[28rem] min-h-[12rem]')}>

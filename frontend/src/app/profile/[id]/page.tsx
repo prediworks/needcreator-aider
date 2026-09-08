@@ -12,6 +12,7 @@ import { Stars } from '@/components/ReviewForm';
 import LevelBadges from '@/components/LevelBadges';
 import SocialIcons, { PlatformIcon, formatFollowers } from '@/components/SocialIcons';
 import InviteCreatorButton from '@/components/InviteCreatorButton';
+import ReportButton from '@/components/ReportButton';
 import { ArrowLeft, Star, Briefcase, Video, Clock, Users, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, VIDEO_TYPES, PLATFORMS } from '@/lib/labels';
@@ -108,6 +109,7 @@ export default function PublicProfilePage() {
               <div className="flex flex-col gap-2 w-full sm:w-auto">
                 <InviteCreatorButton creatorId={creator.id || creator._id} creatorName={creator.profile.name} />
                 <Link href="/campaigns/new"><Button variant="outline" className="w-full">Créer une campagne</Button></Link>
+                <ReportButton targetType="user" targetId={creator.id || creator._id} />
               </div>
             )}
           </div>

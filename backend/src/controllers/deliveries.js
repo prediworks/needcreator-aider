@@ -52,7 +52,11 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   if (existing) return { delivery: existing, warning: null };
 
   const application = campaign.applications.find(app => idOf(app.creatorId) === creatorId);
-  const amount = price ?? application?.price ?? campaign.budget.total;
+  const isGifting = campaign.type === 'gifting';
+  // Gifting : la marque paie uniquement les frais de plateforme (par vidéo), le créateur reçoit le produit
+  const amount = isGifting
+    ? Math.round(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1) * 100) / 100
+    : (price ?? application?.price ?? campaign.budget?.total);
 
   const creatorDoc = await User.findById(creatorId).select('profile.address');
   const days = application?.estimatedDeliveryDays || 7;
@@ -69,7 +73,13 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     // Sans envoi de produit, le délai court dès la sélection
     productionDeadline: campaign.brief?.productShipping ? null : new Date(Date.now() + days * 86400000),
   });
-  delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null);
+  if (isGifting) {
+    delivery.payment.platformFeePercent = 100;
+    delivery.payment.platformFee = amount;
+    delivery.payment.creatorAmount = 0;
+  } else {
+    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null);
+  }
 
   let warning = null;
   let clientSecret = null;

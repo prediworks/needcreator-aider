@@ -25,10 +25,10 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 |---|---|---|
 | **RGPD** : export des données et suppression de compte (anonymisation) | Obligation légale dès les premiers utilisateurs réels | M |
 | **CGU, politique de confidentialité, mentions légales** avec acceptation à l'inscription | Obligatoire, et demandé par Stripe pour passer en production | S (textes à faire rédiger) |
-| **Signalement de contenu** (vidéo, profil, message) + file de modération admin | Sécurité de la plateforme | S |
+| ~~**Signalement de contenu**~~ | Livré le 8 septembre 2026 | — |
 | **Filigrane sur les aperçus** de portfolio | Empêche les marques d'utiliser une vidéo sans payer | M (ffmpeg déjà en place) |
 | **Litiges** : refus définitif après 2 révisions avec remboursement partiel (50 %), arbitrage admin | Prévu dans la spec ; aujourd'hui la marque doit approuver ou laisser l'auto-approbation | M |
-| **Vérification des marques** (KYC léger : SIRET, site web vérifié) | Confiance des créateurs, lutte contre les fausses campagnes | S |
+| ~~**Vérification des marques**~~ | Livré le 8 septembre 2026 (SIRET / TVA, site, email pro, contrôle admin) | — |
 | **Notifications dans l'application** (cloche, centre de notifications) en plus des emails | Réactivité, moins d'emails | M |
 | **Notifications push** (navigateur / mobile) | Prévu en phase 2 | M |
 | **Multi-langues** (anglais, espagnol) | Prévu en phase 3 ; les libellés sont déjà centralisés dans `frontend/src/lib/labels.ts` | M |
@@ -76,6 +76,18 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Tests automatiques dans l'intégration continue** (GitHub Actions lance `test:e2e` à chaque push) | Évite les régressions | S |
 | **Emails HTML soignés** (modèle avec logo, boutons, résumé) au lieu des emails texte actuels | Image de marque | S |
 | **Page d'accueil avec preuves sociales réelles** (créateurs mis en avant, campagnes récentes anonymisées) | Conversion | S |
+
+## 3 bis. Monétisation et anti-abus (décidé et livré le 8 septembre 2026)
+
+| Sujet | Décision | Réglage |
+|---|---|---|
+| Vérification des marques | SIRET ou TVA (format vérifié), site web, email pro. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | — |
+| Limites progressives (tant qu'aucune campagne terminée) | 2 campagnes ouvertes, 5 invitations / jour, 20 messages / jour | `LIMIT_NEW_BRAND_*` |
+| Brief IA | 3 / mois en gratuit, illimité en Pro | `AI_BRIEF_FREE_QUOTA` |
+| Abonnement Pro | 79 € / mois, essai 14 jours sans carte à l'inscription, commission 8 % au lieu de 10 %, débloque gifting et multi-créateurs | `PRO_PRICE_EUR`, `PRO_TRIAL_DAYS`, `PRO_FEE_PERCENT`, `STRIPE_PRO_PRICE_ID` |
+| Gifting (produit offert, pas de rémunération) | Réservé au Pro, valeur produit ≥ 30 €, 2 vidéos max, 2 campagnes / mois, 5 € par vidéo livrée facturés à la marque, opt-in créateur (oui par défaut pour Nouveau, non pour Confirmé / Expert) | `GIFTING_*` |
+| Messagerie | Emails et téléphones masqués avant sélection | — |
+| Signalement | Campagnes, profils, messages ; file admin avec suspension | — |
 
 ## 4. Ordre conseillé
 

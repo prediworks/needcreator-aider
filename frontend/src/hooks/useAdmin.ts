@@ -72,6 +72,24 @@ export function usePendingAmbassadors(enabled = true) {
 export const useApproveAmbassador = () => useAdminAction((id) => `/admin/ambassadors/${id}/approve`, 'Badge Ambassadeur attribué');
 export const useRejectAmbassador = () => useAdminAction((id) => `/admin/ambassadors/${id}/reject`, 'Vidéo refusée');
 
+export function usePendingBusinesses(enabled = true) {
+  return useQuery({ queryKey: ['admin', 'businesses'], queryFn: async () => (await api.get('/admin/businesses/pending')).data, enabled });
+}
+export const useApproveBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/approve`, 'Entreprise vérifiée');
+export const useRejectBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/reject`, 'Vérification refusée');
+
+export function useReports(status = 'open', enabled = true) {
+  return useQuery({ queryKey: ['admin', 'reports', status], queryFn: async () => (await api.get('/admin/reports', { params: { status } })).data, enabled });
+}
+export function useResolveReport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reportId, action, note }: { reportId: string; action: string; note?: string }) => (await api.post(`/admin/reports/${reportId}/resolve`, { action, note })).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin'] }); toast.success(d.message); },
+    onError: (e: any) => toast.error(getErrorMessage(e)),
+  });
+}
+
 export function useRunJobs() {
   const queryClient = useQueryClient();
   return useMutation({

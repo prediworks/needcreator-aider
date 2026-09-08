@@ -2,10 +2,22 @@ import Conversation from '../models/Conversation.js';
 import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
 import { sendNewMessageNotification } from '../services/email.js';
+import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
 const NOTIFY_COOLDOWN_MS = 15 * 60 * 1000;
+const MASK = '[coordonnées masquées avant sélection]';
+
+/**
+ * Masque emails, téléphones et pseudos de messagerie tant que le créateur n'est pas sélectionné
+ */
+export function maskContacts(text) {
+  return String(text)
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, MASK)
+    .replace(/(?:\+?\d[\s.-]?){9,14}\d/g, MASK)
+    .replace(/\b(?:whatsapp|telegram|signal|snap(?:chat)?|discord)\b\s*[:@]?\s*[\w.@-]{3,}/gi, MASK);
+}
 
 /**
  * Vérifie que l'utilisateur peut discuter sur cette campagne avec ce créateur,
@@ -129,14 +141,29 @@ export async function sendMessage(req, res) {
     const r = await resolveParticipants(user, req.params.campaignId, req.params.creatorId);
     if (r.error) return res.status(r.status).json({ error: r.error });
 
+    // Limite journalière des nouvelles marques
+    if (user.role === 'brand') {
+      user.rollUsage();
+      const established = (user.isPro() && user.subscription?.status === 'active') || (await Campaign.countDocuments({ brandId: user._id, status: 'completed' })) > 0;
+      if (!established && (user.usage.messagesToday || 0) >= config.limits.newBrandMessagesPerDay) {
+        return res.status(429).json({ error: `Nouvelle marque : ${config.limits.newBrandMessagesPerDay} messages par jour maximum tant qu'aucune campagne n'est terminée.` });
+      }
+      user.usage.messagesToday = (user.usage.messagesToday || 0) + 1;
+      await user.save();
+    }
+
+    // Coordonnées masquées tant que le créateur n'est pas sélectionné (évite le contournement de la plateforme)
+    const selected = (r.campaign.selectedCreators || []).some(c => idOf(c) === r.creatorId) || idOf(r.campaign.selectedCreator) === r.creatorId;
+    const safeText = selected ? text : maskContacts(text);
+
     let conversation = await Conversation.findOne({ campaignId: r.campaign._id, creatorId: r.creatorId });
     if (!conversation) {
       conversation = new Conversation({ campaignId: r.campaign._id, brandId: r.brandId, creatorId: r.creatorId, messages: [] });
     }
 
-    conversation.messages.push({ senderId: user._id, text });
+    conversation.messages.push({ senderId: user._id, text: safeText });
     conversation.lastMessageAt = new Date();
-    conversation.lastMessagePreview = text.slice(0, 120);
+    conversation.lastMessagePreview = safeText.slice(0, 120);
     const recipientSide = user.role === 'brand' ? 'creator' : 'brand';
     conversation.unread[recipientSide] = (conversation.unread[recipientSide] || 0) + 1;
 
@@ -153,13 +180,13 @@ export async function sendMessage(req, res) {
       const recipient = await User.findById(recipientId).select('email profile.name profile.companyName preferences.emailNotifications');
       if (recipient && recipient.preferences?.emailNotifications !== false) {
         const senderName = user.profile.companyName || user.profile.name;
-        sendNewMessageNotification(recipient.email, recipient.profile.companyName || recipient.profile.name, senderName, r.campaign.title, r.campaign._id, r.creatorId, text)
+        sendNewMessageNotification(recipient.email, recipient.profile.companyName || recipient.profile.name, senderName, r.campaign.title, r.campaign._id, r.creatorId, safeText)
           .catch(err => logger.error('Message email failed:', err.message));
       }
     }
 
     const message = conversation.messages[conversation.messages.length - 1];
-    res.status(201).json({ message: 'Message envoyé', sent: message, conversationId: conversation._id });
+    res.status(201).json({ message: 'Message envoyé', sent: message, conversationId: conversation._id, masked: safeText !== text });
   } catch (error) {
     logger.error('Failed to send message:', error);
     res.status(500).json({ error: 'Failed to send message' });

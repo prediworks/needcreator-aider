@@ -165,6 +165,10 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['1-10', '11-50', '51-200', '201-500', '500+']
     },
+    company: {
+      siret: String,
+      vatNumber: String,
+    },
   },
   
   // Stripe accounts
@@ -196,6 +200,32 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
     },
+    // Vérification de l'entreprise (marques)
+    business: {
+      status: { type: String, enum: ['unverified', 'pending', 'verified', 'rejected'], default: 'unverified' },
+      method: { type: String, enum: ['auto', 'admin'] },
+      checkedAt: Date,
+      note: String,
+    },
+  },
+
+  // Abonnement (marques)
+  subscription: {
+    plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+    status: { type: String, enum: ['none', 'trialing', 'active', 'past_due', 'canceled'], default: 'none' },
+    trialEndsAt: Date,
+    currentPeriodEnd: Date,
+    cancelAtPeriodEnd: { type: Boolean, default: false },
+    stripeSubscriptionId: String,
+  },
+
+  // Compteurs d'usage (quotas et limites progressives)
+  usage: {
+    aiBriefMonth: String,   // 'AAAA-MM'
+    aiBriefCount: { type: Number, default: 0 },
+    day: String,            // 'AAAA-MM-JJ'
+    invitesToday: { type: Number, default: 0 },
+    messagesToday: { type: Number, default: 0 },
   },
   
   // Intégrations tierces (marques)
@@ -242,6 +272,8 @@ const userSchema = new mongoose.Schema({
       type: String,
       default: 'fr',
     },
+    // Créateur : accepte les campagnes gifting (produit offert). Non défini = oui pour les Nouveaux, non ensuite
+    acceptGifting: Boolean,
   },
   
   // Metadata
@@ -288,6 +320,28 @@ userSchema.virtual('profileCompletion').get(function() {
   return Math.round(completion);
 });
 
+// Abonnement Pro actif (période d'essai comprise)
+userSchema.methods.isPro = function() {
+  const sub = this.subscription || {};
+  if (sub.plan !== 'pro') return false;
+  if (sub.status === 'active' || sub.status === 'past_due') return true;
+  if (sub.status === 'trialing') return !sub.trialEndsAt || new Date(sub.trialEndsAt) > new Date();
+  return false;
+};
+
+userSchema.methods.isBusinessVerified = function() {
+  return this.verification?.business?.status === 'verified';
+};
+
+// Remet à zéro les compteurs journaliers / mensuels si la période a changé
+userSchema.methods.rollUsage = function() {
+  const today = new Date().toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  if (!this.usage) this.usage = {};
+  if (this.usage.day !== today) { this.usage.day = today; this.usage.invitesToday = 0; this.usage.messagesToday = 0; }
+  if (this.usage.aiBriefMonth !== month) { this.usage.aiBriefMonth = month; this.usage.aiBriefCount = 0; }
+};
+
 // Code de parrainage lisible (ex : LEA-7K3P2Q)
 userSchema.methods.ensureReferralCode = function() {
   if (this.referral?.code) return this.referral.code;
@@ -327,6 +381,12 @@ userSchema.methods.canCreateCampaign = function() {
     this.status === 'active' &&
     this.stripeCustomerId
   );
+};
+
+// Le créateur accepte-t-il les campagnes gifting ? (défaut selon le niveau)
+userSchema.methods.acceptsGifting = function(level = 'new') {
+  if (typeof this.preferences?.acceptGifting === 'boolean') return this.preferences.acceptGifting;
+  return level === 'new';
 };
 
 export default mongoose.model('User', userSchema);

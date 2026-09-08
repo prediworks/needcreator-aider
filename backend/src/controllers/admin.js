@@ -63,6 +63,38 @@ export async function reviewAmbassador(req, res) {
 }
 
 /**
+ * Marques en attente de vérification d'entreprise
+ */
+export async function getPendingBusinesses(req, res) {
+  try {
+    const brands = await User.find({ role: 'brand', 'verification.business.status': { $in: ['pending', 'rejected'] } })
+      .select('email profile.companyName profile.website profile.industry profile.company verification.business createdAt')
+      .sort({ 'verification.business.checkedAt': 1 }).lean();
+    res.json({ brands });
+  } catch (error) {
+    logger.error('Failed to get pending businesses:', error);
+    res.status(500).json({ error: 'Failed to get pending businesses' });
+  }
+}
+
+export async function reviewBusiness(req, res) {
+  try {
+    const approve = req.path.endsWith('/approve');
+    const user = await User.findById(req.params.userId);
+    if (!user || user.role !== 'brand') return res.status(404).json({ error: 'Brand not found' });
+    user.set('verification.business', {
+      status: approve ? 'verified' : 'rejected', method: 'admin', checkedAt: new Date(), note: req.body?.reason || null,
+    });
+    await user.save();
+    logger.info(`Business ${approve ? 'verified' : 'rejected'}: ${user._id}`);
+    res.json({ message: approve ? 'Entreprise vérifiée' : 'Vérification refusée', business: user.verification.business });
+  } catch (error) {
+    logger.error('Failed to review business:', error);
+    res.status(500).json({ error: 'Failed to review business' });
+  }
+}
+
+/**
  * Lance les tâches planifiées à la demande
  */
 export async function runJobs(req, res) {
