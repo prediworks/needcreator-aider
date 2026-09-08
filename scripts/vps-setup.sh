@@ -231,8 +231,16 @@ else
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only
 fi
 log "Installation des dépendances"
-sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && npm ci --omit=dev"
-sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && npm ci"
+npm_install() { # npm ci si un package-lock.json existe, sinon npm install
+  local dir="$1"; shift
+  if [[ -f "$dir/package-lock.json" ]]; then
+    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm ci $*"
+  else
+    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install $*"
+  fi
+}
+npm_install "$APP_DIR/backend" --omit=dev
+npm_install "$APP_DIR/frontend"
 [[ -f "$APP_DIR/backend/.env" ]] || sudo -u "$DEPLOY_USER" cp "$APP_DIR/backend/.env.example" "$APP_DIR/backend/.env"
 [[ -f "$APP_DIR/frontend/.env.local" ]] || sudo -u "$DEPLOY_USER" cp "$APP_DIR/frontend/.env.local.example" "$APP_DIR/frontend/.env.local"
 chmod 600 "$APP_DIR/backend/.env" "$APP_DIR/frontend/.env.local"
