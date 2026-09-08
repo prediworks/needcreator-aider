@@ -15,10 +15,6 @@
     "check:env": "node scripts/check-env.js",
     "make-admin": "node scripts/make-admin.js",
     "test:e2e": "node scripts/e2e-test.js",
-    "deploy:preprod": "bash scripts/deploy-preprod.sh",
-    "deploy:prod": "bash scripts/deploy-production.sh",
-    "wrangler:preprod": "wrangler dev --env preprod",
-    "wrangler:prod": "wrangler dev --env production",
     "test:unit": "NODE_ENV=test jest --coverage --detectOpenHandles"
   },
   "keywords": [

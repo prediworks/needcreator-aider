@@ -1,299 +1,90 @@
 # Configuration Stripe
 
-Guide complet pour configurer Stripe avec Stripe Connect pour la plateforme UGC.
+Stripe gère quatre choses dans NeedCreator :
 
-## 🎯 Vue d'ensemble
+1. **Paiement des missions** : la marque saisit sa carte à la sélection du créateur ; le montant est autorisé (bloqué), puis prélevé à la validation de la livraison.
+2. **Virement aux créateurs** via Stripe Connect (comptes Express).
+3. **Abonnement Pro** des marques (Stripe Checkout et portail client).
+4. **Options payantes** : pack vidéo prête à diffuser, frais de plateforme des campagnes gifting.
 
-L'application utilise :
-- **Stripe Connect** pour les paiements aux créateurs
-- **Payment Intents** avec capture manuelle (hold & release)
-- **Webhooks** pour les notifications d'événements
+## 1. Clés API
 
-## 📋 Prérequis
+Dashboard → Developers → API keys :
 
-1. Compte Stripe créé sur [stripe.com](https://stripe.com)
-2. Stripe Connect activé
+- `sk_test_…` → `STRIPE_SECRET_KEY` dans `backend/.env`
+- `pk_test_…` → `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` dans `frontend/.env.local`
 
-## 🔧 Configuration initiale
+En production, utilisez les clés `sk_live_` / `pk_live_`.
 
-### 1. Activer Stripe Connect
+## 2. Stripe Connect (obligatoire pour payer les créateurs)
 
-1. Allez sur [Stripe Dashboard](https://dashboard.stripe.com)
-2. **Connect** → **Get started**
-3. Choisissez **Platform or marketplace**
-4. Suivez les étapes de configuration
+Dashboard → Connect → Get started → « Platform or marketplace ». Sans cette activation, les marques sont bien débitées mais les virements aux créateurs échouent avec le message « You can only create new accounts if you've signed up for Connect ». Dans ce cas la livraison est marquée « encaissée, virement en attente » et le virement part automatiquement dès que le créateur a connecté son compte.
 
-### 2. Récupérer les clés API
+Le créateur connecte son compte depuis son profil (« Recevoir mes paiements ») : NeedCreator crée un compte Express et le renvoie vers l'onboarding Stripe.
 
-#### Mode TEST (développement)
+## 3. Abonnement Pro
 
-1. Dashboard → **Developers** → **API keys**
-2. Copiez :
-   - **Publishable key** (commence par `pk_test_...`)
-   - **Secret key** (commence par `sk_test_...`)
+- Le produit et le prix (79 €/mois, `lookup_key` `needcreator_pro_monthly`) sont créés automatiquement au premier clic sur « Souscrire ». Pour utiliser un prix existant, renseignez `STRIPE_PRO_PRICE_ID`.
+- L'essai de 14 jours offert à l'inscription est géré par NeedCreator, sans carte ni objet Stripe.
+- **Portail client** (bouton « Gérer mon abonnement ») : activez-le une fois dans Dashboard → Settings → Billing → Customer portal, sinon le bouton renvoie une erreur.
 
-#### Mode LIVE (production)
+## 4. Webhooks
 
-1. Activez le mode LIVE (toggle en haut à droite)
-2. Dashboard → **Developers** → **API keys**
-3. Copiez :
-   - **Publishable key** (commence par `pk_live_...`)
-   - **Secret key** (commence par `sk_live_...`)
+URL à déclarer : `https://<votre-api>/api/webhooks/stripe`. Secret de signature → `STRIPE_WEBHOOK_SECRET`.
 
-### 3. Configuration des variables d'environnement
+Événements à cocher :
 
-**Backend** (`backend/.env`) :
-```env
-# Stripe (clés TEST pour développement)
-STRIPE_SECRET_KEY=sk_test_xxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-STRIPE_PLATFORM_FEE_PERCENT=10
-```
+| Événement | Utilisation |
+|---|---|
+| `payment_intent.amount_capturable_updated` | carte confirmée : le montant de la mission est bloqué (filet de sécurité si la marque ferme la page) |
+| `payment_intent.payment_failed` | paiement refusé |
+| `account.updated` | statut du compte Connect du créateur (virements activés) |
+| `transfer.created`, `transfer.reversed`, `transfer.updated` | suivi des virements aux créateurs |
+| `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` | abonnement Pro |
 
-**Frontend** (`frontend/.env.local`) :
-```env
-# Stripe (clé publique TEST)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
-```
+Les webhooks ne sont pas indispensables pour tester : la confirmation de carte et le retour de Checkout resynchronisent l'état directement.
 
-## 🔔 Configuration des Webhooks
+### En local
 
-### Événements nécessaires
+Le serveur n'est pas joignable par Stripe. Deux options :
 
-L'application écoute ces 6 événements Stripe :
-
-| Événement | Description | Utilisation |
-|-----------|-------------|-------------|
-| `account.updated` | Compte Connect mis à jour | Vérification du statut du compte créateur |
-| `payment_intent.succeeded` | Paiement réussi | Confirmation du paiement de la marque |
-| `payment_intent.payment_failed` | Paiement échoué | Notification d'échec de paiement |
-| `transfer.created` | Transfert créé | Confirmation du transfert au créateur |
-| `transfer.reversed` | Transfert inversé | Notification d'annulation/remboursement |
-| `transfer.updated` | Transfert mis à jour | Mise à jour du statut du transfert |
-
-### Configuration en développement (avec ngrok)
-
-1. **Installer ngrok** :
 ```bash
-npm install -g ngrok
+# Option 1 : Stripe CLI (recommandé)
+stripe login
+stripe listen --forward-to localhost:3002/api/webhooks/stripe
+# copiez le whsec_... affiché dans STRIPE_WEBHOOK_SECRET
+
+# Option 2 : ngrok
+ngrok http 3002
+# déclarez https://xxxx.ngrok-free.app/api/webhooks/stripe dans le dashboard (mode test)
 ```
 
-2. **Démarrer votre backend** :
-```bash
-cd backend
-npm run dev
-```
+## 5. Flux de paiement d'une mission
 
-3. **Exposer votre serveur local** (dans un autre terminal) :
-```bash
-ngrok http 3000
-```
+| Étape | Ce qui se passe côté Stripe |
+|---|---|
+| La marque accepte un devis | PaymentIntent créé avec capture manuelle (`payment_method_types: card`) |
+| Écran de carte sur la page livraison | `confirmCardPayment` côté navigateur, puis `/confirm-payment` vérifie le statut `requires_capture` → montant bloqué |
+| Campagne multi-créateurs | une seule saisie de carte (SetupIntent) puis confirmation de chaque PaymentIntent avec la carte enregistrée |
+| Approbation (manuelle ou automatique à J+7) | capture du paiement, puis transfert au créateur (montant − commission) si son compte Connect est prêt |
+| Gifting | seuls les frais de plateforme (5 € par vidéo) sont autorisés puis capturés ; rien n'est reversé |
+| Pack prêt à diffuser | PaymentIntent à capture immédiate, traitement lancé après confirmation |
 
-Ngrok affichera une URL comme : `https://abc123.ngrok-free.app`
+En développement, `STRIPE_AUTO_CONFIRM_TEST=true` confirme automatiquement les paiements avec une carte de test, sans écran de saisie (utile pour des tests rapides ; ignoré en production).
 
-4. **Configurer le webhook dans Stripe** :
-   - Allez sur [Stripe Dashboard](https://dashboard.stripe.com/test/webhooks)
-   - Cliquez sur **Add endpoint**
-   - **Endpoint URL** : `https://abc123.ngrok-free.app/api/webhooks/stripe`
-   - **Events to send** : Sélectionnez ces 6 événements :
-     - ✅ `account.updated`
-     - ✅ `payment_intent.succeeded`
-     - ✅ `payment_intent.payment_failed`
-     - ✅ `transfer.created`
-     - ✅ `transfer.reversed`
-     - ✅ `transfer.updated`
-   - Cliquez sur **Add endpoint**
-   - Copiez le **Signing secret** (commence par `whsec_...`)
-   - Ajoutez-le dans `backend/.env` :
-     ```env
-     STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-     ```
+## 6. Tester
 
-### Configuration en production
+Cartes de test : `4242 4242 4242 4242` (succès), `4000 0000 0000 0002` (refusée), `4000 0027 6000 3184` (3D Secure). Date future, CVC quelconque.
 
-1. **Configurer le webhook** :
-   - Allez sur [Stripe Dashboard](https://dashboard.stripe.com/webhooks) (mode LIVE)
-   - Cliquez sur **Add endpoint**
-   - **Endpoint URL** : `https://api.votre-domaine.com/api/webhooks/stripe`
-   - **Events to send** : Sélectionnez les mêmes 6 événements
-   - Cliquez sur **Add endpoint**
-   - Copiez le **Signing secret**
-   - Ajoutez-le dans vos variables d'environnement de production
+Le test automatique `cd backend && npm run test:e2e -- --clean` couvre l'ensemble : autorisation, confirmation, capture, paiement groupé, gifting, pack vidéo, session Checkout de l'abonnement, onboarding Connect.
 
-## 💳 Workflow de paiement
+Dans le dashboard : Payments (PaymentIntents), Connect → Accounts et Transfers, Billing → Subscriptions, Developers → Webhooks → Events.
 
-### 1. Création de la livraison (Delivery)
+## 7. Avant la production
 
-Quand une marque sélectionne un créateur :
-
-```javascript
-// Le backend crée un Payment Intent avec capture manuelle
-const paymentIntent = await stripe.paymentIntents.create({
-  amount: 30000, // 300€ en centimes
-  currency: 'eur',
-  customer: brandStripeCustomerId,
-  capture_method: 'manual', // HOLD le paiement
-  metadata: {
-    campaignId: '...',
-    deliveryId: '...',
-  },
-});
-```
-
-**État** : Paiement en attente (held)
-
-### 2. Soumission de la livraison
-
-Le créateur upload les vidéos et soumet la livraison.
-
-**État** : En attente de validation (7 jours pour approuver)
-
-### 3. Approbation (manuelle ou automatique)
-
-#### Option A : Approbation manuelle par la marque
-
-```javascript
-// Capture le paiement et transfert au créateur
-await stripe.paymentIntents.capture(paymentIntentId);
-
-const transfer = await stripe.transfers.create({
-  amount: 27000, // 270€ (300€ - 10% commission)
-  currency: 'eur',
-  destination: creatorStripeAccountId,
-});
-```
-
-#### Option B : Auto-approbation après 7 jours
-
-Si la marque ne réagit pas, le système approuve automatiquement.
-
-**État** : Paiement effectué, créateur payé
-
-### 4. Révision (optionnel)
-
-La marque peut demander jusqu'à 2 révisions.
-
-**État** : Révision demandée, paiement toujours en attente
-
-## 🧪 Tester les paiements
-
-### Cartes de test Stripe
-
-Utilisez ces numéros de carte en mode TEST :
-
-| Carte | Numéro | Résultat |
-|-------|--------|----------|
-| Visa réussie | `4242 4242 4242 4242` | Paiement réussi |
-| Visa échouée | `4000 0000 0000 0002` | Paiement refusé |
-| 3D Secure | `4000 0027 6000 3184` | Nécessite authentification |
-
-- **Date d'expiration** : N'importe quelle date future (ex: 12/34)
-- **CVC** : N'importe quel 3 chiffres (ex: 123)
-- **Code postal** : N'importe lequel
-
-### Tester le workflow complet
-
-1. **Créer un compte marque** (mode TEST)
-2. **Créer une campagne**
-3. **Créer un compte créateur** (mode TEST)
-4. **Candidater à la campagne**
-5. **Sélectionner le créateur** (en tant que marque)
-   - Un Payment Intent sera créé
-6. **Soumettre une livraison** (en tant que créateur)
-7. **Approuver la livraison** (en tant que marque)
-   - Le paiement sera capturé
-   - Le transfert sera effectué
-
-### Vérifier dans Stripe Dashboard
-
-- **Payments** → Voir les Payment Intents
-- **Connect** → **Transfers** → Voir les transferts aux créateurs
-- **Webhooks** → Voir les événements reçus
-
-## 🔒 Sécurité
-
-### Vérification des webhooks
-
-Le code vérifie automatiquement la signature des webhooks :
-
-```javascript
-const signature = req.headers['stripe-signature'];
-const event = stripe.webhooks.constructEvent(
-  req.body,
-  signature,
-  webhookSecret
-);
-```
-
-**⚠️ Important** : Ne jamais désactiver cette vérification en production !
-
-### Gestion des secrets
-
-- ✅ Les clés secrètes sont dans `.env` (jamais commitées)
-- ✅ Les clés publiques peuvent être exposées (frontend)
-- ✅ Le webhook secret doit rester confidentiel
-
-## 📊 Monitoring
-
-### Dashboard Stripe
-
-Surveillez :
-- **Payments** : Tous les paiements
-- **Connect** → **Accounts** : Comptes créateurs
-- **Connect** → **Transfers** : Transferts effectués
-- **Webhooks** : Événements reçus et erreurs
-
-### Logs de l'application
-
-Les webhooks sont loggés dans :
-```
-backend/logs/combined.log
-```
-
-Recherchez :
-```bash
-grep "Stripe webhook" backend/logs/combined.log
-```
-
-## 🐛 Dépannage
-
-### Webhook non reçu
-
-1. Vérifiez que ngrok est actif (en dev)
-2. Vérifiez l'URL du webhook dans Stripe Dashboard
-3. Vérifiez les logs Stripe : Dashboard → **Webhooks** → Votre endpoint → **Events**
-
-### Erreur de signature
-
-```
-Error: No signatures found matching the expected signature for payload
-```
-
-**Solution** : Vérifiez que `STRIPE_WEBHOOK_SECRET` correspond au secret du webhook dans Stripe Dashboard
-
-### Transfert échoué
-
-Vérifiez que :
-- Le compte créateur est complètement vérifié (Stripe Connect onboarding terminé)
-- Le compte a les capacités `transfers` activées
-- Le montant est suffisant (minimum 1€)
-
-## 📚 Ressources
-
-- [Stripe Connect Documentation](https://stripe.com/docs/connect)
-- [Stripe Webhooks Guide](https://stripe.com/docs/webhooks)
-- [Stripe Testing](https://stripe.com/docs/testing)
-- [Stripe API Reference](https://stripe.com/docs/api)
-
-## 🎯 Checklist de production
-
-Avant de passer en production :
-
-- [ ] Clés LIVE configurées (pas TEST)
-- [ ] Webhook configuré avec l'URL de production
-- [ ] Webhook secret LIVE configuré
-- [ ] Stripe Connect activé et vérifié
-- [ ] Commission plateforme configurée (10%)
-- [ ] Tests de paiement effectués
-- [ ] Monitoring configuré
-- [ ] Gestion des erreurs testée
+- [ ] Clés live dans `backend/.env` et `frontend/.env.local`
+- [ ] Stripe Connect activé et compte plateforme vérifié
+- [ ] Webhook déclaré avec l'URL de production et son secret live
+- [ ] Portail client activé
+- [ ] `STRIPE_AUTO_CONFIRM_TEST` absent ou `false`
+- [ ] Un virement réel testé vers un créateur ayant terminé son onboarding

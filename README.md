@@ -4,38 +4,19 @@ Une plateforme complète pour connecter les marques avec des créateurs de conte
 
 ## 🚀 Fonctionnalités
 
-### Pour les Marques
-- ✅ Création et gestion de campagnes UGC
-- ✅ Réception et évaluation des candidatures
-- ✅ Sélection de créateurs
-- ✅ Validation des livrables avec système de révisions
-- ✅ Paiements sécurisés via Stripe
-- ✅ Auto-approbation après 7 jours
+**Marques** : campagnes rémunérées ou gifting, brief assisté par IA, budget facultatif, devis des créateurs (prix, droits, conditions), annuaire de créateurs avec filtres, invitations, messagerie, sélection multi-créateurs avec paiement groupé, envoi de produit avec suivi, validation des livraisons (2 révisions, auto-approbation à J+7), pack vidéo prête à diffuser, statistiques de performance, publication Shopify, abonnement Pro (essai 14 jours).
 
-### Pour les Créateurs
-- ✅ Portfolio vidéo
-- ✅ Candidature aux campagnes
-- ✅ Upload de livrables
-- ✅ Système de révisions (max 2)
-- ✅ Paiements automatiques via Stripe Connect
-- ✅ Système de notation et avis
+**Créateurs** : portfolio vidéo, réseaux sociaux et réalisations, badges (Nouveau / Confirmé / Expert / Ambassadeur), avant-première des campagnes, devis modifiables, livraison par fichier ou par lien, paiements Stripe Connect, page revenus avec export CSV, parrainage.
 
-### Fonctionnalités Techniques
-- ✅ Authentification Firebase
-- ✅ Paiements Stripe avec hold & transfer
-- ✅ Upload de vidéos vers Cloudflare R2
-- ✅ Emails automatiques via SendGrid
-- ✅ Jobs planifiés (auto-approbation, rappels)
-- ✅ Panel admin complet
+**Plateforme** : vérification des marques (SIRET au registre national), limites progressives, coordonnées masquées avant sélection, signalements, administration (validations, réglages, supervision), emails transactionnels, tâches planifiées.
 
 ## 📋 Prérequis
 
-- Node.js 18+
-- MongoDB
-- Compte Firebase
-- Compte Stripe
-- Compte Cloudflare R2
-- Compte SendGrid
+- Node.js 20+
+- MongoDB Atlas, Firebase Auth, Stripe (avec Connect), Cloudflare R2, un serveur SMTP
+- Optionnels : une clé d'API IA (Anthropic, OpenAI, Groq, Novita…), une application Shopify
+
+Configuration détaillée : [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md) · Stripe : [docs/STRIPE_SETUP.md](docs/STRIPE_SETUP.md) · Mise en ligne : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) · Feuille de route : [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## 🧪 Vérifier et tester
 
@@ -64,28 +45,18 @@ npm run dev
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local
+cp .env.local.example .env.local
 # Configurer les variables d'environnement dans .env.local
 npm run dev
 ```
 
 ## 🔧 Configuration
 
-### Variables d'environnement Backend
+- `backend/.env` (copie de `backend/.env.example`) : MongoDB, Firebase, Stripe, Cloudflare R2, SMTP, règles métier, abonnement Pro, limites, IA, Shopify. `PORT=3002`.
+- `frontend/.env.local` (copie de `frontend/.env.local.example`) : Firebase, `NEXT_PUBLIC_API_URL` (port 3002), clé publique Stripe.
+- `cd backend && npm run check:env` vérifie que tout est joignable.
 
-Voir `backend/.env.example` pour la liste complète des variables requises :
-- MongoDB URI
-- Firebase credentials
-- Stripe keys
-- Cloudflare R2 credentials
-- SendGrid API key
-
-### Variables d'environnement Frontend
-
-Voir `frontend/.env.example` pour la configuration :
-- Firebase config
-- API URL
-- Stripe publishable key
+Liste commentée de chaque variable : [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md).
 
 ## 📚 Structure du Projet
 
@@ -116,74 +87,16 @@ Voir `frontend/.env.example` pour la configuration :
 
 ## 🔄 Workflow
 
-1. **Marque** crée une campagne avec budget
-2. **Créateurs** candidatent avec leur proposition
-3. **Marque** sélectionne un créateur
-4. **Créateur** livre le contenu
-5. **Marque** valide ou demande des révisions (max 2)
-6. Auto-approbation après 7 jours si pas de retour
-7. Paiement automatique au créateur (avec commission plateforme de 10%)
+1. **Marque** vérifie son entreprise (SIRET) et publie une campagne (budget facultatif, brief IA)
+2. **Créateurs** envoient un devis (prix, droits, conditions) ; la marque peut aussi les inviter
+3. **Marque** accepte un ou plusieurs devis et saisit sa carte (montant bloqué, non prélevé)
+4. **Créateur** livre les vidéos (fichiers ou liens)
+5. **Marque** valide ou demande des révisions (max 2) ; auto-approbation après 7 jours
+6. Paiement prélevé et viré au créateur (commission 10 %, 8 % avec l'abonnement Pro) ; avis mutuels
 
 ## 🚀 Déploiement
 
-Le projet supporte **plusieurs architectures de déploiement**. Voir [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) pour le guide complet.
-
-### Architectures recommandées
-
-**Option 1 - Full Vercel (MVP rapide)**
-```
-Frontend: Vercel
-Backend: Vercel Serverless Functions
-Database: MongoDB Atlas
-Storage: Cloudflare R2
-```
-
-**Option 2 - Firebase + Cloudflare**
-```
-Frontend: Firebase Hosting
-Backend: Firebase Functions
-Database: MongoDB Atlas
-Storage: Cloudflare R2
-```
-
-**Option 3 - Cloudflare Full Stack**
-```
-Frontend: Cloudflare Pages
-Backend: Cloudflare Workers
-Database: MongoDB Atlas
-Storage: Cloudflare R2
-```
-
-**Option 4 - Production (pas de cold starts)**
-```
-Frontend: Vercel ou Cloudflare Pages
-Backend: Railway ou Render (Node.js classique)
-Database: MongoDB Atlas
-Storage: Cloudflare R2
-```
-
-**Option 5 - Souveraineté EU**
-```
-Frontend: Scaleway Object Storage + CDN
-Backend: Scaleway Functions
-Database: Scaleway Managed Database
-Storage: Scaleway Object Storage
-```
-
-### Déploiement rapide
-
-**Backend sur Railway** (le plus simple):
-1. Connecter le repo sur [railway.app](https://railway.app)
-2. Ajouter les variables d'environnement
-3. Déployer automatiquement
-
-**Frontend sur Vercel**:
-1. Connecter le repo sur [vercel.com](https://vercel.com)
-2. Sélectionner le dossier `frontend`
-3. Ajouter les variables d'environnement
-4. Déployer automatiquement
-
-Voir [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) pour toutes les options et configurations détaillées.
+Le backend est un serveur Node.js classique (ffmpeg, tâches planifiées, uploads volumineux) : il n'est pas compatible avec les plateformes serverless. Recommandé : backend sur un VPS (PM2 + Nginx) ou Railway/Render, frontend sur Vercel. Guide : [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## 📝 API Documentation
 
@@ -215,14 +128,12 @@ Voir [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) pour toutes les options et configu
 ## 🧪 Tests
 
 ```bash
-# Backend
-cd backend
-npm test
-
-# Frontend
-cd frontend
-npm test
+cd backend && npm run test:e2e -- --clean   # 55 étapes via l'API (backend démarré sur 3002)
+npm run test:ui                             # parcours navigateur (backend + frontend démarrés)
+cd frontend && npx tsc --noEmit             # vérification TypeScript
 ```
+
+Détail : [docs/GUIDE-TEST.md](docs/GUIDE-TEST.md).
 
 ## 📄 Licence
 

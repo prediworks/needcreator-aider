@@ -1,67 +1,40 @@
 # Checklist de configuration
 
-## ✅ Services à configurer
+## Services (obligatoires)
 
-### MongoDB Atlas (OBLIGATOIRE)
-- [ ] Compte créé
-- [ ] Cluster M0 créé
-- [ ] Utilisateur de base de données créé
-- [ ] IP `0.0.0.0/0` whitelistée
-- [ ] Connection string copiée dans `backend/.env`
+- [ ] **MongoDB Atlas** : cluster créé, utilisateur créé, IP autorisée, `MONGODB_URI` renseignée
+- [ ] **Firebase** : projet créé, Email/Password activé, clé de service dans `backend/.env`, clés publiques dans `frontend/.env.local`
+- [ ] **Stripe** : clés test renseignées (backend et frontend), Stripe Connect activé, portail client activé
+- [ ] **Cloudflare R2** : bucket créé, token d'accès, variables `CLOUDFLARE_*` renseignées
+- [ ] **Email SMTP** : `SMTP_*` et `FROM_EMAIL` renseignés (adresse autorisée par le serveur)
 
-### Firebase (OBLIGATOIRE)
-- [ ] Projet créé
-- [ ] Authentication activée (Email/Password)
-- [ ] Google Sign-In activé
-- [ ] Service Account créé
-- [ ] Clé privée téléchargée
-- [ ] Clés publiques copiées dans `frontend/.env.local`
-- [ ] Clés privées copiées dans `backend/.env`
-- [ ] `localhost` ajouté aux domaines autorisés
+## Services (optionnels)
 
-### Stripe (OBLIGATOIRE)
-- [ ] Compte créé
-- [ ] Mode Test activé
-- [ ] Stripe Connect activé
-- [ ] Clés TEST copiées dans `backend/.env`
-- [ ] Clé publique TEST copiée dans `frontend/.env.local`
+- [ ] Fournisseur IA (`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`) pour le brief IA
+- [ ] `OPENAI_API_KEY` pour les sous-titres automatiques
+- [ ] Application Shopify (`SHOPIFY_*`)
+- [ ] Webhook Stripe (Stripe CLI en local, URL publique en production)
 
-### SendGrid (OPTIONNEL)
-- [ ] Compte créé
-- [ ] API Key créée
-- [ ] Email d'envoi vérifié
-- [ ] API Key copiée dans `backend/.env`
+## Installation
 
-### Cloudflare R2 (OPTIONNEL)
-- [ ] Compte créé
-- [ ] Bucket créé
-- [ ] Access Keys générées
-- [ ] Credentials copiées dans `backend/.env`
+- [ ] Node.js 20+ installé
+- [ ] `cd backend && npm install`
+- [ ] `cd frontend && npm install`
+- [ ] `backend/.env` créé depuis `.env.example` (`PORT=3002`, `FRONTEND_URL` avec l'adresse du frontend)
+- [ ] `frontend/.env.local` créé depuis `.env.local.example` (`NEXT_PUBLIC_API_URL` vers le port 3002)
 
-## ✅ Installation
+## Vérification
 
-- [ ] Node.js 18+ installé
-- [ ] Git installé
-- [ ] Dépendances backend installées (`cd backend && npm install`)
-- [ ] Dépendances frontend installées (`cd frontend && npm install`)
+- [ ] `cd backend && npm run check:env` : tout ✅ (sauf éventuellement « R2 URL publique »)
+- [ ] Backend démarre (`npm run dev`, port 3002)
+- [ ] Frontend démarre (`npm run dev`, port 3000)
+- [ ] `cd backend && npm run test:e2e -- --clean` : toutes les étapes OK
+- [ ] Compte admin créé (`npm run make-admin -- email`) et menu Administration visible
 
-## ✅ Configuration
+## Parcours manuel minimal
 
-- [ ] `backend/.env` créé et configuré
-- [ ] `frontend/.env.local` créé et configuré
-- [ ] MongoDB connection testée
-- [ ] Firebase authentication testée
+- [ ] Inscription marque → vérification d'entreprise (SIRET) → campagne publiée
+- [ ] Inscription créateur → 3 vidéos → validation admin → devis envoyé
+- [ ] Sélection → carte de test 4242 → livraison → approbation → avis
 
-## ✅ Tests
-
-- [ ] Backend démarre sans erreur (`npm run dev`)
-- [ ] Frontend démarre sans erreur (`npm run dev`)
-- [ ] Page d'accueil accessible (http://localhost:3001)
-- [ ] Inscription créateur fonctionne
-- [ ] Inscription marque fonctionne
-- [ ] Login fonctionne
-- [ ] Dashboard accessible
-
-## 🎯 Prêt pour le développement !
-
-Une fois tous les points cochés, vous êtes prêt à développer et tester l'application en local.
+Guide détaillé : [GUIDE-TEST.md](./GUIDE-TEST.md).

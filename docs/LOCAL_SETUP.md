@@ -1,305 +1,155 @@
-# Guide de configuration locale
+# Configuration locale
 
-## 🚀 Démarrage rapide (5 minutes)
+Ce guide décrit la configuration complète pour faire tourner NeedCreator sur votre machine ou votre serveur de développement. Pour tester ensuite les parcours, voir [GUIDE-TEST.md](./GUIDE-TEST.md).
 
-### 1. Prérequis
+## 1. Prérequis
 
-- Node.js 18+ installé
-- Git installé
-- Un éditeur de code (VS Code recommandé)
+- Node.js 20 ou plus (le projet est testé avec Node 22)
+- Git
+- Comptes : MongoDB Atlas, Firebase, Stripe, Cloudflare R2, un serveur SMTP (OVH, Brevo, Gmail pro…)
 
-### 2. Installation
+## 2. Installation
 
 ```bash
-# Cloner le repo (si pas déjà fait)
-git clone <your-repo-url>
-cd ugc-platform
-
-# Installer les dépendances backend
-cd backend
-npm install
-
-# Installer les dépendances frontend
-cd ../frontend
-npm install
+cd backend && npm install
+cd ../frontend && npm install
 ```
 
-### 3. Configuration minimale pour tester
+## 3. Ports
 
-#### MongoDB Atlas (OBLIGATOIRE)
+| Service | Port | Commande |
+|---|---|---|
+| Backend (API) | **3002** | `cd backend && npm run dev` |
+| Frontend | **3000** | `cd frontend && npm run dev` |
 
-1. Allez sur https://www.mongodb.com/cloud/atlas
-2. Créez un compte gratuit
-3. Créez un cluster M0 (gratuit)
-4. Database Access → Add New Database User
-   - Username: `ugcuser`
-   - Password: générez un mot de passe fort
-5. Network Access → Add IP Address → Allow Access from Anywhere (`0.0.0.0/0`)
-6. Clusters → Connect → Connect your application
-7. Copiez la connection string
+Le port 3001 est réservé à un autre service sur le serveur : ne l'utilisez pas.
 
-#### Firebase (OBLIGATOIRE)
+## 4. Services externes
 
-1. Allez sur https://console.firebase.google.com
-2. Créez un nouveau projet
-3. Authentication → Get Started → Email/Password → Enable
-4. Authentication → Sign-in method → Google → Enable
-5. Project Settings → General → Copiez les clés publiques
-6. Project Settings → Service Accounts → Generate new private key
+### MongoDB Atlas (obligatoire)
 
-#### Stripe (OBLIGATOIRE)
+1. Créez un cluster gratuit (M0) sur https://www.mongodb.com/cloud/atlas.
+2. Database Access → créez un utilisateur.
+3. Network Access → autorisez votre IP (ou `0.0.0.0/0` pour un serveur de développement).
+4. Connect → copiez la chaîne de connexion dans `MONGODB_URI`.
 
-1. Allez sur https://stripe.com
-2. Créez un compte
-3. Activez le mode Test
-4. Developers → API keys → Copiez les clés TEST
-5. Connect → Get started (activez Stripe Connect)
+### Firebase Auth (obligatoire)
 
-#### SendGrid (OPTIONNEL pour commencer)
+1. Créez un projet sur https://console.firebase.google.com.
+2. Authentication → Sign-in method → activez **Email/Password** (et Google si vous avez un nom de domaine : Google refuse les adresses IP).
+3. Project settings → General → copiez les clés publiques dans `frontend/.env.local`.
+4. Project settings → Service accounts → Generate new private key → copiez `project_id`, `private_key`, `client_email` dans `backend/.env`.
 
-1. Allez sur https://sendgrid.com
-2. Créez un compte gratuit
-3. Settings → API Keys → Create API Key
+### Stripe (obligatoire)
 
-#### Cloudflare R2 (OPTIONNEL pour commencer)
+Voir [STRIPE_SETUP.md](./STRIPE_SETUP.md) : clés test, activation de Stripe Connect, webhooks, abonnement Pro, portail client.
 
-Vous pouvez commencer sans R2. Les uploads de fichiers ne fonctionneront pas mais le reste de l'app oui.
+### Cloudflare R2 (obligatoire pour les vidéos)
 
-> **Ports utilisés** : backend sur **3002**, frontend sur **3000** (le port 3001 est réservé à un autre service).
+1. Cloudflare → R2 → créez un bucket.
+2. R2 → Manage R2 API tokens → créez un token avec lecture/écriture sur ce bucket → `CLOUDFLARE_ACCESS_KEY_ID` et `CLOUDFLARE_SECRET_ACCESS_KEY`.
+3. `CLOUDFLARE_ACCOUNT_ID` est visible dans l'URL du dashboard.
+4. `CLOUDFLARE_PUBLIC_URL` :
+   - en développement, laissez l'URL de l'API privée (`https://<account>.r2.cloudflarestorage.com/<bucket>`) : les vidéos sont servies par des liens signés valables 1 h ;
+   - pour la production, activez un domaine public sur le bucket (Settings → Public access) et mettez cette URL, pour des liens permanents (nécessaire pour Shopify et le partage).
 
-### 4. Configurer les fichiers .env
+### Email (obligatoire pour les notifications)
 
-**Backend** (`backend/.env`) :
+Un serveur SMTP suffit (`SMTP_*` + `FROM_EMAIL`). SendGrid n'est utilisé qu'en repli si `SMTP_HOST` est absent.
+
+### Services optionnels
+
+| Service | Sert à | Variables |
+|---|---|---|
+| Fournisseur IA (Anthropic, OpenAI, Groq, Novita…) | Brief assisté par IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL` — détails dans `backend/config/prompts/README.md` |
+| OpenAI | Sous-titres automatiques du pack vidéo | `OPENAI_API_KEY` |
+| Shopify | Import produit, publication des vidéos sur la fiche produit | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` (application créée sur partners.shopify.com) |
+
+## 5. Fichiers de configuration
+
+Copiez les exemples, puis remplissez :
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
+```
+
+### `backend/.env` : variables
+
+| Groupe | Variables | Notes |
+|---|---|---|
+| Serveur | `NODE_ENV`, `PORT=3002`, `FRONTEND_URL` | `FRONTEND_URL` accepte plusieurs adresses séparées par des virgules (ex. `http://localhost:3000,http://95.111.238.135:3000`) ; la première sert dans les emails |
+| Base | `MONGODB_URI` | |
+| Firebase | `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL` | la clé privée entre guillemets, avec les `\n` |
+| Stripe | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PLATFORM_FEE_PERCENT=10`, `STRIPE_PRO_PRICE_ID` (facultatif) | clés `sk_test_` en développement |
+| Stockage | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_KEY_ID`, `CLOUDFLARE_SECRET_ACCESS_KEY`, `CLOUDFLARE_BUCKET_NAME`, `CLOUDFLARE_PUBLIC_URL` | |
+| Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL` | `FROM_EMAIL` doit être une adresse autorisée par votre SMTP |
+| Sécurité | `JWT_SECRET`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS` | mettez `RATE_LIMIT_MAX_REQUESTS=5000` en développement |
+| Règles métier | `MIN_CREATOR_VIDEOS=3`, `JOBS_INTERVAL_MINUTES=60`, `EARLY_ACCESS_HOURS=24`, `BADGE_*` | |
+| Abonnement Pro | `PRO_PRICE_EUR=79`, `PRO_TRIAL_DAYS=14`, `PRO_FEE_PERCENT=8`, `AI_BRIEF_FREE_QUOTA=3` | |
+| Limites nouvelles marques | `LIMIT_NEW_BRAND_OPEN_CAMPAIGNS=2`, `LIMIT_NEW_BRAND_INVITES_PER_DAY=5`, `LIMIT_NEW_BRAND_MESSAGES_PER_DAY=20` | s'appliquent tant qu'aucune campagne n'est terminée |
+| Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |
+| Parrainage | `REFERRAL_BRAND_FEE_PERCENT=5`, `REFERRAL_REFERRER_FEE_PERCENT=5`, `REFERRAL_CREATOR_BONUS=10` | |
+| Vérification des marques | `BUSINESS_REGISTRY_CHECK=true` | contrôle au registre national des entreprises ; modifiable aussi dans Admin → Réglages |
+| Pack vidéo | `READY_PACK_PRICE=15`, `AI_TRANSCRIPTION_MODEL=whisper-1` | 0 = inclus |
+| IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
+| Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
+| Tests | `STRIPE_AUTO_CONFIRM_TEST=false` | `true` = paiements confirmés sans écran de carte (jamais en production) |
+
+### `frontend/.env.local` : variables
 
 ```env
-NODE_ENV=development
-PORT=3002
-
-# MongoDB (remplacez avec votre connection string)
-MONGODB_URI=mongodb+srv://ugcuser:VOTRE_PASSWORD@cluster0.xxxxx.mongodb.net/ugc-platform-dev?retryWrites=true&w=majority
-
-# Firebase (remplacez avec vos credentials)
-FIREBASE_PROJECT_ID=votre-project-id
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nVOTRE_CLE_PRIVEE\n-----END PRIVATE KEY-----\n"
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@votre-project.iam.gserviceaccount.com
-
-# Stripe (clés TEST)
-STRIPE_SECRET_KEY=sk_test_xxxxx
-STRIPE_WEBHOOK_SECRET=whsec_xxxxx
-STRIPE_PLATFORM_FEE_PERCENT=10
-
-# SendGrid (optionnel)
-SENDGRID_API_KEY=SG.xxxxx
-FROM_EMAIL=noreply@localhost
-
-# Cloudflare R2 (optionnel)
-CLOUDFLARE_ACCOUNT_ID=
-CLOUDFLARE_ACCESS_KEY_ID=
-CLOUDFLARE_SECRET_ACCESS_KEY=
-CLOUDFLARE_BUCKET_NAME=
-CLOUDFLARE_PUBLIC_URL=
-
-# Frontend URL (plusieurs origines possibles, séparées par des virgules)
-FRONTEND_URL=http://localhost:3000,http://95.111.238.135:3000
-
-# Email via SMTP (recommandé) — sinon SendGrid est utilisé
-SMTP_HOST=ssl0.ovh.net
-SMTP_PORT=465
-SMTP_SECURE=true
-SMTP_USER=noreply@votre-domaine.fr
-SMTP_PASS=xxxxx
-FROM_EMAIL=noreply@votre-domaine.fr
-
-# Optionnel
-MIN_CREATOR_VIDEOS=3        # vidéos de portfolio requises pour candidater
-JOBS_INTERVAL_MINUTES=60    # fréquence des tâches planifiées (auto-approbation, rappels)
-EARLY_ACCESS_HOURS=24       # avant-première des campagnes pour les Ambassadeurs (0 = désactivé)
-REFERRAL_BRAND_FEE_PERCENT=5 # parrainage : commission de la marque parrainée sur sa 1re campagne
-REFERRAL_REFERRER_FEE_PERCENT=5
-REFERRAL_CREATOR_BONUS=10   # bonus (€) au parrain créateur
-READY_PACK_PRICE=15         # pack prêt à diffuser, € par vidéo (0 = inclus)
-
-# Brief IA (au choix)
-AI_PROVIDER=anthropic       # anthropic | openai
-AI_MODEL=claude-opus-5
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=             # aussi utilisée pour les sous-titres automatiques
-
-# Shopify (application créée sur partners.shopify.com)
-SHOPIFY_API_KEY=
-SHOPIFY_API_SECRET=
-SHOPIFY_APP_URL=            # URL publique du backend (callback : /api/integrations/shopify/callback)
-
-# Security
-JWT_SECRET=dev-secret-change-me
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
-
-STORAGE_PROVIDER=cloudflare
+NEXT_PUBLIC_API_URL=http://localhost:3002/api        # ou http://<ip-du-serveur>:3002/api
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ```
 
-**Frontend** (`frontend/.env.local`) :
+Le fichier `.env` n'est pas rechargé à chaud : redémarrez le backend après une modification.
 
-```env
-# Firebase (clés publiques)
-NEXT_PUBLIC_FIREBASE_API_KEY=votre-api-key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=votre-project.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=votre-project-id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=votre-project.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
-NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abcdef
-
-# API Backend
-NEXT_PUBLIC_API_URL=http://localhost:3002/api
-
-# Stripe (clé publique TEST)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxxx
-```
-
-### 5. Démarrer l'application
-
-**Terminal 1 - Backend** :
-```bash
-cd backend
-npm run dev
-```
-
-Vous devriez voir :
-```
-🚀 Server running on port 3002 in development mode
-📊 Health check: http://localhost:3002/health
-🌐 CORS autorisé pour : http://localhost:3000, ...
-```
-
-**Terminal 2 - Frontend** :
-```bash
-cd frontend
-npm run dev
-```
-
-Vous devriez voir :
-```
-▲ Next.js 14.x.x
-- Local:        http://localhost:3000
-```
-
-### 6. Tester l'application
-
-Voir le guide détaillé : [GUIDE-TEST.md](./GUIDE-TEST.md) (vérification de la configuration, test automatique de tous les flux, parcours manuels, compte admin).
-
-1. Ouvrez http://localhost:3000
-2. Cliquez sur "S'inscrire"
-3. Créez un compte créateur ou marque
-4. Explorez l'application !
-
-### 7. Tester les fonctionnalités
-
-#### Test complet du workflow :
-
-**En tant que Marque** :
-1. Inscrivez-vous comme marque
-2. Créez une campagne
-3. Publiez la campagne
-
-**En tant que Créateur** :
-1. Inscrivez-vous comme créateur (utilisez un autre email)
-2. Complétez votre profil
-3. Ajoutez des vidéos au portfolio (si R2 configuré)
-4. Candidatez à une campagne
-5. Attendez la sélection
-
-**Retour en tant que Marque** :
-1. Sélectionnez le créateur
-2. Attendez la livraison
-
-**Retour en tant que Créateur** :
-1. Uploadez les livrables
-2. Soumettez la livraison
-
-**Retour en tant que Marque** :
-1. Approuvez ou demandez une révision
-
-## 🐛 Dépannage
-
-### Erreur MongoDB
-
-```
-MongoServerError: bad auth
-```
-
-**Solution** : Vérifiez votre username/password dans la connection string
-
-### Erreur Firebase
-
-```
-Error: Firebase auth failed
-```
-
-**Solution** : 
-1. Vérifiez que Authentication est activé
-2. Vérifiez que `localhost` est dans les domaines autorisés (Firebase Console → Authentication → Settings → Authorized domains)
-
-### Erreur CORS
-
-```
-Access to fetch blocked by CORS policy
-```
-
-**Solution** : Vérifiez que l'adresse du frontend figure dans `FRONTEND_URL` de `backend/.env` (plusieurs adresses possibles, séparées par des virgules)
-
-### Port déjà utilisé
-
-```
-Error: listen EADDRINUSE: address already in use :::3000
-```
-
-**Solution** :
-```bash
-# Trouver le processus
-lsof -i :3000
-
-# Tuer le processus
-kill -9 <PID>
-```
-
-## 📝 Commandes utiles
+## 6. Vérifier la configuration
 
 ```bash
-# Backend
-cd backend
-npm run dev          # Démarrer en mode développement
-npm run check:env    # Vérifier MongoDB, Stripe, Firebase, email, R2
-npm run test:e2e -- --clean   # Tester tous les flux via l'API (backend démarré)
-npm run make-admin -- email@exemple.com   # Donner le rôle admin à un compte existant
-
-# Test navigateur (racine du projet, backend + frontend démarrés)
-npm install && npx playwright install chromium   # une seule fois
-npm run test:ui
-
-# Frontend
-cd frontend
-npm run dev          # Démarrer en mode développement
-npm run build        # Build de production
-npm run lint         # Vérifier le code
-
-# Base de données
-# Voir les données dans MongoDB Compass
-# Connection string: votre MONGODB_URI
+cd backend && npm run check:env
 ```
 
-## 🎯 Prochaines étapes
+Chaque ligne doit être ✅ (MongoDB, Stripe, Stripe Connect, Firebase, SMTP, R2). Seule « R2 URL publique » peut rester ❌ en développement.
 
-Une fois que tout fonctionne en local :
+## 7. Démarrer et tester
 
-1. Testez toutes les fonctionnalités
-2. Configurez Cloudflare R2 pour les uploads
-3. Configurez SendGrid pour les emails
-4. Configurez les webhooks Stripe (utilisez ngrok pour tester en local)
-5. Préparez le déploiement en production
+```bash
+cd backend && npm run dev      # terminal 1
+cd frontend && npm run dev     # terminal 2
+```
 
-## 🔐 Sécurité
+Puis http://localhost:3000. Tests automatiques :
 
-**⚠️ IMPORTANT** :
-- Ne commitez JAMAIS les fichiers `.env` dans git
-- Utilisez des clés TEST Stripe en développement
-- Changez tous les secrets avant le déploiement en production
+```bash
+cd backend && npm run test:e2e -- --clean   # tous les flux via l'API (backend démarré)
+npm run test:ui                             # parcours dans un navigateur (racine, backend + frontend démarrés ; une fois : npm install && npx playwright install chromium)
+```
+
+## 8. Compte administrateur
+
+Créez un compte marque dans l'application, puis :
+
+```bash
+cd backend && npm run make-admin -- email@du.compte
+```
+
+Reconnectez-vous : le menu « Administration » apparaît (validation des créateurs, vérification des marques, vidéos Ambassadeur, signalements, réglages).
+
+## 9. Dépannage
+
+| Symptôme | Cause | Solution |
+|---|---|---|
+| `Missing required environment variables` au démarrage | `MONGODB_URI`, `FIREBASE_PROJECT_ID`, `STRIPE_SECRET_KEY` ou `JWT_SECRET` absent | complétez `backend/.env` |
+| Erreur CORS dans le navigateur | l'adresse du frontend n'est pas dans `FRONTEND_URL` | ajoutez-la, séparée par une virgule, redémarrez |
+| `EADDRINUSE` sur 3002 ou 3000 | un serveur tourne déjà | `lsof -i :3002` puis `kill <PID>` |
+| Google login refusé | domaine non autorisé dans Firebase | utilisez email/mot de passe, ou un nom de domaine (une IP ne peut pas être autorisée) |
+| Emails non reçus | `FROM_EMAIL` non autorisé par le SMTP, ou `FROM_EMAIL` défini deux fois | vérifiez `npm run check:env` |
+| Vidéo illisible | lien signé expiré (1 h) | rechargez la page |
