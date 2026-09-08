@@ -59,7 +59,7 @@ Nginx (reverse proxy vers le port 3002, uploads jusqu'à 500 Mo) :
 
 ```nginx
 server {
-  server_name api.votre-domaine.fr;
+  server_name api.needcreator.com;
   client_max_body_size 550M;
   location / {
     proxy_pass http://127.0.0.1:3002;
@@ -71,33 +71,33 @@ server {
 }
 ```
 
-Puis `sudo certbot --nginx -d api.votre-domaine.fr` pour le HTTPS.
+Puis `sudo certbot --nginx -d api.needcreator.com` pour le HTTPS.
 
 Variables de production à adapter dans `backend/.env` :
 
 - `NODE_ENV=production`, `PORT=3002`
-- `FRONTEND_URL=https://app.votre-domaine.fr`
+- `FRONTEND_URL=https://app.needcreator.com`
 - clés Stripe **live**, `STRIPE_WEBHOOK_SECRET` du webhook de production
 - `CLOUDFLARE_PUBLIC_URL` = domaine public du bucket
 - `JWT_SECRET` fort et unique (`openssl rand -base64 32`)
 - `RATE_LIMIT_MAX_REQUESTS=300`
 - `STRIPE_AUTO_CONFIRM_TEST` absent
-- `SHOPIFY_APP_URL=https://api.votre-domaine.fr` si Shopify est utilisé
+- `SHOPIFY_APP_URL=https://api.needcreator.com` si Shopify est utilisé
 
 Mise à jour : `git pull && npm ci && pm2 restart needcreator-api`.
 
 ## 2. Frontend sur Vercel
 
 1. Importez le dépôt sur vercel.com, **Root Directory** : `frontend`.
-2. Variables d'environnement : celles de `frontend/.env.local.example`, avec `NEXT_PUBLIC_API_URL=https://api.votre-domaine.fr/api` et la clé Stripe `pk_live_`.
-3. Ajoutez votre domaine (`app.votre-domaine.fr`).
+2. Variables d'environnement : celles de `frontend/.env.local.example`, avec `NEXT_PUBLIC_API_URL=https://api.needcreator.com/api` et la clé Stripe `pk_live_`.
+3. Ajoutez votre domaine (`app.needcreator.com`).
 4. Firebase → Authentication → Settings → Authorized domains : ajoutez ce domaine (nécessaire pour Google login).
 
 Alternative sur le VPS : `cd frontend && npm ci && npm run build && pm2 start "npm start" --name needcreator-web` derrière Nginx.
 
 ## 3. Après la mise en ligne
 
-- [ ] Webhook Stripe déclaré sur `https://api.votre-domaine.fr/api/webhooks/stripe` (événements listés dans [STRIPE_SETUP.md](./STRIPE_SETUP.md)) et secret live dans `.env`
+- [ ] Webhook Stripe déclaré sur `https://api.needcreator.com/api/webhooks/stripe` (événements listés dans [STRIPE_SETUP.md](./STRIPE_SETUP.md)) et secret live dans `.env`
 - [ ] Portail client Stripe activé
 - [ ] Domaine public R2 actif et `CLOUDFLARE_PUBLIC_URL` mis à jour
 - [ ] `npm run check:env` sur le serveur : tout ✅

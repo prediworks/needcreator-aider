@@ -14,9 +14,9 @@
 set -euo pipefail
 
 # ----------------------------- CONFIGURATION ---------------------------------
-APP_DOMAIN="app.votre-domaine.fr"        # frontend (Next.js)
-API_DOMAIN="api.votre-domaine.fr"        # backend (Express)
-LETSENCRYPT_EMAIL="vous@votre-domaine.fr"
+APP_DOMAIN="app.needcreator.com"        # frontend (Next.js)
+API_DOMAIN="api.needcreator.com"        # backend (Express)
+LETSENCRYPT_EMAIL="contact@needcreator.com"
 REPO_URL="https://github.com/prediworks/needcreator-aider.git"
 DEPLOY_USER="needcreator"                # utilisateur non-root qui fait tourner l'app
 SSH_PORT="22"                            # changez-le (ex. 2222) pour réduire le bruit
