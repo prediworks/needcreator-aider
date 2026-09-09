@@ -1,8 +1,11 @@
 import express from 'express';
 import multer from 'multer';
+import { validate, schemas } from '../middleware/validate.js';
 import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 import {
   uploadPortfolioVideo,
+  getPortfolioUploadUrl,
+  registerPortfolioVideo,
   deletePortfolioVideo,
   getCreatorPortfolio,
 } from '../controllers/portfolio.js';
@@ -32,6 +35,9 @@ router.post(
   upload.single('video'),
   uploadPortfolioVideo
 );
+// Envoi direct navigateur → R2 (sans limite de taille du proxy)
+router.post('/upload-url', authenticate, authorize('creator'), validate(schemas.uploadUrl), getPortfolioUploadUrl);
+router.post('/videos', authenticate, authorize('creator'), validate(schemas.portfolioRegister), registerPortfolioVideo);
 router.delete('/:videoId', authenticate, authorize('creator'), deletePortfolioVideo);
 
 // Public portfolio

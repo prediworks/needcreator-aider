@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
-import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand, GetBucketCorsCommand } from '@aws-sdk/client-s3';
 
 dotenv.config();
 
@@ -115,6 +115,17 @@ try {
     }
   }
   await s3.send(new DeleteObjectCommand({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME, Key: key })).catch(() => {});
+  // CORS : indispensable pour l'envoi direct des vidéos depuis le navigateur
+  try {
+    const cors = await s3.send(new GetBucketCorsCommand({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME }));
+    const allowed = (cors.CORSRules || []).flatMap(r => r.AllowedOrigins || []);
+    const wanted = (process.env.FRONTEND_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+    const missing = wanted.filter(o => !allowed.includes(o) && !allowed.includes('*'));
+    if (missing.length) ko('R2 CORS', `origines manquantes pour l'envoi direct : ${missing.join(', ')}. Lancez : npm run r2:cors`);
+    else ok('R2 CORS', `envoi direct autorisé depuis ${allowed.join(', ')}`);
+  } catch (e) {
+    ko('R2 CORS', `aucune règle CORS sur le bucket (envoi direct des vidéos impossible). Lancez : npm run r2:cors`);
+  }
 } catch (e) {
   ko('Cloudflare R2', e.message);
 }

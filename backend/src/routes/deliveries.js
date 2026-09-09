@@ -5,6 +5,8 @@ import { validate, schemas } from '../middleware/validate.js';
 import {
   createDelivery,
   uploadDeliverables,
+  getDeliveryUploadUrl,
+  registerDeliverables,
   submitDelivery,
   approveDelivery,
   requestRevision,
@@ -39,6 +41,9 @@ router.get('/:deliveryId', authenticate, getDelivery);
 
 // Delivery actions
 router.post('/:deliveryId/upload', authenticate, authorize('creator'), upload.array('files', 10), uploadDeliverables);
+// Envoi direct navigateur → R2 (sans limite de taille du proxy)
+router.post('/:deliveryId/upload-url', authenticate, authorize('creator'), validate(schemas.uploadUrl), getDeliveryUploadUrl);
+router.post('/:deliveryId/files', authenticate, authorize('creator'), validate(schemas.deliveryRegister), registerDeliverables);
 router.post('/:deliveryId/links', authenticate, authorize('creator'), validate(schemas.deliveryLinks), addLinks);
 router.delete('/:deliveryId/items/:itemId', authenticate, authorize('creator'), removeItem);
 router.patch('/:deliveryId/links/:linkId/visibility', authenticate, validate(schemas.linkVisibility), setLinkVisibility);

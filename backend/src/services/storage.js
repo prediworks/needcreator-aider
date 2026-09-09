@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -77,6 +77,37 @@ function generateFilename(originalName, prefix = '') {
   const hash = crypto.randomBytes(16).toString('hex');
   const timestamp = Date.now();
   return `${prefix}${timestamp}-${hash}${ext}`;
+}
+
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+export const UPLOAD_URL_TTL_SECONDS = 15 * 60;
+
+/**
+ * Lien d'envoi direct navigateur → R2 (PUT signé, 15 min). Le fichier ne transite pas par le serveur,
+ * ce qui évite les limites de taille et de durée du proxy Cloudflare.
+ */
+export async function createUploadUrl({ folder, originalName, contentType }) {
+  const key = generateFilename(originalName, `${folder.replace(/\/$/, '')}/`);
+  const command = new PutObjectCommand({
+    Bucket: config.storage.cloudflare.bucketName,
+    Key: key,
+    ContentType: contentType,
+  });
+  const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: UPLOAD_URL_TTL_SECONDS });
+  return { uploadUrl, key, url: `${config.storage.cloudflare.publicUrl}/${key}`, expiresIn: UPLOAD_URL_TTL_SECONDS };
+}
+
+/**
+ * Métadonnées d'un objet R2 (null s'il n'existe pas) : sert à vérifier qu'un envoi direct a bien eu lieu
+ */
+export async function statObject(key) {
+  try {
+    const r = await s3Client.send(new HeadObjectCommand({ Bucket: config.storage.cloudflare.bucketName, Key: key }));
+    return { size: r.ContentLength, contentType: r.ContentType };
+  } catch (error) {
+    if (error?.$metadata?.httpStatusCode === 404 || error?.name === 'NotFound') return null;
+    throw error;
+  }
 }
 
 /**

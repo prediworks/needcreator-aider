@@ -1003,6 +1003,48 @@ await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset 
   }
 });
 
+await step('Envoi direct vers R2 : portfolio + livraison (lien signé, sans passer par le serveur)', async () => {
+  // Portfolio
+  const bad = await creatorApi('POST', '/portfolio/upload-url', { filename: 'doc.pdf', contentType: 'application/pdf', size: 10 });
+  expect(bad.status === 400, 'Un fichier non vidéo devrait être refusé', bad);
+  const pre = await creatorApi('POST', '/portfolio/upload-url', { filename: 'direct.mp4', contentType: 'video/mp4', size: 2048 });
+  expect(pre.status === 200 && pre.data.uploadUrl && pre.data.key.startsWith(`videos/${creatorUser.id}/`), 'Lien signé portfolio invalide', pre);
+  const ghost = await creatorApi('POST', '/portfolio/videos', { key: pre.data.key, title: 'Fantôme', videoType: 'demo' });
+  expect(ghost.status === 400, 'Enregistrer une clé non déposée devrait échouer', ghost);
+  const body = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(2048, 1)]);
+  const put = await fetch(pre.data.uploadUrl, { method: 'PUT', body, headers: { 'Content-Type': 'video/mp4' } });
+  expect(put.ok, `PUT direct vers R2 refusé (HTTP ${put.status})`, { status: put.status, data: await put.text() });
+  const reg = await creatorApi('POST', '/portfolio/videos', { key: pre.data.key, title: 'Vidéo envoi direct', videoType: 'demo' });
+  expect(reg.status === 201 && reg.data.video?.videoUrl, 'Enregistrement portfolio échoué', reg);
+  const dup = await creatorApi('POST', '/portfolio/videos', { key: pre.data.key, title: 'Doublon', videoType: 'demo' });
+  expect(dup.status === 409, 'Un doublon devrait être refusé', dup);
+  const other = await creatorApi('POST', '/portfolio/videos', { key: `videos/000000000000000000000000/x.mp4`, title: 'Autre', videoType: 'demo' });
+  expect(other.status === 400, 'Une clé d\'un autre utilisateur devrait être refusée', other);
+  await creatorApi('DELETE', `/portfolio/${reg.data.video._id}`);
+  // Livraison : nouvelle campagne + sélection, puis dépôt direct d'un fichier
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne envoi direct', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const ap = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  expect(ap.status === 201, 'Candidature échouée', ap);
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel.status === 200, 'Sélection échouée', sel);
+  const d = sel.data.delivery._id;
+  const dpre = await creatorApi('POST', `/deliveries/${d}/upload-url`, { filename: 'livrable.mp4', contentType: 'video/mp4', size: 2048 });
+  expect(dpre.status === 200 && dpre.data.key.startsWith(`deliverables/${d}/`), 'Lien signé livraison invalide', dpre);
+  const dput = await fetch(dpre.data.uploadUrl, { method: 'PUT', body, headers: { 'Content-Type': 'video/mp4' } });
+  expect(dput.ok, `PUT direct livraison refusé (HTTP ${dput.status})`, { status: dput.status, data: null });
+  const dreg = await creatorApi('POST', `/deliveries/${d}/files`, { files: [{ key: dpre.data.key, filename: 'livrable.mp4', contentType: 'video/mp4', size: 2048 }] });
+  expect(dreg.status === 200 && dreg.data.files.length === 1 && dreg.data.files[0].size === body.length, 'Enregistrement livraison échoué', dreg);
+  const over = await creatorApi('POST', `/deliveries/${d}/files`, { files: [{ key: dpre.data.key, filename: 'livrable.mp4', contentType: 'video/mp4', size: 2048 }] });
+  expect(over.status === 400 || over.status === 409, 'Dépasser le nombre attendu / doublon devrait être refusé', over);
+  // Nettoyage : livraison et campagne de test (le paiement n'a pas été confirmé)
+  const db = mongoose.connection.db;
+  await db.collection('deliveries').deleteOne({ _id: new mongoose.Types.ObjectId(d) });
+  await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return 'portfolio et livraison déposés directement dans R2, contrôles OK';
+});
+
 await step('Email non confirmé : publication de campagne refusée', async () => {
   const email = `e2e-unverified-${RUN}@needcreator-test.com`;
   const fu = await firebaseUser(email, false);

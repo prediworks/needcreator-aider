@@ -102,6 +102,7 @@ Alternative sur le VPS : `cd frontend && npm ci && npm run build && pm2 start "n
 - [ ] Webhook Stripe déclaré sur `https://api.needcreator.com/api/webhooks/stripe` (événements listés dans [STRIPE_SETUP.md](./STRIPE_SETUP.md)) et secret live dans `.env`
 - [ ] Portail client Stripe activé
 - [ ] Domaine public R2 actif et `CLOUDFLARE_PUBLIC_URL` mis à jour
+- [ ] CORS du bucket R2 appliqué (`npm run r2:cors`, fait automatiquement par `vps-setup.sh --finish`) : les vidéos partent du navigateur directement vers R2, sans passer par le proxy Cloudflare (limité à 100 Mo / 100 s)
 - [ ] `npm run check:env` sur le serveur : tout ✅
 - [ ] Compte admin créé (`npm run make-admin -- email`)
 - [ ] Turnstile : site créé sur Cloudflare pour `needcreator.com`, clés dans `frontend/.env.local` et `backend/.env`

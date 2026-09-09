@@ -4,7 +4,7 @@ import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent } from '../services/stripe.js';
-import { uploadMultipleFiles, resolveUrlsIn } from '../services/storage.js';
+import { uploadMultipleFiles, resolveUrlsIn, createUploadUrl, statObject , keyFromUrl } from '../services/storage.js';
 import {
   sendDeliverySubmitted,
   sendDeliveryApproved,
@@ -280,6 +280,73 @@ export async function uploadDeliverables(req, res) {
   } catch (error) {
     logger.error('Failed to upload deliverables:', error);
     res.status(500).json({ error: 'Failed to upload deliverables' });
+  }
+}
+
+/**
+ * Envoi direct : lien signé pour déposer un fichier de livraison dans R2
+ */
+export async function getDeliveryUploadUrl(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const { filename, contentType } = req.body;
+    if (!/^(video|image)\//.test(contentType)) return res.status(400).json({ error: 'Seuls les fichiers vidéo ou image sont acceptés' });
+    const delivery = await Delivery.findOne({ _id: deliveryId, creatorId: req.user._id }).select('_id status');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (delivery.status !== 'pending' && delivery.status !== 'revision_requested') return res.status(400).json({ error: 'Cannot upload files in current status' });
+    const out = await createUploadUrl({ folder: `deliverables/${delivery._id}`, originalName: filename, contentType });
+    res.json(out);
+  } catch (error) {
+    logger.error('getDeliveryUploadUrl failed:', error);
+    res.status(500).json({ error: `Préparation de l'envoi impossible : ${error.message}` });
+  }
+}
+
+/**
+ * Envoi direct : enregistre les fichiers déposés dans R2 (mêmes règles que l'upload classique)
+ */
+export async function registerDeliverables(req, res) {
+  try {
+    const { deliveryId } = req.params;
+    const creator = req.user;
+    const { files } = req.body;
+
+    const delivery = await Delivery.findOne({ _id: deliveryId, creatorId: creator._id });
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (delivery.status !== 'pending' && delivery.status !== 'revision_requested') return res.status(400).json({ error: 'Cannot upload files in current status' });
+
+    const campaignForCount = await Campaign.findById(delivery.campaignId).select('brief.deliverables brief.deliveryTypes');
+    const expected = campaignForCount?.brief?.deliverables || 1;
+    if (campaignForCount?.brief?.deliveryTypes?.length && !campaignForCount.brief.deliveryTypes.includes('file')) {
+      return res.status(400).json({ error: 'Cette campagne attend une livraison par lien, pas par fichier' });
+    }
+    if (itemCount(delivery) + files.length > expected) {
+      return res.status(400).json({ error: `Cette campagne attend ${expected} vidéo(s) : vous en avez déjà ${itemCount(delivery)}. Supprimez-en avant d'en ajouter.` });
+    }
+
+    const prefix = `deliverables/${delivery._id}/`;
+    for (const f of files) {
+      if (!f.key.startsWith(prefix)) return res.status(400).json({ error: 'Clé de fichier invalide' });
+      if (delivery.files.some(existing => keyFromUrl(existing.url) === f.key)) return res.status(409).json({ error: `Fichier déjà enregistré : ${f.filename}` });
+      const stat = await statObject(f.key);
+      if (!stat) return res.status(400).json({ error: `Fichier introuvable (${f.filename}) : l'envoi n'a pas abouti, réessayez` });
+      delivery.files.push({
+        url: `${process.env.CLOUDFLARE_PUBLIC_URL}/${f.key}`,
+        type: fileTypeFromMime(f.contentType || stat.contentType),
+        filename: f.filename,
+        size: stat.size ?? f.size,
+        metadata: { format: f.contentType || stat.contentType },
+      });
+    }
+    await delivery.save();
+
+    logger.info(`Files registered on delivery ${delivery._id} (direct upload): ${files.length}`);
+    const out = delivery.toObject({ virtuals: true });
+    out.files = await resolveUrlsIn(out.files);
+    res.json({ message: 'Files uploaded successfully', files: out.files, delivery: out });
+  } catch (error) {
+    logger.error('registerDeliverables failed:', error);
+    res.status(500).json({ error: `Enregistrement impossible : ${error.message}` });
   }
 }
 

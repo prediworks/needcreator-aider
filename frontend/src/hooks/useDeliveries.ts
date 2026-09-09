@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
+import { directUpload, ProgressFn } from '@/lib/upload';
 import { toast } from 'sonner';
 
 export function useDeliveries(filters?: any, enabled = true) {
@@ -28,13 +29,19 @@ export function useUploadDeliverables() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ deliveryId, files }: { deliveryId: string; files: File[] }) => {
-      const formData = new FormData();
-      files.forEach(file => formData.append('files', file));
-
-      const response = await api.post(`/deliveries/${deliveryId}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+    mutationFn: async ({ deliveryId, files, onProgress }: { deliveryId: string; files: File[]; onProgress?: ProgressFn }) => {
+      // Envoi direct de chaque fichier vers le stockage, puis enregistrement groupé
+      const total = files.reduce((a, f) => a + f.size, 0) || 1;
+      let done = 0;
+      const registered: { key: string; filename: string; contentType: string; size: number }[] = [];
+      for (const file of files) {
+        const { key } = await directUpload(`/deliveries/${deliveryId}/upload-url`, file, (p) => {
+          onProgress?.(Math.round(((done + (file.size * p) / 100) / total) * 100));
+        });
+        done += file.size;
+        registered.push({ key, filename: file.name, contentType: file.type, size: file.size });
+      }
+      const response = await api.post(`/deliveries/${deliveryId}/files`, { files: registered });
       return response.data;
     },
     onSuccess: (data, variables) => {
@@ -43,7 +50,7 @@ export function useUploadDeliverables() {
       toast.success(`${data.files?.length || 0} fichier(s) envoyé(s)`);
     },
     onError: (error: any) => {
-      toast.error(getErrorMessage(error, 'Erreur lors de l\'envoi des fichiers'));
+      toast.error(error?.response ? getErrorMessage(error, 'Erreur lors de l\'envoi des fichiers') : (error?.message || 'Erreur lors de l\'envoi des fichiers'), { duration: 8000 });
     },
   });
 }

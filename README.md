@@ -128,7 +128,7 @@ Le backend est un serveur Node.js classique (ffmpeg, tâches planifiées, upload
 ## 🧪 Tests
 
 ```bash
-cd backend && npm run test:e2e -- --clean   # 58 étapes via l'API (backend démarré sur 3002)
+cd backend && npm run test:e2e -- --clean   # 59 étapes via l'API (backend démarré sur 3002)
 npm run test:ui                             # parcours navigateur (backend + frontend démarrés)
 cd frontend && npx tsc --noEmit             # vérification TypeScript
 ```

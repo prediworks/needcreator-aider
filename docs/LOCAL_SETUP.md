@@ -49,7 +49,8 @@ Voir [STRIPE_SETUP.md](./STRIPE_SETUP.md) : clés test, activation de Stripe Con
 1. Cloudflare → R2 → créez un bucket.
 2. R2 → Manage R2 API tokens → créez un token avec lecture/écriture sur ce bucket → `CLOUDFLARE_ACCESS_KEY_ID` et `CLOUDFLARE_SECRET_ACCESS_KEY`.
 3. `CLOUDFLARE_ACCOUNT_ID` est visible dans l'URL du dashboard.
-4. `CLOUDFLARE_PUBLIC_URL` :
+4. **CORS du bucket** (obligatoire pour l'envoi des vidéos, qui part directement du navigateur vers R2) : `cd backend && npm run r2:cors` applique les origines de `FRONTEND_URL`. À relancer si `FRONTEND_URL` change.
+5. `CLOUDFLARE_PUBLIC_URL` :
    - en développement, laissez l'URL de l'API privée (`https://<account>.r2.cloudflarestorage.com/<bucket>`) : les vidéos sont servies par des liens signés valables 1 h ;
    - pour la production, activez un domaine public sur le bucket (Settings → Public access) et mettez cette URL, pour des liens permanents (nécessaire pour Shopify et le partage).
 
@@ -123,7 +124,7 @@ Le fichier `.env` n'est pas rechargé à chaud : redémarrez le backend après u
 cd backend && npm run check:env
 ```
 
-Chaque ligne doit être ✅ (MongoDB, Stripe, Stripe Connect, Firebase, SMTP, R2). Seule « R2 URL publique » peut rester ❌ en développement.
+Chaque ligne doit être ✅ (MongoDB, Stripe, Stripe Connect, Firebase, SMTP, R2 accès, écriture et CORS). Seule « R2 URL publique » peut rester ❌ en développement.
 
 ## 7. Démarrer et tester
 

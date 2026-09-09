@@ -109,9 +109,15 @@ export default function DeliveryDetailPage() {
     }
   };
 
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
-    await uploadMutation.mutateAsync({ deliveryId, files: selectedFiles });
+    setUploadProgress(0);
+    try {
+      await uploadMutation.mutateAsync({ deliveryId, files: selectedFiles, onProgress: setUploadProgress });
+    } finally {
+      setUploadProgress(null);
+    }
     setSelectedFiles([]);
   };
 
@@ -442,8 +448,13 @@ export default function DeliveryDetailPage() {
                           isLoading={uploadMutation.isPending}
                         >
                           <Upload className="w-4 h-4 mr-2" />
-                          Envoyer
+                          {uploadMutation.isPending && uploadProgress !== null ? (uploadProgress < 100 ? `Envoi ${uploadProgress} %` : 'Enregistrement…') : 'Envoyer'}
                         </Button>
+                      </div>
+                    )}
+                    {uploadProgress !== null && (
+                      <div className="h-2 w-full bg-neutral-200 rounded-full overflow-hidden" aria-label="Progression de l'envoi">
+                        <div className="h-full bg-primary-500 transition-all" style={{ width: `${uploadProgress}%` }} />
                       </div>
                     )}
                   </div>

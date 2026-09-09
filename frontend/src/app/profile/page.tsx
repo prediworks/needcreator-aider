@@ -37,6 +37,7 @@ function ProfileContent() {
 
   const [isEditing, setIsEditing] = useState(false);
   const [showVideoUpload, setShowVideoUpload] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   // Form state
   const [name, setName] = useState('');
@@ -101,12 +102,18 @@ function ProfileContent() {
       alert('La vidéo dépasse 500 Mo');
       return;
     }
-    await uploadVideoMutation.mutateAsync({
-      file: selectedVideo,
-      title: videoTitle,
-      description: videoDescription,
-      videoType,
-    });
+    setUploadProgress(0);
+    try {
+      await uploadVideoMutation.mutateAsync({
+        file: selectedVideo,
+        title: videoTitle,
+        description: videoDescription,
+        videoType,
+        onProgress: setUploadProgress,
+      });
+    } finally {
+      setUploadProgress(null);
+    }
     setSelectedVideo(null);
     setVideoTitle('');
     setVideoDescription('');
@@ -434,6 +441,11 @@ function ProfileContent() {
                         file:bg-primary-50 file:text-primary-700
                         hover:file:bg-primary-100"
                     />
+                    {uploadProgress !== null && (
+                      <div className="mt-2 h-2 w-full bg-neutral-200 rounded-full overflow-hidden" aria-label="Progression de l'envoi">
+                        <div className="h-full bg-primary-500 transition-all" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                    )}
                   </div>
 
                   <Input
@@ -480,7 +492,7 @@ function ProfileContent() {
                       disabled={!selectedVideo || !videoTitle}
                     >
                       <Upload className="w-4 h-4 mr-2" />
-                      {uploadVideoMutation.isPending ? 'Envoi en cours…' : 'Envoyer'}
+                      {uploadVideoMutation.isPending ? (uploadProgress !== null && uploadProgress < 100 ? `Envoi ${uploadProgress} %` : 'Enregistrement…') : 'Envoyer'}
                     </Button>
                     <Button
                       variant="outline"

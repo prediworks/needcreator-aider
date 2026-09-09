@@ -1,7 +1,7 @@
 import User from '../models/User.js';
 import Review from '../models/Review.js';
 import Delivery from '../models/Delivery.js';
-import { uploadVideo, deleteFile, keyFromUrl, resolveUrlsIn } from '../services/storage.js';
+import { uploadVideo, createUploadUrl, statObject, deleteFile, keyFromUrl, resolveUrlsIn } from '../services/storage.js';
 import { publicRealisations } from './deliveries.js';
 import { levelFor, badgesFor } from '../utils/badges.js';
 import logger from '../utils/logger.js';
@@ -64,6 +64,53 @@ export async function uploadPortfolioVideo(req, res) {
   } catch (error) {
     logger.error('Failed to upload portfolio video:', error);
     res.status(500).json({ error: `Échec de l'upload : ${error.message}` });
+  }
+}
+
+/**
+ * Envoi direct : lien signé pour déposer une vidéo de portfolio dans R2 depuis le navigateur
+ */
+export async function getPortfolioUploadUrl(req, res) {
+  try {
+    const { filename, contentType } = req.body;
+    if (!contentType.startsWith('video/')) return res.status(400).json({ error: 'Seuls les fichiers vidéo sont acceptés' });
+    const out = await createUploadUrl({ folder: `videos/${req.user._id}`, originalName: filename, contentType });
+    res.json(out);
+  } catch (error) {
+    logger.error('getPortfolioUploadUrl failed:', error);
+    res.status(500).json({ error: `Préparation de l'envoi impossible : ${error.message}` });
+  }
+}
+
+/**
+ * Envoi direct : enregistre la vidéo une fois déposée dans R2
+ */
+export async function registerPortfolioVideo(req, res) {
+  try {
+    const creator = req.user;
+    const { key, title, description, videoType } = req.body;
+    if (!key.startsWith(`videos/${creator._id}/`)) return res.status(400).json({ error: 'Clé de fichier invalide' });
+    const stat = await statObject(key);
+    if (!stat) return res.status(400).json({ error: 'Fichier introuvable : l\'envoi n\'a pas abouti, réessayez' });
+    if (creator.profile.portfolio.some(v => keyFromUrl(v.videoUrl) === key)) return res.status(409).json({ error: 'Vidéo déjà enregistrée' });
+
+    creator.profile.portfolio.push({
+      videoUrl: `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}`,
+      thumbnail: null,
+      title,
+      description,
+      videoType,
+      uploadedAt: new Date(),
+    });
+    await creator.save();
+
+    const video = creator.profile.portfolio[creator.profile.portfolio.length - 1].toObject();
+    const [resolved] = await resolveUrlsIn([video]);
+    logger.info(`Portfolio video registered (direct upload): ${creator._id} ${key} ${stat.size}o`);
+    res.status(201).json({ message: 'Video uploaded successfully', video: resolved, portfolioCount: creator.profile.portfolio.length });
+  } catch (error) {
+    logger.error('registerPortfolioVideo failed:', error);
+    res.status(500).json({ error: `Enregistrement impossible : ${error.message}` });
   }
 }
 

@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
+import { directUpload, ProgressFn } from '@/lib/upload';
 import { useAuthStore } from '@/store/auth';
 import { toast } from 'sonner';
 
@@ -12,22 +13,18 @@ export function useUploadPortfolioVideo() {
       file,
       title,
       description,
-      videoType
+      videoType,
+      onProgress,
     }: {
       file: File;
       title: string;
       description?: string;
       videoType: string;
+      onProgress?: ProgressFn;
     }) => {
-      const formData = new FormData();
-      formData.append('video', file);
-      formData.append('title', title);
-      if (description) formData.append('description', description);
-      formData.append('videoType', videoType);
-
-      const response = await api.post('/portfolio/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Envoi direct vers le stockage, puis enregistrement de la vidéo
+      const { key } = await directUpload('/portfolio/upload-url', file, onProgress);
+      const response = await api.post('/portfolio/videos', { key, title, description, videoType });
       return response.data;
     },
     onSuccess: async () => {
@@ -36,7 +33,7 @@ export function useUploadPortfolioVideo() {
       toast.success('Vidéo ajoutée au portfolio');
     },
     onError: (error: any) => {
-      toast.error(getErrorMessage(error, 'Erreur lors de l\'upload'));
+      toast.error(error?.response ? getErrorMessage(error, 'Erreur lors de l\'upload') : (error?.message || 'Erreur lors de l\'upload'), { duration: 8000 });
     },
   });
 }

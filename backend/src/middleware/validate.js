@@ -61,6 +61,27 @@ export const schemas = {
     refreshUrl: Joi.string().uri(),
   }),
   
+  // Envoi direct vers R2
+  uploadUrl: Joi.object({
+    filename: Joi.string().max(255).required(),
+    contentType: Joi.string().max(100).required(),
+    size: Joi.number().integer().min(1).max(500 * 1024 * 1024).required(),
+  }),
+  portfolioRegister: Joi.object({
+    key: Joi.string().max(300).required(),
+    title: Joi.string().trim().min(1).max(120).required(),
+    description: Joi.string().max(500).allow(''),
+    videoType: Joi.string().max(50).allow(''),
+  }),
+  deliveryRegister: Joi.object({
+    files: Joi.array().items(Joi.object({
+      key: Joi.string().max(300).required(),
+      filename: Joi.string().max(255).required(),
+      contentType: Joi.string().max(100).allow(''),
+      size: Joi.number().integer().min(0),
+    })).min(1).max(10).required(),
+  }),
+
   ambassadorVideo: Joi.object({
     videoUrl: Joi.string().uri({ scheme: ['http', 'https'] }).required(),
   }),
