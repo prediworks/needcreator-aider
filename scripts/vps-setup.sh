@@ -210,9 +210,9 @@ systemctl restart fail2ban
 # =============================================================================
 # 7. Node.js 20 + PM2
 # =============================================================================
-if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1)" != "v20" ]]; then
-  log "Installation de Node.js 20"
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null
+if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1)" != "v22" ]]; then
+  log "Installation de Node.js 22"
+  curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs
 fi
 command -v pm2 >/dev/null || { log "Installation de PM2"; npm install -g pm2 >/dev/null; }

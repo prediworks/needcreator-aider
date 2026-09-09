@@ -15,7 +15,7 @@ Les anciens fichiers de déploiement serverless (Wrangler, Vercel Functions, Ser
 
 | Composant | Choix recommandé | Alternatives |
 |---|---|---|
-| Backend | **VPS** (Ubuntu, 2 vCPU / 4 Go, ex. Scaleway, OVH, Hetzner) avec Node 20+, PM2 et Nginx | Railway, Render (offres « web service » Node classiques) |
+| Backend | **VPS** (Ubuntu, 2 vCPU / 4 Go, ex. Scaleway, OVH, Hetzner) avec Node 22, PM2 et Nginx | Railway, Render (offres « web service » Node classiques) |
 | Frontend | **Vercel** (Next.js natif) | Cloudflare Pages, ou le même VPS avec `next start` derrière Nginx |
 | Base de données | MongoDB Atlas (sauvegardes automatiques) | |
 | Vidéos | Cloudflare R2 avec domaine public activé | |
@@ -27,7 +27,7 @@ Pour une exigence de données hébergées en France : VPS Scaleway ou OVH pour l
 
 ### Installation automatique (recommandé)
 
-Le script `scripts/vps-setup.sh` installe tout sur un Ubuntu 22.04/24.04 neuf : mises à jour de sécurité automatiques, utilisateur non-root, SSH durci, pare-feu UFW, Fail2ban, Node 20, PM2, Nginx avec limitation de débit, HTTPS Let's Encrypt, clonage et installation du backend et du frontend. Option `CLOUDFLARE_ONLY=true` pour n'accepter le trafic web que via le proxy Cloudflare (protection DDoS, Bot Fight Mode, WAF).
+Le script `scripts/vps-setup.sh` installe tout sur un Ubuntu 22.04/24.04 neuf : mises à jour de sécurité automatiques, utilisateur non-root, SSH durci, pare-feu UFW, Fail2ban, Node 22, PM2, Nginx avec limitation de débit, HTTPS Let's Encrypt, clonage et installation du backend et du frontend. Option `CLOUDFLARE_ONLY=true` pour n'accepter le trafic web que via le proxy Cloudflare (protection DDoS, Bot Fight Mode, WAF).
 
 ```bash
 apt-get install -y screen
@@ -44,7 +44,7 @@ sudo bash vps-setup.sh --finish
 ```bash
 # Sur le serveur
 sudo apt update && sudo apt install -y git nginx
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
 sudo npm install -g pm2
 
 git clone https://github.com/prediworks/needcreator-aider.git
