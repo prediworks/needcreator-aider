@@ -40,7 +40,7 @@ export default function AiBriefCard({ videoType, platforms, niches, onGenerated 
         {status && !status.configured && <span className="text-xs text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">non configuré</span>}
         {status?.quota && (status.quota.pro
           ? <span className="text-xs text-yellow-800 bg-yellow-50 px-2 py-0.5 rounded-full">Pro · illimité</span>
-          : <span className={`text-xs px-2 py-0.5 rounded-full ${status.quota.remaining > 0 ? 'bg-primary-50 text-primary-800' : 'bg-red-50 text-red-700'}`}>{status.quota.remaining} / {status.quota.limit} brief(s) gratuit(s) ce mois-ci</span>)}
+          : <span className={`text-xs px-2 py-0.5 rounded-full ${status.quota.remaining > 0 ? 'bg-primary-50 text-primary-800' : 'bg-red-50 text-red-700'}`}>{status.quota.remaining} / {status.quota.limit} rédaction(s) par l'IA gratuite(s) ce mois-ci</span>)}
       </div>
       <p className="text-sm text-neutral-600 mb-3">Décrivez votre produit en deux phrases : l&apos;IA rédige le titre, la description et les consignes. Vous gardez la main pour tout modifier.</p>
       <textarea

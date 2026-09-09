@@ -32,7 +32,7 @@ export async function aiBrief(req, res) {
     brand.rollUsage();
     if (!brand.isPro() && (brand.usage.aiBriefCount || 0) >= config.plans.aiBriefFreeQuota) {
       return res.status(402).json({
-        error: `Vous avez utilisé vos ${config.plans.aiBriefFreeQuota} briefs IA gratuits ce mois-ci. Passez en Pro pour un accès illimité.`,
+        error: `Vous avez utilisé vos ${config.plans.aiBriefFreeQuota} rédactions de brief par l'IA gratuites ce mois-ci. Vous pouvez toujours rédiger vos briefs vous-même, ou passer en Pro pour un accès illimité à l'IA.`,
         code: 'AI_QUOTA_EXCEEDED',
       });
     }

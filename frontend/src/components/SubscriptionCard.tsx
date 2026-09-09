@@ -55,7 +55,7 @@ export default function SubscriptionCard() {
           </h2>
           {pro && trialing && <p className="text-sm text-yellow-800 mt-1">Essai gratuit jusqu&apos;au {formatDate(data.trialEndsAt)}{data.hasStripeSubscription ? '' : ' — sans carte. Souscrivez avant la fin pour conserver vos avantages.'}</p>}
           {pro && !trialing && <p className="text-sm text-neutral-700 mt-1">Abonnement actif{data.currentPeriodEnd ? ` · prochain prélèvement le ${formatDate(data.currentPeriodEnd)}` : ''}{data.cancelAtPeriodEnd ? ' · résiliation programmée' : ''}</p>}
-          {!pro && <p className="text-sm text-neutral-700 mt-1">{data.aiBriefQuota} briefs IA par mois ({data.aiBriefsUsed} utilisé{data.aiBriefsUsed > 1 ? 's' : ''}) · 1 créateur par campagne</p>}
+          {!pro && <p className="text-sm text-neutral-700 mt-1">{data.aiBriefQuota} rédactions de brief par l&apos;IA par mois ({data.aiBriefsUsed} utilisée{data.aiBriefsUsed > 1 ? 's' : ''}) · 1 créateur par campagne</p>}
         </div>
         <div className="flex gap-2 flex-wrap">
           {(!pro || (trialing && !data.hasStripeSubscription)) && (
@@ -65,7 +65,7 @@ export default function SubscriptionCard() {
         </div>
       </div>
       <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-neutral-700">
-        <li>✓ Brief IA illimité</li>
+        <li>✓ Rédaction de brief par l&apos;IA illimitée</li>
         <li>✓ Campagnes gifting (produit offert)</li>
         <li>✓ Campagnes multi-créateurs et paiement groupé</li>
         <li>✓ Aucune limite de campagnes, d&apos;invitations ou de messages</li>

@@ -31,8 +31,8 @@ export default function PricingPage() {
             <h2 className="text-2xl font-bold text-neutral-900 mb-2">Marques</h2>
             <div className="text-4xl font-bold text-primary-600 mb-1">0€ <span className="text-base font-normal text-neutral-500">ou Pro 79 €/mois</span></div>
             <p className="text-neutral-800 font-medium mb-2">Vous payez uniquement les vidéos, au prix du devis du créateur. Aucun frais ajouté.</p>
-            <p className="text-neutral-600 mb-2">Gratuit : 3 briefs IA par mois, 1 créateur par campagne, 2 campagnes ouvertes.</p>
-            <p className="text-neutral-600 mb-6">Pro : brief IA illimité, campagnes multi-créateurs avec paiement groupé, gifting, sans limites. 14 jours d&apos;essai offerts à l&apos;inscription.</p>
+            <p className="text-neutral-600 mb-2">Gratuit : campagnes et briefs illimités, 3 rédactions de brief par l&apos;IA par mois, 1 créateur par campagne, 2 campagnes ouvertes en même temps jusqu&apos;à votre première campagne terminée.</p>
+            <p className="text-neutral-600 mb-6">Pro : rédaction par l&apos;IA illimitée, campagnes multi-créateurs avec paiement groupé, gifting, sans limites. 14 jours d&apos;essai offerts à l&apos;inscription.</p>
             <ul className="space-y-2 text-sm text-neutral-700">
               {[
                 'Vidéos UGC à partir de 80€',
