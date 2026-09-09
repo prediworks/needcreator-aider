@@ -1,2 +1,6 @@
 .aider*
 scripts/ui-screenshots/
+
+# pnpm (installation locale, non utilisée par le projet)
+pnpm-lock.yaml
+pnpm-workspace.yaml
