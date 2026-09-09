@@ -4,13 +4,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useRequireAuth } from '@/hooks/useAuth';
-import { useApproveCreator, useRejectCreator } from '@/hooks/useAdmin';
+import { useApproveCreator, useRejectCreator, useResetStripeConnect } from '@/hooks/useAdmin';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
-import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, CreditCard, Trash2 } from 'lucide-react';
 import { NICHES, VIDEO_TYPES, USER_STATUS } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
 
@@ -21,6 +21,7 @@ export default function AdminCreatorPage() {
   const userId = params.id as string;
   const approve = useApproveCreator();
   const reject = useRejectCreator();
+  const resetConnect = useResetStripeConnect();
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'user', userId],
@@ -73,6 +74,36 @@ export default function AdminCreatorPage() {
             )}
           </div>
         </Card>
+
+        {data.role === 'creator' && (
+          <Card className="p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-2 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Paiements (Stripe Connect)</h2>
+            {p.stripeConnect?.accountId ? (
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="text-sm text-neutral-700">
+                  <div>Compte <code className="text-xs bg-neutral-100 px-1 rounded">{p.stripeConnect.accountId}</code></div>
+                  <div className="mt-1">
+                    {p.stripeConnect.payoutsEnabled ? 'Virements activés' : p.stripeConnect.detailsSubmitted ? 'Informations transmises, en attente de validation Stripe' : 'Onboarding non terminé'}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  isLoading={resetConnect.isPending}
+                  onClick={() => {
+                    if (confirm('Supprimer le compte Stripe Connect de ce créateur ? Il devra refaire l\'onboarding pour recevoir des paiements.')) {
+                      resetConnect.mutate({ userId });
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-1" /> Supprimer le compte Connect
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-neutral-600">Aucun compte Connect : le créateur n&apos;a pas encore lancé la connexion Stripe.</p>
+            )}
+          </Card>
+        )}
 
         <Card className="p-6">
           <h2 className="text-xl font-semibold mb-4">Portfolio ({p.portfolio?.length || 0} vidéo(s))</h2>

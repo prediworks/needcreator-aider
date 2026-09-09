@@ -8,6 +8,7 @@ import {
   getUsers,
   suspendUser,
   reactivateUser,
+  resetStripeConnect,
   runJobs,
   getAdminCampaigns,
   getAdminDeliveries,
@@ -39,6 +40,7 @@ router.get('/users', getUsers);
 router.get('/users/:userId', getUserDetail);
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
+router.post('/users/:userId/stripe-connect/reset', resetStripeConnect);
 
 // Ambassadeurs
 router.get('/ambassadors/pending', getPendingAmbassadors);

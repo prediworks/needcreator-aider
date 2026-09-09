@@ -307,7 +307,10 @@ export default function AdminPage() {
                       <td className="py-2 pr-4">{u.role === 'creator' ? 'Créateur' : u.role === 'brand' ? 'Marque' : 'Admin'}</td>
                       <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} /></td>
                       <td className="py-2 pr-4 text-neutral-600">{formatDate(u.createdAt)}</td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 text-right whitespace-nowrap">
+                        {u.role === 'creator' && (
+                          <Link href={`/admin/creators/${u._id}`}><Button size="sm" variant="ghost">Voir</Button></Link>
+                        )}
                         {u.role !== 'admin' && (u.status === 'active' ? (
                           <Button size="sm" variant="ghost" onClick={() => suspend.mutate({ userId: u._id })}>Suspendre</Button>
                         ) : (

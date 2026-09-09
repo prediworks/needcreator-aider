@@ -971,6 +971,38 @@ await step('Stripe Connect : onboarding créateur (compte Express + lien)', asyn
   return `compte ${res.data.accountId}, onboarding ${status1.data.onboardingComplete ? 'terminé' : 'à compléter par le créateur'}`;
 });
 
+await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset pour tests)', async () => {
+  const before = await creatorApi('GET', '/auth/stripe/status');
+  if (!before.data?.connected) return 'ignoré : pas de compte Connect (Connect inactif)';
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    // 1. Créateur avec mission en cours : refus
+    const blocked = await brandApi('POST', `/admin/users/${creatorUser.id}/stripe-connect/reset`);
+    expect(blocked.status === 409, 'La suppression devrait être refusée tant qu\'une mission est en cours', blocked);
+    // 2. Créateur sans mission : suppression chez Stripe, puis nouveau compte possible
+    const email = `e2e-connect-${RUN}@needcreator-test.com`;
+    const fu = await firebaseUser(email);
+    const cApi = client(fu.idToken);
+    const reg = await cApi('POST', '/auth/register/creator', { acceptTerms: true, email, name: 'Connect Reset', bio: '', niches: ['beauty'], minPrice: 80 });
+    expect(reg.status === 201, 'Inscription créateur de test échouée', reg);
+    extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+    await users.updateOne({ email }, { $set: { status: 'active' } });
+    const first = await cApi('POST', '/auth/stripe/connect', {});
+    expect(first.status === 200 && first.data.accountId, 'Création du compte Connect échouée', first);
+    const reset = await brandApi('POST', `/admin/users/${reg.data.user.id}/stripe-connect/reset`);
+    expect(reset.status === 200 && reset.data.stripeDeleted === true, 'Suppression du compte Connect échouée', reset);
+    const after = await cApi('GET', '/auth/stripe/status');
+    expect(after.status === 200 && after.data.connected === false, 'Le créateur devrait être déconnecté de Stripe', after);
+    const again = await cApi('POST', '/auth/stripe/connect', {});
+    expect(again.status === 200 && again.data.accountId && again.data.accountId !== first.data.accountId, 'Un nouveau compte Connect devrait être créé', again);
+    await brandApi('POST', `/admin/users/${reg.data.user.id}/stripe-connect/reset`); // nettoyage du second compte
+    return `refus si mission en cours ; ${first.data.accountId} supprimé puis ${again.data.accountId} recréé`;
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 await step('Sécurité : un créateur ne peut pas créer de campagne, une marque ne peut pas candidater', async () => {
   const a = await creatorApi('POST', '/campaigns', {});
   const b = await brandApi('POST', `/campaigns/${campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });

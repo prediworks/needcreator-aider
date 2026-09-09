@@ -5,6 +5,7 @@ import Review from '../models/Review.js';
 import { sendCreatorApproved, sendAmbassadorApproved } from '../services/email.js';
 import { runScheduledJobs } from '../jobs/autoApproval.js';
 import { resolveUrlsIn } from '../services/storage.js';
+import { stripe } from '../services/stripe.js';
 
 /**
  * Détail d'un utilisateur (portfolio lisible, même si le créateur est en attente)
@@ -418,6 +419,43 @@ export async function suspendUser(req, res) {
   } catch (error) {
     logger.error('Failed to suspend user:', error);
     res.status(500).json({ error: 'Failed to suspend user' });
+  }
+}
+
+/**
+ * Supprime le compte Stripe Connect d'un créateur (tests, ou créateur qui veut repartir de zéro).
+ * Le compte est supprimé chez Stripe puis le profil est remis à l'état « non connecté ».
+ */
+export async function resetStripeConnect(req, res) {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    if (user.role !== 'creator') return res.status(400).json({ error: 'Seuls les créateurs ont un compte Connect' });
+
+    const accountId = user.profile?.stripeConnect?.accountId || user.stripeAccountId;
+    if (!accountId) return res.status(400).json({ error: 'Ce créateur n\'a pas de compte Connect' });
+
+    const pending = await Delivery.countDocuments({ creatorId: user._id, status: { $in: ['pending', 'submitted', 'revision_requested'] } });
+    if (pending > 0) return res.status(409).json({ error: `${pending} mission(s) en cours : impossible de supprimer le compte de paiement maintenant` });
+
+    let stripeDeleted = false;
+    try {
+      await stripe.accounts.del(accountId);
+      stripeDeleted = true;
+    } catch (err) {
+      // Compte déjà supprimé ou inexistant : on nettoie quand même le profil
+      if (err?.code !== 'resource_missing' && err?.statusCode !== 404) throw err;
+    }
+
+    user.set('profile.stripeConnect', { accountId: null, onboardingComplete: false, chargesEnabled: false, payoutsEnabled: false, detailsSubmitted: false, requirements: {} });
+    user.stripeAccountId = undefined;
+    await user.save();
+
+    logger.info(`Stripe Connect réinitialisé par l'admin ${req.user._id} pour ${user._id} (${accountId}, supprimé chez Stripe : ${stripeDeleted})`);
+    res.json({ message: stripeDeleted ? 'Compte Stripe Connect supprimé. Le créateur pourra en créer un nouveau.' : 'Compte introuvable chez Stripe, profil remis à zéro.', accountId, stripeDeleted });
+  } catch (error) {
+    logger.error('resetStripeConnect failed:', error);
+    res.status(500).json({ error: `Suppression impossible : ${error.message}` });
   }
 }
 
