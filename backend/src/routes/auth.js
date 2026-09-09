@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate, authenticateFirebase, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
+import { acceptTerms, exportData, deleteAccount } from '../controllers/account.js';
 import {
   registerCreator,
   registerBrand,
@@ -27,6 +28,11 @@ router.use((req, res, next) => {
 // Registration (authenticateFirebase only, user doesn't exist yet)
 router.post('/register/creator', authenticateFirebase, verifyTurnstile, validate(schemas.registerCreator), registerCreator);
 router.post('/register/brand', authenticateFirebase, verifyTurnstile, validate(schemas.registerBrand), registerBrand);
+
+// Légal / RGPD
+router.post('/accept-terms', authenticate, acceptTerms);
+router.get('/export', authenticate, exportData);
+router.delete('/account', authenticate, deleteAccount);
 
 // Profile (authenticate required)
 router.get('/profile', authenticate, getProfile);

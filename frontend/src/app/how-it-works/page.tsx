@@ -2,7 +2,11 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 
-export const metadata = { title: 'Comment ça marche - NeedCreator' };
+export const metadata = {
+  title: 'Comment ça marche',
+  description: 'Le parcours d\'une campagne UGC sur NeedCreator, côté marque et côté créateur : brief, devis, sélection, paiement bloqué, livraison, validation.',
+  alternates: { canonical: '/how-it-works' },
+};
 
 const BRAND_STEPS = [
   ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],

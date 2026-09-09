@@ -17,7 +17,7 @@ dotenv.config({ path: BACKEND + '/.env' });
 const admin = require('firebase-admin');
 const mongoose = require('mongoose');
 
-const FRONT = 'http://localhost:3000';
+const FRONT = process.env.UI_FRONT_URL || 'http://localhost:3000';
 const RUN = Date.now().toString(36);
 const brandEmail = `ui-brand-${RUN}@needcreator-test.com`;
 const creatorEmail = `ui-creator-${RUN}@needcreator-test.com`;
@@ -57,6 +57,7 @@ await step('Marque : inscription via le formulaire', async () => {
   await bp.getByLabel(/Nom de l'entreprise/).fill('Marque UI Test');
   await bp.getByLabel(/Site web/).fill('https://exemple.fr');
   await bp.locator('select').selectOption('beauty');
+  await bp.getByRole('checkbox').check();
   await bp.getByRole('button', { name: 'Créer mon compte' }).click();
   await bp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await bp.getByText('Nouvelle campagne').first().waitFor({ timeout: 20000 });
@@ -132,6 +133,7 @@ await step('Créateur : inscription via le formulaire', async () => {
   await cp.getByLabel(/Mot de passe/).fill(PASSWORD);
   await cp.getByLabel(/Nom ou pseudo/).fill('Créateur UI Test');
   await cp.getByRole('button', { name: 'Beauté' }).click();
+  await cp.getByRole('checkbox').check();
   await cp.getByRole('button', { name: 'Créer mon compte' }).click();
   await cp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await cp.getByText('Avant de pouvoir candidater').waitFor({ timeout: 20000 });

@@ -18,7 +18,8 @@
 set -euo pipefail
 
 # ----------------------------- CONFIGURATION ---------------------------------
-APP_DOMAIN="app.needcreator.com"        # frontend (Next.js)
+APP_DOMAIN="needcreator.com"            # site + application (Next.js), domaine canonique pour le SEO
+APP_REDIRECT_DOMAINS="www.needcreator.com app.needcreator.com"   # redirigés (301) vers APP_DOMAIN ; vide = aucun
 API_DOMAIN="api.needcreator.com"        # backend (Express)
 LETSENCRYPT_EMAIL="contact@needcreator.com"
 REPO_URL="https://github.com/prediworks/needcreator-aider.git"
@@ -310,6 +311,19 @@ server {
 }
 EOF
 
+if [[ -n "$APP_REDIRECT_DOMAINS" ]]; then
+  cat >/etc/nginx/sites-available/needcreator-redirect <<EOF
+server {
+    listen 80;
+    server_name $APP_REDIRECT_DOMAINS;
+    return 301 https://$APP_DOMAIN\$request_uri;
+}
+EOF
+  ln -sf /etc/nginx/sites-available/needcreator-redirect /etc/nginx/sites-enabled/needcreator-redirect
+else
+  rm -f /etc/nginx/sites-enabled/needcreator-redirect
+fi
+
 mkdir -p /etc/nginx/snippets
 cat >/etc/nginx/snippets/needcreator-proxy.conf <<'EOF'
 proxy_http_version 1.1;
@@ -334,8 +348,10 @@ nginx -t && systemctl enable --now nginx && systemctl reload nginx
 # =============================================================================
 log "Certificats HTTPS"
 apt-get install -y -qq certbot python3-certbot-nginx
-if certbot --nginx --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect \
-     -d "$APP_DOMAIN" -d "$API_DOMAIN"; then
+CERT_DOMAINS=(-d "$APP_DOMAIN" -d "$API_DOMAIN")
+for d in $APP_REDIRECT_DOMAINS; do CERT_DOMAINS+=(-d "$d"); done
+if certbot --nginx --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redirect --expand \
+     "${CERT_DOMAINS[@]}"; then
   # HSTS une fois le HTTPS en place
   for f in needcreator-api needcreator-web; do
     grep -q Strict-Transport-Security /etc/nginx/sites-available/$f || \
@@ -360,10 +376,11 @@ cat <<EOF
       nano $APP_DIR/backend/.env
         NODE_ENV=production, PORT=$BACKEND_PORT
         FRONTEND_URL=https://$APP_DOMAIN
+        LEGAL_TERMS_VERSION (date des CGU), TURNSTILE_SECRET_KEY
         clés Stripe live, STRIPE_WEBHOOK_SECRET, JWT_SECRET fort,
         RATE_LIMIT_MAX_REQUESTS=300, CLOUDFLARE_PUBLIC_URL (domaine public R2)
       nano $APP_DIR/frontend/.env.local
-        NEXT_PUBLIC_API_URL=https://$API_DOMAIN/api, clé Stripe pk_live_
+        NEXT_PUBLIC_API_URL=https://$API_DOMAIN/api, NEXT_PUBLIC_SITE_URL=https://$APP_DOMAIN, clé Stripe pk_live_
 
  2. Builder et démarrer :
       bash vps-setup.sh --finish

@@ -3,7 +3,11 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { CheckCircle } from 'lucide-react';
 
-export const metadata = { title: 'Tarifs - NeedCreator' };
+export const metadata = {
+  title: 'Tarifs',
+  description: 'Tarifs NeedCreator : inscription gratuite, commission unique de 10 % par vidéo UGC, offre Pro à 79 €/mois avec commission réduite à 8 %.',
+  alternates: { canonical: '/pricing' },
+};
 
 const EXAMPLES = [
   { videos: 1, price: 100 },

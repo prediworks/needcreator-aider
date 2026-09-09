@@ -128,7 +128,7 @@ await mongoose.connect(process.env.MONGODB_URI);
 
 await step('Inscription marque (+ client Stripe)', async () => {
   const res = await brandApi('POST', '/auth/register/brand', {
-    email: brandEmail, companyName: 'Marque Test E2E', website: 'https://exemple.fr', industry: 'ecommerce',
+    acceptTerms: true, email: brandEmail, companyName: 'Marque Test E2E', website: 'https://exemple.fr', industry: 'ecommerce',
   });
   expect(res.status === 201, 'Inscription marque échouée', res);
   brandUser = res.data.user;
@@ -169,7 +169,7 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
   const res = await creatorApi('POST', '/auth/register/creator', {
-    email: creatorEmail, name: 'Créateur Test E2E', bio: '', niches: ['beauty', 'lifestyle'], minPrice: 100,
+    acceptTerms: true, email: creatorEmail, name: 'Créateur Test E2E', bio: '', niches: ['beauty', 'lifestyle'], minPrice: 100,
   });
   expect(res.status === 201, 'Inscription créateur échouée', res);
   creatorUser = res.data.user;
@@ -592,7 +592,7 @@ await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () =
   const creator2Email = `e2e-creator2-${RUN}@needcreator-test.com`;
   const c2 = await firebaseUser(creator2Email);
   const c2Api = client(c2.idToken);
-  const reg = await c2Api('POST', '/auth/register/creator', { email: creator2Email, name: 'Créateur 2', bio: '', niches: ['beauty'], minPrice: 80 });
+  const reg = await c2Api('POST', '/auth/register/creator', { acceptTerms: true, email: creator2Email, name: 'Créateur 2', bio: '', niches: ['beauty'], minPrice: 80 });
   expect(reg.status === 201, 'Inscription créateur 2 échouée', reg);
   extraCleanup.push({ userId: reg.data.user.id, uid: c2.uid });
   const users = mongoose.connection.db.collection('users');
@@ -697,7 +697,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const c3Email = `e2e-creator3-${RUN}@needcreator-test.com`;
   const c3 = await firebaseUser(c3Email);
   const c3Api = client(c3.idToken);
-  const reg3 = await c3Api('POST', '/auth/register/creator', { email: c3Email, name: 'Filleul', bio: '', niches: ['beauty'], minPrice: 60, referralCode: myRef.data.code });
+  const reg3 = await c3Api('POST', '/auth/register/creator', { acceptTerms: true, email: c3Email, name: 'Filleul', bio: '', niches: ['beauty'], minPrice: 60, referralCode: myRef.data.code });
   expect(reg3.status === 201, 'Inscription filleul échouée', reg3);
   extraCleanup.push({ userId: reg3.data.user.id, uid: c3.uid });
   const refAfter = await creatorApi('GET', '/auth/referral');
@@ -707,7 +707,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const b2Email = `e2e-brand2-${RUN}@needcreator-test.com`;
   const b2 = await firebaseUser(b2Email);
   const b2Api = client(b2.idToken);
-  const regB2 = await b2Api('POST', '/auth/register/brand', { email: b2Email, companyName: 'Marque Filleule', website: 'https://exemple.org', industry: 'beauty', referralCode: brandRef.data.code });
+  const regB2 = await b2Api('POST', '/auth/register/brand', { acceptTerms: true, email: b2Email, companyName: 'Marque Filleule', website: 'https://exemple.org', industry: 'beauty', referralCode: brandRef.data.code });
   expect(regB2.status === 201 && regB2.data.user.referral.discountedCampaignsLeft === 1, 'La marque filleule devrait avoir 1 campagne remisée', regB2);
   extraCleanup.push({ userId: regB2.data.user.id, uid: b2.uid });
   const sponsor = await brandApi('GET', '/auth/profile');
@@ -1006,6 +1006,34 @@ await step('Auto-approbation : simulation J+7', async () => {
   const d = await brandApi('GET', `/deliveries/${sel.data.delivery._id}`);
   expect(d.data.delivery.status === 'auto_approved', 'Statut attendu auto_approved', d);
   return `paiement ${d.data.delivery.payment.status}`;
+});
+
+await step('RGPD : export des données + suppression de compte (anonymisation)', async () => {
+  const exp = await creatorApi('GET', '/auth/export');
+  expect(exp.status === 200 && exp.data.account && Array.isArray(exp.data.deliveries), 'Export RGPD invalide', exp);
+  // Comptes avec missions ou campagnes actives : suppression refusée
+  const refusedBrand = await brandApi('DELETE', '/auth/account');
+  expect(refusedBrand.status === 409, 'La suppression d\'une marque avec campagnes actives devrait être refusée', refusedBrand);
+  const refusedCreator = await creatorApi('DELETE', '/auth/account');
+  expect(refusedCreator.status === 409, 'La suppression d\'un créateur avec mission en cours devrait être refusée', refusedCreator);
+  // Compte neuf : acceptation des CGU, export, suppression, anonymisation
+  const rgpdEmail = `e2e-rgpd-${RUN}@needcreator-test.com`;
+  const fu = await firebaseUser(rgpdEmail);
+  const rApi = client(fu.idToken);
+  const noTerms = await rApi('POST', '/auth/register/creator', { email: rgpdEmail, name: 'RGPD', bio: '', niches: ['beauty'], minPrice: 80 });
+  expect(noTerms.status === 400, 'L\'inscription sans acceptation des CGU devrait être refusée', noTerms);
+  const reg = await rApi('POST', '/auth/register/creator', { acceptTerms: true, email: rgpdEmail, name: 'RGPD', bio: '', niches: ['beauty'], minPrice: 80 });
+  expect(reg.status === 201 && reg.data.user.legalUpToDate === true, 'Inscription avec CGU échouée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+  const acc = await rApi('POST', '/auth/accept-terms');
+  expect(acc.status === 200 && acc.data.legalUpToDate === true, 'Acceptation des CGU échouée', acc);
+  const del = await rApi('DELETE', '/auth/account');
+  expect(del.status === 200, 'Suppression du compte échouée', del);
+  const after = await rApi('GET', '/auth/profile');
+  expect([401, 403, 404].includes(after.status), 'Le compte supprimé ne devrait plus être accessible', after);
+  const doc = await mongoose.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(reg.data.user.id) });
+  expect(doc && doc.status === 'deleted' && doc.email.startsWith('supprime-') && doc.profile.name === 'Compte supprimé' && (doc.profile.portfolio || []).length === 0, 'Anonymisation incomplète', { status: 200, data: doc });
+  return 'export OK, refus si activité en cours, CGU obligatoires, compte anonymisé';
 });
 
 // Nettoyage

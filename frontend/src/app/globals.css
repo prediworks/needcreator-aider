@@ -19,3 +19,14 @@
     border-color: hsl(var(--border));
   }
 }
+
+/* Pages légales */
+.legal h2 { font-size: 1.25rem; font-weight: 600; color: #171717; margin: 2rem 0 0.75rem; }
+.legal p, .legal li { color: #404040; line-height: 1.65; margin-bottom: 0.5rem; }
+.legal ul, .legal ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+.legal ul { list-style: disc; }
+.legal ol { list-style: decimal; }
+.legal a { color: #0d9488; text-decoration: underline; }
+.legal table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem; }
+.legal th, .legal td { border: 1px solid #e5e5e5; padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
+.legal th { background: #fafafa; }

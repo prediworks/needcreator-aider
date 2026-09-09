@@ -181,7 +181,7 @@ const userSchema = new mongoose.Schema({
   // Status
   status: {
     type: String,
-    enum: ['pending', 'active', 'suspended', 'banned'],
+    enum: ['pending', 'active', 'suspended', 'banned', 'deleted'],
     default: 'pending',
   },
   
@@ -213,6 +213,13 @@ const userSchema = new mongoose.Schema({
   },
 
   // Abonnement (marques)
+  // Acceptation des CGU / confidentialité
+  legal: {
+    termsVersion: String,
+    acceptedAt: Date,
+  },
+  deletedAt: Date,
+
   subscription: {
     plan: { type: String, enum: ['free', 'pro'], default: 'free' },
     status: { type: String, enum: ['none', 'trialing', 'active', 'past_due', 'canceled'], default: 'none' },

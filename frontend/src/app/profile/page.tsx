@@ -20,6 +20,7 @@ import ReferralCard from '@/components/ReferralCard';
 import ShopifyCard from '@/components/ShopifyCard';
 import BusinessVerificationCard from '@/components/BusinessVerificationCard';
 import SubscriptionCard from '@/components/SubscriptionCard';
+import AccountDataCard from '@/components/AccountDataCard';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -601,6 +602,8 @@ function ProfileContent() {
               </div>
             </Card>
           )}
+
+          <AccountDataCard />
         </div>
       </div>
     </div>

@@ -23,8 +23,8 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Sujet | Pourquoi c'est important | Effort |
 |---|---|---|
-| **RGPD** : export des données et suppression de compte (anonymisation) | Obligation légale dès les premiers utilisateurs réels | M |
-| **CGU, politique de confidentialité, mentions légales** avec acceptation à l'inscription | Obligatoire, et demandé par Stripe pour passer en production | S (textes à faire rédiger) |
+| ~~**RGPD** : export des données et suppression de compte (anonymisation)~~ | Livré le 9 septembre 2026 (profil → Mes données) | — |
+| ~~**CGU, politique de confidentialité, mentions légales** avec acceptation à l'inscription~~ | Livré le 9 septembre 2026. Reste à compléter l'identité de l'éditeur dans `frontend/src/lib/legal.ts` et à faire relire les textes par un juriste | S (vous) |
 | ~~**Signalement de contenu**~~ | Livré le 8 septembre 2026 | — |
 | **Filigrane sur les aperçus** de portfolio | Empêche les marques d'utiliser une vidéo sans payer | M (ffmpeg déjà en place) |
 | **Litiges** : refus définitif après 2 révisions avec remboursement partiel (50 %), arbitrage admin | Prévu dans la spec ; aujourd'hui la marque doit approuver ou laisser l'auto-approbation | M |
@@ -36,6 +36,8 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Application mobile** (ou PWA installable en première étape) | Les créateurs tournent au téléphone | PWA : S, app : L |
 | **Monitoring** (Sentry) et sauvegardes automatiques de la base | Indispensable avant la mise en ligne | S |
 | **Google login** | Fonctionne uniquement sur un nom de domaine autorisé dans Firebase, pas sur une adresse IP | S (vous, nom de domaine) |
+| ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
+| ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |
 
 ## 3. Nouvelles suggestions
 
@@ -91,7 +93,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 ## 4. Ordre conseillé
 
-1. **Avant tout utilisateur réel** : CGU et confidentialité, RGPD, monitoring, sauvegardes, domaine public R2, webhook Stripe, nom de domaine (Google login).
+1. **Avant tout utilisateur réel** : compléter les mentions légales, monitoring, sauvegardes, domaine public R2, webhook Stripe, Google Search Console.
 2. **Premières semaines d'usage** : signalement et modération, relances automatiques, contrat PDF, comparateur de candidats, modèles de campagne.
 3. **Quand le volume arrive** : litiges et remboursements, facturation, tableau de bord ROI, connexion aux réseaux sociaux, PWA créateurs.
 4. **Croissance** : multi-langues, WooCommerce et PrestaShop, équipe marque, API publique, application mobile.

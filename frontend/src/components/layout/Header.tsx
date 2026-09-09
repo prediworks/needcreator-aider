@@ -65,7 +65,7 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary-500 rounded-lg"></div>
+            <img src="/icon.svg" alt="" width={32} height={32} className="w-8 h-8 rounded-lg" />
             <span className="text-xl font-bold text-neutral-900">NeedCreator</span>
           </Link>
 

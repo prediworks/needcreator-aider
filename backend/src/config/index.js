@@ -124,6 +124,11 @@ export const config = {
     earlyAccessHours: parseInt(process.env.EARLY_ACCESS_HOURS || '24', 10),
   },
 
+  // Documents légaux (version acceptée à l'inscription)
+  legal: {
+    termsVersion: process.env.LEGAL_TERMS_VERSION || '2026-09-09',
+  },
+
   // Business rules
   business: {
     autoApprovalDays: 7,

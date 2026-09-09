@@ -38,6 +38,7 @@ export const schemas = {
   // User registration
   registerCreator: Joi.object({
     email: Joi.string().email().required(),
+    acceptTerms: Joi.boolean().valid(true).required().messages({ 'any.only': 'Vous devez accepter les CGU et la politique de confidentialité', 'any.required': 'Vous devez accepter les CGU et la politique de confidentialité' }),
     name: Joi.string().min(2).max(100).required(),
     bio: Joi.string().max(500).allow(''),
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
@@ -47,6 +48,7 @@ export const schemas = {
   
   registerBrand: Joi.object({
     email: Joi.string().email().required(),
+    acceptTerms: Joi.boolean().valid(true).required().messages({ 'any.only': 'Vous devez accepter les CGU et la politique de confidentialité', 'any.required': 'Vous devez accepter les CGU et la politique de confidentialité' }),
     companyName: Joi.string().min(2).max(100).required(),
     website: Joi.string().uri().required(),
     industry: Joi.string().required(),

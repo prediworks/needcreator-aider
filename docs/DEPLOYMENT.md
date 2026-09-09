@@ -27,7 +27,7 @@ Pour une exigence de données hébergées en France : VPS Scaleway ou OVH pour l
 
 ### Installation automatique (recommandé)
 
-Le script `scripts/vps-setup.sh` installe tout sur un Ubuntu 22.04/24.04 neuf : mises à jour de sécurité automatiques, utilisateur non-root, SSH durci, pare-feu UFW, Fail2ban, Node 22, PM2, Nginx avec limitation de débit, HTTPS Let's Encrypt, clonage et installation du backend et du frontend. Option `CLOUDFLARE_ONLY=true` pour n'accepter le trafic web que via le proxy Cloudflare (protection DDoS, Bot Fight Mode, WAF).
+Le script `scripts/vps-setup.sh` installe tout sur un Ubuntu 22.04/24.04 neuf. Le site est servi sur le domaine racine (`needcreator.com`, canonique pour le référencement) et `www` / `app` y sont redirigés. Il installe : mises à jour de sécurité automatiques, utilisateur non-root, SSH durci, pare-feu UFW, Fail2ban, Node 22, PM2, Nginx avec limitation de débit, HTTPS Let's Encrypt, clonage et installation du backend et du frontend. Option `CLOUDFLARE_ONLY=true` pour n'accepter le trafic web que via le proxy Cloudflare (protection DDoS, Bot Fight Mode, WAF).
 
 ```bash
 apt-get install -y screen
@@ -104,7 +104,9 @@ Alternative sur le VPS : `cd frontend && npm ci && npm run build && pm2 start "n
 - [ ] Domaine public R2 actif et `CLOUDFLARE_PUBLIC_URL` mis à jour
 - [ ] `npm run check:env` sur le serveur : tout ✅
 - [ ] Compte admin créé (`npm run make-admin -- email`)
-- [ ] Turnstile : site créé sur Cloudflare pour `app.needcreator.com`, clés dans `frontend/.env.local` et `backend/.env`
+- [ ] Turnstile : site créé sur Cloudflare pour `needcreator.com`, clés dans `frontend/.env.local` et `backend/.env`
+- [ ] Mentions légales : compléter `frontend/src/lib/legal.ts` (raison sociale, SIREN, adresse, hébergeur, directeur de publication)
+- [ ] SEO : `NEXT_PUBLIC_SITE_URL=https://needcreator.com`, site déclaré dans Google Search Console (sitemap : `/sitemap.xml`)
 - [ ] Sauvegardes MongoDB Atlas activées
 - [ ] Monitoring : `pm2 logs needcreator-api`, et un outil externe (UptimeRobot sur `/health`, Sentry) recommandé
 - [ ] Test complet en conditions réelles : inscription marque, vérification SIRET, campagne, sélection, carte, livraison, virement à un créateur

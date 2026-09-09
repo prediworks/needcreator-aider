@@ -40,6 +40,7 @@ function RegisterForm() {
   const [website, setWebsite] = useState('');
   const [industry, setIndustry] = useState('');
   const referralCode = searchParams.get('ref') || '';
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReset, setTurnstileReset] = useState(0);
 
@@ -89,8 +90,8 @@ function RegisterForm() {
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
-        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode, turnstileToken }
-        : { email, companyName, website, industry, referralCode, turnstileToken };
+        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode, turnstileToken, acceptTerms }
+        : { email, companyName, website, industry, referralCode, turnstileToken, acceptTerms };
 
       await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -322,13 +323,27 @@ function RegisterForm() {
                 </>
               )}
 
+              <label className="flex items-start gap-3 text-sm text-neutral-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-neutral-300 text-primary-500 focus:ring-primary-500"
+                  required
+                />
+                <span>
+                  J&apos;accepte les <Link href="/legal/cgu" target="_blank" className="text-primary-600 underline">conditions générales d&apos;utilisation</Link> et la{' '}
+                  <Link href="/legal/confidentialite" target="_blank" className="text-primary-600 underline">politique de confidentialité</Link>.
+                </span>
+              </label>
+
               <Turnstile onToken={setTurnstileToken} resetKey={turnstileReset} />
 
               <Button
                 type="submit"
                 className="w-full"
                 isLoading={loading}
-                disabled={loading || (role === 'creator' && niches.length === 0) || (turnstileEnabled && !turnstileToken)}
+                disabled={loading || !acceptTerms || (role === 'creator' && niches.length === 0) || (turnstileEnabled && !turnstileToken)}
               >
                 {completing ? 'Enregistrer mon profil' : 'Créer mon compte'}
               </Button>

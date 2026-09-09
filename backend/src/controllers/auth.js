@@ -36,6 +36,7 @@ async function serializeUser(userDoc) {
   if (user.role === 'creator') {
     out.acceptsGifting = userDoc.acceptsGifting?.(levelFor(user.profile?.stats));
   }
+  out.legalUpToDate = user.legal?.termsVersion === config.legal.termsVersion;
   out.referral = {
     code: user.referral?.code,
     discountedCampaignsLeft: user.referral?.discountedCampaignsLeft || 0,
@@ -114,6 +115,7 @@ export async function registerCreator(req, res) {
         },
       },
       status: 'pending', // Needs admin approval
+      legal: { termsVersion: config.legal.termsVersion, acceptedAt: new Date() },
     });
 
     user.ensureReferralCode();
@@ -173,6 +175,7 @@ export async function registerBrand(req, res) {
       },
       stripeCustomerId: stripeCustomer.id,
       status: 'active', // Brands are active immediately
+      legal: { termsVersion: config.legal.termsVersion, acceptedAt: new Date() },
       // Essai Pro offert à l'inscription (sans carte)
       subscription: config.plans.proTrialDays > 0 ? {
         plan: 'pro', status: 'trialing',

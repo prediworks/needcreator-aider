@@ -92,6 +92,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |
 | Parrainage | `REFERRAL_BRAND_FEE_PERCENT=5`, `REFERRAL_REFERRER_FEE_PERCENT=5`, `REFERRAL_CREATOR_BONUS=10` | |
 | Vérification des marques | `BUSINESS_REGISTRY_CHECK=true` | contrôle au registre national des entreprises ; modifiable aussi dans Admin → Réglages |
+| Documents légaux | `LEGAL_TERMS_VERSION=2026-09-09` | date de la version des CGU ; la changer redemande l'acceptation à tous les utilisateurs connectés |
 | Anti-robot | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile sur l'inscription ; vide = désactivé. Clé de site côté frontend : `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
 | Pack vidéo | `READY_PACK_PRICE=15`, `AI_TRANSCRIPTION_MODEL=whisper-1` | 0 = inclus |
 | IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
@@ -102,6 +103,7 @@ cp frontend/.env.local.example frontend/.env.local
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3002/api        # ou http://<ip-du-serveur>:3002/api
+NEXT_PUBLIC_SITE_URL=https://needcreator.com          # adresse publique (SEO)
 NEXT_PUBLIC_FIREBASE_API_KEY=
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=

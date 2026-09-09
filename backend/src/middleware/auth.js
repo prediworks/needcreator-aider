@@ -69,6 +69,9 @@ export async function authenticate(req, res, next) {
       return res.status(404).json({ error: 'User not found' });
     }
     
+    if (user.status === 'deleted') {
+      return res.status(403).json({ error: 'Ce compte a été supprimé' });
+    }
     if (user.status === 'suspended' || user.status === 'banned') {
       return res.status(403).json({ error: 'Account suspended or banned' });
     }

@@ -1,12 +1,54 @@
-'use client';
-
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock } from 'lucide-react';
+import type { Metadata } from 'next';
+import { SITE_URL, COMPANY } from '@/lib/legal';
+
+export const metadata: Metadata = {
+  title: 'NeedCreator : plateforme UGC pour marques et créateurs',
+  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez à la validation. Commission unique de 10 %, 2 révisions incluses.',
+  alternates: { canonical: '/' },
+};
+
+const JSON_LD = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      name: 'NeedCreator',
+      url: SITE_URL,
+      logo: `${SITE_URL}/icon.svg`,
+      email: COMPANY.contactEmail,
+    },
+    {
+      '@type': 'WebSite',
+      name: 'NeedCreator',
+      url: SITE_URL,
+      inLanguage: 'fr-FR',
+    },
+    {
+      '@type': 'Service',
+      name: 'Plateforme de contenu UGC',
+      provider: { '@type': 'Organization', name: 'NeedCreator' },
+      areaServed: 'FR',
+      description: 'Mise en relation entre marques et créateurs de vidéos UGC, avec paiement sécurisé et validation garantie.',
+      offers: { '@type': 'Offer', priceCurrency: 'EUR', price: '0', description: 'Inscription gratuite, commission de 10 % par mission' },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: [
+        { '@type': 'Question', name: 'Qu\'est-ce qu\'une vidéo UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Une vidéo UGC (user generated content) est un contenu authentique tourné par un créateur indépendant pour présenter un produit ou un service, dans le style des réseaux sociaux.' } },
+        { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. NeedCreator prélève une commission unique de 10 %, ou 8 % avec l\'abonnement Pro.' } },
+        { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après 7 jours sans réponse.' } },
+      ],
+    },
+  ],
+};
 
 export default function HomePage() {
   return (
     <div className="min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary-50 to-white py-20">
         <div className="container mx-auto px-4">
