@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -86,6 +86,7 @@ function RegisterForm() {
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         idToken = await userCredential.user.getIdToken();
+        sendEmailVerification(userCredential.user, { url: `${window.location.origin}/dashboard` }).catch(() => {});
       }
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';

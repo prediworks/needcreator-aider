@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useAuthStore } from '@/store/auth';
 import Button from '@/components/ui/Button';
@@ -17,6 +17,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email, { url: `${window.location.origin}/login` });
+    } catch { /* même message quel que soit le résultat : ne pas révéler si l'email existe */ }
+    setLoading(false);
+    setResetMode(false);
+    toast.success('Si un compte existe pour cette adresse, un email de réinitialisation vient d\'être envoyé. Pensez à vérifier vos spams.', { duration: 8000 });
+  };
 
   const afterLogin = async () => {
     const user = await refreshUser();
@@ -102,23 +114,42 @@ export default function LoginPage() {
               required
             />
 
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            {!resetMode && (
+              <Input
+                label="Mot de passe"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            )}
 
-            <Button
-              type="submit"
-              className="w-full"
-              isLoading={loading}
-              disabled={loading}
-            >
-              Se connecter
-            </Button>
+            {resetMode ? (
+              <>
+                <p className="text-sm text-neutral-600">Indiquez votre email : vous recevrez un lien pour choisir un nouveau mot de passe.</p>
+                <Button type="button" className="w-full" isLoading={loading} disabled={loading || !email} onClick={handleReset}>
+                  Envoyer le lien de réinitialisation
+                </Button>
+                <button type="button" onClick={() => setResetMode(false)} className="w-full text-sm text-neutral-600 hover:text-neutral-900">
+                  Retour à la connexion
+                </button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  isLoading={loading}
+                  disabled={loading}
+                >
+                  Se connecter
+                </Button>
+                <button type="button" onClick={() => setResetMode(true)} className="w-full text-sm text-primary-600 hover:text-primary-700">
+                  Mot de passe oublié ?
+                </button>
+              </>
+            )}
           </form>
 
           <div className="mt-6">

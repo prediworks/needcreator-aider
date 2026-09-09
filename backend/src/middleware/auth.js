@@ -142,3 +142,25 @@ export async function optionalAuth(req, res, next) {
     next();
   }
 }
+
+/**
+ * Exige une adresse email confirmée (lien envoyé par Firebase à l'inscription).
+ * Lecture directe chez Firebase : prend effet dès que l'utilisateur a cliqué, sans attendre un nouveau jeton.
+ * Désactivable avec REQUIRE_EMAIL_VERIFICATION=false.
+ */
+export async function requireVerifiedEmail(req, res, next) {
+  if (!config.auth.requireEmailVerification) return next();
+  try {
+    const record = await admin.auth().getUser(req.user.firebaseUid);
+    if (!record.emailVerified) {
+      return res.status(403).json({
+        code: 'EMAIL_NOT_VERIFIED',
+        error: 'Confirmez d\'abord votre adresse email : un lien vous a été envoyé à l\'inscription. Vous pouvez le renvoyer depuis le bandeau en haut de page.',
+      });
+    }
+    return next();
+  } catch (error) {
+    logger.error('Vérification email impossible', { error: error.message });
+    return next(); // Firebase injoignable : on ne bloque pas
+  }
+}

@@ -47,6 +47,15 @@ async function makeContext() {
 let campaignUrl = '';
 
 // ---------- MARQUE ----------
+function adminAuth() {
+  if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), clientEmail: process.env.FIREBASE_CLIENT_EMAIL }) });
+  return admin.auth();
+}
+async function markEmailVerified(email) {
+  const u = await adminAuth().getUserByEmail(email);
+  await adminAuth().updateUser(u.uid, { emailVerified: true });
+}
+
 const brand = await makeContext();
 const bp = brand.page; current = bp;
 
@@ -61,6 +70,8 @@ await step('Marque : inscription via le formulaire', async () => {
   await bp.getByRole('button', { name: 'Créer mon compte' }).click();
   await bp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await bp.getByText('Nouvelle campagne').first().waitFor({ timeout: 20000 });
+  await bp.getByText('Confirmez votre adresse email').waitFor({ timeout: 10000 });
+  await markEmailVerified(brandEmail); // simule le clic sur le lien de confirmation
   await bp.screenshot({ path: `${SHOTS}/01-brand-dashboard.png`, fullPage: true });
   return 'arrivée sur le tableau de bord';
 });
@@ -137,6 +148,7 @@ await step('Créateur : inscription via le formulaire', async () => {
   await cp.getByRole('button', { name: 'Créer mon compte' }).click();
   await cp.waitForURL(/\/dashboard/, { timeout: 30000 });
   await cp.getByText('Avant de pouvoir candidater').waitFor({ timeout: 20000 });
+  await markEmailVerified(creatorEmail);
   await cp.screenshot({ path: `${SHOTS}/04-creator-dashboard.png`, fullPage: true });
   return 'tableau de bord avec les étapes à compléter';
 });
@@ -179,7 +191,7 @@ await step('Aucune erreur JavaScript dans les pages', async () => {
 
 // ---------- Nettoyage ----------
 await step('Nettoyage des comptes de test', async () => {
-  admin.initializeApp({ credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), clientEmail: process.env.FIREBASE_CLIENT_EMAIL }) });
+  if (!admin.apps.length) admin.initializeApp({ credential: admin.credential.cert({ projectId: process.env.FIREBASE_PROJECT_ID, privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'), clientEmail: process.env.FIREBASE_CLIENT_EMAIL }) });
   await mongoose.connect(process.env.MONGODB_URI);
   const db = mongoose.connection.db;
   const users = await db.collection('users').find({ email: { $in: [brandEmail, creatorEmail] } }).toArray();

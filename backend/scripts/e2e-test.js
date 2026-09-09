@@ -62,10 +62,10 @@ async function step(name, fn) {
   }
 }
 
-async function firebaseUser(email) {
+async function firebaseUser(email, emailVerified = true) {
   let user;
   try { user = await admin.auth().getUserByEmail(email); }
-  catch { user = await admin.auth().createUser({ email, password: 'Test1234!', emailVerified: true }); }
+  catch { user = await admin.auth().createUser({ email, password: 'Test1234!', emailVerified }); }
   const customToken = await admin.auth().createCustomToken(user.uid);
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${WEB_API_KEY}`, {
     method: 'POST',
@@ -1001,6 +1001,25 @@ await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset 
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   }
+});
+
+await step('Email non confirmé : publication de campagne refusée', async () => {
+  const email = `e2e-unverified-${RUN}@needcreator-test.com`;
+  const fu = await firebaseUser(email, false);
+  const uApi = client(fu.idToken);
+  const reg = await uApi('POST', '/auth/register/brand', { acceptTerms: true, email, companyName: 'Marque Non Confirmée', website: 'https://exemple.fr', industry: 'ecommerce' });
+  expect(reg.status === 201, 'Inscription échouée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+  await mongoose.connection.db.collection('users').updateOne({ email }, { $set: { 'verification.business.status': 'verified' } });
+  const c = await uApi('POST', '/campaigns', { title: 'Campagne test email', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10) });
+  expect(c.status === 201, 'Création du brouillon échouée', c);
+  const pub = await uApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  expect(pub.status === 403 && pub.data.code === 'EMAIL_NOT_VERIFIED', 'La publication devrait être refusée sans email confirmé', pub);
+  await admin.auth().updateUser(fu.uid, { emailVerified: true });
+  const pub2 = await uApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  expect(pub2.status === 200, 'La publication devrait passer une fois l\'email confirmé', pub2);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return 'refusée avant confirmation, acceptée après';
 });
 
 await step('Sécurité : un créateur ne peut pas créer de campagne, une marque ne peut pas candidater', async () => {

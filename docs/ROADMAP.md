@@ -38,6 +38,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Google login** | Fonctionne uniquement sur un nom de domaine autorisé dans Firebase, pas sur une adresse IP | S (vous, nom de domaine) |
 | ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
 | ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |
+| ~~**Mot de passe oublié** et **confirmation de l'email**~~ | Livré le 9 septembre 2026 (emails Firebase ; publication et devis bloqués sans confirmation, `REQUIRE_EMAIL_VERIFICATION`) | — |
 
 ## 3. Nouvelles suggestions
 

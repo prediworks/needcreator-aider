@@ -4,6 +4,7 @@ import './globals.css';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import TermsBanner from '@/components/TermsBanner';
+import EmailVerificationBanner from '@/components/EmailVerificationBanner';
 import { Providers } from './providers';
 import { SITE_URL } from '@/lib/legal';
 
@@ -63,6 +64,7 @@ export default function RootLayout({
         <Providers>
           <Header />
           <TermsBanner />
+          <EmailVerificationBanner />
           <main className="flex-1">{children}</main>
           <Footer />
         </Providers>

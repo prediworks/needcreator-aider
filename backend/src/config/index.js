@@ -124,6 +124,11 @@ export const config = {
     earlyAccessHours: parseInt(process.env.EARLY_ACCESS_HOURS || '24', 10),
   },
 
+  // Authentification
+  auth: {
+    requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION !== 'false',
+  },
+
   // Documents légaux (version acceptée à l'inscription)
   legal: {
     termsVersion: process.env.LEGAL_TERMS_VERSION || '2026-09-09',

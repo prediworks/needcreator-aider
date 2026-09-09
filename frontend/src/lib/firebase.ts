@@ -26,5 +26,6 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
+auth.languageCode = 'fr'; // emails Firebase (confirmation, mot de passe oublié) en français
 
 export { app, auth };

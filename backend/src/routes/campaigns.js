@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, requireVerifiedEmail } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import {
   createCampaign,
@@ -32,8 +32,8 @@ router.patch('/:campaignId', authenticate, authorize('brand'), validate(schemas.
 router.delete('/:campaignId', authenticate, authorize('brand'), cancelCampaign);
 
 // Campaign actions
-router.post('/:campaignId/publish', authenticate, authorize('brand'), publishCampaign);
-router.post('/:campaignId/apply', authenticate, authorize('creator'), validate(schemas.quote), applyToCampaign);
+router.post('/:campaignId/publish', authenticate, authorize('brand'), requireVerifiedEmail, publishCampaign);
+router.post('/:campaignId/apply', authenticate, authorize('creator'), requireVerifiedEmail, validate(schemas.quote), applyToCampaign);
 router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
 router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
 router.post('/:campaignId/payment-setup', authenticate, authorize('brand'), createPaymentSetup);
