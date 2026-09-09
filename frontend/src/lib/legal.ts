@@ -29,7 +29,6 @@ export const LEGAL_VERSION_DATE = '9 septembre 2026';
 /** Règles commerciales reprises dans les CGU (garder en cohérence avec backend/.env) */
 export const TERMS_FIGURES = {
   commissionPercent: 10,
-  proCommissionPercent: 8,
   proPriceEur: 79,
   proTrialDays: 14,
   maxRevisions: 2,

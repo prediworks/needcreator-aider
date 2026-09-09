@@ -82,7 +82,7 @@ export const config = {
   plans: {
     proPriceEur: parseFloat(process.env.PRO_PRICE_EUR || '79'),
     proTrialDays: parseInt(process.env.PRO_TRIAL_DAYS || '14', 10),
-    proFeePercent: parseFloat(process.env.PRO_FEE_PERCENT || '8'),
+    proFeePercent: parseFloat(process.env.PRO_FEE_PERCENT || process.env.STRIPE_PLATFORM_FEE_PERCENT || '10'), // identique au taux standard : Pro ne modifie plus la commission
     stripeProPriceId: process.env.STRIPE_PRO_PRICE_ID || null,
     aiBriefFreeQuota: parseInt(process.env.AI_BRIEF_FREE_QUOTA || '3', 10),
   },

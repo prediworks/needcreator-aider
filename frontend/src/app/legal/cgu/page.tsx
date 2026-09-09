@@ -33,14 +33,14 @@ export default function TermsPage() {
         <li>Les Créateurs intéressés transmettent un devis (prix, délai, droits d&apos;utilisation proposés).</li>
         <li>La Marque sélectionne un ou plusieurs devis. Le montant correspondant est alors autorisé sur son moyen de paiement (empreinte bancaire), sans être débité.</li>
         <li>Le Créateur livre les vidéos via la Plateforme. La Marque dispose de {F.autoApprovalDays} jours pour valider ou demander des modifications, dans la limite de {F.maxRevisions} révisions. Sans réponse dans ce délai, la livraison est réputée acceptée.</li>
-        <li>À la validation, le paiement est débité et reversé au Créateur, déduction faite de la commission de la Plateforme.</li>
+        <li>À la validation, le paiement est débité. La Marque ne paie que le montant du devis. Le Créateur reçoit ce montant, déduction faite de la commission de la Plateforme.</li>
       </ol>
 
       <h2>4. Prix, commission et paiement</h2>
       <ul>
         <li>Les prix sont fixés librement par les Créateurs dans leurs devis et exprimés en euros hors taxes.</li>
-        <li>La Plateforme perçoit une commission de {F.commissionPercent} % du montant de chaque mission, ramenée à {F.proCommissionPercent} % pour les Marques abonnées à l&apos;offre Pro.</li>
-        <li>L&apos;offre Pro est un abonnement mensuel de {F.proPriceEur} € HT, sans engagement, avec une période d&apos;essai de {F.proTrialDays} jours offerte à l&apos;inscription. Il est résiliable à tout moment depuis l&apos;espace de gestion de l&apos;abonnement et prend fin à l&apos;échéance en cours.</li>
+        <li>Aucun frais n&apos;est ajouté au prix du devis pour la Marque. La Plateforme perçoit une commission de {F.commissionPercent} % du montant de chaque mission rémunérée, retenue sur la somme versée au Créateur. Aucune commission n&apos;est retenue sur les campagnes gifting.</li>
+        <li>L&apos;offre Pro est un abonnement mensuel de {F.proPriceEur} € HT, sans engagement, donnant accès à des fonctionnalités supplémentaires (brief assisté par IA illimité, campagnes multi-créateurs, gifting, absence de limites), avec une période d&apos;essai de {F.proTrialDays} jours offerte à l&apos;inscription. Il est résiliable à tout moment depuis l&apos;espace de gestion de l&apos;abonnement et prend fin à l&apos;échéance en cours.</li>
         <li>Les campagnes « gifting » (produit offert sans rémunération) donnent lieu à des frais de service de {F.giftingFeePerVideo} € HT par vidéo livrée, facturés à la Marque.</li>
         <li>Les paiements sont opérés par Stripe. Les Créateurs reçoivent leurs paiements sur un compte Stripe Connect qu&apos;ils ouvrent depuis leur profil. La Plateforme ne conserve aucune donnée bancaire.</li>
         <li>Certaines options (pack vidéo prête à diffuser) sont facturées au prix indiqué au moment de la commande.</li>

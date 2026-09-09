@@ -86,7 +86,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | Vérification des marques | SIRET ou TVA (format + registre national des entreprises), site web, email pro. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | Admin → Réglages, `BUSINESS_REGISTRY_CHECK` |
 | Limites progressives (tant qu'aucune campagne terminée) | 2 campagnes ouvertes, 5 invitations / jour, 20 messages / jour | `LIMIT_NEW_BRAND_*` |
 | Brief IA | 3 / mois en gratuit, illimité en Pro | `AI_BRIEF_FREE_QUOTA` |
-| Abonnement Pro | 79 € / mois, essai 14 jours sans carte à l'inscription, commission 8 % au lieu de 10 %, débloque gifting et multi-créateurs | `PRO_PRICE_EUR`, `PRO_TRIAL_DAYS`, `PRO_FEE_PERCENT`, `STRIPE_PRO_PRICE_ID` |
+| Abonnement Pro | 79 € / mois, essai 14 jours sans carte à l'inscription, commission inchangée (décision du 9 septembre 2026 : la marque paie le prix du devis sans frais ajoutés, le créateur reçoit 90 %), débloque brief IA illimité, gifting et multi-créateurs | `PRO_PRICE_EUR`, `PRO_TRIAL_DAYS`, `PRO_FEE_PERCENT`, `STRIPE_PRO_PRICE_ID` |
 | Gifting (produit offert, pas de rémunération) | Réservé au Pro, valeur produit ≥ 30 €, 2 vidéos max, 2 campagnes / mois, 5 € par vidéo livrée facturés à la marque, opt-in créateur (oui par défaut pour Nouveau, non pour Confirmé / Expert) | `GIFTING_*` |
 | Messagerie | Emails et téléphones masqués avant sélection | — |
 | Signalement | Campagnes, profils, messages ; file admin avec suspension | — |

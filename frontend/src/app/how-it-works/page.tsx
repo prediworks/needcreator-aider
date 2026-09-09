@@ -11,7 +11,7 @@ export const metadata = {
 const BRAND_STEPS = [
   ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
-  ['3', 'Sélectionnez et bloquez le paiement', 'Le montant est réservé via Stripe. Il n\'est versé au créateur qu\'après votre validation.'],
+  ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation.'],
   ['4', 'Validez les vidéos', 'Regardez-les directement en ligne. Approuvez, ou demandez jusqu\'à 2 révisions. Sans réponse sous 7 jours, la livraison est validée automatiquement.'],
   ['5', 'Notez le créateur', 'Votre avis aide toute la communauté à trouver les bons profils.'],
 ];
@@ -19,7 +19,7 @@ const BRAND_STEPS = [
 const CREATOR_STEPS = [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio. Validation par notre équipe sous 24h.'],
   ['2', 'Candidatez aux campagnes', 'Un feed personnalisé selon vos niches, avec le prix affiché dès le départ.'],
-  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé.'],
+  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis moins la commission de 10 %.'],
   ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou 7 jours max), le virement part sur votre compte Stripe.'],
   ['5', 'Notez la marque', 'La réactivité des marques est visible par tous les créateurs.'],
 ];
@@ -76,7 +76,7 @@ export default function HowItWorksPage() {
           <div className="grid md:grid-cols-3 gap-6 text-sm">
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Prix affichés partout</div>
-              <p className="text-neutral-600">Budget par vidéo visible dès la liste des campagnes. Commission unique de 10%, sans surprise.</p>
+              <p className="text-neutral-600">Pour la marque, le prix du devis est le prix payé. Pour le créateur, une commission de 10 % est retenue sur le versement. Rien d'autre.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Validation automatique à 7 jours</div>

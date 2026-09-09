@@ -6,7 +6,7 @@ import { SITE_URL, COMPANY } from '@/lib/legal';
 
 export const metadata: Metadata = {
   title: 'NeedCreator : plateforme UGC pour marques et créateurs',
-  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez à la validation. Commission unique de 10 %, 2 révisions incluses.',
+  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez le prix du devis à la validation, sans frais ajoutés. 2 révisions incluses.',
   alternates: { canonical: '/' },
 };
 
@@ -32,13 +32,13 @@ const JSON_LD = {
       provider: { '@type': 'Organization', name: 'NeedCreator' },
       areaServed: 'FR',
       description: 'Mise en relation entre marques et créateurs de vidéos UGC, avec paiement sécurisé et validation garantie.',
-      offers: { '@type': 'Offer', priceCurrency: 'EUR', price: '0', description: 'Inscription gratuite, commission de 10 % par mission' },
+      offers: { '@type': 'Offer', priceCurrency: 'EUR', price: '0', description: 'Inscription gratuite. La marque paie le prix du devis, sans frais ajoutés.' },
     },
     {
       '@type': 'FAQPage',
       mainEntity: [
         { '@type': 'Question', name: 'Qu\'est-ce qu\'une vidéo UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Une vidéo UGC (user generated content) est un contenu authentique tourné par un créateur indépendant pour présenter un produit ou un service, dans le style des réseaux sociaux.' } },
-        { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. NeedCreator prélève une commission unique de 10 %, ou 8 % avec l\'abonnement Pro.' } },
+        { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. La marque paie exactement ce prix, sans frais ajoutés. NeedCreator retient une commission de 10 % sur le versement au créateur.' } },
         { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après 7 jours sans réponse.' } },
       ],
     },
@@ -90,7 +90,7 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Commission unique de 10%</span>
+                <span>Vous payez le prix du devis, rien de plus</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
@@ -119,7 +119,7 @@ export default function HomePage() {
               [Shield, 'Paiement sécurisé', 'Le montant est bloqué via Stripe à la sélection et versé au créateur seulement après votre validation.'],
               [Clock, 'Validation automatique', 'Sans réponse de la marque sous 7 jours, la livraison est approuvée. Personne ne reste bloqué.'],
               [Video, 'Portfolio vidéo interactif', 'Regardez les vidéos des créateurs directement dans la plateforme, sans téléchargement.'],
-              [TrendingUp, 'Prix transparents', 'Budget par vidéo affiché partout, commission de 10% annoncée dès le départ.'],
+              [TrendingUp, 'Prix transparents', 'Le prix affiché est le prix payé. Aucun frais ajouté pour la marque, aucun abonnement obligatoire.'],
               [CheckCircle, 'Créateurs vérifiés', 'Chaque profil est validé manuellement par notre équipe, avec 3 vidéos minimum.'],
             ].map(([Icon, title, text]: any) => (
               <div key={title} className="text-center p-6">

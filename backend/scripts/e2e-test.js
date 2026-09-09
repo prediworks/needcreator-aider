@@ -914,7 +914,7 @@ await step('Gifting : campagne produit offert (Pro), candidature à 0 €, frais
 
 await step('Abonnement Pro : session Stripe Checkout, synchronisation, portail', async () => {
   const st = await brandApi('GET', '/billing/status');
-  expect(st.status === 200 && st.data.plan === 'pro' && st.data.status === 'trialing' && st.data.feePercent === 8, 'Statut abonnement incorrect', st);
+  expect(st.status === 200 && st.data.plan === 'pro' && st.data.status === 'trialing' && st.data.feePercent === st.data.standardFeePercent, 'Statut abonnement incorrect (Pro ne modifie plus la commission)', st);
   const co = await brandApi('POST', '/billing/checkout');
   expect(co.status === 200 && /checkout\.stripe\.com/.test(co.data.url), 'Session Checkout non créée', co);
   const sync = await brandApi('POST', '/billing/sync');

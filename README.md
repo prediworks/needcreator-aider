@@ -92,7 +92,7 @@ Liste commentée de chaque variable : [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)
 3. **Marque** accepte un ou plusieurs devis et saisit sa carte (montant bloqué, non prélevé)
 4. **Créateur** livre les vidéos (fichiers ou liens)
 5. **Marque** valide ou demande des révisions (max 2) ; auto-approbation après 7 jours
-6. Paiement prélevé et viré au créateur (commission 10 %, 8 % avec l'abonnement Pro) ; avis mutuels
+6. Paiement prélevé et viré au créateur (la marque paie le prix du devis, le créateur reçoit 90 %) ; avis mutuels
 
 ## 🚀 Déploiement
 
