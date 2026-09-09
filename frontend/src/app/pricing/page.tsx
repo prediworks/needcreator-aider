@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle } from 'lucide-react';
+import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata = {
   title: 'Tarifs',
@@ -9,94 +9,192 @@ export const metadata = {
   alternates: { canonical: '/pricing' },
 };
 
-const EXAMPLES = [
-  { videos: 1, price: 100 },
-  { videos: 3, price: 300 },
-  { videos: 5, price: 600 },
+type Cell = { text: string; ok?: boolean };
+
+const ROWS: { label: string; free: Cell; pro: Cell }[] = [
+  { label: 'Prix des vidéos', free: { text: 'Le devis du créateur' }, pro: { text: 'Le devis du créateur' } },
+  { label: 'Frais ajoutés au paiement', free: { text: 'Aucun', ok: true }, pro: { text: 'Aucun', ok: true } },
+  { label: 'Devis reçus par campagne', free: { text: 'Illimités', ok: true }, pro: { text: 'Illimités', ok: true } },
+  { label: 'Campagne multicréateur', free: { text: 'Non : 1 créateur sélectionné par campagne', ok: false }, pro: { text: 'Oui : plusieurs créateurs, un seul paiement groupé', ok: true } },
+  { label: 'Rédaction de brief par l\'IA', free: { text: '3 par mois' }, pro: { text: 'Illimitée', ok: true } },
+  { label: 'Campagnes ouvertes en même temps', free: { text: '2, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimitées', ok: true } },
+  { label: 'Invitations et messages', free: { text: '5 invitations et 20 messages par jour, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimités', ok: true } },
+  { label: 'Campagnes gifting (produit offert)', free: { text: 'Non', ok: false }, pro: { text: 'Oui : 5 € de frais de service par vidéo livrée', ok: true } },
+  { label: '2 révisions incluses, validation automatique à 7 jours, droits d\'utilisation inclus', free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
 ];
+
+const FAQ = [
+  ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté. La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
+  ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement 7 jours après la livraison si vous ne répondez pas.'],
+  ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander jusqu\'à 2 révisions incluses. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
+  ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
+  ['Comment le créateur est-il payé ?', 'Par virement automatique sur son compte Stripe, dès la validation de la livraison. Il reçoit 90 % du devis. Sur une campagne gifting, aucune commission n\'est retenue.'],
+];
+
+function CellView({ cell, strong }: { cell: Cell; strong?: boolean }) {
+  return (
+    <div className="flex items-start gap-2">
+      {cell.ok === true && <Check className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" aria-label="Inclus" />}
+      {cell.ok === false && <X className="w-4 h-4 text-neutral-400 mt-0.5 flex-shrink-0" aria-label="Non inclus" />}
+      <span className={strong ? 'font-medium text-neutral-900' : 'text-neutral-700'}>{cell.text}</span>
+    </div>
+  );
+}
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-neutral-50 py-12">
-      <div className="container mx-auto px-4 max-w-4xl">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-neutral-900 mb-3">Une tarification transparente</h1>
+    <div className="min-h-screen bg-neutral-50">
+      {/* 1. La règle */}
+      <section className="bg-gradient-to-br from-primary-50 to-white py-16">
+        <div className="container mx-auto px-4 max-w-3xl text-center">
+          <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-4">Le prix du devis est le prix payé.</h1>
           <p className="text-lg text-neutral-600">
-            Pour les marques : le prix du devis est le prix payé, rien ne s&apos;ajoute. Pour les créateurs : une commission de 10 % sur chaque mission payée.
+            Aucun frais pour la marque. NeedCreator retient 10 % sur le versement au créateur. Rien d&apos;autre.
           </p>
         </div>
+      </section>
 
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
-          <Card className="p-8">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-2">Marques</h2>
-            <div className="text-4xl font-bold text-primary-600 mb-1">0€ <span className="text-base font-normal text-neutral-500">ou Pro 79 €/mois</span></div>
-            <p className="text-neutral-800 font-medium mb-2">Vous payez uniquement les vidéos, au prix du devis du créateur. Aucun frais ajouté.</p>
-            <p className="text-neutral-600 mb-2">Gratuit : campagnes et briefs illimités, 3 rédactions de brief par l&apos;IA par mois, 1 créateur par campagne, 2 campagnes ouvertes en même temps jusqu&apos;à votre première campagne terminée.</p>
-            <p className="text-neutral-600 mb-6">Pro : rédaction par l&apos;IA illimitée, campagnes multi-créateurs avec paiement groupé, gifting, sans limites. 14 jours d&apos;essai offerts à l&apos;inscription.</p>
-            <ul className="space-y-2 text-sm text-neutral-700">
-              {[
-                'Vidéos UGC à partir de 80€',
-                'Budget suggéré selon le marché à la création',
-                'Paiement bloqué à la sélection, versé après validation',
-                'Jusqu\'à 2 révisions incluses par mission',
-                'Droits d\'utilisation inclus sur les contenus livrés',
-                'Aucun frais tant que vous n\'avez pas sélectionné de créateur',
-                'Campagnes gifting (Pro) : 5 € de frais de service par vidéo livrée, annoncés avant paiement',
-              ].map((t) => (
-                <li key={t} className="flex gap-2"><CheckCircle className="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0" />{t}</li>
-              ))}
-            </ul>
-            <Link href="/register?role=brand" className="block mt-8">
-              <Button className="w-full">Lancer une campagne</Button>
-            </Link>
-          </Card>
-
-          <Card className="p-8">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-2">Créateurs</h2>
-            <div className="text-4xl font-bold text-secondary-500 mb-1">90%</div>
-            <p className="text-neutral-600 mb-6">du prix de votre devis vous revient. NeedCreator retient une commission de 10 % sur chaque mission payée. Aucune commission sur le gifting.</p>
-            <ul className="space-y-2 text-sm text-neutral-700">
-              {[
-                'Inscription gratuite',
-                'Vous fixez librement le prix de chaque devis',
-                'Paiement garanti : le montant est bloqué avant que vous ne commenciez',
-                'Validation automatique si la marque ne répond pas sous 7 jours',
-                'Virement automatique sur votre compte Stripe',
-              ].map((t) => (
-                <li key={t} className="flex gap-2"><CheckCircle className="w-4 h-4 text-secondary-500 mt-0.5 flex-shrink-0" />{t}</li>
-              ))}
-            </ul>
-            <Link href="/register?role=creator" className="block mt-8">
-              <Button variant="secondary" className="w-full">Devenir créateur</Button>
-            </Link>
-          </Card>
-        </div>
-
-        <Card className="p-8">
-          <h2 className="text-xl font-bold text-neutral-900 mb-4">Exemples concrets</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-neutral-500 border-b">
-                  <th className="py-2 pr-4">Mission</th>
-                  <th className="py-2 pr-4">Devis = prix payé par la marque</th>
-                  <th className="py-2 pr-4">Commission NeedCreator (10 %)</th>
-                  <th className="py-2">Reçu par le créateur</th>
-                </tr>
-              </thead>
-              <tbody>
-                {EXAMPLES.map((e) => (
-                  <tr key={e.videos} className="border-b border-neutral-100">
-                    <td className="py-3 pr-4 font-medium">{e.videos} vidéo{e.videos > 1 ? 's' : ''}</td>
-                    <td className="py-3 pr-4">{e.price}€</td>
-                    <td className="py-3 pr-4 text-neutral-600">{e.price * 0.1}€</td>
-                    <td className="py-3 font-semibold text-green-700">{e.price * 0.9}€</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <div className="container mx-auto px-4 max-w-5xl py-12 space-y-16">
+        {/* 2. Marques : Gratuit vs Pro */}
+        <section>
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-neutral-900 mb-2">Pour les marques</h2>
+            <p className="text-neutral-600">Dans les deux cas, vous payez le devis du créateur et rien d&apos;autre. Pro ajoute des fonctionnalités, pas des frais.</p>
           </div>
-        </Card>
+
+          {/* Tableau (desktop) */}
+          <div className="hidden md:block">
+            <Card className="overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200">
+                    <th className="text-left p-5 w-1/3 align-bottom text-neutral-500 font-medium">Ce que vous obtenez</th>
+                    <th className="text-left p-5 w-1/3 align-bottom">
+                      <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Gratuit</div>
+                      <div className="text-3xl font-bold text-neutral-900">0 €</div>
+                      <div className="text-neutral-500 font-normal">Pour toujours</div>
+                    </th>
+                    <th className="text-left p-5 w-1/3 align-bottom bg-primary-50">
+                      <div className="text-xs uppercase tracking-wide text-primary-700 mb-1">Pro</div>
+                      <div className="text-3xl font-bold text-neutral-900">79 € <span className="text-base font-normal text-neutral-500">HT / mois</span></div>
+                      <div className="text-neutral-600 font-normal">14 jours offerts à l&apos;inscription, sans carte, sans engagement</div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ROWS.map((r) => (
+                    <tr key={r.label} className="border-b border-neutral-100 last:border-0">
+                      <td className="p-5 text-neutral-900 font-medium align-top">{r.label}</td>
+                      <td className="p-5 align-top"><CellView cell={r.free} /></td>
+                      <td className="p-5 align-top bg-primary-50/50"><CellView cell={r.pro} /></td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td className="p-5"></td>
+                    <td className="p-5">
+                      <Link href="/register?role=brand"><Button variant="outline" className="w-full">Commencer gratuitement</Button></Link>
+                    </td>
+                    <td className="p-5 bg-primary-50/50">
+                      <Link href="/register?role=brand"><Button className="w-full">Essayer Pro 14 jours</Button></Link>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </Card>
+          </div>
+
+          {/* Cartes empilées (mobile) */}
+          <div className="md:hidden space-y-6">
+            {(['free', 'pro'] as const).map((plan) => (
+              <Card key={plan} className={`p-6 ${plan === 'pro' ? 'border-primary-300 bg-primary-50/40' : ''}`}>
+                <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">{plan === 'free' ? 'Gratuit' : 'Pro'}</div>
+                <div className="text-3xl font-bold text-neutral-900 mb-1">{plan === 'free' ? '0 €' : '79 € HT / mois'}</div>
+                <div className="text-sm text-neutral-600 mb-5">{plan === 'free' ? 'Pour toujours' : '14 jours offerts à l\'inscription, sans carte, sans engagement'}</div>
+                <ul className="space-y-3 text-sm">
+                  {ROWS.map((r) => (
+                    <li key={r.label}>
+                      <div className="text-neutral-500 text-xs mb-0.5">{r.label}</div>
+                      <CellView cell={r[plan]} strong />
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register?role=brand" className="block mt-6">
+                  <Button variant={plan === 'free' ? 'outline' : 'primary'} className="w-full">{plan === 'free' ? 'Commencer gratuitement' : 'Essayer Pro 14 jours'}</Button>
+                </Link>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* 3. Créateurs */}
+        <section>
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-neutral-900 mb-2">Pour les créateurs</h2>
+            <p className="text-neutral-600">Inscription gratuite. Vous fixez votre prix, vous recevez 90 %.</p>
+          </div>
+          <Card className="p-8 grid md:grid-cols-2 gap-8 items-center">
+            <div>
+              <div className="text-5xl font-bold text-secondary-500 mb-2">90 %</div>
+              <p className="text-neutral-700 mb-4">du prix de votre devis vous est viré, automatiquement, dès la validation de la livraison. NeedCreator retient 10 % sur chaque mission payée.</p>
+              <ul className="space-y-2 text-sm text-neutral-700">
+                {[
+                  'Vous fixez librement le prix de chaque devis',
+                  'Paiement garanti : le montant est bloqué avant que vous ne commenciez',
+                  'Validation automatique si la marque ne répond pas sous 7 jours',
+                  'Gifting : produit offert, aucune commission',
+                ].map((t) => (
+                  <li key={t} className="flex gap-2"><Check className="w-4 h-4 text-secondary-500 mt-0.5 flex-shrink-0" />{t}</li>
+                ))}
+              </ul>
+              <Link href="/register?role=creator" className="block mt-6">
+                <Button variant="secondary">Devenir créateur</Button>
+              </Link>
+            </div>
+            <div className="bg-neutral-50 rounded-xl p-6 text-sm">
+              <div className="text-neutral-500 mb-3">Exemple</div>
+              <div className="flex justify-between py-2 border-b border-neutral-200"><span>Votre devis</span><span className="font-medium">100 €</span></div>
+              <div className="flex justify-between py-2 border-b border-neutral-200 text-neutral-600"><span>Commission NeedCreator (10 %)</span><span>− 10 €</span></div>
+              <div className="flex justify-between py-2 font-semibold text-green-700"><span>Viré sur votre compte</span><span>90 €</span></div>
+            </div>
+          </Card>
+        </section>
+
+        {/* 4. Une mission en chiffres */}
+        <section>
+          <h2 className="text-2xl font-bold text-neutral-900 text-center mb-6">Une mission en chiffres</h2>
+          <div className="grid md:grid-cols-3 gap-4 items-stretch">
+            {[
+              ['Le créateur envoie un devis', '300 €', 'pour 3 vidéos'],
+              ['La marque paie', '300 €', 'exactement le devis, aucun frais ajouté'],
+              ['Le créateur reçoit', '270 €', 'NeedCreator retient 30 € (10 %)'],
+            ].map(([title, amount, sub], i) => (
+              <div key={title} className="relative">
+                <Card className="p-6 text-center h-full">
+                  <div className="text-sm text-neutral-500 mb-2">{title}</div>
+                  <div className="text-3xl font-bold text-neutral-900 mb-1">{amount}</div>
+                  <div className="text-sm text-neutral-600">{sub}</div>
+                </Card>
+                {i < 2 && <ArrowRight className="hidden md:block absolute -right-4 top-1/2 -translate-y-1/2 w-6 h-6 text-neutral-300" />}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 5. FAQ */}
+        <section>
+          <h2 className="text-2xl font-bold text-neutral-900 text-center mb-6">Questions fréquentes</h2>
+          <div className="space-y-3 max-w-3xl mx-auto">
+            {FAQ.map(([q, a]) => (
+              <details key={q} className="bg-white border border-neutral-200 rounded-lg p-4 group">
+                <summary className="font-medium text-neutral-900 cursor-pointer list-none flex justify-between items-center">
+                  {q}
+                  <span className="text-neutral-400 group-open:rotate-90 transition">›</span>
+                </summary>
+                <p className="mt-3 text-sm text-neutral-700">{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );
