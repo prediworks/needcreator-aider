@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { sendEmailVerification } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, sendFirebaseEmail } from '@/lib/firebase';
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 import { toast } from 'sonner';
@@ -22,10 +22,10 @@ export default function EmailVerificationBanner() {
   const resend = async () => {
     setSending(true);
     try {
-      await sendEmailVerification(firebaseUser, { url: `${window.location.origin}/dashboard` });
+      await sendFirebaseEmail((s) => sendEmailVerification(firebaseUser, s), '/dashboard');
       toast.success('Email de confirmation renvoyé. Pensez à vérifier vos spams.');
     } catch (e: any) {
-      toast.error(e?.code === 'auth/too-many-requests' ? 'Trop de demandes : réessayez dans quelques minutes.' : 'Envoi impossible pour le moment.');
+      toast.error(e?.code === 'auth/too-many-requests' ? 'Trop de demandes : réessayez dans quelques minutes.' : `Envoi impossible (${e?.code || e?.message || 'erreur inconnue'})`, { duration: 8000 });
     } finally {
       setSending(false);
     }

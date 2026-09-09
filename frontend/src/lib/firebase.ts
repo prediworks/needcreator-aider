@@ -28,4 +28,25 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 const auth = getAuth(app);
 auth.languageCode = 'fr'; // emails Firebase (confirmation, mot de passe oublié) en français
 
+/**
+ * Envoie un email Firebase (confirmation, mot de passe oublié) avec un lien de retour vers le site.
+ * Si le domaine courant n'est pas autorisé dans Firebase (adresse IP, localhost), on renvoie sans lien de retour :
+ * Firebase affiche alors sa propre page de confirmation.
+ */
+export async function sendFirebaseEmail(
+  send: (settings?: { url: string }) => Promise<void>,
+  path = '/login'
+) {
+  const settings = { url: `${window.location.origin}${path}` };
+  try {
+    await send(settings);
+  } catch (e: any) {
+    if (e?.code === 'auth/unauthorized-continue-uri' || e?.code === 'auth/invalid-continue-uri') {
+      await send(undefined);
+    } else {
+      throw e;
+    }
+  }
+}
+
 export { app, auth };

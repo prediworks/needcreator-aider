@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, sendFirebaseEmail } from '@/lib/firebase';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useAuth } from '@/hooks/useAuth';
@@ -86,7 +86,7 @@ function RegisterForm() {
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         idToken = await userCredential.user.getIdToken();
-        sendEmailVerification(userCredential.user, { url: `${window.location.origin}/dashboard` }).catch(() => {});
+        sendFirebaseEmail((s) => sendEmailVerification(userCredential.user, s), '/dashboard').catch((err) => console.warn('Email de confirmation non envoyé :', err?.code || err));
       }
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';

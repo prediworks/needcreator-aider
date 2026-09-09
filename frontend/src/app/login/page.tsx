@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, sendFirebaseEmail } from '@/lib/firebase';
 import { useAuthStore } from '@/store/auth';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -23,8 +23,12 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email, { url: `${window.location.origin}/login` });
-    } catch { /* même message quel que soit le résultat : ne pas révéler si l'email existe */ }
+      await sendFirebaseEmail((s) => sendPasswordResetEmail(auth, email, s), '/login');
+    } catch (err: any) {
+      // Même message quel que soit le résultat (ne pas révéler si l'email existe), sauf erreur technique
+      if (err?.code && err.code !== 'auth/user-not-found') console.warn('Réinitialisation :', err.code);
+      if (err?.code === 'auth/too-many-requests') { setLoading(false); toast.error('Trop de demandes : réessayez dans quelques minutes.'); return; }
+    }
     setLoading(false);
     setResetMode(false);
     toast.success('Si un compte existe pour cette adresse, un email de réinitialisation vient d\'être envoyé. Pensez à vérifier vos spams.', { duration: 8000 });
