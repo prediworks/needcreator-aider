@@ -6,20 +6,20 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://needcreator
 
 export const COMPANY = {
   brand: 'NeedCreator',
-  legalName: '[À COMPLÉTER : raison sociale]',
-  legalForm: '[À COMPLÉTER : SAS / SARL / EI…]',
-  capital: '[À COMPLÉTER : capital social]',
-  siren: '[À COMPLÉTER : SIREN]',
-  vat: '[À COMPLÉTER : numéro de TVA intracommunautaire]',
-  rcs: '[À COMPLÉTER : ville du RCS]',
-  address: '[À COMPLÉTER : adresse du siège]',
-  publicationDirector: '[À COMPLÉTER : nom du directeur de la publication]',
+  legalName: 'PREDIWORKS',
+  legalForm: 'SAS',
+  capital: '1000',
+  siren: '100462530',
+  vat: 'FR66100462530',
+  rcs: 'PARIS',
+  address: '17 Rue Coysevox',
+  publicationDirector: 'Rachel AKODO',
   contactEmail: 'contact@needcreator.com',
   privacyEmail: 'privacy@needcreator.com',
   host: {
-    name: '[À COMPLÉTER : nom de l\'hébergeur]',
-    address: '[À COMPLÉTER : adresse de l\'hébergeur]',
-    site: '[À COMPLÉTER : site de l\'hébergeur]',
+    name: 'contabo',
+    address: 'Welfenstrasse 22,  81541 Munich Germany',
+    site: 'https://contabo.com/',
   },
 };
 
