@@ -46,6 +46,9 @@ echo "=== $(date) : lancement $0 ${1:-} ==="
 # =============================================================================
 # --finish : build + démarrage, une fois les .env remplis
 # =============================================================================
+if [[ -n "${1:-}" && "${1:-}" != "--finish" ]]; then
+  echo "Option inconnue : '$1'. Usage : bash vps-setup.sh   ou   bash vps-setup.sh --finish"; exit 1
+fi
 if [[ "${1:-}" == "--finish" ]]; then
   log "Vérification des fichiers .env"
   [[ -f "$APP_DIR/backend/.env" ]] || { echo "Manque $APP_DIR/backend/.env"; exit 1; }
@@ -235,7 +238,10 @@ log "Installation des dépendances"
 npm_install() { # npm ci si un package-lock.json existe, sinon npm install
   local dir="$1"; shift
   if [[ -f "$dir/package-lock.json" ]]; then
-    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm ci $*"
+    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm ci $*" || {
+      warn "npm ci a échoué (lockfile désynchronisé) : repli sur npm install"
+      sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install $*"
+    }
   else
     sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install $*"
   fi
