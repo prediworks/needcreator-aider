@@ -13,6 +13,7 @@
     "lint": "eslint src/**/*.js",
     "format": "prettier --write src/**/*.js",
     "check:env": "node scripts/check-env.js",
+    "check:connect": "node scripts/check-connect.js",
     "make-admin": "node scripts/make-admin.js",
     "test:e2e": "node scripts/e2e-test.js",
     "test:unit": "NODE_ENV=test jest --coverage --detectOpenHandles"

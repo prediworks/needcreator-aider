@@ -20,6 +20,8 @@ En production, utilisez les clés `sk_live_` / `pk_live_`.
 
 Dashboard → Connect → Get started → « Platform or marketplace ». Sans cette activation, les marques sont bien débitées mais les virements aux créateurs échouent avec le message « You can only create new accounts if you've signed up for Connect ». Dans ce cas la livraison est marquée « encaissée, virement en attente » et le virement part automatiquement dès que le créateur a connecté son compte.
 
+Vérification rapide : `cd backend && npm run check:connect` (crée puis supprime un compte Express).
+
 Le créateur connecte son compte depuis son profil (« Recevoir mes paiements ») : NeedCreator crée un compte Express et le renvoie vers l'onboarding Stripe.
 
 ## 3. Abonnement Pro
