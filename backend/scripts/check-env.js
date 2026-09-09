@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import nodemailer from 'nodemailer';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 dotenv.config();
 
@@ -94,12 +94,27 @@ try {
   });
   const r = await s3.send(new ListObjectsV2Command({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME, MaxKeys: 1 }));
   ok('Cloudflare R2', `bucket "${process.env.CLOUDFLARE_BUCKET_NAME}" accessible (${r.KeyCount || 0} fichier(s) listé(s))`);
+  // Écriture réelle : un petit fichier est déposé puis supprimé (détecte un token en lecture seule)
+  const key = `healthcheck/check-env-${Date.now()}.txt`;
+  try {
+    await s3.send(new PutObjectCommand({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME, Key: key, Body: 'ok', ContentType: 'text/plain' }));
+    ok('R2 écriture', 'dépôt d\'un fichier test réussi (token en lecture/écriture)');
+  } catch (e) {
+    ko('R2 écriture', `impossible d'écrire dans le bucket : ${e.message}. Le token R2 doit avoir la permission « Object Read & Write ».`);
+  }
   const publicUrl = process.env.CLOUDFLARE_PUBLIC_URL || '';
   if (!publicUrl || publicUrl.includes('r2.cloudflarestorage.com')) {
-    ko('R2 URL publique', 'CLOUDFLARE_PUBLIC_URL pointe sur l\'API privée : les vidéos seront servies via des liens temporaires signés (OK pour tester). Pour la prod, activez un domaine public r2.dev sur le bucket.');
+    ko('R2 URL publique', 'CLOUDFLARE_PUBLIC_URL pointe sur l\'API privée : les vidéos seront servies via des liens temporaires signés (OK pour tester). Pour la prod, activez un domaine public sur le bucket.');
   } else {
-    ok('R2 URL publique', publicUrl);
+    try {
+      const resp = await fetch(`${publicUrl.replace(/\/$/, '')}/${key}`, { signal: AbortSignal.timeout(10000) });
+      if (resp.ok) ok('R2 URL publique', `${publicUrl} sert bien les fichiers du bucket`);
+      else ko('R2 URL publique', `${publicUrl}/${key} répond HTTP ${resp.status} : le domaine public n'est pas relié à ce bucket (R2 → bucket → Settings → Public access)`);
+    } catch (e) {
+      ko('R2 URL publique', `${publicUrl} injoignable : ${e.message}`);
+    }
   }
+  await s3.send(new DeleteObjectCommand({ Bucket: process.env.CLOUDFLARE_BUCKET_NAME, Key: key })).catch(() => {});
 } catch (e) {
   ko('Cloudflare R2', e.message);
 }
