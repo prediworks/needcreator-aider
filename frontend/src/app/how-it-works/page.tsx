@@ -11,16 +11,16 @@ export const metadata = {
 const BRAND_STEPS = [
   ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
-  ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation.'],
-  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne. Approuvez, ou demandez jusqu\'à 2 révisions. Sans réponse sous 7 jours, la livraison est validée automatiquement.'],
-  ['5', 'Notez le créateur', 'Votre avis aide toute la communauté à trouver les bons profils.'],
+  ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation. Un contrat de mission et de cession de droits en PDF est généré automatiquement.'],
+  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez jusqu\'à 2 révisions. Sans réponse sous 7 jours, la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
+  ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger.'],
 ];
 
 const CREATOR_STEPS = [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio. Validation par notre équipe sous 24h.'],
-  ['2', 'Candidatez aux campagnes', 'Un feed personnalisé selon vos niches, avec le prix affiché dès le départ.'],
+  ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire).'],
   ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis moins la commission de 10 %.'],
-  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou 7 jours max), le virement part sur votre compte Stripe.'],
+  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou 7 jours max), le virement part sur votre compte Stripe. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'La réactivité des marques est visible par tous les créateurs.'],
 ];
 
@@ -74,6 +74,18 @@ export default function HowItWorksPage() {
         <Card className="p-8 mt-8">
           <h2 className="text-xl font-bold text-neutral-900 mb-4">Ce qui nous différencie</h2>
           <div className="grid md:grid-cols-3 gap-6 text-sm">
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Contrat de cession de droits automatique</div>
+              <p className="text-neutral-600">À chaque devis accepté, un contrat PDF reprend les parties, la mission, le prix et les droits cédés. Rappel 30 jours avant expiration, prolongation en un clic.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Garantie de remplacement</div>
+              <p className="text-neutral-600">Un créateur en retard de plus de 48 h ? La marque confie la mission à un autre devis, le montant bloqué est libéré, sans frais.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Score de conformité</div>
+              <p className="text-neutral-600">Durée, format, résolution, son et mention du produit vérifiés automatiquement à la livraison, avant validation.</p>
+            </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Prix affichés partout</div>
               <p className="text-neutral-600">Pour la marque, le prix du devis est le prix payé. Pour le créateur, une commission de 10 % est retenue sur le versement. Rien d'autre.</p>

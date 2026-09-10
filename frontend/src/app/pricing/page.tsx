@@ -20,7 +20,10 @@ const ROWS: { label: string; free: Cell; pro: Cell }[] = [
   { label: 'Campagnes ouvertes en même temps', free: { text: '2, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimitées', ok: true } },
   { label: 'Invitations et messages', free: { text: '5 invitations et 20 messages par jour, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimités', ok: true } },
   { label: 'Campagnes gifting (produit offert)', free: { text: 'Non', ok: false }, pro: { text: 'Oui : 5 € de frais de service par vidéo livrée', ok: true } },
-  { label: '2 révisions incluses, validation automatique à 7 jours, droits d\'utilisation inclus', free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
+  { label: 'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: 'Garantie de remplacement si le créateur ne livre pas', free: { text: 'Incluse, sans frais', ok: true }, pro: { text: 'Incluse, sans frais', ok: true } },
+  { label: 'Score de conformité au brief à la livraison', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: '2 révisions incluses, validation automatique à 7 jours', free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
 ];
 
 const FAQ = [
@@ -28,6 +31,8 @@ const FAQ = [
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement 7 jours après la livraison si vous ne répondez pas.'],
   ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander jusqu\'à 2 révisions incluses. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
   ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
+  ['Qui détient les droits sur les vidéos ?', 'Les droits cédés (durée, supports, territoire, exclusivité éventuelle) sont fixés dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. Vous êtes prévenu 30 jours avant l\'expiration et pouvez demander une prolongation, dont le créateur fixe le prix.'],
+  ['Que se passe-t-il si le créateur ne livre pas ?', 'Il est relancé à la date prévue. Après 48 heures de retard, vous pouvez confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic : le montant bloqué est libéré et la nouvelle mission démarre immédiatement. Sans frais.'],
   ['Comment le créateur est-il payé ?', 'Par virement automatique sur son compte Stripe, dès la validation de la livraison. Il reçoit 90 % du devis. Sur une campagne gifting, aucune commission n\'est retenue.'],
 ];
 
