@@ -63,6 +63,7 @@ export default function DeliveryDetailPage() {
   const visibilityMutation = useSetLinkVisibility();
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [linkInput, setLinkInput] = useState('');
   const shopifyPublish = useMutation({
     mutationFn: async (productId: string) => (await api.post(`/integrations/shopify/deliveries/${deliveryId}/publish`, { productId })).data,
@@ -112,7 +113,6 @@ export default function DeliveryDetailPage() {
     }
   };
 
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const handleUpload = async () => {
     if (selectedFiles.length === 0) return;
     setUploadProgress(0);
