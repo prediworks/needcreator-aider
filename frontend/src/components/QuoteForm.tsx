@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { RIGHTS_DURATION, RIGHTS_SUPPORTS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
+import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -90,7 +91,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              min={50}
+              min={MIN_QUOTE_PRICE}
               max={10000}
               required
             />
@@ -184,7 +185,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
       </div>
 
       <div className="flex gap-2">
-        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < 50) || deliveryTypes.length === 0}>
+        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < MIN_QUOTE_PRICE) || deliveryTypes.length === 0}>
           {submitLabel}
         </Button>
         {onCancel && (
