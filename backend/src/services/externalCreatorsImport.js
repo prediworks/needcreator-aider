@@ -98,7 +98,7 @@ export function parseCreatorsFile(buffer, filename = 'import') {
  */
 export async function importCreators(rows, { scope = 'europe', source = 'import' } = {}) {
   const allowed = SCOPES[scope] === undefined ? SCOPES.europe : SCOPES[scope];
-  const stats = { rows: rows.length, created: 0, updated: 0, skippedCountry: 0, duplicatesInFile: 0, invalid: 0, byCountry: {} };
+  const stats = { rows: rows.length, created: 0, updated: 0, skippedCountry: 0, duplicatesInFile: 0, invalid: 0, byCountry: {}, unmappedNiches: {} };
   const seen = new Set();
   for (const r of rows) {
     if (!r.username || !/^[a-z0-9._\-]{1,60}$/.test(r.username)) { stats.invalid++; continue; }
@@ -106,6 +106,7 @@ export async function importCreators(rows, { scope = 'europe', source = 'import'
     seen.add(r.username);
     if (allowed && !allowed.includes(r.country)) { stats.skippedCountry++; continue; }
     const niche = normalizeNiche(r.sourceNiche);
+    if (!niche && r.sourceNiche) stats.unmappedNiches[r.sourceNiche] = (stats.unmappedNiches[r.sourceNiche] || 0) + 1;
     // Dédoublonnage : pseudo, puis email
     let doc = await ExternalCreator.findOne({ username: r.username }).select('+email');
     if (!doc && r.email) doc = await ExternalCreator.findOne({ email: r.email }).select('+email');

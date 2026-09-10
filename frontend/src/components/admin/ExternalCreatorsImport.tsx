@@ -55,6 +55,9 @@ export default function ExternalCreatorsImport() {
             <div>Hors périmètre : <strong>{result.skippedCountry}</strong></div>
             <div>Doublons dans le fichier : <strong>{result.duplicatesInFile}</strong></div>
             <div>Lignes invalides : <strong>{result.invalid}</strong></div>
+            {Object.keys(result.unmappedNiches || {}).length > 0 && (
+              <div className="sm:col-span-3 text-orange-800">Niches non reconnues (conservées telles quelles sur les fiches) : {Object.entries(result.unmappedNiches).map(([n, c]) => `${n} (${c})`).join(', ')}</div>
+            )}
           </div>
         )}
       </Card>
