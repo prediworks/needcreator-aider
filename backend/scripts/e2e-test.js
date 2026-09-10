@@ -1132,7 +1132,7 @@ await step('Envoi direct vers R2 : portfolio + livraison (lien signé, sans pass
   return 'portfolio et livraison déposés directement dans R2, contrôles OK';
 });
 
-await step('Email non confirmé : publication de campagne refusée', async () => {
+await step('Email non confirmé : publication refusée ; emails de confirmation et de réinitialisation via notre SMTP', async () => {
   const email = `e2e-unverified-${RUN}@needcreator-test.com`;
   const fu = await firebaseUser(email, false);
   const uApi = client(fu.idToken);
@@ -1144,6 +1144,19 @@ await step('Email non confirmé : publication de campagne refusée', async () =>
   expect(c.status === 201, 'Création du brouillon échouée', c);
   const pub = await uApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
   expect(pub.status === 403 && pub.data.code === 'EMAIL_NOT_VERIFIED', 'La publication devrait être refusée sans email confirmé', pub);
+  // Emails d'authentification envoyés par notre SMTP : renvoi de confirmation, mot de passe oublié
+  const resend = await uApi('POST', '/auth/send-verification');
+  expect([200, 502].includes(resend.status) && (resend.status !== 200 || resend.data.verified === false), 'Le renvoi de confirmation devrait générer un lien (200) ou signaler un SMTP indisponible (502)', resend);
+  const again = await uApi('POST', '/auth/send-verification');
+  expect(again.status === 429 || again.status === 502, 'Un second renvoi immédiat devrait être limité', again);
+  const alreadyOk = await creatorApi('POST', '/auth/send-verification');
+  expect(alreadyOk.status === 200 && alreadyOk.data.verified === true, 'Un compte déjà confirmé ne doit pas recevoir d\'email', alreadyOk);
+  const unknown = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `inconnu-${RUN}@needcreator-test.com` }) });
+  expect(unknown.status === 200, 'Réinitialisation : réponse générique attendue pour un email inconnu', { status: unknown.status, data: await unknown.json() });
+  const badMail = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'pas-un-email' }) });
+  expect(badMail.status === 400, 'Réinitialisation : email invalide refusé', { status: badMail.status, data: null });
+  const known = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+  expect([200, 502].includes(known.status), 'Réinitialisation : lien généré (200) ou SMTP indisponible (502)', { status: known.status, data: await known.json() });
   await admin.auth().updateUser(fu.uid, { emailVerified: true });
   const pub2 = await uApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
   expect(pub2.status === 200, 'La publication devrait passer une fois l\'email confirmé', pub2);

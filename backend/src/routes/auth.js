@@ -3,6 +3,7 @@ import { authenticate, authenticateFirebase, authorize } from '../middleware/aut
 import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import { acceptTerms, exportData, deleteAccount, updateLegalInfo } from '../controllers/account.js';
+import { sendVerificationEmail, requestPasswordReset, passwordResetLimiter } from '../controllers/authEmails.js';
 import {
   registerCreator,
   registerBrand,
@@ -28,6 +29,10 @@ router.use((req, res, next) => {
 // Registration (authenticateFirebase only, user doesn't exist yet)
 router.post('/register/creator', authenticateFirebase, verifyTurnstile, validate(schemas.registerCreator), registerCreator);
 router.post('/register/brand', authenticateFirebase, verifyTurnstile, validate(schemas.registerBrand), registerBrand);
+
+// Emails d'authentification (envoyés par notre SMTP)
+router.post('/send-verification', authenticate, sendVerificationEmail);
+router.post('/password-reset', passwordResetLimiter, requestPasswordReset);
 
 // Légal / RGPD
 router.post('/accept-terms', authenticate, acceptTerms);

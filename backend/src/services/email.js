@@ -373,3 +373,33 @@ export async function sendExtensionPaid(email, name, campaignTitle, addendumNumb
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Confirmation d'adresse email (lien Firebase, envoyé par notre SMTP)
+ */
+export async function sendVerificationLink(email, name, link) {
+  const subject = 'Confirmez votre adresse email — NeedCreator';
+  const html = `
+    <h1>Bienvenue ${name || ''} !</h1>
+    <p>Pour activer toutes les fonctionnalités de NeedCreator, confirmez votre adresse email en cliquant sur le bouton ci-dessous.</p>
+    <p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#05ddb2;color:#111;border-radius:8px;text-decoration:none;font-weight:600">Confirmer mon adresse</a></p>
+    <p style="color:#666;font-size:13px">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>${link}</p>
+    <p style="color:#666;font-size:13px">Vous n'êtes pas à l'origine de cette inscription ? Ignorez simplement cet email.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
+ * Réinitialisation du mot de passe (lien Firebase, envoyé par notre SMTP)
+ */
+export async function sendPasswordResetLink(email, name, link) {
+  const subject = 'Réinitialisation de votre mot de passe — NeedCreator';
+  const html = `
+    <h1>Bonjour ${name || ''},</h1>
+    <p>Vous avez demandé à réinitialiser votre mot de passe NeedCreator. Cliquez sur le bouton pour en choisir un nouveau. Ce lien est valable une heure.</p>
+    <p><a href="${link}" style="display:inline-block;padding:12px 20px;background:#05ddb2;color:#111;border-radius:8px;text-decoration:none;font-weight:600">Choisir un nouveau mot de passe</a></p>
+    <p style="color:#666;font-size:13px">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>${link}</p>
+    <p style="color:#666;font-size:13px">Vous n'avez rien demandé ? Ignorez cet email, votre mot de passe reste inchangé.</p>
+  `;
+  return sendEmail(email, subject, html);
+}

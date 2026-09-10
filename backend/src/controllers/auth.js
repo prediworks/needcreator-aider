@@ -13,6 +13,7 @@ import { evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
+import { sendVerificationAfterRegistration } from './authEmails.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -124,6 +125,7 @@ export async function registerCreator(req, res) {
     await user.save();
 
     // Send welcome email (non bloquant)
+    if (!req.firebaseUser.email_verified) sendVerificationAfterRegistration(user);
     sendCreatorWelcome(email, name).catch(err =>
       logger.error('Failed to send welcome email:', err.message)
     );
@@ -191,6 +193,7 @@ export async function registerBrand(req, res) {
     logger.info(`Brand user saved to database: ${user._id}`);
 
     // Send welcome email (non bloquant)
+    if (!req.firebaseUser.email_verified) sendVerificationAfterRegistration(user);
     sendBrandWelcome(email, companyName).catch(err =>
       logger.error('Failed to send welcome email:', err.message)
     );

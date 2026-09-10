@@ -39,6 +39,8 @@ Le port 3001 est réservé à un autre service sur le serveur : ne l'utilisez pa
 2. Authentication → Sign-in method → activez **Email/Password** (et Google si vous avez un nom de domaine : Google refuse les adresses IP).
 3. Project settings → General → copiez les clés publiques dans `frontend/.env.local`.
 4. Project settings → Service accounts → Generate new private key → copiez `project_id`, `private_key`, `client_email` dans `backend/.env`.
+5. Les emails de confirmation d'adresse et de mot de passe oublié sont envoyés par le SMTP de NeedCreator (`FROM_EMAIL`), pas par Firebase : aucune configuration de modèle ni de domaine d'envoi n'est nécessaire côté Firebase. Le lien contenu dans l'email reste un lien Firebase.
+6. Authentication → Settings → Authorized domains : ajoutez le domaine du site pour que ces liens ramènent vers l'application (sans cela, Firebase affiche sa propre page de confirmation).
 
 ### Stripe (obligatoire)
 

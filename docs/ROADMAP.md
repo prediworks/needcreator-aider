@@ -39,7 +39,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
 | ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |
 | ~~**Envoi direct des vidéos vers R2**~~ (barre de progression, plus de limite du proxy Cloudflare) | Livré le 10 septembre 2026 (`npm run r2:cors`) | — |
-| ~~**Mot de passe oublié** et **confirmation de l'email**~~ | Livré le 9 septembre 2026 (emails Firebase ; publication et devis bloqués sans confirmation, `REQUIRE_EMAIL_VERIFICATION`) | — |
+| ~~**Mot de passe oublié** et **confirmation de l'email**~~ | Livré le 9 septembre 2026, emails envoyés par le SMTP NeedCreator depuis le 10 septembre (délivrabilité identique aux autres emails) ; publication et devis bloqués sans confirmation, `REQUIRE_EMAIL_VERIFICATION` | — |
 
 ## 3. Nouvelles suggestions
 
