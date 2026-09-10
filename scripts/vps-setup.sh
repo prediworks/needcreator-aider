@@ -50,6 +50,15 @@ if [[ -n "${1:-}" && "${1:-}" != "--finish" ]]; then
   echo "Option inconnue : '$1'. Usage : bash vps-setup.sh   ou   bash vps-setup.sh --finish"; exit 1
 fi
 if [[ "${1:-}" == "--finish" ]]; then
+  log "Mise à jour du dépôt"
+  sudo -u "$DEPLOY_USER" git -C "$APP_DIR" checkout -- backend/package-lock.json frontend/package-lock.json 2>/dev/null || true
+  sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only || warn "git pull impossible : vérifiez les modifications locales dans $APP_DIR"
+
+  log "Installation des dépendances"
+  for d in backend frontend; do
+    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/$d && (npm ci $([[ $d == backend ]] && echo --omit=dev) || npm install $([[ $d == backend ]] && echo --omit=dev))"
+  done
+
   log "Vérification des fichiers .env"
   [[ -f "$APP_DIR/backend/.env" ]] || { echo "Manque $APP_DIR/backend/.env"; exit 1; }
   [[ -f "$APP_DIR/frontend/.env.local" ]] || { echo "Manque $APP_DIR/frontend/.env.local"; exit 1; }
@@ -235,6 +244,8 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
   sudo -u "$DEPLOY_USER" git clone "$REPO_URL" "$APP_DIR"
 else
   log "Mise à jour du dépôt"
+  # Les lockfiles peuvent avoir été réécrits par npm install : on reprend ceux du dépôt
+  sudo -u "$DEPLOY_USER" git -C "$APP_DIR" checkout -- backend/package-lock.json frontend/package-lock.json 2>/dev/null || true
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only
 fi
 log "Installation des dépendances"
