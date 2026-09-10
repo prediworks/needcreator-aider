@@ -126,7 +126,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: cd frontend && npm ci && npx tsc --noEmit
+      - run: cd frontend && npm ci && npx tsc --noEmit && npm run lint
 ```
 
 Le test de bout en bout (`npm run test:e2e`) nécessite un backend démarré avec de vraies clés de test : à réserver à un environnement de préproduction plutôt qu'à un job public.

@@ -33,15 +33,15 @@ export default function ContractCard({ delivery, role }: { delivery: any; role: 
   const [showPropose, setShowPropose] = useState(false);
 
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['contract', id] }); queryClient.invalidateQueries({ queryKey: ['delivery', id] }); };
-  const act = (path: string, body?: any, ok?: string) => useMutation({
+  const useAct = (path: string, body?: any, ok?: string) => useMutation({
     mutationFn: async () => (await api.post(`/deliveries/${id}/rights-extension/${path}`, body)).data,
     onSuccess: (d) => { toast.success(d.message || ok || 'OK'); if (d.warning) toast.warning(d.warning, { duration: 8000 }); refresh(); setShowRequest(false); setShowPropose(false); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
   });
-  const request = act('request', { message });
-  const propose = act('propose', { price: Number(price), duration });
-  const accept = act('accept');
-  const decline = act('decline');
+  const request = useAct('request', { message });
+  const propose = useAct('propose', { price: Number(price), duration });
+  const accept = useAct('accept');
+  const decline = useAct('decline');
 
   if (!delivery.contract?.number) return null;
 

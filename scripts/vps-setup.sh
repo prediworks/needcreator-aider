@@ -68,7 +68,8 @@ if [[ "${1:-}" == "--finish" ]]; then
   log "Bucket R2 : autorisation des envois directs depuis le site (CORS)"
   sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && npm run r2:cors" || warn "CORS R2 non appliqué : les envois de vidéos échoueront. Relancez : npm run r2:cors"
 
-  log "Frontend : build de production"
+  log "Frontend : vérification des règles React (hooks) puis build de production"
+  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && npm run lint" || warn "Lint frontend en erreur : corrigez avant de déployer (le build continue)"
   sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && npm run build"
 
   log "Démarrage / rechargement sans coupure avec PM2"
