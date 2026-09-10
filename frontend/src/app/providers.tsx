@@ -20,11 +20,20 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (firebaseUser) {
         setLoading(true);
-        try {
-          await refreshUser();
-        } catch (error: any) {
-          console.error('Impossible de charger le profil :', error?.message);
-          setUser(null);
+        // Backend momentanément injoignable (redémarrage, réseau) : on réessaie avant de considérer la session perdue
+        for (let attempt = 1; attempt <= 4; attempt++) {
+          try {
+            await refreshUser();
+            break;
+          } catch (error: any) {
+            const transient = error?.code === 'ERR_NETWORK' || (error?.response?.status ?? 0) >= 500;
+            if (transient && attempt < 4) {
+              await new Promise((r) => setTimeout(r, attempt * 2000));
+              continue;
+            }
+            console.error('Impossible de charger le profil :', error?.message);
+            setUser(null);
+          }
         }
       } else {
         setUser(null);
