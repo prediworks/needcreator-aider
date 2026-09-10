@@ -208,7 +208,7 @@ function ProfileContent() {
 
                 {profile.profile.bio && (
                   <div>
-                    <h3 className="text-sm font-medium text-neutral-700 mb-1">Bio</h3>
+                    <h3 className="text-sm font-medium text-neutral-700 mb-1">{isCreator ? 'Bio' : 'Présentation de la marque'}</h3>
                     <p className="text-neutral-900 whitespace-pre-line">{profile.profile.bio}</p>
                   </div>
                 )}
@@ -334,6 +334,19 @@ function ProfileContent() {
                       onChange={(e) => setWebsite(e.target.value)}
                       required
                     />
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Présentation de la marque
+                      </label>
+                      <textarea
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        placeholder="Qui êtes-vous, que vendez-vous, à qui ? Les créateurs la lisent avant d'envoyer un devis."
+                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        rows={4}
+                        maxLength={500}
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">Secteur</label>
                       <select
