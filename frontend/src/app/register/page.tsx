@@ -13,6 +13,7 @@ import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import { NICHES, NICHE_OPTIONS, INDUSTRIES } from '@/lib/labels';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
+import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { toast } from 'sonner';
 
 function RegisterForm() {
@@ -274,12 +275,12 @@ function RegisterForm() {
                   </div>
 
                   <Input
-                    label="Prix minimum par vidéo (€, entre 50 et 10 000)"
+                    label={`Prix minimum par vidéo (€, entre ${MIN_QUOTE_PRICE} et 10 000)`}
                     type="number"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
                     placeholder="100"
-                    min={50}
+                    min={MIN_QUOTE_PRICE}
                     max={10000}
                     required
                   />

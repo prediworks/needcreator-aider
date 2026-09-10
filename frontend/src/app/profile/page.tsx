@@ -22,6 +22,7 @@ import BusinessVerificationCard from '@/components/BusinessVerificationCard';
 import SubscriptionCard from '@/components/SubscriptionCard';
 import AccountDataCard from '@/components/AccountDataCard';
 import LegalInfoCard from '@/components/LegalInfoCard';
+import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -312,7 +313,7 @@ function ProfileContent() {
                       type="number"
                       value={minPrice}
                       onChange={(e) => setMinPrice(e.target.value)}
-                      min={50}
+                      min={MIN_QUOTE_PRICE}
                       max={10000}
                       required
                     />

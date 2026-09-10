@@ -1350,6 +1350,24 @@ await step('RGPD : export des données + suppression de compte (anonymisation)',
   return 'export OK, refus si activité en cours, CGU obligatoires, compte anonymisé';
 });
 
+await step('Admin : purge des campagnes, devis et missions d\'un compte (outil temporaire)', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;
+  const before = await mongoose.connection.db.collection('deliveries').countDocuments({ creatorId: new mongoose.Types.ObjectId(c2Id) });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const r = await brandApi('POST', `/admin/users/${c2Id}/purge`);
+    if (r.status === 403) return 'outil désactivé (ADMIN_PURGE_ENABLED=false) : refus vérifié';
+    expect(r.status === 200, 'Purge échouée', r);
+    const after = await mongoose.connection.db.collection('deliveries').countDocuments({ creatorId: new mongoose.Types.ObjectId(c2Id) });
+    const apps = await mongoose.connection.db.collection('campaigns').countDocuments({ 'applications.creatorId': new mongoose.Types.ObjectId(c2Id) });
+    expect(after === 0 && apps === 0, 'Le créateur 2 ne devrait plus avoir ni mission ni devis', { status: 200, data: { before, after, apps } });
+    return `${before} mission(s) et les devis du créateur 2 supprimés, ${r.data.payments.length} paiement(s) traité(s)`;
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 // Nettoyage
 if (CLEAN) {
   await step('Nettoyage des données de test', async () => {

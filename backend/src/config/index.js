@@ -124,6 +124,11 @@ export const config = {
     earlyAccessHours: parseInt(process.env.EARLY_ACCESS_HOURS || '24', 10),
   },
 
+  // Outils d'administration temporaires (validation de la prod)
+  admin: {
+    purgeEnabled: process.env.ADMIN_PURGE_ENABLED === 'true',
+  },
+
   // Authentification
   auth: {
     requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION !== 'false',
@@ -141,6 +146,7 @@ export const config = {
     revisionDeadlineDays: 3,
     minCreatorVideos: parseInt(process.env.MIN_CREATOR_VIDEOS || '3', 10),
     replacementGraceHours: parseInt(process.env.REPLACEMENT_GRACE_HOURS || '48', 10), // délai après la date prévue avant remplacement possible
+    minQuotePrice: parseInt(process.env.MIN_QUOTE_PRICE || '50', 10), // prix minimum d'un devis / d'un budget (€)
     maxVideoSizeMB: 500,
     // STRIPE_AUTO_CONFIRM_TEST=true : confirme les paiements avec une carte de test sans écran de saisie (jamais en production)
     autoConfirmTestPayments: process.env.NODE_ENV !== 'production' && process.env.STRIPE_AUTO_CONFIRM_TEST === 'true',

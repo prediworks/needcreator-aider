@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Spinner from '@/components/ui/Spinner';
+import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { ArrowLeft, Save, Send, Info } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
@@ -127,7 +128,7 @@ function NewCampaignForm() {
     duration: parseInt(duration),
     deliverables: nbVideos,
     requirements: requirements.split('\n').map(r => r.trim()).filter(Boolean).slice(0, 10),
-    budget: budgetNumber >= 50 ? budgetNumber : null,
+    budget: budgetNumber >= MIN_QUOTE_PRICE ? budgetNumber : null,
     niches,
     applicationDeadline,
     deliveryTypes,
@@ -144,7 +145,7 @@ function NewCampaignForm() {
     set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
 
   const step1Valid = title.trim().length >= 10 && description.trim().length >= 50 && niches.length > 0;
-  const step2Valid = (budgetNumber === 0 || budgetNumber >= 50) && !!applicationDeadline && deliveryTypes.length > 0
+  const step2Valid = (budgetNumber === 0 || budgetNumber >= MIN_QUOTE_PRICE) && !!applicationDeadline && deliveryTypes.length > 0
     && (campaignType !== 'gifting' || ((parseFloat(giftingValue) || 0) >= 30 && !!productDescription.trim() && nbVideos <= 2));
 
   const saveDraft = async () => {
@@ -440,7 +441,7 @@ function NewCampaignForm() {
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
                   placeholder={`Laissez vide pour recevoir des devis libres (suggestion : ${suggestedBudget})`}
-                  min={50}
+                  min={MIN_QUOTE_PRICE}
                 />
                 <p className="text-xs text-neutral-500 mt-1">Sans budget, chaque créateur propose son prix dans son devis. Vous choisissez ensuite.</p>
                 <div className="mt-2 bg-primary-50 border border-primary-100 rounded-lg p-3 text-sm text-neutral-700 space-y-1">

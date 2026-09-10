@@ -89,7 +89,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Stockage | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_KEY_ID`, `CLOUDFLARE_SECRET_ACCESS_KEY`, `CLOUDFLARE_BUCKET_NAME`, `CLOUDFLARE_PUBLIC_URL` | |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL` | `FROM_EMAIL` doit être une adresse autorisée par votre SMTP |
 | Sécurité | `JWT_SECRET`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS` | mettez `RATE_LIMIT_MAX_REQUESTS=5000` en développement |
-| Règles métier | `MIN_CREATOR_VIDEOS=3`, `JOBS_INTERVAL_MINUTES=60`, `EARLY_ACCESS_HOURS=24`, `REPLACEMENT_GRACE_HOURS=48`, `BADGE_*` | `REPLACEMENT_GRACE_HOURS` : délai après la date de livraison prévue avant que la marque puisse confier la mission à un autre créateur |
+| Règles métier | `MIN_CREATOR_VIDEOS=3`, `JOBS_INTERVAL_MINUTES=60`, `EARLY_ACCESS_HOURS=24`, `REPLACEMENT_GRACE_HOURS=48`, `MIN_QUOTE_PRICE=50`, `BADGE_*` | `REPLACEMENT_GRACE_HOURS` : délai après la date de livraison prévue avant que la marque puisse confier la mission à un autre créateur |
 | Abonnement Pro | `PRO_PRICE_EUR=79`, `PRO_TRIAL_DAYS=14`, `PRO_FEE_PERCENT=10`, `AI_BRIEF_FREE_QUOTA=3` | |
 | Limites nouvelles marques | `LIMIT_NEW_BRAND_OPEN_CAMPAIGNS=2`, `LIMIT_NEW_BRAND_INVITES_PER_DAY=5`, `LIMIT_NEW_BRAND_MESSAGES_PER_DAY=20` | s'appliquent tant qu'aucune campagne n'est terminée |
 | Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |
@@ -102,6 +102,7 @@ cp frontend/.env.local.example frontend/.env.local
 | IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
 | Tests | `STRIPE_AUTO_CONFIRM_TEST=false` | `true` = paiements confirmés sans écran de carte (jamais en production) |
+| Outil temporaire | `ADMIN_PURGE_ENABLED=false` | `true` = bouton admin « Purger (test) » qui supprime campagnes, devis, missions, avis et conversations d'un compte (paiements annulés/remboursés). À remettre à `false` après validation de la prod |
 
 ### `frontend/.env.local` : variables
 
@@ -116,6 +117,7 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=                      # facultatif, voir ci-dessus
+NEXT_PUBLIC_MIN_QUOTE_PRICE=50                       # doit être égal à MIN_QUOTE_PRICE du backend
 ```
 
 Le fichier `.env` n'est pas rechargé à chaud : redémarrez le backend après une modification.

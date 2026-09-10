@@ -5,7 +5,10 @@ import Review from '../models/Review.js';
 import { sendCreatorApproved, sendAmbassadorApproved } from '../services/email.js';
 import { runScheduledJobs } from '../jobs/autoApproval.js';
 import { resolveUrlsIn } from '../services/storage.js';
-import { stripe } from '../services/stripe.js';
+import { stripe, cancelOrRefundPaymentIntent } from '../services/stripe.js';
+import Conversation from '../models/Conversation.js';
+import Report from '../models/Report.js';
+import { config } from '../config/index.js';
 
 /**
  * Détail d'un utilisateur (portfolio lisible, même si le créateur est en attente)
@@ -456,6 +459,66 @@ export async function resetStripeConnect(req, res) {
   } catch (error) {
     logger.error('resetStripeConnect failed:', error);
     res.status(500).json({ error: `Suppression impossible : ${error.message}` });
+  }
+}
+
+/**
+ * OUTIL TEMPORAIRE (validation de la prod) : supprime les campagnes, devis, missions, avis, conversations d'un compte.
+ * Les autorisations de paiement en cours sont annulées, les paiements capturés remboursés. Actif seulement si ADMIN_PURGE_ENABLED=true.
+ */
+export async function purgeUserActivity(req, res) {
+  try {
+    if (!config.admin.purgeEnabled) return res.status(403).json({ error: 'Outil désactivé (ADMIN_PURGE_ENABLED=false dans backend/.env)' });
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+    if (user.role === 'admin') return res.status(400).json({ error: 'Pas de purge sur un compte administrateur' });
+    const uid = user._id;
+    const out = { payments: [], deliveries: 0, campaigns: 0, applications: 0, reviews: 0, conversations: 0, reports: 0 };
+
+    const deliveryFilter = user.role === 'brand' ? { brandId: uid } : { creatorId: uid };
+    const deliveries = await Delivery.find(deliveryFilter).select('payment readyPack rightsExtension campaignId');
+    for (const d of deliveries) {
+      for (const piId of [d.payment?.stripePaymentIntentId, d.readyPack?.stripePaymentIntentId, d.rightsExtension?.stripePaymentIntentId].filter(Boolean)) {
+        try { const r = await cancelOrRefundPaymentIntent(piId); out.payments.push(`${piId}: ${r.action}`); }
+        catch (err) { out.payments.push(`${piId}: erreur ${err.message}`); }
+      }
+    }
+    const campaignIds = user.role === 'brand'
+      ? (await Campaign.find({ brandId: uid }).select('_id')).map(c => c._id)
+      : deliveries.map(d => d.campaignId);
+
+    if (user.role === 'brand') {
+      // Toutes les livraisons des campagnes de la marque (y compris d'autres créateurs)
+      const all = await Delivery.find({ campaignId: { $in: campaignIds } }).select('payment');
+      for (const d of all) {
+        if (d.payment?.stripePaymentIntentId && !deliveries.some(x => String(x._id) === String(d._id))) {
+          try { const r = await cancelOrRefundPaymentIntent(d.payment.stripePaymentIntentId); out.payments.push(`${d.payment.stripePaymentIntentId}: ${r.action}`); } catch (err) { out.payments.push(`erreur ${err.message}`); }
+        }
+      }
+      out.deliveries = (await Delivery.deleteMany({ $or: [{ brandId: uid }, { campaignId: { $in: campaignIds } }] })).deletedCount;
+      out.reviews = (await Review.deleteMany({ $or: [{ reviewerId: uid }, { revieweeId: uid }, { campaignId: { $in: campaignIds } }] })).deletedCount;
+      out.campaigns = (await Campaign.deleteMany({ brandId: uid })).deletedCount;
+      out.conversations = (await Conversation.deleteMany({ brandId: uid })).deletedCount;
+      await User.updateMany({ 'referral.rewards.sourceUserId': uid }, { $pull: { 'referral.rewards': { sourceUserId: uid } } });
+    } else {
+      out.deliveries = (await Delivery.deleteMany({ creatorId: uid })).deletedCount;
+      const pulled = await Campaign.updateMany({ 'applications.creatorId': uid }, { $pull: { applications: { creatorId: uid }, selectedCreators: uid } });
+      out.applications = pulled.modifiedCount;
+      await Campaign.updateMany({ selectedCreator: uid }, { $unset: { selectedCreator: '' } });
+      // Une campagne dont le créateur sélectionné est purgé redevient ouverte aux candidatures
+      await Campaign.updateMany({ _id: { $in: campaignIds }, status: 'in_progress' }, { $set: { status: 'active' } });
+      out.reviews = (await Review.deleteMany({ $or: [{ reviewerId: uid }, { revieweeId: uid }] })).deletedCount;
+      out.conversations = (await Conversation.deleteMany({ creatorId: uid })).deletedCount;
+      user.set('profile.stats.completedJobs', 0);
+      user.set('profile.stats.lateDeliveries', 0);
+      await user.save();
+    }
+    out.reports = (await Report.deleteMany({ $or: [{ reporterId: uid }, { targetUserId: uid }] })).deletedCount;
+    logger.warn(`PURGE admin ${req.user._id} → ${user.role} ${uid}: ${JSON.stringify(out)}`);
+    res.json({ message: `Purge effectuée : ${out.campaigns} campagne(s), ${out.deliveries} mission(s), ${out.applications} devis, ${out.reviews} avis, ${out.conversations} conversation(s), ${out.payments.length} paiement(s) traité(s)`, ...out });
+  } catch (error) {
+    logger.error('purgeUserActivity failed:', error);
+    res.status(500).json({ error: `Purge impossible : ${error.message}` });
   }
 }
 

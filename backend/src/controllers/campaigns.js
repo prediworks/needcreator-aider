@@ -490,8 +490,8 @@ export async function applyToCampaign(req, res) {
         return res.status(403).json({ error: 'Vous avez désactivé les campagnes gifting dans votre profil' });
       }
       finalPrice = 0; // produit offert, pas de rémunération
-    } else if (price < 50) {
-      return res.status(400).json({ error: 'Le prix minimum est de 50 €' });
+    } else if (price < config.business.minQuotePrice) {
+      return res.status(400).json({ error: `Le prix minimum est de ${config.business.minQuotePrice} €` });
     }
 
     const matchScore = computeMatchScore(campaign, creator, finalPrice);
@@ -576,7 +576,7 @@ export async function updateQuote(req, res) {
 
     application.proposal = proposal ?? application.proposal;
     application.price = campaign.type === 'gifting' ? 0 : price;
-    if (campaign.type !== 'gifting' && price < 50) return res.status(400).json({ error: 'Le prix minimum est de 50 €' });
+    if (campaign.type !== 'gifting' && price < config.business.minQuotePrice) return res.status(400).json({ error: `Le prix minimum est de ${config.business.minQuotePrice} €` });
     application.estimatedDeliveryDays = estimatedDeliveryDays;
     application.matchScore = computeMatchScore(campaign, creator, price);
     application.quote.version = (application.quote.version || 1) + 1;

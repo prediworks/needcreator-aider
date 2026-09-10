@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, useRunJobs,
+  useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, usePurgeUser, useRunJobs,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -48,6 +48,7 @@ export default function AdminPage() {
   const reject = useRejectCreator();
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
+  const purge = usePurgeUser();
   const runJobs = useRunJobs();
 
   if (!ready) return <Spinner />;
@@ -320,6 +321,17 @@ export default function AdminPage() {
                         ) : (
                           <Button size="sm" variant="ghost" onClick={() => reactivate.mutate({ userId: u._id })}>Activer</Button>
                         ))}
+                        {u.role !== 'admin' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600"
+                            title="Outil temporaire de validation : supprime campagnes, devis, missions, avis et conversations de ce compte (paiements annulés ou remboursés)"
+                            onClick={() => { if (confirm(`Supprimer toutes les campagnes, devis, missions, avis et conversations de ${u.profile?.companyName || u.profile?.name} ? Les paiements en cours seront annulés ou remboursés. Action irréversible.`)) purge.mutate({ userId: u._id }); }}
+                          >
+                            Purger (test)
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}

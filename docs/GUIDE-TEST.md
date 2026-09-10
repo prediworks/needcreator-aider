@@ -40,7 +40,7 @@ cd backend
 npm run test:e2e -- --clean
 ```
 
-Résultat attendu : `63/63 étapes OK` (et `13/13` pour le test navigateur). Si une étape est ❌, le message dit quoi et pourquoi.
+Résultat attendu : `64/64 étapes OK` (et `13/13` pour le test navigateur). Si une étape est ❌, le message dit quoi et pourquoi.
 
 ## 4. Test manuel dans le navigateur
 

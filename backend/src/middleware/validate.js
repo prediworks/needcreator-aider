@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -42,7 +43,7 @@ export const schemas = {
     name: Joi.string().min(2).max(100).required(),
     bio: Joi.string().max(500).allow(''),
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
-    minPrice: Joi.number().min(50).max(10000).required(),
+    minPrice: Joi.number().min(config.business.minQuotePrice).max(10000).required(),
     referralCode: Joi.string().max(20).allow(''),
   }),
   
@@ -145,7 +146,7 @@ export const schemas = {
     duration: Joi.number().min(15).max(180).required(),
     deliverables: Joi.number().min(1).max(10).required(),
     requirements: Joi.array().items(Joi.string()).max(10),
-    budget: Joi.number().min(50).allow(null, ''), // facultatif
+    budget: Joi.number().min(config.business.minQuotePrice).allow(null, ''), // facultatif
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
     applicationDeadline: Joi.date().greater('now').required(),
     deliveryTypes: Joi.array().items(Joi.string().valid('file', 'link')).min(1).default(['file', 'link']),
@@ -209,7 +210,7 @@ export const schemas = {
     duration: Joi.number().min(15).max(180),
     deliverables: Joi.number().min(1).max(10),
     requirements: Joi.array().items(Joi.string()).max(10),
-    budget: Joi.number().min(50).allow(null, ''),
+    budget: Joi.number().min(config.business.minQuotePrice).allow(null, ''),
     niches: Joi.array().items(Joi.string()).min(1).max(5),
     applicationDeadline: Joi.date().greater('now'),
     deliveryTypes: Joi.array().items(Joi.string().valid('file', 'link')).min(1),
