@@ -24,6 +24,7 @@ const NICHE_MAP = {
   technology: 'tech', tech: 'tech', gaming: 'gaming', beauty: 'beauty', beaute: 'beauty', fashion: 'fashion', mode: 'fashion',
   food: 'food', cuisine: 'food', travel: 'travel', voyage: 'travel', fitness: 'fitness', sport: 'fitness', lifestyle: 'lifestyle',
   home: 'home', maison: 'home', parenting: 'parenting', famille: 'parenting', finance: 'finance', education: 'education', pets: 'pets', animaux: 'pets',
+  health: 'health', sante: 'health', wellness: 'health', art: 'art', music: 'music', musique: 'music', entertainment: 'entertainment', comedy: 'entertainment', automotive: 'auto', auto: 'auto', business: 'business', diy: 'diy', photography: 'art',
 };
 
 export function normalizeCountry(raw) {

@@ -14,17 +14,19 @@ const PUBLIC_FILTER = { status: { $in: ['listed', 'invited'] } };
  */
 export async function listExternalCreators(req, res) {
   try {
-    const { country, q, minFollowers, network, page = 1, limit = 24, sort = 'followers' } = req.query;
+    const { country, q, minFollowers, network, niche, page = 1, limit = 24, sort = 'followers' } = req.query;
     const filter = { ...PUBLIC_FILTER };
     if (country) filter.country = String(country).toUpperCase();
     if (minFollowers) filter.followers = { $gte: parseInt(minFollowers, 10) || 0 };
     if (network === 'instagram') filter.instagram = { $nin: ['', null] };
     if (network === 'youtube') filter.youtube = { $nin: ['', null] };
     if (network === 'tiktok') filter.tiktok = { $nin: ['', null] };
+    if (niche) filter.niches = String(niche);
     if (q) filter.$or = [{ username: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { name: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
     const pageN = Math.max(1, parseInt(page, 10) || 1);
     const limitN = Math.min(60, Math.max(1, parseInt(limit, 10) || 24));
     const sortSpec = sort === 'recent' ? { importedAt: -1 } : sort === 'name' ? { name: 1 } : { followers: -1 };
+    const niches = await ExternalCreator.aggregate([{ $match: PUBLIC_FILTER }, { $unwind: '$niches' }, { $group: { _id: '$niches', n: { $sum: 1 } } }, { $sort: { n: -1 } }]);
     const [docs, total, countries] = await Promise.all([
       ExternalCreator.find(filter).sort(sortSpec).skip((pageN - 1) * limitN).limit(limitN),
       ExternalCreator.countDocuments(filter),
@@ -34,6 +36,7 @@ export async function listExternalCreators(req, res) {
       creators: docs.map(d => d.toPublic()),
       pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) },
       countries: countries.map(c => ({ country: c._id, count: c.n })),
+      niches: niches.map(n => ({ niche: n._id, count: n.n })),
       inviteCooldownDays: INVITE_COOLDOWN_DAYS,
     });
   } catch (error) {

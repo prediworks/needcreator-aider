@@ -10,6 +10,9 @@ import Input from '@/components/ui/Input';
 import Spinner from '@/components/ui/Spinner';
 import { Instagram, Youtube, Music2, Send, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { NICHES } from '@/lib/labels';
+
+export const nicheLabel = (c: any) => (c.niches || []).map((n: string) => NICHES[n] || n).join(', ') || c.sourceNiche || '';
 
 const COUNTRY_LABELS: Record<string, string> = { FR: 'France', BE: 'Belgique', CH: 'Suisse', LU: 'Luxembourg', MC: 'Monaco', DE: 'Allemagne', ES: 'Espagne', IT: 'Italie', NL: 'Pays-Bas', PT: 'Portugal', GB: 'Royaume-Uni', IE: 'Irlande', AT: 'Autriche', SE: 'Suède', NO: 'Norvège', DK: 'Danemark', FI: 'Finlande', PL: 'Pologne', RO: 'Roumanie', GR: 'Grèce', CA: 'Canada', MA: 'Maroc', TN: 'Tunisie', DZ: 'Algérie', US: 'États-Unis' };
 export const countryLabel = (c: string) => COUNTRY_LABELS[c] || c;
@@ -24,11 +27,12 @@ export default function ExternalCreatorsList({ mode, campaigns = [] }: { mode: '
   const [country, setCountry] = useState('FR');
   const [q, setQ] = useState('');
   const [network, setNetwork] = useState('');
+  const [niche, setNiche] = useState('');
   const [page, setPage] = useState(1);
   const [inviting, setInviting] = useState<any>(null);
   const [campaignId, setCampaignId] = useState('');
   const [message, setMessage] = useState('');
-  const params = { country: country || undefined, q: q || undefined, network: network || undefined, page, limit: 24 };
+  const params = { country: country || undefined, q: q || undefined, network: network || undefined, niche: niche || undefined, page, limit: 24 };
   const { data, isLoading } = useQuery({
     queryKey: ['external-creators', params],
     queryFn: async () => (await api.get('/external-creators', { params })).data,
@@ -41,8 +45,12 @@ export default function ExternalCreatorsList({ mode, campaigns = [] }: { mode: '
 
   return (
     <div>
-      <Card className="p-4 mb-6 grid md:grid-cols-4 gap-3">
+      <Card className="p-4 mb-6 grid md:grid-cols-5 gap-3">
         <Input placeholder="Pseudo ou nom" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="md:col-span-2" />
+        <select value={niche} onChange={(e) => { setNiche(e.target.value); setPage(1); }} className="px-3 py-2 border border-neutral-300 rounded-lg">
+          <option value="">Toutes les niches</option>
+          {(data?.niches || []).map((n: any) => <option key={n.niche} value={n.niche}>{NICHES[n.niche] || n.niche} ({n.count})</option>)}
+        </select>
         <select value={country} onChange={(e) => { setCountry(e.target.value); setPage(1); }} className="px-3 py-2 border border-neutral-300 rounded-lg">
           <option value="">Tous les pays</option>
           {(data?.countries || []).map((c: any) => <option key={c.country} value={c.country}>{countryLabel(c.country)} ({c.count})</option>)}
@@ -65,12 +73,13 @@ export default function ExternalCreatorsList({ mode, campaigns = [] }: { mode: '
               <Card key={c.id} className="p-4 flex flex-col gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <Link href={`/createurs-tech/${c.slug}`} className="font-semibold text-neutral-900 hover:text-primary-600">{c.name || c.username}</Link>
+                    <Link href={`/annuaire-createurs/${c.slug}`} className="font-semibold text-neutral-900 hover:text-primary-600">{c.name || c.username}</Link>
                     <div className="text-xs text-neutral-500">@{c.username} · {countryLabel(c.country)}</div>
                   </div>
                   <span className="text-xs px-2 py-1 rounded-full bg-neutral-100 text-neutral-700">{c.status === 'invited' ? 'Invité' : 'Référencé'}</span>
                 </div>
                 <div className="text-sm text-neutral-700"><strong>{fmt(c.followers)}</strong> abonnés{c.posts ? ` · ${fmt(c.posts)} publications` : ''}</div>
+                {nicheLabel(c) && <div className="flex flex-wrap gap-1">{(c.niches?.length ? c.niches : [c.sourceNiche]).filter(Boolean).map((n: string) => <span key={n} className="px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 text-xs">{NICHES[n] || n}</span>)}</div>}
                 <div className="flex gap-2 text-neutral-500">
                   {c.instagram && <a href={c.instagram} target="_blank" rel="noopener noreferrer nofollow" title="Instagram" className="hover:text-pink-600"><Instagram className="w-4 h-4" /></a>}
                   {c.youtube && <a href={c.youtube} target="_blank" rel="noopener noreferrer nofollow" title="YouTube" className="hover:text-red-600"><Youtube className="w-4 h-4" /></a>}

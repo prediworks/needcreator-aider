@@ -450,7 +450,7 @@ export async function sendExternalCreatorInvitation(email, name, brandName, camp
     ${message ? `<p>Son message : « ${message} »</p>` : ''}
     <p>NeedCreator est une plateforme française : vous fixez votre prix, le paiement est bloqué avant que vous ne commenciez, et vous recevez 90 % de votre devis. Inscription gratuite, 3 vidéos de portfolio suffisent.</p>
     <p><a href="${joinLink}" style="display:inline-block;padding:12px 20px;background:#05ddb2;color:#111;border-radius:8px;text-decoration:none;font-weight:600">Découvrir la proposition et m'inscrire</a></p>
-    <p style="color:#666;font-size:13px">Vous recevez cet email car votre profil public (réseaux sociaux) figure dans notre annuaire de créateurs. Vous pouvez le retirer à tout moment depuis sa page sur ${config.cors.origin}/createurs-tech, ou en répondant à cet email.</p>
+    <p style="color:#666;font-size:13px">Vous recevez cet email car votre profil public (réseaux sociaux) figure dans notre annuaire de créateurs. Vous pouvez le retirer à tout moment depuis sa page sur ${config.cors.origin}/annuaire-createurs, ou en répondant à cet email.</p>
   `;
   return sendEmail(email, subject, html);
 }

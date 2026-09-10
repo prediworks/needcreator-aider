@@ -140,4 +140,4 @@ Sans réponse de la marque, la livraison est validée automatiquement. Pour test
 
 ## Importer une liste de créateurs (admin)
 
-Administration → onglet « Créateurs référencés » → choisir le fichier (xlsx ou csv, colonnes `Username, Name, Country, Email, Instagram, YouTube, Followers, Posts, Likes, Niche`) et le périmètre (France, francophonie, Europe, monde) → Importer. Le résumé indique les créés, mis à jour, hors périmètre et doublons. L'import est rejouable sans créer de doublons. Résultat visible sur `/createurs-tech` (public) et dans Créateurs → « Référencés » (marques).
+Administration → onglet « Créateurs référencés » → choisir le fichier (xlsx ou csv, colonnes `Username, Name, Country, Email, Instagram, YouTube, Followers, Posts, Likes, Niche`) et le périmètre (France, francophonie, Europe, monde) → Importer. Le résumé indique les créés, mis à jour, hors périmètre et doublons. L'import est rejouable sans créer de doublons. Résultat visible sur `/annuaire-createurs` (public) et dans Créateurs → « Référencés » (marques).

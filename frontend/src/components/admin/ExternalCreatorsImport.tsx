@@ -77,7 +77,7 @@ export default function ExternalCreatorsImport() {
             </div>
           </div>
         ) : <p className="text-sm text-neutral-500">Chargement…</p>}
-        <p className="text-xs text-neutral-500 mt-4">Annuaire public : <a href="/createurs-tech" target="_blank" className="underline">/createurs-tech</a>. Les emails ne sont jamais affichés ; les marques invitent via la plateforme (une invitation par créateur tous les 14 jours).</p>
+        <p className="text-xs text-neutral-500 mt-4">Annuaire public : <a href="/annuaire-createurs" target="_blank" className="underline">/annuaire-createurs</a>. Les emails ne sont jamais affichés ; les marques invitent via la plateforme (une invitation par créateur tous les 14 jours).</p>
       </Card>
     </div>
   );

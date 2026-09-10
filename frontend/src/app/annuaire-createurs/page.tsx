@@ -4,9 +4,9 @@ import Button from '@/components/ui/Button';
 import ExternalCreatorsList from '@/components/ExternalCreatorsList';
 
 export const metadata: Metadata = {
-  title: 'Annuaire des créateurs tech',
-  description: 'Créateurs de contenu et influenceurs tech en France et en Europe : audience, réseaux, et mise en relation via NeedCreator pour vos vidéos UGC.',
-  alternates: { canonical: '/createurs-tech' },
+  title: 'Annuaire des créateurs',
+  description: 'Créateurs de contenu et influenceurs en France et en Europe, par niche : audience, réseaux, et mise en relation via NeedCreator pour vos vidéos UGC.',
+  alternates: { canonical: '/annuaire-createurs' },
 };
 
 /**
@@ -17,9 +17,9 @@ export default function ExternalCreatorsPage() {
     <div className="min-h-screen bg-neutral-50 py-12">
       <div className="container mx-auto px-4 max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-2">Annuaire des créateurs tech</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-2">Annuaire des créateurs</h1>
           <p className="text-neutral-600 max-w-3xl">
-            Créateurs et influenceurs tech référencés à partir de leurs profils publics, en France et en Europe. Ils ne sont pas encore inscrits sur NeedCreator :
+            Créateurs et influenceurs référencés par niche à partir de leurs profils publics, en France et en Europe. Ils ne sont pas encore inscrits sur NeedCreator :
             les marques peuvent les inviter depuis l&apos;application, l&apos;invitation part de la plateforme. Pour des créateurs vérifiés avec portfolio, devis et paiement sécurisé,{' '}
             <Link href="/register?role=brand" className="text-primary-600 underline">créez un compte marque</Link>.
           </p>

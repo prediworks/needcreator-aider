@@ -52,6 +52,7 @@ externalCreatorSchema.methods.toPublic = function() {
     posts: this.posts,
     likes: this.likes,
     niches: this.niches,
+    sourceNiche: this.sourceNiche,
     status: this.status,
     lastInvitedAt: this.lastInvitedAt,
   };

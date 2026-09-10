@@ -17,7 +17,7 @@ export default function Footer() {
           <ul className="space-y-2 text-neutral-600">
             <li><Link href="/how-it-works" className="hover:text-primary-600">Comment ça marche</Link></li>
             <li><Link href="/pricing" className="hover:text-primary-600">Tarifs</Link></li>
-            <li><Link href="/createurs-tech" className="hover:text-primary-600">Annuaire des créateurs tech</Link></li>
+            <li><Link href="/annuaire-createurs" className="hover:text-primary-600">Annuaire des créateurs</Link></li>
             <li><Link href="/register?role=brand" className="hover:text-primary-600">Je suis une marque</Link></li>
             <li><Link href="/register?role=creator" className="hover:text-primary-600">Je suis créateur</Link></li>
           </ul>
