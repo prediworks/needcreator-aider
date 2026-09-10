@@ -130,9 +130,10 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+// Une promesse rejetée sans catch ne doit pas couper le service pour tous les utilisateurs :
+// on journalise (et Sentry remontera l'erreur), le processus continue.
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
 });
 
 // Start the server
