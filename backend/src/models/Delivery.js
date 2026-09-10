@@ -124,6 +124,31 @@ const deliverySchema = new mongoose.Schema({
     note: String,
   },
   // Pack "vidéo prête à diffuser" (déclinaisons de format, vignette, sous-titres)
+  // Score de conformité au brief (calculé automatiquement à la soumission)
+  compliance: {
+    status: { type: String, enum: ['none', 'pending', 'done', 'unavailable'], default: 'none' },
+    checkedAt: Date,
+    score: Number,          // 0-100
+    summary: String,
+    items: [{
+      key: String,          // count | duration | orientation | resolution | audio | mentions
+      label: String,
+      status: { type: String, enum: ['ok', 'warn', 'fail', 'skip'] },
+      detail: String,
+      file: String,         // nom du fichier concerné
+    }],
+    transcript: String,
+  },
+  // Garantie de remplacement (créateur en retard)
+  replacement: {
+    status: { type: String, enum: ['none', 'late', 'offered', 'replaced'], default: 'none' },
+    lateSince: Date,
+    offeredAt: Date,
+    replacedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    replacedAt: Date,
+    newDeliveryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Delivery' },
+  },
+
   // Contrat de mission et cession de droits (généré à l'acceptation du devis)
   contract: {
     number: String,

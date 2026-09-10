@@ -125,6 +125,7 @@ const creatorEmail = `e2e-creator-${RUN}@needcreator-test.com`;
 let brand, creator, brandApi, creatorApi, adminApi;
 const extraCleanup = [];
 let brandUser, creatorUser, campaign, delivery;
+let c2, c2Api; // second créateur (multi-créateurs), réutilisé par la garantie de remplacement
 
 console.log(`\n=== Test de bout en bout (${API}) ===\n`);
 
@@ -633,8 +634,8 @@ await step('Liens publics/privés : accord des deux parties', async () => {
 await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () => {
   // Second créateur, activé directement en base
   const creator2Email = `e2e-creator2-${RUN}@needcreator-test.com`;
-  const c2 = await firebaseUser(creator2Email);
-  const c2Api = client(c2.idToken);
+  c2 = await firebaseUser(creator2Email);
+  c2Api = client(c2.idToken);
   const reg = await c2Api('POST', '/auth/register/creator', { acceptTerms: true, email: creator2Email, name: 'Créateur 2', bio: '', niches: ['beauty'], minPrice: 80 });
   expect(reg.status === 201, 'Inscription créateur 2 échouée', reg);
   extraCleanup.push({ userId: reg.data.user.id, uid: c2.uid });
@@ -729,6 +730,51 @@ await step('Envoi de produit : adresse, expédition, réception, délai de produ
   const days = Math.round((new Date(recv.data.productionDeadline) - Date.now()) / 86400000);
   expect(days === 5, `Le délai de production doit être de 5 jours après réception (obtenu ${days})`, recv);
   return `expédié Colissimo 6A123, reçu, livraison attendue dans ${days} jours`;
+});
+
+await step('Garantie de remplacement : créateur en retard → mission confiée à un autre devis, paiement libéré', async () => {
+  const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne remplacement', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 120, niches: ['beauty'], applicationDeadline: deadline });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const a1 = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 120, estimatedDeliveryDays: 3 });
+  const a2 = await c2Api('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 110, estimatedDeliveryDays: 4, proposal: 'Disponible immédiatement' });
+  expect(a1.status === 201 && a2.status === 201, 'Candidatures échouées', a2);
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel.status === 200, 'Sélection échouée', sel);
+  const d = sel.data.delivery._id;
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  await stripe.paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await brandApi('POST', `/deliveries/${d}/confirm-payment`, {});
+  const early = await brandApi('POST', `/deliveries/${d}/replacement/select/${c2Id}`);
+  expect(early.status === 400, 'Le remplacement doit être refusé sans retard', early);
+  // Simule 3 jours de retard puis lance les tâches planifiées (rappel + offre de remplacement)
+  const deliveries = mongoose.connection.db.collection('deliveries');
+  await deliveries.updateOne({ _id: new mongoose.Types.ObjectId(d) }, { $set: { productionDeadline: new Date(Date.now() - 3 * 86400000) } });
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await brandApi('POST', '/admin/jobs/run');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(jobs.status === 200 && jobs.data.lateFlags >= 1, 'La tâche planifiée devrait signaler le retard', jobs);
+  const det = await brandApi('GET', `/deliveries/${d}`);
+  expect(det.data.delivery.isLate === true && det.data.delivery.replacementAvailable === true && det.data.delivery.replacement.status === 'offered', 'Retard / offre de remplacement non détectés', det);
+  const cands = await brandApi('GET', `/deliveries/${d}/replacement/candidates`);
+  expect(cands.status === 200 && cands.data.allowed && cands.data.candidates.length === 1 && cands.data.candidates[0].creatorId === c2Id && cands.data.candidates[0].price === 110, 'Le créateur 2 devrait être le candidat au remplacement', cands);
+  const rep = await brandApi('POST', `/deliveries/${d}/replacement/select/${c2Id}`);
+  expect(rep.status === 200 && rep.data.delivery && String(rep.data.delivery.creatorId) === c2Id && rep.data.delivery.payment.amount === 110 && rep.data.paymentRequired === true, 'Nouvelle mission pour le remplaçant attendue', rep);
+  const old = await brandApi('GET', `/deliveries/${d}`);
+  expect(old.data.delivery.status === 'rejected' && old.data.delivery.replacement.status === 'replaced' && old.data.delivery.payment.status === 'refunded', 'L\'ancienne mission devrait être close et son paiement libéré', old);
+  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId);
+  expect(pi.status === 'canceled', `L'autorisation Stripe devrait être annulée (statut ${pi.status})`, { status: 200, data: { status: pi.status } });
+  const camp = await brandApi('GET', `/campaigns/${c.data.campaign._id}`);
+  const selectedIds = (camp.data.campaign.selectedCreators || []).map(x => String(x._id || x));
+  expect(selectedIds.includes(c2Id) && !selectedIds.includes(creatorUser.id), 'La campagne devrait avoir le remplaçant comme sélectionné', camp);
+  const lateStat = await users.findOne({ _id: new mongoose.Types.ObjectId(creatorUser.id) }, { projection: { 'profile.stats.lateDeliveries': 1 } });
+  expect(lateStat?.profile?.stats?.lateDeliveries >= 1, 'Le retard devrait être compté sur le créateur', { status: 200, data: lateStat });
+  await deliveries.deleteMany({ campaignId: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return `retard signalé, autorisation ${pi.status}, mission confiée au créateur 2 (110 €)`;
 });
 
 await step('Parrainage : codes, marque parrainée (commission 5%), bonus créateur', async () => {
@@ -867,6 +913,16 @@ await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vig
   const up = await creatorApi('POST', `/deliveries/${d}/upload`, f, { form: true });
   expect(up.status === 200, 'Upload de la vraie vidéo échoué', up);
   await creatorApi('POST', `/deliveries/${d}/submit`, {});
+  // Score de conformité calculé en arrière-plan à la soumission
+  let comp = null;
+  for (let i = 0; i < 20; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    comp = (await brandApi('GET', `/deliveries/${d}`)).data.delivery.compliance;
+    if (comp && comp.status !== 'pending') break;
+  }
+  expect(comp && comp.status === 'done' && typeof comp.score === 'number', `Conformité attendue (statut ${comp?.status}, ${comp?.summary || ''})`, { status: 200, data: comp });
+  const item = (k) => comp.items.find(i => i.key === k);
+  expect(item('count')?.status === 'ok' && item('audio')?.status === 'ok' && item('duration')?.status === 'fail', 'Points de conformité inattendus (2 s livrées pour 30 s attendues, son présent)', { status: 200, data: comp.items });
   const tooEarlyBefore = await brandApi('POST', `/deliveries/${d}/ready-pack`, { formats: ['9:16'] });
   expect(tooEarlyBefore.status === 400, 'Le pack ne doit pas être commandable avant validation', tooEarlyBefore);
   await brandApi('POST', `/deliveries/${d}/approve`);
@@ -895,7 +951,7 @@ await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vig
   const head = await fetch(v916.url, { headers: { Range: 'bytes=0-64' } });
   expect(head.ok, `La vidéo générée n'est pas téléchargeable (HTTP ${head.status})`);
   fs.unlinkSync(sample);
-  return `2 formats + vignette générés et téléchargeables, 15 € payés`;
+  return `2 formats + vignette générés et téléchargeables, 15 € payés · conformité ${comp.score}/100 (${comp.summary})`;
 });
 
 await step('Shopify : statut, installation (non configurée → message clair), signature HMAC', async () => {

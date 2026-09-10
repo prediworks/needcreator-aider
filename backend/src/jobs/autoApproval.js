@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendNewCampaignNotification } from '../services/email.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
-import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring } from '../services/email.js';
+import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -137,6 +137,36 @@ export async function notifyAfterEarlyAccess() {
  * Run all scheduled jobs
  */
 /**
+ * Livraisons en retard : rappel au créateur à la date prévue, puis proposition de remplacement à la marque après le délai de grâce
+ */
+export async function flagLateDeliveries() {
+  const now = new Date();
+  const grace = config.business.replacementGraceHours * 3600000;
+  const late = await Delivery.find({ status: 'pending', productionDeadline: { $lt: now }, 'replacement.status': { $in: ['none', 'late'] } })
+    .populate('campaignId', 'title').populate('brandId', 'email profile.companyName profile.name').populate('creatorId', 'email profile.name');
+  let flagged = 0;
+  for (const d of late) {
+    try {
+      const title = d.campaignId?.title || 'votre mission';
+      if (d.replacement?.status !== 'late') {
+        if (d.creatorId?.email) await sendDeliveryLate(d.creatorId.email, d.creatorId.profile?.name, title, d.productionDeadline, d._id).catch(err => logger.warn(`Rappel retard non envoyé ${d._id}: ${err?.message}`));
+        d.replacement = { ...(d.replacement?.toObject?.() || {}), status: 'late', lateSince: now };
+        await d.save(); flagged++;
+      }
+      if (now - new Date(d.productionDeadline) >= grace && !d.replacement.offeredAt) {
+        if (d.brandId?.email) await sendReplacementAvailable(d.brandId.email, d.brandId.profile?.companyName || d.brandId.profile?.name, d.creatorId?.profile?.name || 'Le créateur', title, d._id).catch(err => logger.warn(`Email remplacement non envoyé ${d._id}: ${err?.message}`));
+        d.replacement.status = 'offered';
+        d.replacement.offeredAt = now;
+        await d.save(); flagged++;
+      }
+    } catch (err) {
+      logger.error(`flagLateDeliveries failed for ${d._id}: ${err?.message || err}`);
+    }
+  }
+  return flagged;
+}
+
+/**
  * Rappel 30 jours avant l'expiration des droits d'utilisation (marque + créateur)
  */
 export async function sendRightsExpiryReminders() {
@@ -169,15 +199,16 @@ export async function runScheduledJobs() {
   logger.info('Running scheduled jobs...');
 
   try {
-    const [autoApprovals, reminders, notified, rightsReminders] = await Promise.all([
+    const [autoApprovals, reminders, notified, rightsReminders, lateFlags] = await Promise.all([
       processAutoApprovals(),
       sendAutoApprovalReminders(),
       notifyAfterEarlyAccess(),
       sendRightsExpiryReminders(),
+      flagLateDeliveries(),
     ]);
 
-    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders`);
-    return { autoApprovals, reminders, notified, rightsReminders };
+    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags`);
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

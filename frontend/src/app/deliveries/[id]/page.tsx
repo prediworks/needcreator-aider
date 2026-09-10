@@ -24,6 +24,8 @@ import ShippingCard from '@/components/ShippingCard';
 import PerformanceCard from '@/components/PerformanceCard';
 import ReadyPackCard from '@/components/ReadyPackCard';
 import ContractCard from '@/components/ContractCard';
+import ComplianceCard from '@/components/ComplianceCard';
+import ReplacementCard from '@/components/ReplacementCard';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -256,6 +258,9 @@ export default function DeliveryDetailPage() {
               </Card>
             )}
 
+            {/* Retard et garantie de remplacement (marque) */}
+            {isBrand && <ReplacementCard delivery={delivery} />}
+
             {/* Envoi du produit */}
             {(delivery.shipping?.required || delivery.shipping?.status !== 'none' || isBrand) && !isDone && (
               <ShippingCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />
@@ -462,6 +467,9 @@ export default function DeliveryDetailPage() {
                 </div>
               )}
             </Card>
+
+            {/* Conformité au brief (après soumission) */}
+            {(isBrand || isCreator) && <ComplianceCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
 
             {/* Revisions History */}
             {delivery.revisions?.length > 0 && (

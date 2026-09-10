@@ -190,6 +190,22 @@ export async function captureAndTransfer(paymentIntentId, creatorAccountId, amou
 /**
  * Refund payment
  */
+/**
+ * Annule une autorisation non capturée (le montant bloqué est libéré) ; rembourse si déjà capturée
+ */
+export async function cancelOrRefundPaymentIntent(paymentIntentId) {
+  const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+  if (pi.status === 'succeeded') {
+    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+    return { action: 'refunded', id: refund.id };
+  }
+  if (['requires_capture', 'requires_payment_method', 'requires_confirmation', 'requires_action', 'processing'].includes(pi.status)) {
+    const canceled = await stripe.paymentIntents.cancel(paymentIntentId);
+    return { action: 'canceled', id: canceled.id };
+  }
+  return { action: 'none', status: pi.status };
+}
+
 export async function refundPayment(paymentIntentId, amount = null) {
   try {
     const refund = await stripe.refunds.create({

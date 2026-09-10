@@ -38,6 +38,8 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Google login** | Fonctionne uniquement sur un nom de domaine autorisé dans Firebase, pas sur une adresse IP | S (vous, nom de domaine) |
 | ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
 | ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |
+| ~~**Garantie de remplacement**~~ | Livré le 10 septembre 2026 : rappel au créateur à la date prévue, puis après 48 h la marque confie la mission à l'un des autres devis en un clic (autorisation de paiement libérée, nouvelle mission, retard compté sur le créateur) | — |
+| ~~**Score de conformité au brief**~~ | Livré le 10 septembre 2026 : à la soumission, vérification automatique du nombre de vidéos, durée, format, résolution, son et mention du produit (transcription si clé OpenAI) ; check-list affichée à la marque avant validation | — |
 | ~~**Envoi direct des vidéos vers R2**~~ (barre de progression, plus de limite du proxy Cloudflare) | Livré le 10 septembre 2026 (`npm run r2:cors`) | — |
 | ~~**Mot de passe oublié** et **confirmation de l'email**~~ | Livré le 9 septembre 2026, emails envoyés par le SMTP NeedCreator depuis le 10 septembre (délivrabilité identique aux autres emails) ; publication et devis bloqués sans confirmation, `REQUIRE_EMAIL_VERIFICATION` | — |
 

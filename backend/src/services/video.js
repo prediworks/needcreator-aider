@@ -27,7 +27,7 @@ export function transcriptionAvailable() {
   return !!process.env.OPENAI_API_KEY;
 }
 
-async function probe(file) {
+export async function probe(file) {
   const { stdout } = await run(ffprobePath, ['-v', 'error', '-print_format', 'json', '-show_streams', '-show_format', file]);
   const info = JSON.parse(stdout);
   const video = (info.streams || []).find(s => s.codec_type === 'video');
@@ -38,7 +38,7 @@ async function probe(file) {
 /**
  * Transcrit l'audio en segments horodatés puis génère un fichier SRT
  */
-async function transcribeToSrt(inputFile, workDir) {
+export async function transcribeToSrt(inputFile, workDir) {
   if (!transcriptionAvailable()) return null;
   const audioFile = path.join(workDir, 'audio.mp3');
   await run(ffmpegPath, ['-y', '-i', inputFile, '-vn', '-acodec', 'libmp3lame', '-q:a', '4', audioFile]);

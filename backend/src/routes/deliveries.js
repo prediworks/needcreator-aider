@@ -22,6 +22,8 @@ import {
   requestReadyPack,
   readyPackPaymentIntent,
   getContract,
+  replacementCandidates,
+  replaceCreator,
   requestRightsExtension,
   proposeRightsExtension,
   declineRightsExtension,
@@ -57,6 +59,9 @@ router.patch('/:deliveryId/links/:linkId/visibility', authenticate, validate(sch
 router.post('/:deliveryId/ready-pack', authenticate, authorize('brand'), validate(schemas.readyPack), requestReadyPack);
 router.get('/:deliveryId/ready-pack/payment-intent', authenticate, authorize('brand'), readyPackPaymentIntent);
 router.post('/:deliveryId/ready-pack/confirm', authenticate, authorize('brand'), confirmReadyPack);
+// Garantie de remplacement (créateur en retard)
+router.get('/:deliveryId/replacement/candidates', authenticate, authorize('brand'), replacementCandidates);
+router.post('/:deliveryId/replacement/select/:creatorId', authenticate, authorize('brand'), replaceCreator);
 // Contrat et prolongation des droits
 router.get('/:deliveryId/contract', authenticate, getContract);
 router.post('/:deliveryId/rights-extension/request', authenticate, authorize('brand'), validate(schemas.rightsExtensionRequest), requestRightsExtension);

@@ -140,6 +140,7 @@ export const config = {
     maxRevisions: 2,
     revisionDeadlineDays: 3,
     minCreatorVideos: parseInt(process.env.MIN_CREATOR_VIDEOS || '3', 10),
+    replacementGraceHours: parseInt(process.env.REPLACEMENT_GRACE_HOURS || '48', 10), // délai après la date prévue avant remplacement possible
     maxVideoSizeMB: 500,
     // STRIPE_AUTO_CONFIRM_TEST=true : confirme les paiements avec une carte de test sans écran de saisie (jamais en production)
     autoConfirmTestPayments: process.env.NODE_ENV !== 'production' && process.env.STRIPE_AUTO_CONFIRM_TEST === 'true',

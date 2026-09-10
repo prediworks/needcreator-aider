@@ -89,7 +89,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Stockage | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ACCESS_KEY_ID`, `CLOUDFLARE_SECRET_ACCESS_KEY`, `CLOUDFLARE_BUCKET_NAME`, `CLOUDFLARE_PUBLIC_URL` | |
 | Email | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `FROM_EMAIL` | `FROM_EMAIL` doit être une adresse autorisée par votre SMTP |
 | Sécurité | `JWT_SECRET`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_REQUESTS` | mettez `RATE_LIMIT_MAX_REQUESTS=5000` en développement |
-| Règles métier | `MIN_CREATOR_VIDEOS=3`, `JOBS_INTERVAL_MINUTES=60`, `EARLY_ACCESS_HOURS=24`, `BADGE_*` | |
+| Règles métier | `MIN_CREATOR_VIDEOS=3`, `JOBS_INTERVAL_MINUTES=60`, `EARLY_ACCESS_HOURS=24`, `REPLACEMENT_GRACE_HOURS=48`, `BADGE_*` | `REPLACEMENT_GRACE_HOURS` : délai après la date de livraison prévue avant que la marque puisse confier la mission à un autre créateur |
 | Abonnement Pro | `PRO_PRICE_EUR=79`, `PRO_TRIAL_DAYS=14`, `PRO_FEE_PERCENT=10`, `AI_BRIEF_FREE_QUOTA=3` | |
 | Limites nouvelles marques | `LIMIT_NEW_BRAND_OPEN_CAMPAIGNS=2`, `LIMIT_NEW_BRAND_INVITES_PER_DAY=5`, `LIMIT_NEW_BRAND_MESSAGES_PER_DAY=20` | s'appliquent tant qu'aucune campagne n'est terminée |
 | Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |

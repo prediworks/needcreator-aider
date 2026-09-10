@@ -150,6 +150,7 @@ const userSchema = new mongoose.Schema({
       },
       responseTimeHours: Number, // Average response time
       onTimeDeliveryRate: Number, // Percentage
+      lateDeliveries: { type: Number, default: 0 }, // missions retirées pour retard (garantie de remplacement)
       // Réactivité des marques (visible par les créateurs)
       avgValidationDays: Number, // délai moyen soumission → validation
       avgResponseDays: Number,   // délai moyen candidature → sélection

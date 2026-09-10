@@ -3,7 +3,9 @@ import Campaign from '../models/Campaign.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator } from '../services/stripe.js';
+import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
+import { runComplianceCheck } from '../services/compliance.js';
+import { levelFor } from '../utils/badges.js';
 import { attachContract, generateAddendumPdf, contractNumber } from '../services/contract.js';
 import { rightsDurationMonths, addMonths } from '../models/Delivery.js';
 import { uploadMultipleFiles, resolveUrlsIn, createUploadUrl, statObject, keyFromUrl, resolveUrl, uploadFile } from '../services/storage.js';
@@ -17,6 +19,8 @@ import {
   sendExtensionRequested,
   sendExtensionProposed,
   sendExtensionPaid,
+  sendMissionWithdrawn,
+  sendApplicationAccepted,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -403,7 +407,9 @@ export async function submitDelivery(req, res) {
 
     delivery.submit();
     if (notes) delivery.notes.creator = notes;
+    delivery.compliance = { status: 'pending', items: [] };
     await delivery.save();
+    setImmediate(() => runComplianceCheck(delivery._id).catch(err => logger.error('Compliance job crashed:', err)));
 
     // Notify brand (non bloquant)
     sendDeliverySubmitted(
@@ -819,6 +825,114 @@ async function finalizeRightsExtension(delivery, res) {
 }
 
 /**
+ * Garantie de remplacement : la mission peut-elle être réattribuée ? (créateur en retard depuis > délai de grâce)
+ */
+function replacementAllowed(delivery) {
+  if (delivery.status !== 'pending' || !delivery.productionDeadline) return false;
+  return Date.now() - new Date(delivery.productionDeadline).getTime() >= config.business.replacementGraceHours * 3600000;
+}
+
+/** Marque : les meilleurs autres devis de la campagne (candidats au remplacement) */
+export async function replacementCandidates(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id });
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    const campaign = await Campaign.findById(delivery.campaignId).populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches');
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    const selected = new Set((campaign.selectedCreators || []).map(id => idOf(id)));
+    const candidates = campaign.applications
+      // Les autres devis passent en « refusé » automatiquement quand les postes sont pourvus : ils restent de bons candidats
+      .filter(a => a.creatorId && ['pending', 'rejected'].includes(a.status) && !selected.has(idOf(a.creatorId)) && idOf(a.creatorId) !== idOf(delivery.creatorId))
+      .sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0))
+      .slice(0, 3)
+      .map(a => ({
+        creatorId: idOf(a.creatorId),
+        name: a.creatorId.profile?.name,
+        avatar: a.creatorId.profile?.avatar,
+        rating: a.creatorId.profile?.stats?.rating || 0,
+        completedJobs: a.creatorId.profile?.stats?.completedJobs || 0,
+        level: levelFor(a.creatorId.profile?.stats),
+        price: a.price,
+        estimatedDeliveryDays: a.estimatedDeliveryDays,
+        matchScore: a.matchScore,
+        rights: a.quote?.rights,
+        proposal: a.proposal,
+      }));
+    res.json({ allowed: replacementAllowed(delivery), graceHours: config.business.replacementGraceHours, candidates });
+  } catch (error) {
+    logger.error('replacementCandidates failed:', error);
+    res.status(500).json({ error: 'Candidats indisponibles' });
+  }
+}
+
+/** Marque : réattribue la mission à un autre candidat (libère le paiement bloqué, nouvelle livraison) */
+export async function replaceCreator(req, res) {
+  try {
+    const { deliveryId, creatorId } = req.params;
+    const brand = req.user;
+    const delivery = await Delivery.findOne({ _id: deliveryId, brandId: brand._id }).populate('creatorId', 'email profile.name');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!replacementAllowed(delivery)) {
+      return res.status(400).json({ error: `Le remplacement est possible ${config.business.replacementGraceHours} h après la date de livraison prévue, tant que rien n'a été livré` });
+    }
+    const campaign = await Campaign.findOne({ _id: delivery.campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    const application = campaign.applications.find(a => idOf(a.creatorId) === creatorId && ['pending', 'rejected'].includes(a.status));
+    if (!application) return res.status(400).json({ error: 'Ce créateur n\'a pas de devis sur cette campagne' });
+    const newCreator = await User.findById(creatorId).select('email profile.name status');
+    if (!newCreator || newCreator.status !== 'active') return res.status(400).json({ error: 'Créateur indisponible' });
+
+    // 1. Libère le paiement bloqué de la mission en retard
+    let paymentNote = 'aucun paiement associé';
+    if (delivery.payment?.stripePaymentIntentId) {
+      try {
+        const r = await cancelOrRefundPaymentIntent(delivery.payment.stripePaymentIntentId);
+        paymentNote = r.action === 'canceled' ? 'montant bloqué libéré' : r.action === 'refunded' ? 'montant remboursé' : `paiement ${r.status}`;
+        if (r.action !== 'none') delivery.payment.status = 'refunded';
+      } catch (err) {
+        logger.error('Cancel payment on replacement failed:', err);
+        return res.status(500).json({ error: `Impossible de libérer le paiement : ${err?.raw?.message || err.message}` });
+      }
+    }
+
+    // 2. Clôture la livraison en retard
+    const oldCreatorId = idOf(delivery.creatorId);
+    delivery.status = 'rejected';
+    delivery.replacement = { ...(delivery.replacement?.toObject?.() || {}), status: 'replaced', replacedBy: creatorId, replacedAt: new Date() };
+    await delivery.save();
+    await User.updateOne({ _id: oldCreatorId }, { $inc: { 'profile.stats.lateDeliveries': 1 } });
+
+    // 3. Retire l'ancien créateur de la campagne et sélectionne le remplaçant
+    campaign.selectedCreators = (campaign.selectedCreators || []).filter(id => idOf(id) !== oldCreatorId);
+    if (idOf(campaign.selectedCreator) === oldCreatorId) campaign.selectedCreator = undefined;
+    campaign.applications.forEach(a => { if (idOf(a.creatorId) === oldCreatorId) a.status = 'rejected'; });
+    if (campaign.status === 'in_progress') campaign.status = 'active'; // un poste se libère
+    campaign.selectCreator(creatorId);
+    if (application.quote) application.quote.acceptedAt = new Date();
+    await campaign.save();
+
+    // 4. Nouvelle livraison + autorisation de paiement
+    const result = await createDeliveryForCampaign(campaign, brand, application.price, creatorId);
+    delivery.replacement.newDeliveryId = result.delivery._id;
+    await delivery.save();
+
+    sendMissionWithdrawn(delivery.creatorId.email, delivery.creatorId.profile?.name, campaign.title).catch(() => {});
+    sendApplicationAccepted(newCreator.email, newCreator.profile?.name, campaign.title, campaign._id).catch(() => {});
+    logger.info(`Remplacement sur ${delivery._id} : ${oldCreatorId} → ${creatorId} (${paymentNote})`);
+    res.json({
+      message: `Mission confiée à ${newCreator.profile?.name} (${paymentNote})`,
+      delivery: result.delivery,
+      clientSecret: result.clientSecret,
+      paymentRequired: !!result.delivery && result.delivery.payment.status === 'pending' && !!result.delivery.payment.stripePaymentIntentId,
+      warning: result.warning,
+    });
+  } catch (error) {
+    logger.error('replaceCreator failed:', error);
+    res.status(500).json({ error: `Remplacement impossible : ${error.message}` });
+  }
+}
+
+/**
  * Saisie / mise à jour des performances d'une vidéo livrée (marque ou créateur)
  */
 export async function updatePerformance(req, res) {
@@ -1222,6 +1336,8 @@ export async function getDelivery(req, res) {
       delivery.readyPack.outputs = await resolveUrlsIn(delivery.readyPack.outputs);
     }
     delivery.readyPackPricePerVideo = config.readyPack.pricePerVideo;
+    delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
+    delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;
     const { transcriptionAvailable } = await import('../services/video.js');
     delivery.readyPackSubtitlesAvailable = transcriptionAvailable();
 

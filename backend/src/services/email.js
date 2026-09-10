@@ -403,3 +403,38 @@ export async function sendPasswordResetLink(email, name, link) {
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Livraison en retard (créateur) et garantie de remplacement (marque)
+ */
+export async function sendDeliveryLate(email, name, campaignTitle, deadline, deliveryId) {
+  const subject = `Livraison en retard — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La date de livraison prévue pour "${campaignTitle}" (${new Date(deadline).toLocaleDateString('fr-FR')}) est dépassée.</p>
+    <p>Livrez vos vidéos au plus vite : passé 48 heures, la marque pourra confier la mission à un autre créateur et votre profil en gardera la trace.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Livrer maintenant</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendReplacementAvailable(email, companyName, creatorName, campaignTitle, deliveryId) {
+  const subject = `Garantie de remplacement — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${companyName},</h1>
+    <p>${creatorName} n'a pas livré la mission "${campaignTitle}" dans le délai prévu, malgré nos rappels.</p>
+    <p>Vous pouvez la confier en un clic à l'un des autres créateurs ayant envoyé un devis : le montant bloqué est libéré et la nouvelle mission démarre immédiatement.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Choisir un remplaçant</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendMissionWithdrawn(email, name, campaignTitle) {
+  const subject = `Mission retirée — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La mission "${campaignTitle}" vous a été retirée : la livraison n'a pas été effectuée dans le délai prévu et la marque a fait appel à un autre créateur.</p>
+    <p>Aucun paiement n'est dû. Pour éviter que cela se reproduise, prévenez la marque via la messagerie dès qu'un retard se profile.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
