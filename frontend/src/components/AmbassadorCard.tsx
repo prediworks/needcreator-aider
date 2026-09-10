@@ -37,7 +37,7 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
           <span className="text-2xl">🌟</span>
           <div>
             <h3 className="font-semibold text-yellow-900">Vous êtes Ambassadeur NeedCreator</h3>
-            <p className="text-sm text-yellow-800 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Vous voyez les nouvelles campagnes 24 h avant tout le monde.</p>
+            <p className="text-sm text-yellow-800 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Campagnes 24 h en avant-première, devis remontés en tête chez les marques, place en tête de l&apos;annuaire, badge dans les emails aux marques.</p>
           </div>
         </div>
       </Card>
@@ -51,11 +51,19 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
           <Megaphone className="w-5 h-5 text-yellow-700" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-neutral-900">Parlez de NeedCreator, accédez aux campagnes 24 h avant tout le monde</h3>
+          <h3 className="font-semibold text-neutral-900">Programme Ambassadeur : parlez de NeedCreator, soyez mis en avant auprès des marques</h3>
           <p className="text-sm text-neutral-700 mt-1">
-            Publiez une courte vidéo sur vos réseaux (TikTok, Instagram, YouTube…) où vous présentez NeedCreator, collez le lien ci-dessous.
-            Une fois validée, vous obtenez le badge <strong>🌟 Ambassadeur</strong> visible par les marques et l&apos;avant-première sur toutes les nouvelles campagnes.
+            Publiez sur vos réseaux (TikTok, Instagram, YouTube…) une vidéo de 30 à 90 secondes, sincère, qui explique ce que NeedCreator vous apporte,
+            avec votre lien de parrainage en description. Laissez-la en ligne au moins 30 jours et collez son lien ci-dessous.
           </p>
+          <ul className="text-sm text-neutral-700 mt-2 space-y-1">
+            <li>🌟 Badge <strong>Ambassadeur</strong> visible par les marques</li>
+            <li>⏱️ Nouvelles campagnes <strong>24 h en avant-première</strong></li>
+            <li>📈 Vos devis <strong>remontent en tête</strong> chez les marques (bonus de matching) et vous êtes en tête de l&apos;annuaire</li>
+            <li>🏠 Présence sur la <strong>page d&apos;accueil</strong> NeedCreator, si vous l&apos;autorisez dans votre portfolio</li>
+            <li>🎁 Bonus de parrainage pour chaque créateur inscrit via votre lien</li>
+          </ul>
+          <p className="text-xs text-neutral-500 mt-2">Votre commission reste la même que pour tous les créateurs : la mise en avant vous apporte des missions, pas un taux différent.</p>
           {status === 'pending' ? (
             <p className="text-sm text-orange-700 mt-3 flex items-center gap-1">
               <Clock className="w-4 h-4" /> Vidéo envoyée, vérification en cours (sous 24 h).{' '}

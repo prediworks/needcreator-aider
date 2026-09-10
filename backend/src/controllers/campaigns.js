@@ -456,7 +456,10 @@ function computeMatchScore(campaign, creator, price) {
   const hours = creator.profile.stats?.responseTimeHours;
   const responseScore = hours == null ? 0.6 : Math.max(0, 1 - hours / 72);
 
-  return Math.round((nicheMatch * 0.5 + budgetFit * 0.25 + ratingScore * 0.15 + responseScore * 0.1) * 100);
+  const base = Math.round((nicheMatch * 0.5 + budgetFit * 0.25 + ratingScore * 0.15 + responseScore * 0.1) * 100);
+  // Ambassadeur : mis en avant auprès des marques (+5 points, plafonné à 100)
+  const bonus = creator.profile.ambassador?.status === 'approved' ? config.badges.ambassadorMatchBonus : 0;
+  return Math.min(100, base + bonus);
 }
 
 /**
@@ -528,7 +531,8 @@ export async function applyToCampaign(req, res) {
       campaign.brandId.email,
       campaign.brandId.profile.companyName || campaign.brandId.profile.name,
       creator.profile.name,
-      campaign.title
+      campaign.title,
+      creator.profile.ambassador?.status === 'approved'
     ).catch(err => logger.error('Failed to send notification:', err.message));
 
     logger.info(`Creator ${creator._id} applied to campaign ${campaign._id} (match ${matchScore}%)`);

@@ -3,6 +3,7 @@ import Button from '@/components/ui/Button';
 import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck } from 'lucide-react';
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
+import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
 export const metadata: Metadata = {
   title: 'NeedCreator : plateforme UGC pour marques et créateurs',
@@ -158,6 +159,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Ambassadeurs (créateurs ayant autorisé la communication) : masqué s'il n'y en a pas encore */}
+      <FeaturedCreatorsSection />
 
       {/* CTA Section */}
       <section className="py-20 bg-primary-500">

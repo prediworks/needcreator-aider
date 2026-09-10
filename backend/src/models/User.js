@@ -125,6 +125,13 @@ const userSchema = new mongoose.Schema({
     }],
 
     // Vidéo "parlez de NeedCreator" → badge Ambassadeur + accès anticipé aux campagnes
+    isAmbassador: { type: Boolean, default: false, index: true }, // = ambassador.status approved (pour trier / mettre en avant)
+    // Accord du créateur pour le site public et la communication NeedCreator
+    publicConsent: {
+      site: { type: Boolean, default: false },      // fiche et portfolio visibles sur le site public (hors application)
+      marketing: { type: Boolean, default: false }, // vidéos réutilisables sur la page d'accueil et les réseaux NeedCreator
+      updatedAt: Date,
+    },
     ambassador: {
       status: { type: String, enum: ['none', 'pending', 'approved', 'rejected'], default: 'none' },
       videoUrl: String,

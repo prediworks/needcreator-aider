@@ -42,7 +42,8 @@ export default function Header() {
       ]
     : [
         { href: '/how-it-works', label: 'Comment ça marche' },
-        { href: '/annuaire-createurs', label: 'Annuaire des créateurs' },
+        { href: '/nos-createurs', label: 'Nos créateurs' },
+        { href: '/annuaire-createurs', label: 'Annuaire' },
         { href: '/pricing', label: 'Tarifs' },
       ];
 

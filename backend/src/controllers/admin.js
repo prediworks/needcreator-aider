@@ -52,6 +52,7 @@ export async function reviewAmbassador(req, res) {
     if (!user || user.role !== 'creator') return res.status(404).json({ error: 'Creator not found' });
     if (!user.profile.ambassador?.videoUrl) return res.status(400).json({ error: 'Aucune vidéo soumise' });
     user.set('profile.ambassador.status', approve ? 'approved' : 'rejected');
+    user.set('profile.isAmbassador', !!approve);
     user.set('profile.ambassador.reviewedAt', new Date());
     user.set('profile.ambassador.note', req.body?.reason || null);
     await user.save();

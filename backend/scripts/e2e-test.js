@@ -1295,6 +1295,20 @@ await step('Suggestion de prix : médiane des devis acceptés (grille de secours
   return `${types} types de vidéo, demo : ${demo.min}–${demo.max} € (médiane ${demo.median} €, ${demo.count} devis acceptés, source ${demo.source})`;
 });
 
+await step('Site public : créateurs inscrits avec accord (fiche + vidéo), Ambassadeurs mis en avant', async () => {
+  const none = await fetch(`${API}/creators/public`).then(r => r.json());
+  expect(!none.creators.some(c => String(c.id) === creatorUser.id), 'Sans accord, le créateur ne doit pas apparaître sur le site', { status: 200, data: none });
+  const consent = await creatorApi('PATCH', '/auth/profile', { profile: { publicConsent: { site: true, marketing: true } } });
+  expect(consent.status === 200 && consent.data.user.profile.publicConsent?.site === true, 'Accord non enregistré', consent);
+  const pub = await fetch(`${API}/creators/public`).then(r => r.json());
+  const me = pub.creators.find(c => String(c.id) === creatorUser.id);
+  expect(me && me.video?.url && me.isAmbassador === true, 'Le créateur (Ambassadeur) devrait apparaître avec sa vidéo', { status: 200, data: pub });
+  const featured = await fetch(`${API}/creators/public?featured=1`).then(r => r.json());
+  expect(featured.creators.some(c => String(c.id) === creatorUser.id), 'Ambassadeur avec accord communication attendu en vedette', { status: 200, data: featured });
+  expect(!('email' in (me || {})), 'Pas d\'email sur le site public', { status: 200, data: me });
+  return `${pub.pagination.total} créateur(s) publics, ${featured.pagination.total} en vedette`;
+});
+
 await step('Sécurité : un créateur ne peut pas créer de campagne, une marque ne peut pas candidater', async () => {
   const a = await creatorApi('POST', '/campaigns', {});
   const b = await brandApi('POST', `/campaigns/${campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });

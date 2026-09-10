@@ -118,6 +118,7 @@ export const config = {
 
   // Badges et niveaux des créateurs
   badges: {
+    ambassadorMatchBonus: parseInt(process.env.AMBASSADOR_MATCH_BONUS || '5', 10), // points ajoutés au score de matching des Ambassadeurs
     confirmedJobs: parseInt(process.env.BADGE_CONFIRMED_JOBS || '3', 10),
     confirmedRating: parseFloat(process.env.BADGE_CONFIRMED_RATING || '4.5'),
     expertJobs: parseInt(process.env.BADGE_EXPERT_JOBS || '10', 10),

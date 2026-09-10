@@ -3,6 +3,7 @@ import Delivery from '../models/Delivery.js';
 import { config } from '../config/index.js';
 import { levelFor, badgesFor } from '../utils/badges.js';
 import { resolveUrl } from '../services/storage.js';
+import { resolveUrlsIn } from '../services/storage.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -45,10 +46,11 @@ export async function searchCreators(req, res) {
       if (collaborated === 'true') query._id = { $in: collaboratorIds };
     }
 
+    // Les Ambassadeurs sont mis en avant : en tête à critère égal
     const sortMap = {
-      rating: { 'profile.stats.rating': -1, 'profile.stats.completedJobs': -1 },
-      price: { 'profile.pricing.minPrice': 1 },
-      followers: { 'profile.stats.totalFollowers': -1 },
+      rating: { 'profile.isAmbassador': -1, 'profile.stats.rating': -1, 'profile.stats.completedJobs': -1 },
+      price: { 'profile.pricing.minPrice': 1, 'profile.isAmbassador': -1 },
+      followers: { 'profile.stats.totalFollowers': -1, 'profile.isAmbassador': -1 },
       recent: { createdAt: -1 },
     };
 
@@ -93,5 +95,50 @@ export async function searchCreators(req, res) {
   } catch (error) {
     logger.error('Failed to search creators:', error);
     res.status(500).json({ error: 'Failed to search creators' });
+  }
+}
+
+
+/**
+ * Site public : créateurs inscrits ayant donné leur accord (fiche + première vidéo de portfolio).
+ * ?featured=1 : Ambassadeurs ayant aussi autorisé la communication (page d'accueil).
+ */
+export async function publicCreators(req, res) {
+  try {
+    const { featured, niche, page = 1, limit = 24 } = req.query;
+    const query = { role: 'creator', status: 'active', 'verification.portfolio': true, 'profile.publicConsent.site': true };
+    if (featured === '1') { query['profile.isAmbassador'] = true; query['profile.publicConsent.marketing'] = true; }
+    if (niche) query['profile.niches'] = String(niche);
+    const pageN = Math.max(1, parseInt(page, 10) || 1);
+    const limitN = Math.min(60, Math.max(1, parseInt(limit, 10) || 24));
+    const [creators, total] = await Promise.all([
+      User.find(query)
+        .select('profile.name profile.bio profile.niches profile.stats profile.portfolio profile.isAmbassador profile.ambassador.status profile.socials createdAt')
+        .sort({ 'profile.isAmbassador': -1, 'profile.stats.completedJobs': -1, 'profile.stats.rating': -1, createdAt: -1 })
+        .skip((pageN - 1) * limitN).limit(limitN).lean(),
+      User.countDocuments(query),
+    ]);
+    const out = await Promise.all(creators.map(async c => {
+      const [video] = c.profile.portfolio?.length ? await resolveUrlsIn([c.profile.portfolio[0]]) : [null];
+      return {
+        id: c._id,
+        name: c.profile.name,
+        bio: c.profile.bio,
+        niches: c.profile.niches,
+        level: levelFor(c.profile.stats),
+        badges: badgesFor(c),
+        isAmbassador: !!c.profile.isAmbassador,
+        completedJobs: c.profile.stats?.completedJobs || 0,
+        rating: c.profile.stats?.rating || 0,
+        followers: c.profile.stats?.totalFollowers || 0,
+        socials: (c.profile.socials || []).map(sn => ({ network: sn.network, url: sn.url })),
+        video: video ? { url: video.videoUrl, title: video.title } : null,
+        portfolioCount: c.profile.portfolio?.length || 0,
+      };
+    }));
+    res.json({ creators: out, pagination: { page: pageN, limit: limitN, total, pages: Math.ceil(total / limitN) } });
+  } catch (error) {
+    logger.error('publicCreators failed:', error);
+    res.status(500).json({ error: 'Annuaire indisponible' });
   }
 }

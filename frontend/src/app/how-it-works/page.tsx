@@ -65,6 +65,12 @@ export default function HowItWorksPage() {
                 </li>
               ))}
             </ol>
+            <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-neutral-800">
+              <div className="font-semibold text-neutral-900 mb-1">🌟 Programme Ambassadeur</div>
+              Publiez sur vos réseaux une vidéo sincère qui explique ce que NeedCreator vous apporte, avec votre lien de parrainage. Une fois validée :
+              campagnes 24 h en avant-première, devis remontés en tête chez les marques, place en tête de l&apos;annuaire, présence sur notre page d&apos;accueil si vous l&apos;autorisez,
+              et bonus de parrainage pour chaque créateur inscrit via votre lien. Même commission que tout le monde : l&apos;avantage, ce sont les missions.
+            </div>
             <Link href="/register?role=creator" className="block mt-8">
               <Button variant="secondary" className="w-full">Devenir créateur</Button>
             </Link>

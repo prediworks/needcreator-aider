@@ -41,7 +41,7 @@ function NewCampaignForm() {
   const updateMutation = useUpdateCampaign();
   const { data: existing, isLoading: loadingExisting } = useCampaign(editId || '', ready && !!editId);
   const [prefilled, setPrefilled] = useState(false);
-  const { data: marketRates } = useQuery({ queryKey: ['market-rates'], queryFn: async () => (await api.get('/campaigns/market-rates')).data, staleTime: 10 * 60 * 1000 });
+  const { data: marketRates } = useQuery({ queryKey: ['market-rates'], queryFn: async () => (await api.get('/campaigns/market-rates')).data, staleTime: 10 * 60 * 1000, enabled: ready });
   const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : ((user as any)?.plan?.feePercent ?? PLATFORM_FEE_PERCENT);
   const createMutation = useCreateCampaign();
   const publishMutation = usePublishCampaign();

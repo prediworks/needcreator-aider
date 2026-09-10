@@ -289,11 +289,13 @@ export async function updateProfile(req, res) {
           'profile.pricing.avgPrice',
           'profile.address.name', 'profile.address.line1', 'profile.address.line2', 'profile.address.postalCode',
           'profile.address.city', 'profile.address.country', 'profile.address.phone',
+          'profile.publicConsent.site', 'profile.publicConsent.marketing',
           'preferences.emailNotifications',
           'preferences.language',
         ]
       : [
           'profile.name',
+          'profile.bio',
           'profile.companyName',
           'profile.website',
           'profile.industry',

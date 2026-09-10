@@ -102,6 +102,12 @@ async function startServer() {
   try {
     // Connect to MongoDB
     await connectDB();
+
+    // Alignement des données : drapeau isAmbassador (tri / mise en avant)
+    try {
+      const { default: User } = await import('./models/User.js');
+      await User.updateMany({ 'profile.ambassador.status': 'approved', 'profile.isAmbassador': { $ne: true } }, { $set: { 'profile.isAmbassador': true } });
+    } catch (err) { logger.warn(`Migration isAmbassador ignorée : ${err.message}`); }
     
     // Start listening
     const PORT = config.port;
