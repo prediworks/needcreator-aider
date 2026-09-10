@@ -54,7 +54,7 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
           <h3 className="font-semibold text-neutral-900">Programme Ambassadeur : parlez de NeedCreator, soyez mis en avant auprès des marques</h3>
           <p className="text-sm text-neutral-700 mt-1">
             Publiez sur vos réseaux (TikTok, Instagram, YouTube…) une vidéo de 30 à 90 secondes, sincère, qui explique ce que NeedCreator vous apporte,
-            avec votre lien de parrainage en description. Laissez-la en ligne au moins 30 jours et collez son lien ci-dessous.
+            avec votre lien de parrainage en description. Dès qu&apos;elle est publiée, collez son lien ci-dessous : nous la validons sous 24 h. Elle doit rester en ligne au moins 30 jours.
           </p>
           <p className="text-sm text-neutral-800 mt-3 italic">Plus de visibilité auprès des marques, donc plus de chances d&apos;être sélectionné :</p>
           <ul className="text-sm text-neutral-700 mt-1 space-y-1">
