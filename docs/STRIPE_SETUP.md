@@ -68,7 +68,7 @@ ngrok http 3002
 | La marque accepte un devis | PaymentIntent créé avec capture manuelle (`payment_method_types: card`) |
 | Écran de carte sur la page livraison | `confirmCardPayment` côté navigateur, puis `/confirm-payment` vérifie le statut `requires_capture` → montant bloqué |
 | Campagne multi-créateurs | une seule saisie de carte (SetupIntent) puis confirmation de chaque PaymentIntent avec la carte enregistrée |
-| Approbation (manuelle ou automatique à J+7) | capture du paiement, puis transfert au créateur (montant − commission) si son compte Connect est prêt |
+| Approbation (manuelle ou automatique à J+7) | capture du paiement, puis transfert au créateur (montant − commission) si son compte Connect est prêt. Le transfert est adossé au paiement de la marque (`source_transaction`) : il s'exécute quand ces fonds sont disponibles, sans exiger de solde préalable sur le compte plateforme. Si le créateur n'a pas encore de compte, le virement est retenté à chaque exécution des tâches planifiées et dès que son compte est activé |
 | Gifting | seuls les frais de plateforme (5 € par vidéo) sont autorisés puis capturés ; rien n'est reversé |
 | Pack prêt à diffuser | PaymentIntent à capture immédiate, traitement lancé après confirmation |
 

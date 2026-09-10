@@ -404,6 +404,10 @@ export async function getStripeConnectStatus(req, res) {
     user.set('profile.stripeConnect.payoutsEnabled', !!status.payoutsEnabled);
     user.set('profile.stripeConnect.detailsSubmitted', !!status.detailsSubmitted);
     user.set('profile.stripeConnect.onboardingComplete', !!(status.detailsSubmitted && status.payoutsEnabled));
+    if (status.payoutsEnabled) {
+      const { retryPendingTransfers } = await import('../jobs/autoApproval.js');
+      setImmediate(() => retryPendingTransfers().catch(err => logger.error('retryPendingTransfers failed:', err)));
+    }
     user.set('profile.stripeConnect.requirements', {
       currentlyDue: status.requirements?.currently_due || [],
       disabledReason: status.requirements?.disabled_reason || null,

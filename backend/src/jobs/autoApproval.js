@@ -6,6 +6,7 @@ import { sendNewCampaignNotification } from '../services/email.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
 import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
+import { transferToCreator } from '../services/stripe.js';
 
 /**
  * Check and process auto-approvals (J+7 après soumission)
@@ -167,6 +168,33 @@ export async function flagLateDeliveries() {
 }
 
 /**
+ * Virements différés : livraisons validées dont le paiement est encaissé mais pas encore versé
+ * (créateur sans compte Stripe au moment de la validation, ou virement en échec). Retenté à chaque exécution.
+ */
+export async function retryPendingTransfers() {
+  const pending = await Delivery.find({ status: { $in: ['approved', 'auto_approved'] }, 'payment.status': 'captured', 'payment.stripePaymentIntentId': { $exists: true, $ne: null }, 'payment.creatorAmount': { $gt: 0 } })
+    .populate('creatorId', 'profile.stripeConnect stripeAccountId profile.name');
+  let done = 0;
+  for (const d of pending) {
+    const c = d.creatorId;
+    const accountId = c?.profile?.stripeConnect?.payoutsEnabled ? (c.profile.stripeConnect.accountId || c.stripeAccountId) : null;
+    if (!accountId) continue;
+    try {
+      const t = await transferToCreator(d.payment.stripePaymentIntentId, accountId, d.payment.creatorAmount, d.payment.currency || 'eur');
+      d.payment.status = 'released';
+      d.payment.releasedAt = new Date();
+      d.payment.stripeTransferId = t.id;
+      await d.save();
+      done++;
+      logger.info(`Virement différé effectué : ${d._id} → ${accountId} (${t.id})`);
+    } catch (err) {
+      logger.warn(`Virement différé toujours en échec pour ${d._id}: ${err?.message || err}`);
+    }
+  }
+  return done;
+}
+
+/**
  * Rappel 30 jours avant l'expiration des droits d'utilisation (marque + créateur)
  */
 export async function sendRightsExpiryReminders() {
@@ -199,16 +227,17 @@ export async function runScheduledJobs() {
   logger.info('Running scheduled jobs...');
 
   try {
-    const [autoApprovals, reminders, notified, rightsReminders, lateFlags] = await Promise.all([
+    const [autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers] = await Promise.all([
       processAutoApprovals(),
       sendAutoApprovalReminders(),
       notifyAfterEarlyAccess(),
       sendRightsExpiryReminders(),
       flagLateDeliveries(),
+      retryPendingTransfers(),
     ]);
 
-    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags };
+    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers`);
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

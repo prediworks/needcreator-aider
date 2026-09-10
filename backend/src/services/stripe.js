@@ -141,13 +141,30 @@ export async function capturePayment(paymentIntentId) {
 /**
  * Transfert au créateur (montant déjà net de commission)
  */
-export async function transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, currency = 'eur') {
+/** Identifiant du paiement (charge) rattaché à un PaymentIntent, quelle que soit la version d'API */
+export function chargeIdOf(paymentIntent) {
+  if (!paymentIntent) return null;
+  const lc = paymentIntent.latest_charge;
+  if (lc) return typeof lc === 'string' ? lc : lc.id;
+  return paymentIntent.charges?.data?.[0]?.id || null;
+}
+
+/**
+ * Virement au créateur. `source_transaction` = le paiement de la marque : Stripe exécute le virement dès que
+ * les fonds de ce paiement sont disponibles, sans exiger de solde préalable sur le compte plateforme.
+ */
+export async function transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, currency = 'eur', sourceCharge = null) {
   try {
+    if (!sourceCharge) {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      sourceCharge = chargeIdOf(pi);
+    }
     const transfer = await stripe.transfers.create({
       amount: Math.round(creatorAmount * 100),
       currency: currency.toLowerCase(),
       destination: creatorAccountId,
       transfer_group: paymentIntentId,
+      ...(sourceCharge ? { source_transaction: sourceCharge } : {}),
       metadata: { paymentIntentId },
     });
     logger.info(`Transfer created: ${transfer.id} → ${creatorAccountId}`);
@@ -178,7 +195,7 @@ export async function captureAndTransfer(paymentIntentId, creatorAccountId, amou
   }
   
   try {
-    const transfer = await transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, paymentIntent.currency);
+    const transfer = await transferToCreator(paymentIntentId, creatorAccountId, creatorAmount, paymentIntent.currency, chargeIdOf(paymentIntent));
     return { paymentIntent, transfer, transferred: true };
   } catch (error) {
     // Ne bloque pas l'approbation : l'argent est encaissé, le virement sera retenté
