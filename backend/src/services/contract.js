@@ -60,6 +60,21 @@ export function buildContractData({ campaign, application, delivery, brand, crea
       estimatedDeliveryDays: application?.estimatedDeliveryDays || delivery.estimatedDeliveryDays || null,
       revisions: q.revisions ?? config.business.maxRevisions,
       terms: q.terms || null,
+      // Photographie du brief au moment de l'acceptation (annexe du contrat)
+      brief: {
+        description: campaign.description || null,
+        duration: campaign.brief?.duration || null,
+        platforms: campaign.brief?.platforms || [],
+        requirements: campaign.brief?.requirements || [],
+        dos: campaign.brief?.dosDonts?.dos || [],
+        donts: campaign.brief?.dosDonts?.donts || [],
+        productDescription: campaign.brief?.productDescription || null,
+        productShipping: !!campaign.brief?.productShipping,
+        script: campaign.brief?.script || null,
+        hashtags: campaign.brief?.hashtags || [],
+        mentions: campaign.brief?.mentions || [],
+        deliveryTypes: campaign.brief?.deliveryTypes || [],
+      },
     },
     rights: {
       duration: q.rights?.duration || '1y',
@@ -188,8 +203,37 @@ export async function generateContractPdf(data) {
 
     H(doc, '7. Acceptation');
     P(doc, `Contrat conclu par acceptation électronique du devis sur la plateforme le ${fmtDate(data.acceptedAt)} (horodatage et journal conservés par NeedCreator), valant signature des deux parties au sens de l'article 1367 du Code civil.`);
+    briefAnnex(doc, data);
     footer(doc, data.number);
   });
+}
+
+const PLATFORM_LABELS = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn', facebook: 'Facebook', x: 'X', website: 'site web', other: 'autre' };
+
+/** Annexe : le brief de la campagne tel qu'accepté */
+function briefAnnex(doc, data) {
+  const b = data.mission?.brief;
+  if (!b) return;
+  doc.addPage();
+  doc.font('Helvetica-Bold').fontSize(14).fillColor('#111').text('Annexe : brief de la campagne');
+  doc.font('Helvetica').fontSize(9).fillColor('#666').text(`Contrat ${data.number} · brief tel qu'accepté le ${fmtDate(data.acceptedAt)}`);
+  doc.moveDown(0.5).font('Helvetica').fontSize(10).fillColor('#222');
+  KV(doc, 'Campagne', data.mission.title);
+  KV(doc, 'Contenu attendu', `${data.mission.deliverables} vidéo(s) ${VIDEO_TYPES[data.mission.videoType] || 'UGC'}${b.duration ? `, environ ${b.duration} secondes` : ''}`);
+  if (b.platforms?.length) KV(doc, 'Réseaux de diffusion', b.platforms.map(p => PLATFORM_LABELS[p] || p).join(', '));
+  if (b.deliveryTypes?.length) KV(doc, 'Mode de livraison', b.deliveryTypes.map(t => (t === 'file' ? 'fichier vidéo' : 'lien publié')).join(' ou '));
+  if (b.productShipping) KV(doc, 'Produit', `envoyé au Créateur avant la production${b.productDescription ? ` (${b.productDescription})` : ''}`);
+  else if (b.productDescription) KV(doc, 'Produit / service', b.productDescription);
+  if (b.description) { H(doc, 'Description'); P(doc, b.description); }
+  const list = (title, items) => { if (items?.length) { H(doc, title); items.forEach(i => doc.font('Helvetica').fontSize(10).fillColor('#222').text(`• ${i}`, { indent: 8, lineGap: 2 })); } };
+  list('Consignes', b.requirements);
+  list('À faire', b.dos);
+  list('À éviter', b.donts);
+  if (b.script) { H(doc, 'Script proposé'); P(doc, b.script); }
+  if (b.hashtags?.length || b.mentions?.length) {
+    H(doc, 'Hashtags et mentions');
+    P(doc, [...(b.hashtags || []).map(h => `#${h.replace(/^#/, '')}`), ...(b.mentions || []).map(m => `@${m.replace(/^@/, '')}`)].join(' '));
+  }
 }
 
 /**

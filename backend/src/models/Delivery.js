@@ -162,7 +162,7 @@ const deliverySchema = new mongoose.Schema({
       brand: { legalName: String, siret: String, vatNumber: String, address: String, signatoryName: String, signatoryTitle: String, email: String },
       creator: { name: String, status: String, companyName: String, siret: String, address: String, email: String },
     },
-    mission: { title: String, deliverables: Number, videoType: String, estimatedDeliveryDays: Number, revisions: Number, terms: String },
+    mission: { title: String, deliverables: Number, videoType: String, estimatedDeliveryDays: Number, revisions: Number, terms: String, brief: mongoose.Schema.Types.Mixed },
     rights: {
       duration: String,
       supports: [String],

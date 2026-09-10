@@ -477,6 +477,7 @@ await step('Contrat de mission généré à l\'acceptation du devis (PDF, partie
   const parties = c.data.contract.parties;
   expect(parties.brand.signatoryName === 'Jean Test' && parties.creator.name === 'Camille Test' && parties.creator.siret === '35600000000048', 'Parties du contrat incorrectes', c);
   expect(c.data.contract.rights?.duration && !c.data.contract.rightsEndAt, 'Les droits ne doivent pas courir avant la validation', c);
+  expect(c.data.contract.mission?.brief?.description && Array.isArray(c.data.contract.mission.brief.requirements), 'Le brief devrait être annexé au contrat', c);
   const asCreator = await creatorApi('GET', `/deliveries/${delivery._id}/contract`);
   expect(asCreator.status === 200, 'Le créateur doit accéder au contrat', asCreator);
   // Garde-fou : sans signataire, une marque ne peut pas accepter de devis
