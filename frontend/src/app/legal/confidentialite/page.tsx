@@ -39,6 +39,15 @@ export default function PrivacyPage() {
         </tbody>
       </table>
 
+      <h2>2 bis. Annuaire des créateurs référencés</h2>
+      <p>
+        Nous publions un annuaire de créateurs de contenu constitué à partir d&apos;informations rendues publiques par les intéressés sur les réseaux sociaux
+        (pseudo, nom d&apos;affichage, pays, liens vers leurs profils, audience), sur la base de notre intérêt légitime à mettre en relation marques et créateurs.
+        Les adresses email éventuellement associées ne sont jamais publiées ni transmises aux marques : elles servent uniquement à transmettre, depuis la plateforme,
+        une invitation émanant d&apos;une marque, au plus une fois tous les 14 jours. Toute personne référencée peut retirer son profil à tout moment depuis sa fiche
+        (lien « Retirer mon profil ») ou en écrivant à {COMPANY.privacyEmail}. Le retrait est définitif et empêche toute réinscription par import.
+      </p>
+
       <h2>3. Destinataires et sous-traitants</h2>
       <p>Vos données sont accessibles à notre équipe, aux autres utilisateurs dans la mesure nécessaire à la mission (profil public du créateur, informations de campagne de la marque), et aux prestataires suivants :</p>
       <ul>

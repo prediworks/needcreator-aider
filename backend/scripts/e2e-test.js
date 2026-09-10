@@ -732,6 +732,59 @@ await step('Envoi de produit : adresse, expédition, réception, délai de produ
   return `expédié Colissimo 6A123, reçu, livraison attendue dans ${days} jours`;
 });
 
+await step('Créateurs référencés : import admin (xlsx/csv), annuaire public, invitation par une marque, retrait, rattachement à l\'inscription', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const extEmail = `e2e-ext-${RUN}@needcreator-test.com`;
+  const csv = ['Username,Name,Country,Email,Instagram,YouTube,Followers,Posts,Likes,Niche',
+    `e2e_ext_${RUN},Ext Test,FRANCE,${extEmail},https://www.instagram.com/e2e_ext,,"16,903",422,"67,354",Technology`,
+    `e2e_ext_${RUN},Ext Test doublon,FR,${extEmail},,,10,1,1,Technology`,
+    `e2e_us_${RUN},US Test,US,us-${RUN}@needcreator-test.com,,,2.725.122,10,10,Technology`,
+    `e2e_be_${RUN},BE Test,BE,be-${RUN}@needcreator-test.com,,https://www.youtube.com/channel/x,1.500.000,10,10,Technology`].join('\n');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const f = new FormData(); f.append('file', new File([csv], 'liste-test.csv', { type: 'text/csv' })); f.append('scope', 'europe');
+    const imp = await brandApi('POST', '/external-creators/admin/import', f, { form: true });
+    expect(imp.status === 200 && imp.data.stats.created === 2 && imp.data.stats.skippedCountry === 1 && imp.data.stats.duplicatesInFile === 1, 'Import attendu : 2 créés (FR, BE), 1 hors périmètre (US), 1 doublon', imp);
+    const again = await brandApi('POST', '/external-creators/admin/import', (() => { const g = new FormData(); g.append('file', new File([csv], 'liste-test.csv', { type: 'text/csv' })); g.append('scope', 'europe'); return g; })(), { form: true });
+    expect(again.status === 200 && again.data.stats.created === 0 && again.data.stats.updated === 2, 'Réimport : aucune création, 2 mises à jour', again);
+    const stats = await brandApi('GET', '/external-creators/admin/stats');
+    expect(stats.status === 200 && stats.data.total >= 2, 'Statistiques admin attendues', stats);
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+  const pub = await fetch(`${API}/external-creators?country=FR&q=e2e_ext_${RUN}`).then(r => r.json());
+  const ext = pub.creators.find(c => c.username === `e2e_ext_${RUN}`);
+  expect(ext && ext.followers === 16903 && ext.instagram && !('email' in ext), 'Annuaire public : abonnés normalisés, pas d\'email', { status: 200, data: pub });
+  const inv = await brandApi('POST', `/external-creators/${ext.id}/invite`, { message: 'Rejoignez-nous !' });
+  expect([200, 502].includes(inv.status), 'Invitation (200) ou SMTP indisponible (502)', inv);
+  if (inv.status === 200) {
+    const twice = await brandApi('POST', `/external-creators/${ext.id}/invite`, {});
+    expect(twice.status === 429, 'Une seconde invitation immédiate doit être refusée (délai de 14 jours)', twice);
+  }
+  const wrong = await fetch(`${API}/external-creators/${ext.slug}/optout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'autre@exemple.fr' }) });
+  expect(wrong.status === 200, 'Retrait : réponse générique attendue', { status: wrong.status, data: null });
+  const still = await fetch(`${API}/external-creators/${ext.slug}`).then(r => r.status);
+  expect(still === 200, 'Un mauvais email ne doit pas retirer le profil', { status: still, data: null });
+  // Inscription du créateur avec le même email → profil rattaché, réseaux pré-remplis, disparaît de l'annuaire
+  const fu = await firebaseUser(extEmail);
+  const xApi = client(fu.idToken);
+  const reg = await xApi('POST', '/auth/register/creator', { acceptTerms: true, email: extEmail, name: 'Ext Test', bio: '', niches: ['tech'], minPrice: 80 });
+  expect(reg.status === 201, 'Inscription du créateur référencé échouée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+  await new Promise(r => setTimeout(r, 1500));
+  const me = await xApi('GET', '/auth/profile');
+  expect((me.data.user.profile.socials || []).some(s => s.network === 'instagram' && s.followers === 16903), 'Les réseaux du profil référencé devraient être pré-remplis', me);
+  const gone = await fetch(`${API}/external-creators/${ext.slug}`).then(r => r.status);
+  expect(gone === 404, 'Un créateur inscrit ne doit plus apparaître dans l\'annuaire externe', { status: gone, data: null });
+  // Retrait de l'autre profil (BE) avec le bon email
+  const be = (await fetch(`${API}/external-creators?country=BE&q=e2e_be_${RUN}`).then(r => r.json())).creators[0];
+  await fetch(`${API}/external-creators/${be.slug}/optout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `be-${RUN}@needcreator-test.com` }) });
+  const beGone = await fetch(`${API}/external-creators/${be.slug}`).then(r => r.status);
+  expect(beGone === 404, 'Le retrait avec le bon email doit masquer le profil', { status: beGone, data: null });
+  await mongoose.connection.db.collection('externalcreators').deleteMany({ username: { $in: [`e2e_ext_${RUN}`, `e2e_be_${RUN}`, `e2e_us_${RUN}`] } });
+  return 'import dédoublonné et borné à l\'Europe, annuaire sans email, invitation limitée, retrait, rattachement à l\'inscription';
+});
+
 await step('Garantie de remplacement : créateur en retard → mission confiée à un autre devis, paiement libéré', async () => {
   const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -1220,11 +1273,11 @@ await step('Email non confirmé : publication refusée ; emails de confirmation 
   const alreadyOk = await creatorApi('POST', '/auth/send-verification');
   expect(alreadyOk.status === 200 && alreadyOk.data.verified === true, 'Un compte déjà confirmé ne doit pas recevoir d\'email', alreadyOk);
   const unknown = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `inconnu-${RUN}@needcreator-test.com` }) });
-  expect(unknown.status === 200, 'Réinitialisation : réponse générique attendue pour un email inconnu', { status: unknown.status, data: await unknown.json() });
+  expect([200, 429].includes(unknown.status), 'Réinitialisation : réponse générique attendue pour un email inconnu (429 = limite par IP atteinte par des lancements répétés)', { status: unknown.status, data: await unknown.json() });
   const badMail = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'pas-un-email' }) });
-  expect(badMail.status === 400, 'Réinitialisation : email invalide refusé', { status: badMail.status, data: null });
+  expect([400, 429].includes(badMail.status), 'Réinitialisation : email invalide refusé (ou limite IP)', { status: badMail.status, data: null });
   const known = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
-  expect([200, 502].includes(known.status), 'Réinitialisation : lien généré (200) ou SMTP indisponible (502)', { status: known.status, data: await known.json() });
+  expect([200, 429, 502].includes(known.status), 'Réinitialisation : lien généré (200), limite IP (429) ou SMTP indisponible (502)', { status: known.status, data: await known.json() });
   await admin.auth().updateUser(fu.uid, { emailVerified: true });
   const pub2 = await uApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
   expect(pub2.status === 200, 'La publication devrait passer une fois l\'email confirmé', pub2);

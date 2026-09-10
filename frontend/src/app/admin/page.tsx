@@ -15,12 +15,13 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
+import ExternalCreatorsImport from '@/components/admin/ExternalCreatorsImport';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -59,6 +60,7 @@ export default function AdminPage() {
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
+    { key: 'external', label: 'Créateurs référencés' },
     { key: 'settings', label: 'Réglages' },
   ];
 
@@ -257,6 +259,8 @@ export default function AdminPage() {
         )}
 
         {/* Settings */}
+        {tab === 'external' && <ExternalCreatorsImport />}
+
         {tab === 'settings' && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-1">Réglages</h2>

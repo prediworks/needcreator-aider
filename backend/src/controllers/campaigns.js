@@ -45,7 +45,7 @@ async function checkCampaignRules(brand, { type, creatorsWanted, deliverables, g
 /**
  * Marque "établie" = au moins une campagne terminée (les limites progressives ne s'appliquent plus)
  */
-async function isEstablishedBrand(brand) {
+export async function isEstablishedBrand(brand) {
   if (brand.isPro() && brand.subscription?.status === 'active') return true;
   return (await Campaign.countDocuments({ brandId: brand._id, status: 'completed' })) > 0;
 }

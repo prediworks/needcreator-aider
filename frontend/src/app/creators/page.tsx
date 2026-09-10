@@ -11,11 +11,12 @@ import Spinner from '@/components/ui/Spinner';
 import CreatorCard from '@/components/CreatorCard';
 import { NICHES, NICHE_OPTIONS, PLATFORMS, LEVELS } from '@/lib/labels';
 import { Search, Users } from 'lucide-react';
+import ExternalCreatorsList from '@/components/ExternalCreatorsList';
 import { cn } from '@/lib/utils';
 
 export default function CreatorsPage() {
   const { ready } = useRequireAuth({ roles: ['brand', 'admin'] });
-  const [tab, setTab] = useState<'all' | 'collaborated'>('all');
+  const [tab, setTab] = useState<'all' | 'collaborated' | 'external'>('all');
   const [q, setQ] = useState('');
   const [niches, setNiches] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
@@ -45,7 +46,12 @@ export default function CreatorsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['creators', params],
     queryFn: async () => (await api.get('/creators', { params })).data,
-    enabled: ready,
+    enabled: ready && tab !== 'external',
+  });
+  const { data: myCampaigns } = useQuery({
+    queryKey: ['campaigns', 'mine-active'],
+    queryFn: async () => (await api.get('/campaigns', { params: { status: 'active', limit: 50 } })).data,
+    enabled: ready && tab === 'external',
   });
 
   if (!ready) return <Spinner />;
@@ -64,6 +70,7 @@ export default function CreatorsPage() {
           {[
             { key: 'all', label: 'Tous les créateurs' },
             { key: 'collaborated', label: `Mes collaborateurs${data?.collaboratorsCount ? ` (${data.collaboratorsCount})` : ''}` },
+            { key: 'external', label: 'Référencés (pas encore inscrits)' },
           ].map((t) => (
             <button
               key={t.key}
@@ -75,6 +82,9 @@ export default function CreatorsPage() {
           ))}
         </div>
 
+        {tab === 'external' ? (
+          <ExternalCreatorsList mode="brand" campaigns={myCampaigns?.campaigns || []} />
+        ) : (<>
         <Card className="p-4 mb-6 space-y-3">
           <div className="grid md:grid-cols-4 gap-3">
             <div className="md:col-span-2 relative">
@@ -137,6 +147,7 @@ export default function CreatorsPage() {
             <p className="text-neutral-600">{tab === 'collaborated' ? 'Vous n\'avez pas encore collaboré avec un créateur.' : 'Aucun créateur ne correspond à ces critères.'}</p>
           </Card>
         )}
+        </>)}
       </div>
     </div>
   );

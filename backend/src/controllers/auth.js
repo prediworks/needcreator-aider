@@ -14,6 +14,7 @@ import { getSetting, SETTINGS } from '../models/Setting.js';
 import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import { sendVerificationAfterRegistration } from './authEmails.js';
+import { claimExternalCreator } from './externalCreators.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -127,6 +128,7 @@ export async function registerCreator(req, res) {
 
     // Send welcome email (non bloquant)
     if (!req.firebaseUser.email_verified) sendVerificationAfterRegistration(user);
+    claimExternalCreator(user).catch(() => {}); // profil référencé (import) rattaché au nouveau compte
     sendCreatorWelcome(email, name).catch(err =>
       logger.error('Failed to send welcome email:', err.message)
     );

@@ -40,7 +40,7 @@ cd backend
 npm run test:e2e -- --clean
 ```
 
-Résultat attendu : `62/62 étapes OK` (et `13/13` pour le test navigateur). Si une étape est ❌, le message dit quoi et pourquoi.
+Résultat attendu : `63/63 étapes OK` (et `13/13` pour le test navigateur). Si une étape est ❌, le message dit quoi et pourquoi.
 
 ## 4. Test manuel dans le navigateur
 
@@ -137,3 +137,7 @@ Sans réponse de la marque, la livraison est validée automatiquement. Pour test
 | "You can only create new accounts if you've signed up for Connect" | Stripe Connect non activé | https://dashboard.stripe.com/connect |
 | L'écran de carte ne s'affiche pas | Clé publique Stripe absente | Vérifiez `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` dans `frontend/.env.local` (clé `pk_test_...`) |
 | "Le paiement n'a pas été confirmé" à l'approbation | Carte jamais saisie | Ouvrez la livraison et renseignez la carte dans le bloc "Paiement à confirmer" |
+
+## Importer une liste de créateurs (admin)
+
+Administration → onglet « Créateurs référencés » → choisir le fichier (xlsx ou csv, colonnes `Username, Name, Country, Email, Instagram, YouTube, Followers, Posts, Likes, Niche`) et le périmètre (France, francophonie, Europe, monde) → Importer. Le résumé indique les créés, mis à jour, hors périmètre et doublons. L'import est rejouable sans créer de doublons. Résultat visible sur `/createurs-tech` (public) et dans Créateurs → « Référencés » (marques).
