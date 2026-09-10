@@ -274,7 +274,7 @@ chmod 600 "$APP_DIR/backend/.env" "$APP_DIR/frontend/.env.local"
 log "Configuration Nginx"
 cat >/etc/nginx/conf.d/needcreator-common.conf <<'EOF'
 limit_req_zone $binary_remote_addr zone=api_general:10m rate=20r/s;
-limit_req_zone $binary_remote_addr zone=api_auth:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=api_auth:10m rate=10r/m;
 limit_conn_zone $binary_remote_addr zone=per_ip:10m;
 server_tokens off;
 EOF
@@ -296,7 +296,9 @@ server {
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
 
-    location /api/auth/ {
+    # Limitation stricte uniquement sur les points sensibles (inscription, emails d'authentification),
+    # pas sur /api/auth/profile qui est appelé à chaque action de l'utilisateur
+    location ~ ^/api/auth/(register|password-reset|send-verification) {
         limit_req zone=api_auth burst=10 nodelay;
         proxy_pass http://127.0.0.1:$BACKEND_PORT;
         include /etc/nginx/snippets/needcreator-proxy.conf;
