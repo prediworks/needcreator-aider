@@ -9,6 +9,8 @@ import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { deleteFile } from '../services/storage.js';
 import logger from '../utils/logger.js';
+import { isValidSiret, lookupRegistry } from '../utils/business.js';
+import { getSetting, SETTINGS } from '../models/Setting.js';
 
 const ACTIVE_DELIVERY = ['pending', 'submitted', 'revision_requested'];
 
@@ -24,6 +26,58 @@ export async function acceptTerms(req, res) {
   } catch (error) {
     logger.error('acceptTerms failed:', error);
     res.status(500).json({ error: 'Impossible d\'enregistrer votre acceptation' });
+  }
+}
+
+/**
+ * Informations administratives (parties au contrat). Créateur : identité, statut, SIRET, adresse. Marque : signataire.
+ */
+export async function updateLegalInfo(req, res) {
+  try {
+    const user = await User.findById(req.user._id);
+    const body = req.body;
+    if (user.role === 'brand') {
+      user.set('legalInfo.signatoryName', body.signatoryName);
+      user.set('legalInfo.signatoryTitle', body.signatoryTitle || '');
+      user.set('legalInfo.updatedAt', new Date());
+      await user.save();
+      return res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo() });
+    }
+
+    const siret = (body.siret || '').replace(/\s/g, '');
+    if (body.status !== 'individual') {
+      if (!siret) return res.status(400).json({ error: 'Le SIRET est obligatoire pour un micro-entrepreneur ou une société' });
+      if (!isValidSiret(siret)) return res.status(400).json({ error: 'SIRET invalide (14 chiffres attendus)' });
+    } else if (!body.individualAcknowledged) {
+      return res.status(400).json({ error: 'En tant que particulier, vous devez confirmer déclarer vous-même vos revenus' });
+    }
+
+    let registry = null;
+    const registryEnabled = await getSetting(SETTINGS.businessRegistryCheck.key, SETTINGS.businessRegistryCheck.default);
+    if (siret && registryEnabled) {
+      registry = await lookupRegistry({ siret });
+      if (registry?.found === false) return res.status(400).json({ error: 'SIRET introuvable au registre national des entreprises. Vérifiez le numéro.' });
+      if (registry?.found && !registry.active) return res.status(400).json({ error: `Établissement fermé ou inactif au registre (${registry.legalName})` });
+    }
+
+    user.set('legalInfo', {
+      firstName: body.firstName,
+      lastName: body.lastName,
+      status: body.status,
+      companyName: body.companyName || '',
+      siret: siret || '',
+      legalName: registry?.found ? registry.legalName : '',
+      registryAddress: registry?.found ? registry.address : '',
+      registryChecked: !!registry?.found,
+      address: body.address,
+      individualAcknowledged: body.status === 'individual' ? !!body.individualAcknowledged : false,
+      updatedAt: new Date(),
+    });
+    await user.save();
+    res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo(), registry: registry?.found ? { legalName: registry.legalName, address: registry.address } : null });
+  } catch (error) {
+    logger.error('updateLegalInfo failed:', error);
+    res.status(500).json({ error: 'Enregistrement impossible pour le moment' });
   }
 }
 

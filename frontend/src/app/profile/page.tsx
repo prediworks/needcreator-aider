@@ -21,6 +21,7 @@ import ShopifyCard from '@/components/ShopifyCard';
 import BusinessVerificationCard from '@/components/BusinessVerificationCard';
 import SubscriptionCard from '@/components/SubscriptionCard';
 import AccountDataCard from '@/components/AccountDataCard';
+import LegalInfoCard from '@/components/LegalInfoCard';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
@@ -367,6 +368,7 @@ function ProfileContent() {
 
           {/* Vérification et abonnement (marque) */}
           {profile.role === 'brand' && <BusinessVerificationCard profile={profile} />}
+          {profile.role === 'brand' && <LegalInfoCard profile={profile} />}
           {profile.role === 'brand' && <SubscriptionCard />}
 
           {/* Gifting (créateur) */}
@@ -395,6 +397,7 @@ function ProfileContent() {
           {isCreator && <AmbassadorCard ambassador={profile.profile.ambassador} />}
 
           {/* Stripe Connect (créateur) */}
+          {isCreator && <LegalInfoCard profile={profile} />}
           {isCreator && <StripeConnectCard />}
 
           {/* Réseaux sociaux + réalisations (créateur) */}

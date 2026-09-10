@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendNewCampaignNotification } from '../services/email.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
-import { sendAutoApprovalNotification, sendAutoApprovalReminder } from '../services/email.js';
+import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring } from '../services/email.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -136,18 +136,48 @@ export async function notifyAfterEarlyAccess() {
 /**
  * Run all scheduled jobs
  */
+/**
+ * Rappel 30 jours avant l'expiration des droits d'utilisation (marque + créateur)
+ */
+export async function sendRightsExpiryReminders() {
+  const now = new Date();
+  const limit = new Date(now.getTime() + 30 * 86400000);
+  const deliveries = await Delivery.find({
+    'contract.rightsEndAt': { $gt: now, $lte: limit },
+    'contract.expiryReminderSentAt': null,
+  }).populate('campaignId', 'title').populate('brandId', 'email profile.companyName profile.name').populate('creatorId', 'email profile.name');
+  let sent = 0;
+  for (const d of deliveries) {
+    try {
+      const title = d.campaignId?.title || 'votre campagne';
+      // Un email refusé (adresse invalide…) ne doit pas bloquer le rappel ni le faire répéter à chaque exécution
+      if (d.brandId?.email) await sendRightsExpiring(d.brandId.email, d.brandId.profile?.companyName || d.brandId.profile?.name, title, d.contract.rightsEndAt, d._id, true)
+        .catch(err => logger.warn(`Rappel droits (marque) non envoyé pour ${d._id}: ${err?.message || err}`));
+      if (d.creatorId?.email) await sendRightsExpiring(d.creatorId.email, d.creatorId.profile?.name, title, d.contract.rightsEndAt, d._id, false)
+        .catch(err => logger.warn(`Rappel droits (créateur) non envoyé pour ${d._id}: ${err?.message || err}`));
+      d.contract.expiryReminderSentAt = now;
+      await d.save();
+      sent++;
+    } catch (err) {
+      logger.error(`Rights expiry reminder failed for ${d._id}: ${err?.message || err}`);
+    }
+  }
+  return sent;
+}
+
 export async function runScheduledJobs() {
   logger.info('Running scheduled jobs...');
 
   try {
-    const [autoApprovals, reminders, notified] = await Promise.all([
+    const [autoApprovals, reminders, notified, rightsReminders] = await Promise.all([
       processAutoApprovals(),
       sendAutoApprovalReminders(),
       notifyAfterEarlyAccess(),
+      sendRightsExpiryReminders(),
     ]);
 
-    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access`);
-    return { autoApprovals, reminders, notified };
+    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders`);
+    return { autoApprovals, reminders, notified, rightsReminders };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

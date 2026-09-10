@@ -124,6 +124,53 @@ const deliverySchema = new mongoose.Schema({
     note: String,
   },
   // Pack "vidéo prête à diffuser" (déclinaisons de format, vignette, sous-titres)
+  // Contrat de mission et cession de droits (généré à l'acceptation du devis)
+  contract: {
+    number: String,
+    url: String,
+    generatedAt: Date,
+    termsVersion: String,
+    parties: {
+      brand: { legalName: String, siret: String, vatNumber: String, address: String, signatoryName: String, signatoryTitle: String, email: String },
+      creator: { name: String, status: String, companyName: String, siret: String, address: String, email: String },
+    },
+    mission: { title: String, deliverables: Number, videoType: String, estimatedDeliveryDays: Number, revisions: Number, terms: String },
+    rights: {
+      duration: String,
+      supports: [String],
+      territories: String,
+      exclusivity: Boolean,
+      exclusivityMonths: Number,
+    },
+    rightsStartAt: Date,
+    rightsEndAt: Date,        // null = illimité
+    expiryReminderSentAt: Date,
+    addenda: [{
+      number: String,
+      url: String,
+      generatedAt: Date,
+      price: Number,
+      duration: String,
+      previousEndAt: Date,
+      newEndAt: Date,
+    }],
+  },
+  // Prolongation des droits (proposée par le créateur, payée par la marque)
+  rightsExtension: {
+    status: { type: String, enum: ['none', 'requested', 'proposed', 'awaiting_payment', 'paid', 'declined'], default: 'none' },
+    requestMessage: String,
+    requestedAt: Date,
+    price: Number,
+    duration: String,
+    note: String,
+    proposedAt: Date,
+    stripePaymentIntentId: String,
+    platformFee: Number,
+    creatorAmount: Number,
+    stripeTransferId: String,
+    paidAt: Date,
+  },
+
   readyPack: {
     status: { type: String, enum: ['none', 'awaiting_payment', 'queued', 'processing', 'done', 'failed'], default: 'none' },
     options: {
@@ -236,9 +283,29 @@ deliverySchema.methods.submit = function() {
   this.autoApprovalDate = autoApprovalDate;
 };
 
+/** Durée de droits → nombre de mois (null = illimité) */
+export function rightsDurationMonths(duration) {
+  return { '6m': 6, '1y': 12, '2y': 24, '3y': 36 }[duration] ?? null;
+}
+export function addMonths(date, months) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+/** Les droits courent à partir de la validation de la livraison */
+deliverySchema.methods.startRights = function() {
+  if (!this.contract?.number) return;
+  const start = new Date();
+  const months = rightsDurationMonths(this.contract.rights?.duration);
+  this.contract.rightsStartAt = start;
+  this.contract.rightsEndAt = months ? addMonths(start, months) : null;
+};
+
 deliverySchema.methods.approve = function(isAuto = false, transferred = true) {
   this.status = isAuto ? 'auto_approved' : 'approved';
   this.approvedAt = new Date();
+  this.startRights();
   // 'released' = versé au créateur ; 'captured' = encaissé, versement en attente du compte Stripe du créateur
   this.payment.status = transferred ? 'released' : 'captured';
   if (transferred) this.payment.releasedAt = new Date();

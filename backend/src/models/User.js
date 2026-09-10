@@ -213,6 +213,31 @@ const userSchema = new mongoose.Schema({
   },
 
   // Abonnement (marques)
+  // Informations administratives (parties au contrat de mission / cession de droits)
+  legalInfo: {
+    // Créateur
+    firstName: String,
+    lastName: String,
+    status: { type: String, enum: ['micro', 'company', 'individual'] }, // micro-entrepreneur, société, particulier
+    companyName: String,
+    siret: String,
+    legalName: String,        // raison sociale trouvée au registre
+    registryAddress: String,
+    registryChecked: Boolean,
+    address: {
+      line1: String,
+      line2: String,
+      postalCode: String,
+      city: String,
+      country: { type: String, default: 'France' },
+    },
+    individualAcknowledged: Boolean, // particulier : déclare ses revenus lui-même
+    // Marque
+    signatoryName: String,
+    signatoryTitle: String,
+    updatedAt: Date,
+  },
+
   // Acceptation des CGU / confidentialité
   legal: {
     termsVersion: String,
@@ -361,6 +386,22 @@ userSchema.methods.ensureReferralCode = function() {
   return this.referral.code;
 };
 
+/**
+ * Informations administratives complètes ? (nécessaires pour le contrat de mission)
+ */
+userSchema.methods.hasLegalInfo = function() {
+  const li = this.legalInfo || {};
+  if (this.role === 'brand') return !!(li.signatoryName && li.signatoryName.trim());
+  if (this.role === 'creator') {
+    const addr = li.address || {};
+    const base = li.firstName && li.lastName && li.status && addr.line1 && addr.postalCode && addr.city;
+    if (!base) return false;
+    if (li.status === 'individual') return !!li.individualAcknowledged;
+    return !!li.siret;
+  }
+  return true;
+};
+
 // Methods
 userSchema.methods.canApplyToCampaign = function() {
   // Le compte Stripe n'est pas requis pour candidater : il est demandé avant le paiement
@@ -368,7 +409,8 @@ userSchema.methods.canApplyToCampaign = function() {
     this.role === 'creator' &&
     this.status === 'active' &&
     this.verification.portfolio &&
-    (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos
+    (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos &&
+    this.hasLegalInfo()
   );
 };
 
@@ -382,6 +424,7 @@ userSchema.methods.applyBlockers = function() {
   if (!this.verification.portfolio && this.status === 'active') blockers.push('Votre portfolio n\'a pas encore été validé.');
   const missing = config.business.minCreatorVideos - (this.profile.portfolio?.length || 0);
   if (missing > 0) blockers.push(`Ajoutez encore ${missing} vidéo(s) à votre portfolio (minimum ${config.business.minCreatorVideos}).`);
+  if (!this.hasLegalInfo()) blockers.push('Renseignez vos informations administratives (identité, statut, adresse) dans votre profil : elles figurent sur le contrat de chaque mission.');
   return blockers;
 };
 

@@ -21,6 +21,13 @@ import {
   updatePerformance,
   requestReadyPack,
   readyPackPaymentIntent,
+  getContract,
+  requestRightsExtension,
+  proposeRightsExtension,
+  declineRightsExtension,
+  acceptRightsExtension,
+  rightsExtensionPaymentIntent,
+  confirmRightsExtension,
   confirmReadyPack,
 } from '../controllers/deliveries.js';
 
@@ -50,6 +57,14 @@ router.patch('/:deliveryId/links/:linkId/visibility', authenticate, validate(sch
 router.post('/:deliveryId/ready-pack', authenticate, authorize('brand'), validate(schemas.readyPack), requestReadyPack);
 router.get('/:deliveryId/ready-pack/payment-intent', authenticate, authorize('brand'), readyPackPaymentIntent);
 router.post('/:deliveryId/ready-pack/confirm', authenticate, authorize('brand'), confirmReadyPack);
+// Contrat et prolongation des droits
+router.get('/:deliveryId/contract', authenticate, getContract);
+router.post('/:deliveryId/rights-extension/request', authenticate, authorize('brand'), validate(schemas.rightsExtensionRequest), requestRightsExtension);
+router.post('/:deliveryId/rights-extension/propose', authenticate, authorize('creator'), validate(schemas.rightsExtensionProposal), proposeRightsExtension);
+router.post('/:deliveryId/rights-extension/decline', authenticate, declineRightsExtension);
+router.post('/:deliveryId/rights-extension/accept', authenticate, authorize('brand'), acceptRightsExtension);
+router.get('/:deliveryId/rights-extension/payment-intent', authenticate, authorize('brand'), rightsExtensionPaymentIntent);
+router.post('/:deliveryId/rights-extension/confirm', authenticate, authorize('brand'), confirmRightsExtension);
 router.patch('/:deliveryId/performance', authenticate, validate(schemas.performanceUpdate), updatePerformance);
 router.patch('/:deliveryId/shipping', authenticate, validate(schemas.shippingUpdate), updateShipping);
 router.post('/:deliveryId/submit', authenticate, authorize('creator'), submitDelivery);

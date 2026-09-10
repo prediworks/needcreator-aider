@@ -3,14 +3,20 @@ import Campaign from '../models/Campaign.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent } from '../services/stripe.js';
-import { uploadMultipleFiles, resolveUrlsIn, createUploadUrl, statObject , keyFromUrl } from '../services/storage.js';
+import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator } from '../services/stripe.js';
+import { attachContract, generateAddendumPdf, contractNumber } from '../services/contract.js';
+import { rightsDurationMonths, addMonths } from '../models/Delivery.js';
+import { uploadMultipleFiles, resolveUrlsIn, createUploadUrl, statObject, keyFromUrl, resolveUrl, uploadFile } from '../services/storage.js';
 import {
   sendDeliverySubmitted,
   sendDeliveryApproved,
   sendRevisionRequested,
   sendProductShipped,
   sendProductReceived,
+  sendContractGenerated,
+  sendExtensionRequested,
+  sendExtensionProposed,
+  sendExtensionPaid,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -58,7 +64,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     ? Math.round(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1) * 100) / 100
     : (price ?? application?.price ?? campaign.budget?.total);
 
-  const creatorDoc = await User.findById(creatorId).select('profile.address');
+  const creatorDoc = await User.findById(creatorId).select('email profile.address profile.name legalInfo');
   const days = application?.estimatedDeliveryDays || 7;
   const delivery = new Delivery({
     campaignId: campaign._id,
@@ -116,8 +122,22 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     }
   }
 
+  // Contrat de mission et cession de droits (photographie du devis et des parties)
+  try {
+    await attachContract(delivery, { campaign, application, brand, creator: creatorDoc });
+  } catch (err) {
+    logger.error('Contract generation failed:', err);
+    warning = warning ? `${warning} Contrat non généré : ${err.message}` : `Contrat non généré : ${err.message}`;
+  }
+
   await delivery.save();
   logger.info(`Delivery created: ${delivery._id} for campaign ${campaign._id} (payment ${delivery.payment.status})`);
+
+  if (delivery.contract?.number) {
+    const title = campaign.title;
+    sendContractGenerated(brand.email, brand.profile?.companyName || brand.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
+    if (creatorDoc?.email) sendContractGenerated(creatorDoc.email, creatorDoc.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
+  }
 
   return { delivery, warning, clientSecret };
 }
@@ -613,6 +633,189 @@ export async function confirmReadyPack(req, res) {
     logger.error('Failed to confirm ready pack:', error);
     res.status(500).json({ error: 'Impossible de confirmer le pack' });
   }
+}
+
+/**
+ * Contrat : lien de téléchargement (signé si le bucket est privé), droits, avenants
+ */
+export async function getContract(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, $or: [{ brandId: req.user._id }, { creatorId: req.user._id }] }).select('contract rightsExtension');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!delivery.contract?.number) return res.status(404).json({ error: 'Aucun contrat pour cette mission' });
+    const c = delivery.contract.toObject();
+    c.url = await resolveUrl(c.url);
+    c.addenda = await Promise.all((c.addenda || []).map(async (a) => ({ ...a, url: await resolveUrl(a.url) })));
+    res.json({ contract: c, rightsExtension: delivery.rightsExtension });
+  } catch (error) {
+    logger.error('getContract failed:', error);
+    res.status(500).json({ error: 'Contrat indisponible' });
+  }
+}
+
+const EXT_DURATIONS = { '6m': '6 mois', '1y': '1 an', '2y': '2 ans', '3y': '3 ans', unlimited: 'une durée illimitée' };
+
+async function loadDeliveryForExtension(deliveryId, userField, userId) {
+  const delivery = await Delivery.findOne({ _id: deliveryId, [userField]: userId })
+    .populate('campaignId', 'title platformFeePercent')
+    .populate('brandId', 'email profile.companyName profile.name stripeCustomerId')
+    .populate('creatorId', 'email profile.name profile.stripeConnect stripeAccountId');
+  if (!delivery) return { error: 'Delivery not found', status: 404 };
+  if (!delivery.contract?.number) return { error: 'Aucun contrat pour cette mission', status: 400 };
+  if (!['approved', 'auto_approved'].includes(delivery.status)) return { error: 'La prolongation se demande après validation de la livraison', status: 400 };
+  return { delivery };
+}
+
+/** Marque : demande une prolongation des droits au créateur */
+export async function requestRightsExtension(req, res) {
+  try {
+    const { delivery, error, status } = await loadDeliveryForExtension(req.params.deliveryId, 'brandId', req.user._id);
+    if (error) return res.status(status).json({ error });
+    if (['proposed', 'awaiting_payment'].includes(delivery.rightsExtension?.status)) return res.status(400).json({ error: 'Une proposition est déjà en cours' });
+    delivery.rightsExtension = { status: 'requested', requestMessage: req.body.message || '', requestedAt: new Date() };
+    await delivery.save();
+    sendExtensionRequested(delivery.creatorId.email, delivery.creatorId.profile?.name, delivery.campaignId.title, req.body.message, delivery._id).catch(() => {});
+    res.json({ message: 'Demande envoyée au créateur', rightsExtension: delivery.rightsExtension });
+  } catch (error) {
+    logger.error('requestRightsExtension failed:', error);
+    res.status(500).json({ error: 'Demande impossible' });
+  }
+}
+
+/** Créateur : propose un prix et une durée (peut aussi le faire sans demande préalable) */
+export async function proposeRightsExtension(req, res) {
+  try {
+    const { delivery, error, status } = await loadDeliveryForExtension(req.params.deliveryId, 'creatorId', req.user._id);
+    if (error) return res.status(status).json({ error });
+    if (delivery.rightsExtension?.status === 'awaiting_payment') return res.status(400).json({ error: 'Une proposition est en attente de paiement' });
+    const { price, duration, note } = req.body;
+    const feePercent = delivery.campaignId?.platformFeePercent ?? config.stripe.platformFeePercent;
+    const platformFee = Math.round(price * feePercent) / 100;
+    delivery.rightsExtension = {
+      ...(delivery.rightsExtension?.toObject?.() || {}),
+      status: 'proposed', price, duration, note: note || '', proposedAt: new Date(),
+      platformFee, creatorAmount: Math.round((price - platformFee) * 100) / 100,
+      stripePaymentIntentId: null, paidAt: null,
+    };
+    await delivery.save();
+    sendExtensionProposed(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, delivery.campaignId.title, price, EXT_DURATIONS[duration], delivery._id).catch(() => {});
+    res.json({ message: 'Proposition envoyée à la marque', rightsExtension: delivery.rightsExtension });
+  } catch (error) {
+    logger.error('proposeRightsExtension failed:', error);
+    res.status(500).json({ error: 'Proposition impossible' });
+  }
+}
+
+/** Refus (marque ou créateur) */
+export async function declineRightsExtension(req, res) {
+  try {
+    const field = req.user.role === 'brand' ? 'brandId' : 'creatorId';
+    const { delivery, error, status } = await loadDeliveryForExtension(req.params.deliveryId, field, req.user._id);
+    if (error) return res.status(status).json({ error });
+    if (!['requested', 'proposed', 'awaiting_payment'].includes(delivery.rightsExtension?.status)) return res.status(400).json({ error: 'Rien à refuser' });
+    delivery.rightsExtension.status = 'declined';
+    await delivery.save();
+    res.json({ message: 'Proposition refusée', rightsExtension: delivery.rightsExtension });
+  } catch (error) {
+    res.status(500).json({ error: 'Action impossible' });
+  }
+}
+
+/** Marque : accepte la proposition → paiement immédiat (client secret) ou prolongation directe si gratuite */
+export async function acceptRightsExtension(req, res) {
+  try {
+    const { delivery, error, status } = await loadDeliveryForExtension(req.params.deliveryId, 'brandId', req.user._id);
+    if (error) return res.status(status).json({ error });
+    const ext = delivery.rightsExtension;
+    if (!['proposed', 'awaiting_payment'].includes(ext?.status)) return res.status(400).json({ error: 'Aucune proposition à accepter' });
+    if (ext.price > 0) {
+      if (!ext.stripePaymentIntentId) {
+        const pi = await createPaymentIntent(ext.price, 'EUR', req.user.stripeCustomerId, { deliveryId: String(delivery._id), kind: 'rights_extension' }, { captureMethod: 'automatic' });
+        ext.stripePaymentIntentId = pi.id;
+      }
+      ext.status = 'awaiting_payment';
+      await delivery.save();
+      const pi = await retrievePaymentIntent(ext.stripePaymentIntentId);
+      if (config.business.autoConfirmTestPayments && pi.status === 'requires_payment_method') {
+        await confirmWithTestCard(pi.id);
+        return finalizeRightsExtension(delivery, res);
+      }
+      return res.json({ message: 'Paiement à confirmer', clientSecret: pi.client_secret, amount: ext.price, rightsExtension: ext });
+    }
+    return finalizeRightsExtension(delivery, res);
+  } catch (error) {
+    logger.error('acceptRightsExtension failed:', error);
+    res.status(500).json({ error: `Acceptation impossible : ${error?.raw?.message || error.message}` });
+  }
+}
+
+/** Client secret pour l'écran de carte de la prolongation */
+export async function rightsExtensionPaymentIntent(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id }).select('rightsExtension');
+    if (!delivery?.rightsExtension?.stripePaymentIntentId) return res.status(400).json({ error: 'Aucun paiement de prolongation en attente' });
+    const pi = await retrievePaymentIntent(delivery.rightsExtension.stripePaymentIntentId);
+    res.json({ clientSecret: pi.client_secret, status: pi.status, amount: delivery.rightsExtension.price, currency: 'EUR' });
+  } catch (error) {
+    res.status(500).json({ error: 'Impossible de préparer le paiement' });
+  }
+}
+
+/** Marque : confirme le paiement de la prolongation → avenant, nouvelle date de fin, virement au créateur */
+export async function confirmRightsExtension(req, res) {
+  try {
+    const { delivery, error, status } = await loadDeliveryForExtension(req.params.deliveryId, 'brandId', req.user._id);
+    if (error) return res.status(status).json({ error });
+    const ext = delivery.rightsExtension;
+    if (ext?.status !== 'awaiting_payment' || !ext.stripePaymentIntentId) return res.status(400).json({ error: 'Aucun paiement de prolongation en attente' });
+    const pi = await retrievePaymentIntent(ext.stripePaymentIntentId);
+    if (pi.status !== 'succeeded') return res.status(400).json({ error: `Paiement non confirmé (statut Stripe : ${pi.status})` });
+    return finalizeRightsExtension(delivery, res);
+  } catch (error) {
+    logger.error('confirmRightsExtension failed:', error);
+    res.status(500).json({ error: 'Confirmation impossible' });
+  }
+}
+
+async function finalizeRightsExtension(delivery, res) {
+  const ext = delivery.rightsExtension;
+  const contract = delivery.contract;
+  const previousEndAt = contract.rightsEndAt || new Date();
+  const months = rightsDurationMonths(ext.duration);
+  const base = contract.rightsEndAt && new Date(contract.rightsEndAt) > new Date() ? new Date(contract.rightsEndAt) : new Date();
+  const newEndAt = months ? addMonths(base, months) : null;
+
+  const addendum = { number: contractNumber('NC-AV'), generatedAt: new Date(), price: ext.price, duration: ext.duration, previousEndAt, newEndAt };
+  const pdf = await generateAddendumPdf({ contract: contract.toObject(), addendum, parties: contract.parties });
+  const { url } = await uploadFile(pdf, `avenant-${addendum.number}.pdf`, 'application/pdf', `contracts/${delivery._id}`);
+  contract.addenda.push({ ...addendum, url });
+  contract.rightsEndAt = newEndAt;
+  contract.expiryReminderSentAt = null;
+  ext.status = 'paid';
+  ext.paidAt = new Date();
+
+  let warning = null;
+  if (ext.price > 0 && ext.creatorAmount > 0) {
+    const creator = delivery.creatorId;
+    const accountId = creator?.profile?.stripeConnect?.payoutsEnabled ? (creator.profile.stripeConnect.accountId || creator.stripeAccountId) : null;
+    if (accountId) {
+      try {
+        const t = await transferToCreator(ext.stripePaymentIntentId, accountId, ext.creatorAmount);
+        ext.stripeTransferId = t.id;
+      } catch (err) {
+        warning = `Paiement encaissé, virement au créateur en échec : ${err.message}`;
+      }
+    } else {
+      warning = 'Paiement encaissé. Le virement partira dès que le créateur aura connecté son compte Stripe.';
+    }
+  }
+  await delivery.save();
+
+  const title = delivery.campaignId?.title;
+  sendExtensionPaid(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
+  sendExtensionPaid(delivery.creatorId.email, delivery.creatorId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
+  logger.info(`Droits prolongés sur ${delivery._id} : avenant ${addendum.number}, fin ${newEndAt ? newEndAt.toISOString() : 'illimitée'}`);
+  return res.json({ message: 'Prolongation confirmée', addendum: { ...addendum, url }, rightsEndAt: newEndAt, warning });
 }
 
 /**

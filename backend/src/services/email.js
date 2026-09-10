@@ -306,3 +306,70 @@ export async function sendProductReceived(email, companyName, creatorName, campa
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Contrat de mission généré (marque et créateur)
+ */
+export async function sendContractGenerated(email, name, campaignTitle, contractNumber, deliveryId) {
+  const subject = `Votre contrat de mission ${contractNumber} — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Le devis a été accepté : le contrat de mission et de cession de droits <strong>${contractNumber}</strong> est disponible.</p>
+    <p>Il récapitule les parties, la mission, le prix et les droits d'utilisation convenus.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission et télécharger le contrat</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
+ * Droits d'utilisation qui expirent dans 30 jours
+ */
+export async function sendRightsExpiring(email, name, campaignTitle, endDate, deliveryId, isBrand) {
+  const date = new Date(endDate).toLocaleDateString('fr-FR');
+  const subject = `Les droits d'utilisation de "${campaignTitle}" expirent le ${date}`;
+  const html = isBrand ? `
+    <h1>Bonjour ${name},</h1>
+    <p>Les droits d'utilisation des vidéos de la campagne "${campaignTitle}" prennent fin le <strong>${date}</strong>.</p>
+    <p>Passé cette date, vous ne pourrez plus diffuser ces contenus sans l'accord du créateur.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Demander une prolongation</a></p>
+  ` : `
+    <h1>Bonjour ${name},</h1>
+    <p>Les droits que vous avez cédés sur les vidéos de "${campaignTitle}" prennent fin le <strong>${date}</strong>.</p>
+    <p>La marque peut vous demander une prolongation : vous fixerez alors librement votre prix.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendExtensionRequested(email, name, campaignTitle, message, deliveryId) {
+  const subject = `Demande de prolongation des droits — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La marque souhaite prolonger les droits d'utilisation des vidéos de "${campaignTitle}".</p>
+    ${message ? `<p>Son message : « ${message} »</p>` : ''}
+    <p>Proposez votre prix et la durée souhaitée depuis la page de la mission.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Faire une proposition</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendExtensionProposed(email, name, campaignTitle, price, durationLabel, deliveryId) {
+  const subject = `Proposition de prolongation des droits — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Le créateur propose de prolonger les droits d'utilisation des vidéos de "${campaignTitle}" pour <strong>${durationLabel}</strong>, au prix de <strong>${price} € HT</strong>.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Accepter et payer</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendExtensionPaid(email, name, campaignTitle, addendumNumber, newEndAt, deliveryId) {
+  const subject = `Prolongation des droits confirmée — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La prolongation des droits sur les vidéos de "${campaignTitle}" est confirmée (avenant <strong>${addendumNumber}</strong>).</p>
+    <p>${newEndAt ? `Nouvelle date de fin des droits : <strong>${new Date(newEndAt).toLocaleDateString('fr-FR')}</strong>.` : 'Les droits sont désormais illimités dans le temps.'}</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Télécharger l'avenant</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

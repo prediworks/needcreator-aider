@@ -65,7 +65,15 @@ async function step(name, fn) {
 async function firebaseUser(email, emailVerified = true) {
   let user;
   try { user = await admin.auth().getUserByEmail(email); }
-  catch { user = await admin.auth().createUser({ email, password: 'Test1234!', emailVerified }); }
+  catch {
+    try { user = await admin.auth().createUser({ email, password: 'Test1234!', emailVerified }); }
+    catch (err) {
+      // Firebase peut mettre quelques secondes à refléter une suppression récente
+      if (err?.code !== 'auth/email-already-exists') throw err;
+      await new Promise(r => setTimeout(r, 3000));
+      user = await admin.auth().getUserByEmail(email);
+    }
+  }
   const customToken = await admin.auth().createCustomToken(user.uid);
   const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${WEB_API_KEY}`, {
     method: 'POST',
@@ -75,6 +83,16 @@ async function firebaseUser(email, emailVerified = true) {
   const data = await r.json();
   if (!data.idToken) throw new Error('Échec échange token Firebase : ' + JSON.stringify(data));
   return { uid: user.uid, idToken: data.idToken };
+}
+
+/** Informations administratives (obligatoires pour devis / acceptation) */
+async function setLegalInfo(api, role) {
+  const body = role === 'brand'
+    ? { signatoryName: 'Jean Test', signatoryTitle: 'Gérant' }
+    : { firstName: 'Camille', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '1 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' } };
+  const r = await api('PUT', '/auth/legal-info', body);
+  expect(r.status === 200 && r.data.hasLegalInfo === true, `Informations administratives (${role}) refusées`, r);
+  return r;
 }
 
 function client(idToken) {
@@ -133,7 +151,9 @@ await step('Inscription marque (+ client Stripe)', async () => {
   expect(res.status === 201, 'Inscription marque échouée', res);
   brandUser = res.data.user;
   expect(brandUser.stripeCustomerId, 'Client Stripe non créé', res);
-  return `id ${brandUser.id}, Stripe ${brandUser.stripeCustomerId}`;
+  expect(brandUser.hasLegalInfo === false, 'Une marque neuve ne devrait pas avoir de signataire', res);
+  await setLegalInfo(brandApi, 'brand');
+  return `id ${brandUser.id}, Stripe ${brandUser.stripeCustomerId}, signataire enregistré`;
 });
 
 await step('Marque : essai Pro offert à l\'inscription + vérification d\'entreprise (SIRET)', async () => {
@@ -174,7 +194,9 @@ await step('Inscription créateur (bio vide acceptée)', async () => {
   expect(res.status === 201, 'Inscription créateur échouée', res);
   creatorUser = res.data.user;
   expect(creatorUser.status === 'pending', 'Le créateur devrait être en attente de validation', res);
-  return `id ${creatorUser.id}, statut ${creatorUser.status}`;
+  expect((creatorUser.applyBlockers || []).some(b => /administratives/i.test(b)), 'Les informations administratives devraient bloquer les devis', res);
+  const li = await setLegalInfo(creatorApi, 'creator');
+  return `id ${creatorUser.id}, statut ${creatorUser.status}, informations administratives ${li.data.registry ? `vérifiées au registre (${li.data.registry.legalName})` : 'enregistrées (contrôle registre désactivé)'}`;
 });
 
 await step('Profil : lecture (GET /auth/profile)', async () => {
@@ -444,6 +466,27 @@ await step('Marque : sélection du créateur (+ livraison + paiement Stripe test
   return `livraison ${delivery._id}, ${delivery.payment.amount}€ à confirmer par carte`;
 });
 
+await step('Contrat de mission généré à l\'acceptation du devis (PDF, parties, droits)', async () => {
+  const c = await brandApi('GET', `/deliveries/${delivery._id}/contract`);
+  expect(c.status === 200 && /^NC-\d{4}-[A-F0-9]{6}$/.test(c.data.contract.number), 'Numéro de contrat invalide', c);
+  expect(c.data.contract.url?.startsWith('http') && c.data.contract.url.includes('.pdf'), 'Lien PDF du contrat manquant', c);
+  const pdf = await fetch(c.data.contract.url);
+  const head = Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString();
+  expect(pdf.ok && head === '%PDF-', `Le contrat ne se télécharge pas (HTTP ${pdf.status}, en-tête ${head})`, { status: pdf.status, data: null });
+  const parties = c.data.contract.parties;
+  expect(parties.brand.signatoryName === 'Jean Test' && parties.creator.name === 'Camille Test' && parties.creator.siret === '35600000000048', 'Parties du contrat incorrectes', c);
+  expect(c.data.contract.rights?.duration && !c.data.contract.rightsEndAt, 'Les droits ne doivent pas courir avant la validation', c);
+  const asCreator = await creatorApi('GET', `/deliveries/${delivery._id}/contract`);
+  expect(asCreator.status === 200, 'Le créateur doit accéder au contrat', asCreator);
+  // Garde-fou : sans signataire, une marque ne peut pas accepter de devis
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $unset: { legalInfo: '' } });
+  const blocked = await brandApi('POST', `/campaigns/${campaign._id}/select/${creatorUser.id}`);
+  expect(blocked.status === 403 && blocked.data.code === 'LEGAL_INFO_REQUIRED', 'La sélection devrait être refusée sans signataire', blocked);
+  await setLegalInfo(brandApi, 'brand');
+  return `${c.data.contract.number} (${Buffer.byteLength(head)} o lus, PDF valide)`;
+});
+
 await step('Marque : approbation refusée tant que la carte n\'est pas saisie', async () => {
   const res = await brandApi('POST', `/deliveries/${delivery._id}/approve`);
   expect(res.status === 400, 'Devrait refuser sans paiement confirmé', res);
@@ -595,6 +638,7 @@ await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () =
   const reg = await c2Api('POST', '/auth/register/creator', { acceptTerms: true, email: creator2Email, name: 'Créateur 2', bio: '', niches: ['beauty'], minPrice: 80 });
   expect(reg.status === 201, 'Inscription créateur 2 échouée', reg);
   extraCleanup.push({ userId: reg.data.user.id, uid: c2.uid });
+  await setLegalInfo(c2Api, 'creator');
   const users = mongoose.connection.db.collection('users');
   await users.updateOne({ email: creator2Email }, { $set: { status: 'active', 'verification.portfolio': true, 'profile.ambassador.status': 'approved' } });
   for (let i = 1; i <= 3; i++) { const f = new FormData(); f.append('video', fakeVideo(`c2-${i}.mp4`)); f.append('title', `C2 ${i}`); f.append('videoType', 'demo'); await c2Api('POST', '/portfolio/upload', f, { form: true }); }
@@ -700,6 +744,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const reg3 = await c3Api('POST', '/auth/register/creator', { acceptTerms: true, email: c3Email, name: 'Filleul', bio: '', niches: ['beauty'], minPrice: 60, referralCode: myRef.data.code });
   expect(reg3.status === 201, 'Inscription filleul échouée', reg3);
   extraCleanup.push({ userId: reg3.data.user.id, uid: c3.uid });
+  await setLegalInfo(c3Api, 'creator');
   const refAfter = await creatorApi('GET', '/auth/referral');
   expect(refAfter.data.referred.some(r => r.id === reg3.data.user.id), 'Le filleul devrait apparaître', refAfter);
 
@@ -710,6 +755,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const regB2 = await b2Api('POST', '/auth/register/brand', { acceptTerms: true, email: b2Email, companyName: 'Marque Filleule', website: 'https://exemple.org', industry: 'beauty', referralCode: brandRef.data.code });
   expect(regB2.status === 201 && regB2.data.user.referral.discountedCampaignsLeft === 1, 'La marque filleule devrait avoir 1 campagne remisée', regB2);
   extraCleanup.push({ userId: regB2.data.user.id, uid: b2.uid });
+  await setLegalInfo(b2Api, 'brand');
   const sponsor = await brandApi('GET', '/auth/profile');
   expect(sponsor.data.user.referral.discountedCampaignsLeft >= 1, 'La marque marraine devrait avoir une campagne remisée', sponsor);
 
@@ -956,6 +1002,47 @@ await step('Livraison : détail avec avis (canReview / myReview)', async () => {
   const res = await brandApi('GET', `/deliveries/${delivery._id}`);
   expect(res.status === 200 && res.data.delivery.myReview && res.data.delivery.canReview === false, 'Infos avis manquantes', res);
   return 'OK';
+});
+
+await step('Droits d\'utilisation : date de fin, prolongation payée (avenant PDF), rappel d\'expiration', async () => {
+  const c0 = await brandApi('GET', `/deliveries/${delivery._id}/contract`);
+  expect(c0.status === 200 && c0.data.contract.rightsEndAt, 'La date de fin des droits devrait être fixée après validation', c0);
+  const end0 = new Date(c0.data.contract.rightsEndAt);
+  const monthsAhead = (end0 - Date.now()) / (30.4 * 86400000);
+  const expectedMonths = { '6m': 6, '1y': 12, '2y': 24, '3y': 36 }[c0.data.contract.rights.duration];
+  expect(expectedMonths && Math.abs(monthsAhead - expectedMonths) < 1.5, `Droits de ${expectedMonths} mois attendus (≈ ${monthsAhead.toFixed(1)} mois)`, c0);
+  // Marque : demande ; créateur : proposition ; marque : acceptation + paiement immédiat
+  const req = await brandApi('POST', `/deliveries/${delivery._id}/rights-extension/request`, { message: 'Un an de plus ?' });
+  expect(req.status === 200 && req.data.rightsExtension.status === 'requested', 'Demande de prolongation échouée', req);
+  const prop = await creatorApi('POST', `/deliveries/${delivery._id}/rights-extension/propose`, { price: 60, duration: '1y' });
+  expect(prop.status === 200 && prop.data.rightsExtension.status === 'proposed' && prop.data.rightsExtension.creatorAmount === 54, 'Proposition échouée (créateur = 90 %)', prop);
+  const acc = await brandApi('POST', `/deliveries/${delivery._id}/rights-extension/accept`);
+  expect(acc.status === 200, 'Acceptation échouée', acc);
+  let done = acc.data.addendum ? acc : null;
+  if (!done) {
+    expect(acc.data.clientSecret, 'Client secret attendu pour le paiement de la prolongation', acc);
+    const { default: Stripe } = await import('stripe');
+    const piId = acc.data.clientSecret.split('_secret_')[0];
+    await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(piId, { payment_method: 'pm_card_visa' });
+    done = await brandApi('POST', `/deliveries/${delivery._id}/rights-extension/confirm`);
+    expect(done.status === 200 && done.data.addendum, 'Confirmation de la prolongation échouée', done);
+  }
+  expect(/^NC-AV-/.test(done.data.addendum.number) && done.data.addendum.url, 'Avenant manquant', done);
+  const end1 = new Date(done.data.rightsEndAt);
+  expect((end1 - end0) / 86400000 > 360, 'La date de fin devrait être repoussée d\'environ un an', done);
+  const c1 = await brandApi('GET', `/deliveries/${delivery._id}/contract`);
+  expect(c1.data.contract.addenda.length === 1 && c1.data.contract.addenda[0].url.startsWith('http') && c1.data.rightsExtension.status === 'paid', 'Avenant non rattaché au contrat', c1);
+  // Rappel d'expiration : on simule une fin de droits dans 10 jours puis on lance les tâches planifiées
+  const deliveries = mongoose.connection.db.collection('deliveries');
+  await deliveries.updateOne({ _id: new mongoose.Types.ObjectId(delivery._id) }, { $set: { 'contract.rightsEndAt': new Date(Date.now() + 10 * 86400000), 'contract.expiryReminderSentAt': null } });
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await brandApi('POST', '/admin/jobs/run');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(jobs.status === 200 && jobs.data.rightsReminders >= 1, 'Le rappel d\'expiration des droits n\'a pas été envoyé', jobs);
+  const doc = await deliveries.findOne({ _id: new mongoose.Types.ObjectId(delivery._id) });
+  expect(doc.contract.expiryReminderSentAt, 'expiryReminderSentAt devrait être renseigné', { status: 200, data: doc.contract });
+  return `fin initiale ${end0.toISOString().slice(0, 10)} → ${end1.toISOString().slice(0, 10)} après avenant ${done.data.addendum.number}, rappel envoyé`;
 });
 
 await step('Stripe Connect : onboarding créateur (compte Express + lien)', async () => {

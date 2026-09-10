@@ -616,6 +616,9 @@ export async function selectCreator(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
+    if (!brand.hasLegalInfo()) {
+      return res.status(403).json({ code: 'LEGAL_INFO_REQUIRED', error: 'Indiquez le nom du signataire dans vos informations administratives (profil) avant d\'accepter un devis : il figure sur le contrat de mission.' });
+    }
     if (campaign.remainingSlots() === 0) {
       return res.status(400).json({ error: 'Tous les créateurs recherchés ont déjà été sélectionnés' });
     }

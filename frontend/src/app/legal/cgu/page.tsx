@@ -31,7 +31,7 @@ export default function TermsPage() {
       <ol>
         <li>La Marque publie une campagne décrivant le contenu attendu (brief), le nombre de vidéos et, le cas échéant, un budget.</li>
         <li>Les Créateurs intéressés transmettent un devis (prix, délai, droits d&apos;utilisation proposés).</li>
-        <li>La Marque sélectionne un ou plusieurs devis. Le montant correspondant est alors autorisé sur son moyen de paiement (empreinte bancaire), sans être débité.</li>
+        <li>La Marque sélectionne un ou plusieurs devis. Le montant correspondant est alors autorisé sur son moyen de paiement (empreinte bancaire), sans être débité. Un contrat de mission et de cession de droits, reprenant le devis accepté et les informations administratives des deux parties, est généré au format PDF et mis à leur disposition.</li>
         <li>Le Créateur livre les vidéos via la Plateforme. La Marque dispose de {F.autoApprovalDays} jours pour valider ou demander des modifications, dans la limite de {F.maxRevisions} révisions. Sans réponse dans ce délai, la livraison est réputée acceptée.</li>
         <li>À la validation, le paiement est débité. La Marque ne paie que le montant du devis. Le Créateur reçoit ce montant, déduction faite de la commission de la Plateforme.</li>
       </ol>
@@ -51,6 +51,7 @@ export default function TermsPage() {
         <li>Le Créateur garantit être l&apos;auteur des contenus livrés et disposer de toutes les autorisations nécessaires (personnes filmées, musiques, lieux).</li>
         <li>À la validation de la livraison et au paiement complet, le Créateur cède à la Marque les droits d&apos;utilisation décrits dans le devis accepté (supports, territoires, durée). À défaut de précision, la cession couvre une utilisation sur les réseaux sociaux et le site web de la Marque, dans le monde entier, pour une durée de douze mois.</li>
         <li>Le Créateur conserve le droit de présenter les contenus dans son portfolio, sauf demande contraire de la Marque formulée via la Plateforme.</li>
+        <li>À l&apos;approche de la fin des droits, les deux parties sont prévenues. La Marque peut demander une prolongation ; le Créateur en fixe librement le prix et la durée. La prolongation acceptée et payée fait l&apos;objet d&apos;un avenant, soumis à la même commission qu&apos;une mission.</li>
         <li>Les éléments de la Plateforme (marque, logo, interface, textes) restent la propriété exclusive de {COMPANY.legalName}.</li>
       </ul>
 

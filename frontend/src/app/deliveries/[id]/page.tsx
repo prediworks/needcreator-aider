@@ -23,6 +23,7 @@ import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
 import PerformanceCard from '@/components/PerformanceCard';
 import ReadyPackCard from '@/components/ReadyPackCard';
+import ContractCard from '@/components/ContractCard';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -510,6 +511,9 @@ export default function DeliveryDetailPage() {
                 )}
               </Card>
             )}
+
+            {/* Contrat de mission et droits (les deux parties) */}
+            {(isBrand || isCreator) && <ContractCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
 
             {/* Pack prêt à diffuser (marque, après validation) */}
             {isDone && isBrand && <ReadyPackCard delivery={delivery} />}

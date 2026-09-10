@@ -129,7 +129,7 @@ await step('Marque : page profil (édition)', async () => {
   await bp.goto(`${FRONT}/profile`);
   await bp.getByRole('button', { name: 'Modifier le profil' }).click();
   await bp.getByLabel(/Nom de l'entreprise/).fill('Marque UI Test Modifiée');
-  await bp.getByRole('button', { name: 'Enregistrer' }).click();
+  await bp.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await bp.getByText('Marque UI Test Modifiée').first().waitFor({ timeout: 20000 });
   return 'nom modifié';
 });

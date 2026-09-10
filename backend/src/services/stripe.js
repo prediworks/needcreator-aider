@@ -71,13 +71,13 @@ export async function createCustomer(email, name) {
 /**
  * Create payment intent with hold
  */
-export async function createPaymentIntent(amount, currency, customerId, metadata) {
+export async function createPaymentIntent(amount, currency, customerId, metadata, { captureMethod = 'manual' } = {}) {
   try {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amount * 100), // Convert to cents
       currency: currency.toLowerCase(),
       customer: customerId,
-      capture_method: 'manual', // Hold the payment
+      capture_method: captureMethod, // 'manual' = montant bloqué puis capturé à la validation ; 'automatic' = débit immédiat
       payment_method_types: ['card'], // pas de moyens de paiement à redirection
       metadata,
     });

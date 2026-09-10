@@ -61,6 +61,33 @@ export const schemas = {
     refreshUrl: Joi.string().uri(),
   }),
   
+  // Informations administratives (contrat)
+  legalInfoCreator: Joi.object({
+    firstName: Joi.string().trim().min(1).max(80).required(),
+    lastName: Joi.string().trim().min(1).max(80).required(),
+    status: Joi.string().valid('micro', 'company', 'individual').required(),
+    companyName: Joi.string().trim().max(120).allow(''),
+    siret: Joi.string().trim().pattern(/^[0-9 ]{14,17}$/).allow(''),
+    address: Joi.object({
+      line1: Joi.string().trim().min(2).max(120).required(),
+      line2: Joi.string().trim().max(120).allow(''),
+      postalCode: Joi.string().trim().min(4).max(10).required(),
+      city: Joi.string().trim().min(1).max(80).required(),
+      country: Joi.string().trim().max(60).default('France'),
+    }).required(),
+    individualAcknowledged: Joi.boolean().default(false),
+  }),
+  legalInfoBrand: Joi.object({
+    signatoryName: Joi.string().trim().min(2).max(120).required(),
+    signatoryTitle: Joi.string().trim().max(80).allow(''),
+  }),
+  rightsExtensionRequest: Joi.object({ message: Joi.string().max(1000).allow('') }),
+  rightsExtensionProposal: Joi.object({
+    price: Joi.number().min(0).max(10000).required(),
+    duration: Joi.string().valid('6m', '1y', '2y', '3y', 'unlimited').required(),
+    note: Joi.string().max(1000).allow(''),
+  }),
+
   // Envoi direct vers R2
   uploadUrl: Joi.object({
     filename: Joi.string().max(255).required(),

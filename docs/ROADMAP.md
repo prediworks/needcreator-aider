@@ -50,10 +50,10 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Modèles de campagne** (dupliquer une campagne passée, bibliothèque de briefs par secteur) | Relancer une campagne en 1 minute | S |
 | **Comparateur de candidats** côte à côte (portfolio, prix, note, délai) | Prévu dans la spec, aide au choix quand il y a 10 devis | S |
 | **Contre-proposition de devis** structurée (la marque propose un prix, le créateur accepte en un clic) | Aujourd'hui la négociation passe par la messagerie | S |
-| **Contrat PDF de cession de droits** généré à l'acceptation du devis, signé électroniquement | Preuve juridique, argument de confiance | M |
+| ~~**Contrat PDF de cession de droits** généré à l'acceptation du devis~~ | Livré le 10 septembre 2026 : contrat de mission et cession de droits (PDF) généré à l'acceptation du devis, envoyé aux deux parties, informations administratives obligatoires (identité, statut, SIRET vérifié, adresse ; signataire côté marque). Signature électronique certifiée (Yousign) possible plus tard | — |
 | **Facturation** : facture PDF marque (commission) et relevé créateur conforme | Demandé par les services comptables ; à cadrer avec un expert-comptable (auto-facturation) | M |
 | **Tableau de bord ROI** : coût par vidéo, coût pour 1 000 vues, meilleurs créateurs, comparaison entre campagnes | Justifie le budget UGC | M |
-| **Droits d'utilisation avec rappel d'expiration** (email 30 jours avant la fin des droits, option de prolongation payante) | Nouvelle source de revenu, protection des créateurs | S |
+| ~~**Droits d'utilisation avec rappel d'expiration**~~ | Livré le 10 septembre 2026 : date de fin calculée à la validation, rappel email 30 jours avant aux deux parties, prolongation proposée par le créateur et payée par la marque (avenant PDF, virement au créateur) | — |
 | **Campagnes privées** (visibles uniquement par les créateurs invités) | Lancements confidentiels | S |
 | **Équipe marque** (plusieurs utilisateurs sur un même compte, rôles) | Agences et PME avec plusieurs personnes | M |
 | **Intégrations e-commerce supplémentaires** : WooCommerce, PrestaShop (très présent en France) | Même mécanique que Shopify | M chacune |

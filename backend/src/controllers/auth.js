@@ -37,6 +37,7 @@ async function serializeUser(userDoc) {
     out.acceptsGifting = userDoc.acceptsGifting?.(levelFor(user.profile?.stats));
   }
   out.legalUpToDate = user.legal?.termsVersion === config.legal.termsVersion;
+  out.hasLegalInfo = typeof userDoc.hasLegalInfo === 'function' ? userDoc.hasLegalInfo() : true;
   out.referral = {
     code: user.referral?.code,
     discountedCampaignsLeft: user.referral?.discountedCampaignsLeft || 0,

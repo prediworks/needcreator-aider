@@ -2,7 +2,7 @@ import express from 'express';
 import { authenticate, authenticateFirebase, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
-import { acceptTerms, exportData, deleteAccount } from '../controllers/account.js';
+import { acceptTerms, exportData, deleteAccount, updateLegalInfo } from '../controllers/account.js';
 import {
   registerCreator,
   registerBrand,
@@ -31,6 +31,7 @@ router.post('/register/brand', authenticateFirebase, verifyTurnstile, validate(s
 
 // Légal / RGPD
 router.post('/accept-terms', authenticate, acceptTerms);
+router.put('/legal-info', authenticate, (req, res, next) => validate(req.user.role === 'brand' ? schemas.legalInfoBrand : schemas.legalInfoCreator)(req, res, next), updateLegalInfo);
 router.get('/export', authenticate, exportData);
 router.delete('/account', authenticate, deleteAccount);
 
