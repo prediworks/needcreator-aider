@@ -1285,6 +1285,15 @@ await step('Email non confirmé : publication refusée ; emails de confirmation 
   return 'refusée avant confirmation, acceptée après';
 });
 
+await step('Suggestion de prix : médiane des devis acceptés (grille de secours sous 10 devis)', async () => {
+  const r = await brandApi('GET', '/campaigns/market-rates?fresh=1');
+  expect(r.status === 200 && r.data.rates && r.data.minSample === 10, 'Taux de marché indisponibles', r);
+  const demo = r.data.rates.demo;
+  expect(demo && demo.min > 0 && demo.max >= demo.min && demo.median >= demo.min && ['grid', 'market'].includes(demo.source), 'Entrée « demo » incohérente', r);
+  const types = Object.keys(r.data.rates).length;
+  return `${types} types de vidéo, demo : ${demo.min}–${demo.max} € (médiane ${demo.median} €, ${demo.count} devis acceptés, source ${demo.source})`;
+});
+
 await step('Sécurité : un créateur ne peut pas créer de campagne, une marque ne peut pas candidater', async () => {
   const a = await creatorApi('POST', '/campaigns', {});
   const b = await brandApi('POST', `/campaigns/${campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });

@@ -15,6 +15,8 @@ import { NICHES, NICHE_OPTIONS, VIDEO_TYPE_OPTIONS, PLATFORMS, PLATFORM_OPTIONS,
 import { formatCurrency } from '@/lib/utils';
 import AiBriefCard from '@/components/AiBriefCard';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
+import { useQuery } from '@tanstack/react-query';
+import api from '@/lib/api';
 
 const PLATFORM_FEE_PERCENT = 10;
 
@@ -39,6 +41,7 @@ function NewCampaignForm() {
   const updateMutation = useUpdateCampaign();
   const { data: existing, isLoading: loadingExisting } = useCampaign(editId || '', ready && !!editId);
   const [prefilled, setPrefilled] = useState(false);
+  const { data: marketRates } = useQuery({ queryKey: ['market-rates'], queryFn: async () => (await api.get('/campaigns/market-rates')).data, staleTime: 10 * 60 * 1000 });
   const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : ((user as any)?.plan?.feePercent ?? PLATFORM_FEE_PERCENT);
   const createMutation = useCreateCampaign();
   const publishMutation = usePublishCampaign();
@@ -115,8 +118,16 @@ function NewCampaignForm() {
   };
 
   const nbVideos = Math.max(1, parseInt(deliverables) || 1);
-  const [minMarket, maxMarket] = MARKET_PRICES[videoType] || [80, 200];
-  const suggestedBudget = Math.round(((minMarket + maxMarket) / 2) * nbVideos);
+  // Suggestion de prix : médiane des devis acceptés sur la plateforme (grille indicative en secours)
+  const rate = marketRates?.rates?.[videoType];
+  const [gridMin, gridMax] = MARKET_PRICES[videoType] || [80, 200];
+  const minMarket = rate?.min ?? gridMin;
+  const maxMarket = rate?.max ?? gridMax;
+  const medianMarket = rate?.median ?? Math.round((gridMin + gridMax) / 2);
+  const suggestedBudget = Math.round(medianMarket * nbVideos);
+  const marketNote = rate?.source === 'market'
+    ? `d'après ${rate.count} devis acceptés sur NeedCreator (médiane ${formatCurrency(rate.median)})`
+    : `grille indicative${rate?.count ? ` (seulement ${rate.count} devis accepté(s) pour ce type de vidéo, ${marketRates?.minSample ?? 10} nécessaires)` : ''}`;
   const budgetNumber = parseInt(budget) || 0;
   const perVideo = budgetNumber ? Math.round(budgetNumber / nbVideos) : 0;
   const creatorShare = Math.round(budgetNumber * (1 - feePercent / 100));
@@ -447,11 +458,12 @@ function NewCampaignForm() {
                 <div className="mt-2 bg-primary-50 border border-primary-100 rounded-lg p-3 text-sm text-neutral-700 space-y-1">
                   <div className="flex items-center gap-2 font-medium text-neutral-900">
                     <Info className="w-4 h-4 text-primary-600" />
-                    Suggestion marché : {formatCurrency(minMarket)} à {formatCurrency(maxMarket)} par vidéo
+                    Suggestion : {formatCurrency(minMarket)} à {formatCurrency(maxMarket)} par vidéo
                     <button type="button" className="text-primary-600 underline ml-1" onClick={() => setBudget(String(suggestedBudget))}>
                       utiliser {formatCurrency(suggestedBudget)}
                     </button>
                   </div>
+                  <div className="text-xs text-neutral-500">{marketNote}{nbVideos > 1 ? ` · ${nbVideos} vidéos × ${formatCurrency(medianMarket)}` : ''}</div>
                   {budgetNumber > 0 && (
                     <>
                       <div>Soit <strong>{formatCurrency(perVideo)}</strong> par vidéo affiché aux créateurs.</div>

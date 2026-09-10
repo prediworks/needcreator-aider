@@ -17,11 +17,13 @@ import {
 } from '../controllers/campaigns.js';
 
 import { aiBrief, aiStatus } from '../controllers/ai.js';
+import { getMarketRates } from '../controllers/marketRates.js';
 
 const router = express.Router();
 
 // Brief assisté par IA
 router.get('/ai-brief/status', authenticate, aiStatus);
+router.get('/market-rates', authenticate, getMarketRates); // suggestion de prix : médiane des devis acceptés
 router.post('/ai-brief', authenticate, authorize('brand'), validate(schemas.aiBrief), aiBrief);
 
 // Campaign CRUD
