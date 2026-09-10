@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendVerificationLink, sendPasswordResetLink } from '../services/email.js';
 import logger from '../utils/logger.js';
+import { rewriteActionLink } from '../utils/authLinks.js';
 
 /**
  * Emails d'authentification envoyés par NOTRE SMTP (pas par Firebase) :
@@ -16,10 +17,10 @@ async function actionLink(kind, email, path) {
     ? (s) => admin.auth().generateEmailVerificationLink(email, s)
     : (s) => admin.auth().generatePasswordResetLink(email, s);
   try {
-    return await gen(settings);
+    return rewriteActionLink(await gen(settings));
   } catch (err) {
     // Domaine de retour non autorisé dans Firebase (IP, localhost) : lien sans retour
-    if (['auth/invalid-continue-uri', 'auth/unauthorized-continue-uri'].includes(err?.code)) return gen(undefined);
+    if (['auth/invalid-continue-uri', 'auth/unauthorized-continue-uri'].includes(err?.code)) return rewriteActionLink(await gen(undefined));
     throw err;
   }
 }

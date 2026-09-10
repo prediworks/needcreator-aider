@@ -1149,6 +1149,18 @@ await step('Email non confirmé : publication refusée ; emails de confirmation 
   expect([200, 502].includes(resend.status) && (resend.status !== 200 || resend.data.verified === false), 'Le renvoi de confirmation devrait générer un lien (200) ou signaler un SMTP indisponible (502)', resend);
   const again = await uApi('POST', '/auth/send-verification');
   expect(again.status === 429 || again.status === 502, 'Un second renvoi immédiat devrait être limité', again);
+  // Le lien Firebase est réécrit vers notre domaine (filtres anti-spam sur firebaseapp.com)
+  const { rewriteActionLink } = await import('../src/utils/authLinks.js');
+  // Firebase limite la génération de liens par adresse : en cas de blocage temporaire, on teste la réécriture sur un lien type
+  let raw;
+  try { raw = await admin.auth().generateEmailVerificationLink(email); }
+  catch (err) {
+    if (!/TOO_MANY_ATTEMPTS/.test(err?.message || '')) throw err;
+    raw = `https://${process.env.FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=EXEMPLE&apiKey=x&lang=fr`;
+  }
+  const ours = rewriteActionLink(raw);
+  const origin = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',')[0].trim();
+  expect(raw.includes('/__/auth/action') && ours.startsWith(`${origin}/auth/action?`) && ours.includes('oobCode=') && ours.includes('mode=verifyEmail'), 'Le lien de confirmation devrait pointer vers /auth/action de notre site', { status: 200, data: { raw, ours } });
   const alreadyOk = await creatorApi('POST', '/auth/send-verification');
   expect(alreadyOk.status === 200 && alreadyOk.data.verified === true, 'Un compte déjà confirmé ne doit pas recevoir d\'email', alreadyOk);
   const unknown = await fetch(`${API}/auth/password-reset`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `inconnu-${RUN}@needcreator-test.com` }) });

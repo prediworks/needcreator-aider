@@ -184,6 +184,13 @@ await step('Créateur : navigation Campagnes / Livraisons', async () => {
   return 'OK';
 });
 
+await step('Page /auth/action : lien invalide affiche une erreur claire', async () => {
+  await cp.goto(`${FRONT}/auth/action?mode=verifyEmail&oobCode=invalide`);
+  await cp.getByText('Lien invalide').waitFor({ timeout: 30000 });
+  await cp.getByText(/invalide ou a déjà été utilisé/).waitFor({ timeout: 10000 });
+  return 'OK';
+});
+
 await step('Aucune erreur JavaScript dans les pages', async () => {
   if (errors.length) throw new Error(errors.slice(0, 5).join(' | '));
   return 'OK';

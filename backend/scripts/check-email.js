@@ -28,10 +28,13 @@ try {
   console.log(`❌ Connexion SMTP impossible : ${e.message}`); process.exit(1);
 }
 
-const fakeLink = `https://${FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=TEST&continueUrl=https://needcreator.com/dashboard`;
+const origin = (process.env.FRONTEND_URL || 'https://needcreator.com').split(',')[0].trim();
+const fakeLink = `${origin}/auth/action?mode=verifyEmail&oobCode=TEST&continueUrl=${origin}/dashboard`;
+const firebaseLink = `https://${FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=TEST`;
 const tests = [
   ['Test NeedCreator 1/2 : texte simple', '<p>Email de test envoyé par le script check:email. Si vous le recevez, le SMTP fonctionne.</p>'],
-  ['Test NeedCreator 2/2 : avec lien de confirmation', `<h1>Bienvenue !</h1><p>Confirmez votre adresse :</p><p><a href="${fakeLink}">Confirmer mon adresse</a></p><p style="color:#666;font-size:13px">${fakeLink}</p>`],
+  ['Test NeedCreator 2/3 : lien de confirmation NeedCreator', `<h1>Bienvenue !</h1><p>Confirmez votre adresse :</p><p><a href="${fakeLink}">Confirmer mon adresse</a></p><p style="color:#666;font-size:13px">${fakeLink}</p>`],
+  ['Test NeedCreator 3/3 : lien firebaseapp.com (ancien format)', `<p>Lien : <a href="${firebaseLink}">${firebaseLink}</a></p>`],
 ];
 for (const [subject, html] of tests) {
   try {
@@ -41,4 +44,4 @@ for (const [subject, html] of tests) {
     console.log(`❌ "${subject}" refusé : ${e.response || e.message}`);
   }
 }
-console.log('\nSi les deux sont acceptés mais qu\'un seul arrive, le filtrage se fait sur le contenu (lien firebaseapp.com) côté réception.');
+console.log('\nAttendu : 1/3 et 2/3 reçus. Si 3/3 n\'arrive pas, c\'est le filtre sur firebaseapp.com, contourné par l\'application.');
