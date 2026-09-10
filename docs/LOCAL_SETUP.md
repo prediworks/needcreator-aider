@@ -102,7 +102,7 @@ cp frontend/.env.local.example frontend/.env.local
 | IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
 | Tests | `STRIPE_AUTO_CONFIRM_TEST=false` | `true` = paiements confirmés sans écran de carte (jamais en production) |
-| Outil temporaire | `ADMIN_PURGE_ENABLED=false` | `true` = bouton admin « Purger (test) » qui supprime campagnes, devis, missions, avis et conversations d'un compte (paiements annulés/remboursés). À remettre à `false` après validation de la prod |
+| Outil temporaire | `ADMIN_PURGE_ENABLED=false` | `true` = boutons admin « Purger (test) » (supprime campagnes, devis, missions, avis, conversations d'un compte ; paiements annulés/remboursés) et « Supprimer (test) » (suppression complète du compte : activité, fichiers, Stripe Connect, Firebase, document). À remettre à `false` après validation de la prod |
 
 ### `frontend/.env.local` : variables
 

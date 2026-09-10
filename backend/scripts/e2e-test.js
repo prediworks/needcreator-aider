@@ -1392,6 +1392,28 @@ await step('Admin : purge des campagnes, devis et missions d\'un compte (outil t
   }
 });
 
+await step('Admin : suppression complète d\'un compte (outil temporaire)', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const email = `e2e-hard-${RUN}@needcreator-test.com`;
+  const fu = await firebaseUser(email);
+  const hApi = client(fu.idToken);
+  const reg = await hApi('POST', '/auth/register/brand', { acceptTerms: true, email, companyName: 'Marque à supprimer', website: 'https://exemple.fr', industry: 'ecommerce' });
+  expect(reg.status === 201, 'Inscription échouée', reg);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const r = await brandApi('DELETE', `/admin/users/${reg.data.user.id}/hard`);
+    if (r.status === 403) { extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid }); return 'outil désactivé (ADMIN_PURGE_ENABLED=false) : refus vérifié'; }
+    expect(r.status === 200 && r.data.firebase === 'supprimé', 'Suppression complète échouée', r);
+    const doc = await users.findOne({ _id: new mongoose.Types.ObjectId(reg.data.user.id) });
+    expect(!doc, 'Le document utilisateur devrait avoir disparu', { status: 200, data: doc });
+    const fb = await admin.auth().getUser(fu.uid).then(() => 'existe').catch(() => 'absent');
+    expect(fb === 'absent', 'Le compte Firebase devrait être supprimé', { status: 200, data: { fb } });
+    return `compte ${email} supprimé de la base et de Firebase`;
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 // Nettoyage
 if (CLEAN) {
   await step('Nettoyage des données de test', async () => {

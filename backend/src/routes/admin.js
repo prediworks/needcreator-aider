@@ -10,6 +10,7 @@ import {
   reactivateUser,
   resetStripeConnect,
   purgeUserActivity,
+  hardDeleteUser,
   runJobs,
   getAdminCampaigns,
   getAdminDeliveries,
@@ -43,6 +44,7 @@ router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
 router.post('/users/:userId/stripe-connect/reset', resetStripeConnect);
 router.post('/users/:userId/purge', purgeUserActivity); // temporaire, voir ADMIN_PURGE_ENABLED
+router.delete('/users/:userId/hard', hardDeleteUser); // temporaire, voir ADMIN_PURGE_ENABLED
 
 // Ambassadeurs
 router.get('/ambassadors/pending', getPendingAmbassadors);

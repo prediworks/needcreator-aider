@@ -62,6 +62,14 @@ export const useRejectCreator = () => useAdminAction((id) => `/admin/creators/${
 export const useSuspendUser = () => useAdminAction((id) => `/admin/users/${id}/suspend`, 'Utilisateur suspendu');
 export const useResetStripeConnect = () => useAdminAction((id) => `/admin/users/${id}/stripe-connect/reset`, 'Compte Stripe Connect supprimé');
 export const usePurgeUser = () => useAdminAction((id) => `/admin/users/${id}/purge`, 'Campagnes, devis et missions supprimés');
+export function useHardDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => (await api.delete(`/admin/users/${userId}/hard`)).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin'] }); toast.success(d.message, { duration: 8000 }); },
+    onError: (error: any) => toast.error(getErrorMessage(error), { duration: 8000 }),
+  });
+}
 export const useReactivateUser = () => useAdminAction((id) => `/admin/users/${id}/reactivate`, 'Utilisateur réactivé');
 
 export function usePendingAmbassadors(enabled = true) {

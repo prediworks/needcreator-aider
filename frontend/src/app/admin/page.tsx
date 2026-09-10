@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, usePurgeUser, useRunJobs,
+  useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -49,6 +49,7 @@ export default function AdminPage() {
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
   const purge = usePurgeUser();
+  const hardDelete = useHardDeleteUser();
   const runJobs = useRunJobs();
 
   if (!ready) return <Spinner />;
@@ -330,6 +331,17 @@ export default function AdminPage() {
                             onClick={() => { if (confirm(`Supprimer toutes les campagnes, devis, missions, avis et conversations de ${u.profile?.companyName || u.profile?.name} ? Les paiements en cours seront annulés ou remboursés. Action irréversible.`)) purge.mutate({ userId: u._id }); }}
                           >
                             Purger (test)
+                          </Button>
+                        )}
+                        {u.role !== 'admin' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-700"
+                            title="Outil temporaire de validation : supprime définitivement le compte (activité, fichiers, Stripe Connect, Firebase)"
+                            onClick={() => { const name = u.profile?.companyName || u.profile?.name; if (confirm(`Supprimer DÉFINITIVEMENT le compte ${name} (${u.email}) ? Activité, fichiers, compte Stripe Connect et accès Firebase seront effacés. Irréversible.`) && prompt('Tapez SUPPRIMER pour confirmer') === 'SUPPRIMER') hardDelete.mutate({ userId: u._id }); }}
+                          >
+                            Supprimer (test)
                           </Button>
                         )}
                       </td>
