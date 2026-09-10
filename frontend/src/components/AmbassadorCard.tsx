@@ -56,14 +56,14 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
             Publiez sur vos réseaux (TikTok, Instagram, YouTube…) une vidéo de 30 à 90 secondes, sincère, qui explique ce que NeedCreator vous apporte,
             avec votre lien de parrainage en description. Laissez-la en ligne au moins 30 jours et collez son lien ci-dessous.
           </p>
-          <ul className="text-sm text-neutral-700 mt-2 space-y-1">
+          <p className="text-sm text-neutral-800 mt-3 italic">Plus de visibilité auprès des marques, donc plus de chances d&apos;être sélectionné :</p>
+          <ul className="text-sm text-neutral-700 mt-1 space-y-1">
             <li>🌟 Badge <strong>Ambassadeur</strong> visible par les marques</li>
             <li>⏱️ Nouvelles campagnes <strong>24 h en avant-première</strong></li>
             <li>📈 Vos devis <strong>remontent en tête</strong> chez les marques (bonus de matching) et vous êtes en tête de l&apos;annuaire</li>
             <li>🏠 Présence sur la <strong>page d&apos;accueil</strong> NeedCreator, si vous l&apos;autorisez dans votre portfolio</li>
             <li>🎁 Bonus de parrainage pour chaque créateur inscrit via votre lien</li>
           </ul>
-          <p className="text-xs text-neutral-500 mt-2">Votre commission reste la même que pour tous les créateurs : la mise en avant vous apporte des missions, pas un taux différent.</p>
           {status === 'pending' ? (
             <p className="text-sm text-orange-700 mt-3 flex items-center gap-1">
               <Clock className="w-4 h-4" /> Vidéo envoyée, vérification en cours (sous 24 h).{' '}
