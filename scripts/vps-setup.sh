@@ -55,9 +55,8 @@ if [[ "${1:-}" == "--finish" ]]; then
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only || warn "git pull impossible : vérifiez les modifications locales dans $APP_DIR"
 
   log "Installation des dépendances"
-  for d in backend frontend; do
-    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/$d && (npm ci $([[ $d == backend ]] && echo --omit=dev) || npm install $([[ $d == backend ]] && echo --omit=dev))"
-  done
+  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && npm install --omit=dev --no-audit --no-fund"
+  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && npm install --no-audit --no-fund"
 
   log "Vérification des fichiers .env"
   [[ -f "$APP_DIR/backend/.env" ]] || { echo "Manque $APP_DIR/backend/.env"; exit 1; }
@@ -249,16 +248,9 @@ else
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only
 fi
 log "Installation des dépendances"
-npm_install() { # npm ci si un package-lock.json existe, sinon npm install
+npm_install() {
   local dir="$1"; shift
-  if [[ -f "$dir/package-lock.json" ]]; then
-    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm ci $*" || {
-      warn "npm ci a échoué (lockfile désynchronisé) : repli sur npm install"
-      sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install $*"
-    }
-  else
-    sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install $*"
-  fi
+  sudo -u "$DEPLOY_USER" bash -c "cd $dir && npm install --no-audit --no-fund $*"
 }
 npm_install "$APP_DIR/backend" --omit=dev
 npm_install "$APP_DIR/frontend"
