@@ -204,6 +204,10 @@ ufw status verbose
 # 6. Fail2ban (SSH + Nginx)
 # =============================================================================
 log "Fail2ban"
+# L'adresse IP de l'administrateur (celle de la session SSH courante) n'est jamais bannie
+ADMIN_IP="${SSH_CLIENT%% *}"
+ADMIN_IP="${ADMIN_IP:-${SSH_CONNECTION%% *}}"
+[[ -n "$ADMIN_IP" ]] && log "Adresse IP administrateur exclue des bannissements : $ADMIN_IP"
 cat >/etc/fail2ban/jail.local <<EOF
 [DEFAULT]
 bantime  = 1h
@@ -211,6 +215,7 @@ findtime = 10m
 maxretry = 5
 backend  = systemd
 banaction = ufw
+ignoreip = 127.0.0.1/8 ::1 ${ADMIN_IP}
 
 [sshd]
 enabled = true
@@ -230,7 +235,10 @@ enabled = true
 logpath = /var/log/nginx/error.log
 EOF
 systemctl enable --now fail2ban
-systemctl restart fail2ban
+# Rechargement (pas de redémarrage : un redémarrage relit les journaux récents et peut re-bannir l'administrateur)
+fail2ban-client reload >/dev/null 2>&1 || systemctl restart fail2ban
+# Sécurité : on lève un éventuel bannissement de l'administrateur
+[[ -n "$ADMIN_IP" ]] && fail2ban-client set sshd unbanip "$ADMIN_IP" >/dev/null 2>&1 || true
 
 # =============================================================================
 # 7. Node.js 20 + PM2
@@ -385,6 +393,16 @@ if certbot --nginx --non-interactive --agree-tos -m "$LETSENCRYPT_EMAIL" --redir
 else
   warn "Certbot a échoué : vérifiez que $APP_DOMAIN et $API_DOMAIN pointent vers ce serveur (si Cloudflare est en proxy, mettez le mode SSL sur « Full (strict) » après obtention du certificat, ou passez temporairement en « DNS only »)."
 fi
+
+# =============================================================================
+# Contrôle final : SSH doit répondre sur le port attendu
+# =============================================================================
+if ss -ltn | grep -q ":$SSH_PORT "; then
+  log "SSH écoute bien sur le port $SSH_PORT"
+else
+  warn "SSH n'écoute PAS sur le port $SSH_PORT ! Ne fermez pas cette session. Vérifiez : systemctl status ssh ssh.socket"
+fi
+ufw status | grep -q "$SSH_PORT/tcp" || warn "Le pare-feu n'autorise pas le port SSH $SSH_PORT : ufw limit $SSH_PORT/tcp"
 
 # =============================================================================
 # Fin
