@@ -327,33 +327,43 @@ userSchema.index({ 'profile.stats.rating': -1 });
 userSchema.index({ role: 1, status: 1 });
 
 // Virtual for full profile completion percentage
-userSchema.virtual('profileCompletion').get(function() {
-  let completion = 0;
-  const fields = [
-    this.profile.name,
-    this.profile.avatar,
-    this.profile.bio,
-  ];
-  
+/**
+ * Points du profil (chacun visible par l'utilisateur, avec le libellé de ce qui manque)
+ */
+userSchema.methods.profileChecklist = function() {
+  const p = this.profile || {};
   if (this.role === 'creator') {
-    fields.push(
-      (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos,
-      this.profile.niches?.length > 0,
-      this.profile.pricing?.minPrice,
-      this.profile.stripeConnect?.accountId,
-      this.profile.stripeConnect?.onboardingComplete,
-    );
-  } else if (this.role === 'brand') {
-    fields.push(
-      this.profile.companyName,
-      this.profile.website,
-      this.profile.industry,
-      this.stripeCustomerId
-    );
+    return [
+      { key: 'name', label: 'Nom ou pseudo', done: !!p.name },
+      { key: 'bio', label: 'Bio (présentez-vous aux marques)', done: !!(p.bio && p.bio.trim()) },
+      { key: 'niches', label: 'Au moins une niche', done: (p.niches?.length || 0) > 0 },
+      { key: 'price', label: 'Prix minimum par vidéo', done: !!p.pricing?.minPrice },
+      { key: 'portfolio', label: `${config.business.minCreatorVideos} vidéos de portfolio`, done: (p.portfolio?.length || 0) >= config.business.minCreatorVideos },
+      { key: 'socials', label: 'Au moins un réseau social', done: (p.socials?.length || 0) > 0 },
+      { key: 'legal', label: 'Informations administratives (contrat)', done: this.hasLegalInfo() },
+      { key: 'address', label: 'Adresse de réception des produits', done: !!(p.address?.line1 && p.address?.city) },
+      { key: 'stripe', label: 'Compte Stripe connecté', done: !!p.stripeConnect?.accountId },
+      { key: 'stripeDone', label: 'Onboarding Stripe terminé (virements activés)', done: !!p.stripeConnect?.onboardingComplete },
+    ];
   }
-  
-  completion = (fields.filter(Boolean).length / fields.length) * 100;
-  return Math.round(completion);
+  if (this.role === 'brand') {
+    return [
+      { key: 'company', label: 'Nom de l\'entreprise', done: !!p.companyName },
+      { key: 'website', label: 'Site web', done: !!p.website },
+      { key: 'industry', label: 'Secteur d\'activité', done: !!p.industry },
+      { key: 'bio', label: 'Présentation de la marque (bio)', done: !!(p.bio && p.bio.trim()) },
+      { key: 'verified', label: 'Entreprise vérifiée (SIRET ou TVA)', done: this.isBusinessVerified?.() || false },
+      { key: 'legal', label: 'Signataire des contrats', done: this.hasLegalInfo() },
+      { key: 'stripe', label: 'Moyen de paiement Stripe', done: !!this.stripeCustomerId },
+    ];
+  }
+  return [];
+};
+
+userSchema.virtual('profileCompletion').get(function() {
+  const items = this.profileChecklist();
+  if (!items.length) return 100;
+  return Math.round((items.filter(i => i.done).length / items.length) * 100);
 });
 
 // Abonnement Pro actif (période d'essai comprise)

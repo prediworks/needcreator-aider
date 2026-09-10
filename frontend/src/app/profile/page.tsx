@@ -183,6 +183,11 @@ function ProfileContent() {
                         {profile.profileCompletion}% complété
                       </span>
                     </div>
+                    {(profile.profileChecklist || []).some((i: any) => !i.done) && (
+                      <p className="text-xs text-neutral-600 mt-1">
+                        Il manque : {(profile.profileChecklist || []).filter((i: any) => !i.done).map((i: any) => i.label.toLowerCase()).join(', ')}.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>

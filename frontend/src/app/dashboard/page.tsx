@@ -84,7 +84,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                   Profil complété à {user.profileCompletion}%
                 </h3>
                 <p className="text-sm text-neutral-700">
-                  Un profil complet (photo, bio, compte Stripe) augmente vos chances d&apos;être sélectionné
+                  Il manque : {(user.profileChecklist || []).filter((i: any) => !i.done).map((i: any) => i.label.toLowerCase()).join(', ') || 'rien'}.
                 </p>
               </div>
               <Link href="/profile">

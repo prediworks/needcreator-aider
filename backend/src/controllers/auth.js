@@ -25,6 +25,7 @@ async function serializeUser(userDoc) {
     ...user,
     id: user._id,
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
+    profileChecklist: typeof userDoc.profileChecklist === 'function' ? userDoc.profileChecklist() : [],
   };
   if (out.integrations?.shopify) out.integrations = { shopify: { shop: out.integrations.shopify.shop, installedAt: out.integrations.shopify.installedAt, connected: !!user.integrations?.shopify?.accessToken } };
   if (user.role === 'brand') {
