@@ -88,7 +88,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     delivery.payment.platformFee = amount;
     delivery.payment.creatorAmount = 0;
   } else {
-    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null);
+    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null, campaign.brandDiscountPercent || 0);
   }
 
   let warning = null;

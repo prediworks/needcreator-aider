@@ -32,7 +32,7 @@ export default function ReferralCard({ role }: { role: 'brand' | 'creator' }) {
       </div>
       <p className="text-sm text-neutral-600 mb-4">
         {role === 'brand'
-          ? `Parrainez une marque : elle paie ${t.brandFeePercent}% de commission (au lieu de ${t.standardFeePercent}%) sur sa première campagne, et vous ${t.referrerBrandFeePercent}% sur votre prochaine campagne.`
+          ? `Parrainez une marque : elle bénéficie de ${t.brandDiscountPercent} % de réduction sur sa première campagne, et vous de ${t.referrerDiscountPercent} % sur votre prochaine campagne. Le créateur est payé normalement : la réduction est prise sur notre commission.`
           : `Parrainez un créateur : vous recevez ${t.creatorBonus} € dès qu'il livre sa première mission.`}
       </p>
 
@@ -44,7 +44,7 @@ export default function ReferralCard({ role }: { role: 'brand' | 'creator' }) {
 
       {role === 'brand' && data.discountedCampaignsLeft > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800 mb-4">
-          🎁 Votre prochaine campagne bénéficie d&apos;une commission réduite ({data.discountedCampaignsLeft} restante{data.discountedCampaignsLeft > 1 ? 's' : ''}).
+          🎁 Votre prochaine campagne bénéficie d&apos;une réduction parrainage sur le prix payé ({data.discountedCampaignsLeft} restante{data.discountedCampaignsLeft > 1 ? 's' : ''}).
         </div>
       )}
 

@@ -93,7 +93,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Abonnement Pro | `PRO_PRICE_EUR=79`, `PRO_TRIAL_DAYS=14`, `PRO_FEE_PERCENT=10`, `AI_BRIEF_FREE_QUOTA=3` | |
 | Limites nouvelles marques | `LIMIT_NEW_BRAND_OPEN_CAMPAIGNS=2`, `LIMIT_NEW_BRAND_INVITES_PER_DAY=5`, `LIMIT_NEW_BRAND_MESSAGES_PER_DAY=20` | s'appliquent tant qu'aucune campagne n'est terminée |
 | Gifting | `GIFTING_MIN_PRODUCT_VALUE=30`, `GIFTING_MAX_DELIVERABLES=2`, `GIFTING_MAX_PER_MONTH=2`, `GIFTING_FEE_PER_VIDEO=5` | |
-| Parrainage | `REFERRAL_BRAND_FEE_PERCENT=5`, `REFERRAL_REFERRER_FEE_PERCENT=5`, `REFERRAL_CREATOR_BONUS=10` | |
+| Parrainage | `REFERRAL_BRAND_DISCOUNT_PERCENT=5`, `REFERRAL_REFERRER_DISCOUNT_PERCENT=5`, `REFERRAL_CREATOR_BONUS=10` | réductions en % du devis sur le prix payé par la marque (prises sur la commission ; le créateur reçoit toujours 90 %) ; bonus en € au créateur parrain |
 | Vérification des marques | `BUSINESS_REGISTRY_CHECK=true` | contrôle au registre national des entreprises ; modifiable aussi dans Admin → Réglages |
 | Email confirmé | `REQUIRE_EMAIL_VERIFICATION=true` | lien de confirmation envoyé par Firebase à l'inscription ; sans confirmation, pas de publication ni de devis |
 | Documents légaux | `LEGAL_TERMS_VERSION=2026-09-09` | date de la version des CGU ; la changer redemande l'acceptation à tous les utilisateurs connectés |

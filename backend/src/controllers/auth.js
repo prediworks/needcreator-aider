@@ -74,9 +74,9 @@ async function applyReferral(user, referralCode) {
   if (user.role === 'brand') {
     // Marque parrainée : commission réduite sur sa première campagne ; marraine : sur sa prochaine campagne
     user.set('referral.discountedCampaignsLeft', 1);
-    user.referral.rewards.push({ type: 'brand_discount', amount: config.referral.brandFeePercent, description: 'Commission réduite sur votre première campagne (parrainage)', sourceUserId: referrer._id });
+    user.referral.rewards.push({ type: 'brand_discount', amount: config.referral.brandDiscountPercent, description: `Réduction de ${config.referral.brandDiscountPercent} % sur votre première campagne (parrainage)`, sourceUserId: referrer._id });
     referrer.set('referral.discountedCampaignsLeft', (referrer.referral?.discountedCampaignsLeft || 0) + 1);
-    referrer.referral.rewards.push({ type: 'brand_discount', amount: config.referral.referrerBrandFeePercent, description: `Commission réduite sur votre prochaine campagne (parrainage de ${user.profile.companyName})`, sourceUserId: user._id });
+    referrer.referral.rewards.push({ type: 'brand_discount', amount: config.referral.referrerDiscountPercent, description: `Réduction de ${config.referral.referrerDiscountPercent} % sur votre prochaine campagne (parrainage de ${user.profile.companyName})`, sourceUserId: user._id });
     await referrer.save();
   }
   logger.info(`User ${user._id} referred by ${referrer._id}`);
@@ -473,8 +473,8 @@ export async function getReferral(req, res) {
       rewards: user.referral.rewards || [],
       referred: referred.map(r => ({ id: r._id, name: r.profile.companyName || r.profile.name, role: r.role, status: r.status, since: r.createdAt, completedJobs: r.profile?.stats?.completedJobs || 0 })),
       terms: {
-        brandFeePercent: config.referral.brandFeePercent,
-        referrerBrandFeePercent: config.referral.referrerBrandFeePercent,
+        brandDiscountPercent: config.referral.brandDiscountPercent,
+        referrerDiscountPercent: config.referral.referrerDiscountPercent,
         creatorBonus: config.referral.creatorBonus,
         standardFeePercent: config.stripe.platformFeePercent,
       },

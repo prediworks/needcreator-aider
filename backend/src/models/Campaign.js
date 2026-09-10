@@ -77,6 +77,7 @@ const campaignSchema = new mongoose.Schema({
 
   // Commission plateforme appliquée à cette campagne (peut être réduite par un parrainage ou l'abonnement Pro)
   platformFeePercent: Number,
+  brandDiscountPercent: { type: Number, default: 0 }, // remise parrainage sur le prix payé par la marque
 
   // Budget facultatif : sans budget, le créateur propose son prix dans son devis
   budget: {

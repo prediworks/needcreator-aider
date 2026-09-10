@@ -109,8 +109,10 @@ export const config = {
 
   // Parrainage (montants configurables)
   referral: {
-    brandFeePercent: parseFloat(process.env.REFERRAL_BRAND_FEE_PERCENT || '5'),          // commission de la marque parrainée sur sa 1re campagne
-    referrerBrandFeePercent: parseFloat(process.env.REFERRAL_REFERRER_FEE_PERCENT || '5'), // commission de la marque marraine sur sa campagne suivante
+    // Réduction (en % du devis) accordée à la marque parrainée sur sa 1re campagne, et à la marraine sur sa campagne suivante.
+    // Le créateur reçoit toujours ses 90 % du devis : la réduction est prise sur la commission NeedCreator.
+    brandDiscountPercent: parseFloat(process.env.REFERRAL_BRAND_DISCOUNT_PERCENT || process.env.REFERRAL_BRAND_FEE_PERCENT || '5'),
+    referrerDiscountPercent: parseFloat(process.env.REFERRAL_REFERRER_DISCOUNT_PERCENT || process.env.REFERRAL_REFERRER_FEE_PERCENT || '5'),
     creatorBonus: parseFloat(process.env.REFERRAL_CREATOR_BONUS || '10'),                // bonus (€) au parrain créateur à la 1re mission livrée du filleul
   },
 

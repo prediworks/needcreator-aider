@@ -95,6 +95,9 @@ const deliverySchema = new mongoose.Schema({
       type: String,
       default: 'EUR',
     },
+    quotePrice: Number,        // prix du devis (avant remise)
+    discountPercent: Number,   // remise parrainage accordée à la marque
+    discountAmount: Number,
     platformFee: Number,
     platformFeePercent: Number,
     creatorAmount: Number,
@@ -354,11 +357,22 @@ deliverySchema.methods.requestRevision = function(feedback) {
   this.autoApprovalDate = null;
 };
 
-deliverySchema.methods.calculatePaymentAmounts = function(feePercent = null) {
+/**
+ * Montants à partir du prix du devis (payment.amount = devis à l'appel) :
+ * le créateur reçoit devis − commission ; la marque paie devis − remise parrainage ; NeedCreator garde la différence.
+ */
+deliverySchema.methods.calculatePaymentAmounts = function(feePercent = null, discountPercent = 0) {
+  const round2 = (n) => Math.round(n * 100) / 100;
   const platformFeePercent = feePercent ?? config.stripe.platformFeePercent;
+  const quote = this.payment.quotePrice ?? this.payment.amount;
+  const discount = Math.min(Math.max(discountPercent || 0, 0), platformFeePercent);
+  this.payment.quotePrice = quote;
   this.payment.platformFeePercent = platformFeePercent;
-  this.payment.platformFee = Math.round(this.payment.amount * (platformFeePercent / 100));
-  this.payment.creatorAmount = this.payment.amount - this.payment.platformFee;
+  this.payment.discountPercent = discount;
+  this.payment.discountAmount = round2(quote * discount / 100);
+  this.payment.amount = round2(quote - this.payment.discountAmount);
+  this.payment.creatorAmount = round2(quote * (1 - platformFeePercent / 100));
+  this.payment.platformFee = round2(this.payment.amount - this.payment.creatorAmount);
 };
 
 // Statics

@@ -68,7 +68,10 @@ export function buildContractData({ campaign, application, delivery, brand, crea
       exclusivity: !!q.rights?.exclusivity,
       exclusivityMonths: q.rights?.exclusivityMonths || null,
     },
-    price: delivery.payment?.amount || application?.price || 0,
+    price: delivery.payment?.quotePrice || application?.price || delivery.payment?.amount || 0,
+    discountPercent: delivery.payment?.discountPercent || 0,
+    discountAmount: delivery.payment?.discountAmount || 0,
+    paidPrice: delivery.payment?.amount || application?.price || 0,
     isGifting: campaign.type === 'gifting',
     giftingProduct: campaign.gifting?.productName || null,
     acceptedAt: application?.quote?.acceptedAt || new Date(),
@@ -165,7 +168,12 @@ export async function generateContractPdf(data) {
     if (data.isGifting) {
       P(doc, `Campagne gifting : la Marque remet au Créateur le produit « ${data.giftingProduct || 'produit offert'} » en contrepartie des contenus. Aucune rémunération monétaire n'est due au Créateur. La Marque règle à la plateforme les frais de service prévus par les conditions générales.`);
     } else {
-      KV(doc, 'Prix de la mission', fmtEur(data.price));
+      KV(doc, 'Prix de la mission (devis accepté)', fmtEur(data.price));
+      if (data.discountAmount > 0) {
+        KV(doc, `Remise parrainage NeedCreator (${data.discountPercent} %)`, `− ${fmtEur(data.discountAmount)}`);
+        KV(doc, 'Prix payé par la Marque', fmtEur(data.paidPrice));
+        P(doc, 'La remise est accordée par la plateforme sur sa commission ; la rémunération du Créateur reste calculée sur le prix du devis.');
+      }
       P(doc, 'Le prix est bloqué par la Marque sur la plateforme à l\'acceptation du devis et débité à la validation de la livraison. Il est versé au Créateur, déduction faite de la commission de la plateforme prévue par les conditions générales, par virement sur son compte de paiement. Le Créateur établit, s\'il y est tenu, la facture correspondante à la Marque.');
     }
 

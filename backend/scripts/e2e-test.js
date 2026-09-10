@@ -830,7 +830,7 @@ await step('Garantie de remplacement : créateur en retard → mission confiée 
   return `retard signalé, autorisation ${pi.status}, mission confiée au créateur 2 (110 €)`;
 });
 
-await step('Parrainage : codes, marque parrainée (commission 5%), bonus créateur', async () => {
+await step('Parrainage : codes, remise de 5 % pour la marque parrainée, bonus créateur', async () => {
   const myRef = await creatorApi('GET', '/auth/referral');
   expect(myRef.status === 200 && /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(myRef.data.code) && myRef.data.link.includes('ref='), 'Code de parrainage créateur invalide', myRef);
   const brandRef = await brandApi('GET', '/auth/referral');
@@ -865,7 +865,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
     title: 'Campagne marque parrainée', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
     videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline,
   });
-  expect(c.status === 201 && c.data.campaign.platformFeePercent === 5, 'La commission de la campagne parrainée devrait être 5%', c);
+  expect(c.status === 201 && c.data.campaign.brandDiscountPercent === 5 && c.data.campaign.platformFeePercent === 10, 'La campagne parrainée devrait porter une remise marque de 5 % (commission inchangée)', c);
   const b2After = await b2Api('GET', '/auth/profile');
   expect(b2After.data.user.referral.discountedCampaignsLeft === 0, 'La remise devrait être consommée', b2After);
 
@@ -877,7 +877,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   const ap = await c3Api('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
   expect(ap.status === 201, 'Candidature filleul échouée', ap);
   const sel = await b2Api('POST', `/campaigns/${c.data.campaign._id}/select/${reg3.data.user.id}`);
-  expect(sel.status === 200 && sel.data.delivery.payment.platformFee === 5 && sel.data.delivery.payment.creatorAmount === 95, 'Commission 5% attendue sur la livraison', sel);
+  { const p = sel.data.delivery.payment; expect(sel.status === 200 && p.quotePrice === 100 && p.discountPercent === 5 && p.amount === 95 && p.creatorAmount === 90 && p.platformFee === 5, 'Remise parrainage : la marque paie 95 % du devis (95 €), le créateur reçoit 90 % (90 €)', sel); }
   const { default: Stripe } = await import('stripe');
   await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
   await b2Api('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});
@@ -893,7 +893,7 @@ await step('Parrainage : codes, marque parrainée (commission 5%), bonus créate
   expect(csv.ok && text.includes('Bonus parrainage') && text.includes('Net créateur'), 'Export CSV incorrect', { status: csv.status, data: text.slice(0, 200) });
   // Nettoyage de la campagne filleule
   await mongoose.connection.db.collection('campaigns').deleteMany({ brandId: new mongoose.Types.ObjectId(regB2.data.user.id) });
-  return `bonus ${earnings.data.bonuses[0].amount}€ (${earnings.data.bonuses[0].status}), commission filleule 5%, CSV OK`;
+  return `bonus ${earnings.data.bonuses[0].amount}€ (${earnings.data.bonuses[0].status}), remise filleule 5 %, CSV OK`;
 });
 
 await step('Performances des vidéos livrées (saisie manuelle) + agrégats campagne', async () => {

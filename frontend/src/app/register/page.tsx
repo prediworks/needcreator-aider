@@ -200,7 +200,7 @@ function RegisterForm() {
 
             {referralCode && (
               <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
-                🎁 Vous êtes parrainé(e) avec le code <strong>{referralCode}</strong>{role === 'brand' ? ' : commission réduite sur votre première campagne.' : '.'}
+                🎁 Vous êtes parrainé(e) avec le code <strong>{referralCode}</strong>{role === 'brand' ? ' : 5 % de réduction sur votre première campagne.' : '.'}
               </div>
             )}
 
