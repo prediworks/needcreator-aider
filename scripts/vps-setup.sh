@@ -71,10 +71,20 @@ if [[ "${1:-}" == "--finish" ]]; then
   log "Frontend : build de production"
   sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && npm run build"
 
-  log "Démarrage avec PM2"
-  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR && pm2 delete needcreator-api needcreator-web >/dev/null 2>&1 || true"
-  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && NODE_ENV=production PORT=$BACKEND_PORT pm2 start src/index.js --name needcreator-api"
-  sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && PORT=$FRONTEND_PORT pm2 start npm --name needcreator-web -- start"
+  log "Démarrage / rechargement sans coupure avec PM2"
+  # Mode cluster (1 instance) : « pm2 reload » lance le nouveau processus avant d'arrêter l'ancien
+  if sudo -u "$DEPLOY_USER" pm2 describe needcreator-api 2>/dev/null | grep -q "exec mode.*cluster"; then
+    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && NODE_ENV=production PORT=$BACKEND_PORT pm2 reload needcreator-api --update-env"
+  else
+    sudo -u "$DEPLOY_USER" bash -c "pm2 delete needcreator-api >/dev/null 2>&1 || true"
+    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && NODE_ENV=production PORT=$BACKEND_PORT pm2 start src/index.js --name needcreator-api -i 1"
+  fi
+  if sudo -u "$DEPLOY_USER" pm2 describe needcreator-web 2>/dev/null | grep -q "exec mode.*cluster"; then
+    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && PORT=$FRONTEND_PORT pm2 reload needcreator-web --update-env"
+  else
+    sudo -u "$DEPLOY_USER" bash -c "pm2 delete needcreator-web >/dev/null 2>&1 || true"
+    sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/frontend && PORT=$FRONTEND_PORT pm2 start node_modules/next/dist/bin/next --name needcreator-web -i 1 -- start -p $FRONTEND_PORT"
+  fi
   sudo -u "$DEPLOY_USER" pm2 save
   log "Terminé. Vérifiez : https://$APP_DOMAIN et https://$API_DOMAIN/health"
   exit 0
