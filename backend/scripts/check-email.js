@@ -31,14 +31,17 @@ try {
 const origin = (process.env.FRONTEND_URL || 'https://needcreator.com').split(',')[0].trim();
 const fakeLink = `${origin}/auth/action?mode=verifyEmail&oobCode=TEST&continueUrl=${origin}/dashboard`;
 const firebaseLink = `https://${FIREBASE_PROJECT_ID}.firebaseapp.com/__/auth/action?mode=verifyEmail&oobCode=TEST`;
+const { renderLayout, summary, htmlToText } = await import('../src/services/email.js');
+const layoutFragment = `<h1>Bonjour Marque test,</h1><p>Un créateur a envoyé un devis pour votre campagne.</p>${summary([['Campagne', 'Vidéo témoignage soins visage'], ['Créateur', 'Camille · Ambassadeur'], ['Prix', '300 €']])}<p><a href="${origin}/dashboard">Voir le devis</a></p><p style="color:#666;font-size:13px">Cet email est un aperçu du gabarit utilisé par tous les emails NeedCreator.</p>`;
 const tests = [
+  ['Test NeedCreator 4/4 : gabarit HTML (logo, résumé, bouton, pied de page)', renderLayout(layoutFragment), htmlToText(layoutFragment)],
   ['Test NeedCreator 1/2 : texte simple', '<p>Email de test envoyé par le script check:email. Si vous le recevez, le SMTP fonctionne.</p>'],
   ['Test NeedCreator 2/3 : lien de confirmation NeedCreator', `<h1>Bienvenue !</h1><p>Confirmez votre adresse :</p><p><a href="${fakeLink}">Confirmer mon adresse</a></p><p style="color:#666;font-size:13px">${fakeLink}</p>`],
   ['Test NeedCreator 3/3 : lien firebaseapp.com (ancien format)', `<p>Lien : <a href="${firebaseLink}">${firebaseLink}</a></p>`],
 ];
-for (const [subject, html] of tests) {
+for (const [subject, html, text] of tests) {
   try {
-    const info = await transporter.sendMail({ from: FROM_EMAIL, to, subject, html, text: html.replace(/<[^>]*>/g, '') });
+    const info = await transporter.sendMail({ from: FROM_EMAIL, to, subject, html, text: text || html.replace(/<[^>]*>/g, '') });
     console.log(`✅ "${subject}" accepté par le serveur · id ${info.messageId} · réponse : ${info.response}`);
   } catch (e) {
     console.log(`❌ "${subject}" refusé : ${e.response || e.message}`);

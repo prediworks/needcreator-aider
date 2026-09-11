@@ -3,6 +3,7 @@ import Campaign from '../models/Campaign.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
+import { getMaxRevisions } from '../models/Setting.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
 import { runComplianceCheck } from '../services/compliance.js';
 import { levelFor } from '../utils/badges.js';
@@ -1233,13 +1234,14 @@ export async function requestRevision(req, res) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    if (!delivery.canRequestRevision) {
+    const maxRevisions = await getMaxRevisions();
+    if (!(delivery.status === 'submitted' && delivery.revisionCount < maxRevisions)) {
       return res.status(400).json({
-        error: `Nombre maximum de révisions atteint (${config.business.maxRevisions}) ou statut invalide`
+        error: `Nombre maximum de révisions atteint (${maxRevisions}) ou statut invalide`
       });
     }
 
-    delivery.requestRevision(feedback);
+    delivery.requestRevision(feedback, maxRevisions);
     await delivery.save();
 
     // Notify creator (non bloquant)
@@ -1352,6 +1354,8 @@ export async function getDelivery(req, res) {
       delivery.readyPack.outputs = await resolveUrlsIn(delivery.readyPack.outputs);
     }
     delivery.readyPackPricePerVideo = config.readyPack.pricePerVideo;
+    delivery.maxRevisions = await getMaxRevisions();
+    delivery.canRequestRevision = delivery.status === 'submitted' && (delivery.revisions?.length || 0) < delivery.maxRevisions;
     delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
     delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;
     const { transcriptionAvailable } = await import('../services/video.js');

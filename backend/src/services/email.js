@@ -32,17 +32,89 @@ const smtpTransporter = smtpConfig?.host
 // Use SMTP if available, otherwise fallback to SendGrid
 const transporter = smtpTransporter || sendgridTransporter;
 
+const SITE = () => config.cors.origin;
+const COMPANY = { legalName: 'PREDIWORKS SAS', address: '17 Rue Coysevox, Paris', contact: 'contact@needcreator.com' };
+const BRAND_COLOR = '#05ddb2';
+
 /**
- * Send email
+ * Bouton d'action (un seul par email de préférence)
  */
-async function sendEmail(to, subject, html, text = null) {
+export function button(url, label) {
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:20px 0"><tr><td align="center" bgcolor="${BRAND_COLOR}" style="border-radius:8px"><a href="${url}" style="display:inline-block;padding:13px 22px;font-family:Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#0b1f1a;text-decoration:none;border-radius:8px">${label}</a></td></tr></table>`;
+}
+
+/**
+ * Encart résumé (campagne, montant, date…) : rows = [[label, value], …]
+ */
+export function summary(rows) {
+  const cells = rows.filter(r => r && r[1] !== undefined && r[1] !== null && r[1] !== '').map(([k, v]) =>
+    `<tr><td style="padding:6px 0;font-size:14px;color:#6b7280;vertical-align:top;width:40%">${k}</td><td style="padding:6px 0;font-size:14px;color:#111827;font-weight:600">${v}</td></tr>`).join('');
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;background:#f3f7f6;border-radius:8px"><tr><td style="padding:12px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">${cells}</table></td></tr></table>`;
+}
+
+/**
+ * Habille un fragment HTML (h1, p, ul, a…) dans le gabarit NeedCreator : en-tête avec logo, carte blanche, pied de page.
+ * Les liens seuls dans un paragraphe deviennent des boutons.
+ */
+export function renderLayout(fragment, { preheader = '' } = {}) {
+  let body = String(fragment || '')
+    // <p><a href="…">Libellé</a></p> → bouton (sauf si le lien est déjà stylé)
+    .replace(/<p>\s*<a href="([^"]+)"(?![^>]*style=)>([^<]+)<\/a>\s*<\/p>/g, (m, url, label) => button(url, label))
+    .replace(/<h1>/g, '<h1 style="margin:0 0 16px;font-family:Helvetica,Arial,sans-serif;font-size:22px;line-height:1.3;color:#111827">')
+    .replace(/<h2>/g, '<h2 style="margin:20px 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:18px;line-height:1.3;color:#111827">')
+    .replace(/<h3>/g, '<h3 style="margin:16px 0 6px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.3;color:#374151">')
+    .replace(/<p>/g, '<p style="margin:0 0 12px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#374151">')
+    .replace(/<p style="color:#666;font-size:13px">/g, '<p style="margin:0 0 12px;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#6b7280">')
+    .replace(/<ul>/g, '<ul style="margin:0 0 12px;padding-left:20px;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#374151">')
+    .replace(/<li>/g, '<li style="margin:0 0 6px">')
+    .replace(/<a href="([^"]+)">/g, `<a href="$1" style="color:#0a8f75;text-decoration:underline">`);
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NeedCreator</title></head>
+<body style="margin:0;padding:0;background:#f4f6f8">
+${preheader ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1px;color:#f4f6f8">${preheader}</div>` : ''}
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f4f6f8"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%">
+  <tr><td style="padding:0 4px 14px"><a href="${SITE()}" style="text-decoration:none"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+    <td width="30" height="30" bgcolor="${BRAND_COLOR}" align="center" valign="middle" style="border-radius:8px;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:30px;color:#ffffff;font-weight:700">&#9654;</td>
+    <td style="padding-left:10px;font-family:Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;color:#111827">NeedCreator</td>
+  </tr></table></a></td></tr>
+  <tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 28px 20px">${body}</td></tr>
+  <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9ca3af;text-align:center">
+    <a href="${SITE()}/dashboard" style="color:#6b7280;text-decoration:underline">Mon compte</a> &nbsp;·&nbsp; <a href="${SITE()}/how-it-works" style="color:#6b7280;text-decoration:underline">Comment ça marche</a> &nbsp;·&nbsp; <a href="mailto:${COMPANY.contact}" style="color:#6b7280;text-decoration:underline">${COMPANY.contact}</a><br>
+    Vous recevez cet email parce que vous avez un compte NeedCreator.<br>
+    © ${year} NeedCreator · ${COMPANY.legalName}, ${COMPANY.address}
+  </td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+/**
+ * Version texte lisible (liens conservés) pour les clients sans HTML et les filtres anti-spam
+ */
+export function htmlToText(html) {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (m, url, label) => `${label.replace(/<[^>]*>/g, '').trim()} : ${url}`)
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<\/td>\s*<td[^>]*>/gi, ' : ')
+    .replace(/<\/(p|h1|h2|h3|li|tr|div|table)>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#9654;/g, '')
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Send email (le fragment HTML est habillé dans le gabarit ; passer raw:true pour envoyer tel quel)
+ */
+export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '' } = {}) {
   try {
+    const full = raw ? html : renderLayout(html, { preheader });
     const info = await transporter.sendMail({
       from: config.email.fromEmail,
       to,
       subject,
-      html,
-      text: text || html.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+      html: full,
+      text: text || htmlToText(raw ? html : html),
     });
     
     logger.info(`Email sent: ${info.messageId}`);
@@ -131,8 +203,9 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
   const subject = `Nouveau devis pour "${campaignTitle}"${isAmbassador ? ' (créateur Ambassadeur)' : ''}`;
   const html = `
     <h1>Bonjour ${companyName} !</h1>
-    <p>${creatorName}${isAmbassador ? ', <strong>créateur Ambassadeur NeedCreator</strong> 🌟,' : ''} a envoyé un devis pour votre campagne "${campaignTitle}".</p>
-    <p><a href="${config.cors.origin}/dashboard">Voir la candidature</a></p>
+    <p>${creatorName}${isAmbassador ? ', <strong>créateur Ambassadeur NeedCreator</strong> 🌟,' : ''} a envoyé un devis pour votre campagne.</p>
+    ${summary([['Campagne', campaignTitle], ['Créateur', creatorName + (isAmbassador ? ' · Ambassadeur' : '')]])}
+    <p><a href="${config.cors.origin}/dashboard">Voir le devis</a></p>
   `;
   
   return sendEmail(email, subject, html);
@@ -175,9 +248,9 @@ export async function sendDeliveryApproved(email, name, campaignTitle, amount) {
   const subject = `Livraison approuvée ! Paiement en cours 💰`;
   const html = `
     <h1>Bravo ${name} !</h1>
-    <p>Votre livraison pour "${campaignTitle}" a été approuvée.</p>
-    <p>Montant : ${amount}€</p>
-    <p>Le paiement sera transféré sur votre compte Stripe sous 2-3 jours ouvrés.</p>
+    <p>Vos vidéos ont été validées par la marque.</p>
+    ${summary([['Mission', campaignTitle], ['Montant', `${amount} €`], ['Paiement', 'Virement Stripe sous 2 à 3 jours ouvrés']])}
+    <p><a href="${config.cors.origin}/earnings">Voir mes revenus</a></p>
   `;
   
   return sendEmail(email, subject, html);
@@ -314,8 +387,8 @@ export async function sendContractGenerated(email, name, campaignTitle, contract
   const subject = `Votre contrat de mission ${contractNumber} — "${campaignTitle}"`;
   const html = `
     <h1>Bonjour ${name},</h1>
-    <p>Le devis a été accepté : le contrat de mission et de cession de droits <strong>${contractNumber}</strong> est disponible.</p>
-    <p>Il récapitule les parties, la mission, le prix et les droits d'utilisation convenus.</p>
+    <p>Le devis a été accepté : le contrat de mission et de cession de droits est disponible. Il récapitule les parties, la mission, le prix et les droits d'utilisation convenus.</p>
+    ${summary([['Mission', campaignTitle], ['Contrat', contractNumber]])}
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission et télécharger le contrat</a></p>
   `;
   return sendEmail(email, subject, html);
@@ -468,4 +541,69 @@ export async function sendBecomeAmbassador(email, name, campaignTitle) {
     <p><a href="${config.cors.origin}/profile">Envoyer le lien de ma vidéo</a></p>
   `;
   return sendEmail(email, subject, html);
+}
+
+/**
+ * Relances automatiques (réglables dans l'admin)
+ */
+export async function sendQuotesAwaitingReminder(email, companyName, campaignTitle, count, campaignId, days) {
+  const subject = `${count} devis attend${count > 1 ? 'ent' : ''} votre réponse — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${companyName},</h1>
+    <p>${count > 1 ? `${count} créateurs ont envoyé un devis` : 'Un créateur a envoyé un devis'} pour votre campagne il y a plus de ${days} jour${days > 1 ? 's' : ''}, sans réponse de votre part.</p>
+    ${summary([['Campagne', campaignTitle], ['Devis en attente', String(count)]])}
+    <p>Les créateurs s'organisent en fonction de vos réponses : un devis accepté rapidement, c'est une vidéo livrée plus tôt. Vous pouvez aussi décliner en un clic.</p>
+    <p><a href="${config.cors.origin}/campaigns/${campaignId}">Répondre aux devis</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendCreatorNoUploadReminder(email, name, campaignTitle, deliveryId, deadline) {
+  const subject = `Où en est votre mission "${campaignTitle}" ?`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Vous avez été sélectionné(e) pour cette mission, mais aucune vidéo n'a encore été envoyée.</p>
+    ${summary([['Mission', campaignTitle], ['Date limite', deadline ? new Date(deadline).toLocaleDateString('fr-FR') : 'selon votre devis']])}
+    <p>Si tout se passe bien, ignorez ce message. En cas d'imprévu, prévenez la marque via la messagerie : un retard annoncé se gère, un silence non.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Envoyer mes vidéos</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendProductReceivedCheck(email, name, campaignTitle, brandName, deliveryId, shippedAt) {
+  const subject = `Avez-vous reçu le produit de ${brandName} ?`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>${brandName} a expédié le produit le ${new Date(shippedAt).toLocaleDateString('fr-FR')} pour la mission "${campaignTitle}", et la réception n'est pas encore confirmée.</p>
+    <p>Confirmez la réception dès que le colis est arrivé : c'est ce qui démarre votre délai de production. S'il n'est pas arrivé, signalez-le à la marque via la messagerie.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Confirmer la réception</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendRevisionPendingReminder(email, name, campaignTitle, deliveryId, autoRejectAt) {
+  const subject = `Révision en attente — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La marque a demandé une révision sur la mission "${campaignTitle}" et attend une nouvelle version.</p>
+    ${autoRejectAt ? `<p><strong>Sans nouvelle version avant le ${new Date(autoRejectAt).toLocaleDateString('fr-FR')}, la mission sera refusée définitivement</strong> et le montant bloqué sera rendu à la marque.</p>` : ''}
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Envoyer la nouvelle version</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendAutoRejected(brandEmail, creatorEmail, companyName, creatorName, campaignTitle, days, deliveryId, campaignId, paymentNote) {
+  await sendEmail(brandEmail, `Mission refusée définitivement — "${campaignTitle}"`, `
+    <h1>Bonjour ${companyName},</h1>
+    <p>${creatorName} n'a pas envoyé de nouvelle version dans les ${days} jours suivant votre demande de révision. La mission est refusée définitivement.</p>
+    ${summary([['Campagne', campaignTitle], ['Créateur', creatorName], ['Paiement', paymentNote]])}
+    <p>Votre campagne est de nouveau ouverte : vous pouvez sélectionner un autre créateur parmi les devis reçus.</p>
+    <p><a href="${config.cors.origin}/campaigns/${campaignId}">Choisir un autre créateur</a></p>
+  `);
+  await sendEmail(creatorEmail, `Mission refusée — "${campaignTitle}"`, `
+    <h1>Bonjour ${creatorName},</h1>
+    <p>La mission "${campaignTitle}" a été refusée définitivement : aucune nouvelle version n'a été envoyée dans les ${days} jours suivant la demande de révision de la marque.</p>
+    <p>Aucun paiement n'est dû. Pour la suite, répondez aux demandes de révision dans le délai, ou prévenez la marque via la messagerie en cas d'empêchement.</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
+  `);
 }

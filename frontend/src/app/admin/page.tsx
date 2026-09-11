@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
@@ -266,18 +266,33 @@ export default function AdminPage() {
         {tab === 'settings' && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-1">Réglages</h2>
-            <p className="text-sm text-neutral-500 mb-4">Modifiables immédiatement, sans redémarrage.</p>
-            <div className="space-y-3">
-              {(settings?.settings || []).map((s: any) => (
-                <label key={s.key} className="flex items-start gap-3 border border-neutral-200 rounded-lg p-4 cursor-pointer">
-                  <input type="checkbox" className="mt-1" checked={!!s.value} onChange={(e) => updateSetting.mutate({ key: s.key, value: e.target.checked })} />
-                  <div>
-                    <div className="font-medium text-neutral-900">{s.label}</div>
-                    <div className="text-sm text-neutral-600">{s.description}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <p className="text-sm text-neutral-500 mb-4">Modifiables immédiatement, sans redémarrage. Les relances et le refus automatique sont appliqués par les tâches planifiées (toutes les heures par défaut).</p>
+            {Array.from(new Set((settings?.settings || []).map((s: any) => s.group))).map((group: any) => (
+              <div key={group} className="mb-6 last:mb-0">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-500 mb-2">{group}</h3>
+                <div className="space-y-3">
+                  {(settings?.settings || []).filter((s: any) => s.group === group).map((s: any) => (
+                    s.type === 'number' ? (
+                      <div key={s.key} className="flex items-start gap-4 border border-neutral-200 rounded-lg p-4 flex-wrap">
+                        <div className="flex-1 min-w-[240px]">
+                          <div className="font-medium text-neutral-900">{s.label}</div>
+                          <div className="text-sm text-neutral-600">{s.description}</div>
+                        </div>
+                        <SettingNumber setting={s} onSave={(value) => updateSetting.mutate({ key: s.key, value })} />
+                      </div>
+                    ) : (
+                      <label key={s.key} className="flex items-start gap-3 border border-neutral-200 rounded-lg p-4 cursor-pointer">
+                        <input type="checkbox" className="mt-1" checked={!!s.value} onChange={(e) => updateSetting.mutate({ key: s.key, value: e.target.checked })} />
+                        <div>
+                          <div className="font-medium text-neutral-900">{s.label}</div>
+                          <div className="text-sm text-neutral-600">{s.description}</div>
+                        </div>
+                      </label>
+                    )
+                  ))}
+                </div>
+              </div>
+            ))}
           </Card>
         )}
 
@@ -426,5 +441,28 @@ export default function AdminPage() {
         )}
       </div>
     </div>
+  );
+}
+
+/** Champ numérique d'un réglage : enregistré au clic sur « Enregistrer » ou avec Entrée */
+function SettingNumber({ setting, onSave }: { setting: any; onSave: (value: number) => void }) {
+  const [value, setValue] = useState<string>(String(setting.value ?? setting.default ?? 0));
+  useEffect(() => { setValue(String(setting.value ?? setting.default ?? 0)); }, [setting.value, setting.default]);
+  const changed = Number(value) !== Number(setting.value ?? setting.default ?? 0);
+  const disabled = Number(value) === 0 && setting.min === 0;
+  return (
+    <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (changed) onSave(Number(value)); }}>
+      <input
+        type="number"
+        min={setting.min}
+        max={setting.max}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label={setting.label}
+        className="w-24 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+      />
+      <span className="text-sm text-neutral-600 w-20">{disabled ? 'désactivé' : setting.unit}</span>
+      <Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>
+    </form>
   );
 }

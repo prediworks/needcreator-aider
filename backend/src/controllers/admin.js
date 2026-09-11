@@ -74,19 +74,21 @@ export async function getSettings(req, res) {
   const { getSetting, SETTINGS } = await import('../models/Setting.js');
   const out = [];
   for (const def of Object.values(SETTINGS)) {
-    out.push({ key: def.key, label: def.label, description: def.description, value: await getSetting(def.key, def.default), default: def.default });
+    out.push({ key: def.key, label: def.label, description: def.description, type: def.type || 'boolean', unit: def.unit, min: def.min, max: def.max, group: def.group || 'Général', value: await getSetting(def.key, def.default), default: def.default });
   }
   res.json({ settings: out });
 }
 
 export async function updateSetting(req, res) {
   try {
-    const { setSetting, SETTINGS } = await import('../models/Setting.js');
+    const { setSetting, SETTINGS, coerceSettingValue } = await import('../models/Setting.js');
     const def = Object.values(SETTINGS).find(d => d.key === req.params.key);
     if (!def) return res.status(404).json({ error: 'Réglage inconnu' });
-    await setSetting(def.key, req.body.value, req.user._id);
-    logger.info(`Setting ${def.key} set to ${JSON.stringify(req.body.value)} by ${req.user._id}`);
-    res.json({ message: 'Réglage enregistré', key: def.key, value: req.body.value });
+    let value;
+    try { value = coerceSettingValue(def, req.body.value); } catch (e) { return res.status(400).json({ error: e.message }); }
+    await setSetting(def.key, value, req.user._id);
+    logger.info(`Setting ${def.key} set to ${JSON.stringify(value)} by ${req.user._id}`);
+    res.json({ message: 'Réglage enregistré', key: def.key, value });
   } catch (error) {
     logger.error('Failed to update setting:', error);
     res.status(500).json({ error: 'Failed to update setting' });

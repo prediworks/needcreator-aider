@@ -8,6 +8,7 @@ import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpir
 import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
 import { sendAdminDigest } from '../services/adminAlerts.js';
+import { runFollowUps } from './followUps.js';
 
 /**
  * Check and process auto-approvals (J+7 après soumission)
@@ -236,10 +237,11 @@ export async function runScheduledJobs() {
       flagLateDeliveries(),
       retryPendingTransfers(),
     ]);
+    const followUps = await runFollowUps();
     const adminDigest = await sendAdminDigest().catch(err => ({ sent: false, error: err.message }));
 
-    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, adminDigest };
+    logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, adminDigest };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

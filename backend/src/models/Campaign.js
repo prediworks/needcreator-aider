@@ -166,6 +166,7 @@ const campaignSchema = new mongoose.Schema({
       default: 'pending',
     },
     proposal: String,
+    reminderSentAt: Date, // relance « devis sans réponse » envoyée à la marque
     price: {
       type: Number,
       required: true,

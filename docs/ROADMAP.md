@@ -27,7 +27,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | ~~**CGU, politique de confidentialité, mentions légales** avec acceptation à l'inscription~~ | Livré le 9 septembre 2026. Reste à compléter l'identité de l'éditeur dans `frontend/src/lib/legal.ts` et à faire relire les textes par un juriste | S (vous) |
 | ~~**Signalement de contenu**~~ | Livré le 8 septembre 2026 | — |
 | **Filigrane sur les aperçus** de portfolio | Empêche les marques d'utiliser une vidéo sans payer | M (ffmpeg déjà en place) |
-| **Litiges** : refus définitif après 2 révisions avec remboursement partiel (50 %), arbitrage admin | Prévu dans la spec ; aujourd'hui la marque doit approuver ou laisser l'auto-approbation | M |
+| **Litiges** : refus définitif par la marque après la dernière révision, remboursement partiel (50 %), arbitrage admin | Prévu dans la spec. Fait le 11 septembre 2026 : nombre de révisions réglable dans l'admin et refus définitif automatique quand le créateur ne répond pas à une demande de révision (délai réglable, 0 = désactivé, remboursement intégral). Reste : refus à l'initiative de la marque avec remboursement partiel et arbitrage | M |
 | ~~**Vérification des marques**~~ | Livré le 8 septembre 2026 (SIRET / TVA, site, email pro, contrôle admin) | — |
 | **Notifications dans l'application** (cloche, centre de notifications) en plus des emails | Réactivité, moins d'emails | M |
 | **Notifications push** (navigateur / mobile) | Prévu en phase 2 | M |
@@ -85,10 +85,10 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 |---|---|---|
 | **Matching enrichi** : similarité entre le brief et les vidéos du portfolio (transcription + IA), style, rythme | Le score actuel n'utilise pas le contenu des vidéos | M |
 | **Détection de fraude** : vidéo de portfolio déjà vue ailleurs, comptes multiples, liens de livraison invalides | Protège les marques | M |
-| **Relances automatiques** : créateur sélectionné sans upload à J+5, devis sans réponse à J+3, produit non reçu | Réduit les missions qui s'enlisent | S |
+| ~~**Relances automatiques**~~ | Livré le 11 septembre 2026 : devis sans réponse (marque, 3 j), mission sans vidéo (créateur, 5 j), produit expédié non confirmé (créateur, 5 j), révision sans nouvelle version (créateur, 3 j). Délais réglables dans Administration → Réglages, 0 = désactivé, une relance par élément | — |
 | **Statistiques admin** : GMV, commission par mois, délai moyen de livraison, taux de réponse (indicateurs de la spec, section 9) | Pilotage | S |
 | **Tests automatiques dans l'intégration continue** (GitHub Actions lance `test:e2e` à chaque push) | Évite les régressions | S |
-| **Emails HTML soignés** (modèle avec logo, boutons, résumé) au lieu des emails texte actuels | Image de marque | S |
+| ~~**Emails HTML soignés**~~ | Livré le 11 septembre 2026 : gabarit commun (logo, carte, bouton d'action, encart résumé, pied de page légal), version texte générée avec les liens ; `npm run check:email` envoie un aperçu | — |
 | **Page d'accueil avec preuves sociales réelles** (créateurs mis en avant, campagnes récentes anonymisées) | Conversion | S |
 
 ## 3 bis. Monétisation et anti-abus (décidé et livré le 8 septembre 2026)

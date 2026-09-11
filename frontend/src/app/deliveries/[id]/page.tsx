@@ -663,7 +663,7 @@ export default function DeliveryDetailPage() {
                           onClick={() => setShowRevisionForm(true)}
                         >
                           <AlertCircle className="w-4 h-4 mr-2" />
-                          Demander une révision ({2 - (delivery.revisionCount || 0)} restante(s))
+                          Demander une révision ({Math.max(0, (delivery.maxRevisions ?? 2) - (delivery.revisionCount || 0))} restante(s))
                         </Button>
                       )}
                       {!canRequestRevision && (

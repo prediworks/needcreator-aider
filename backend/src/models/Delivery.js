@@ -254,6 +254,18 @@ const deliverySchema = new mongoose.Schema({
     brand: String,
     lastReminderDay: Number, // dernier rappel d'auto-approbation envoyé (jours restants)
   },
+  // Relances automatiques envoyées (une seule par type)
+  reminders: {
+    noUploadAt: Date,
+    productReceivedAt: Date,
+    revisionAt: Date,
+  },
+  // Refus définitif (automatique ou non)
+  rejection: {
+    at: Date,
+    reason: String,
+    auto: { type: Boolean, default: false },
+  },
   
 }, {
   timestamps: true,
@@ -339,8 +351,8 @@ deliverySchema.methods.approve = function(isAuto = false, transferred = true) {
   if (transferred) this.payment.releasedAt = new Date();
 };
 
-deliverySchema.methods.requestRevision = function(feedback) {
-  if (!this.canRequestRevision) {
+deliverySchema.methods.requestRevision = function(feedback, maxRevisions = config.business.maxRevisions) {
+  if (!(this.status === 'submitted' && this.revisionCount < maxRevisions)) {
     throw new Error('Maximum revisions reached or invalid status');
   }
   

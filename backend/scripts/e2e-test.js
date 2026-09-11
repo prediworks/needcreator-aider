@@ -557,6 +557,35 @@ await step('Marque : demande de révision (feedback obligatoire)', async () => {
   return 'révision 1/2 demandée';
 });
 
+await step('Admin : réglages numériques (relances, révisions) + relance « révision sans réponse »', async () => {
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const list = await brandApi('GET', '/admin/settings');
+    const maxRev = list.data.settings.find(s => s.key === 'maxRevisions');
+    expect(list.status === 200 && maxRev && maxRev.type === 'number' && maxRev.value === 2 && maxRev.group, 'Le réglage maxRevisions devrait être exposé comme nombre', list);
+    const bad = await brandApi('PUT', '/admin/settings/maxRevisions', { value: 99 });
+    expect(bad.status === 400, 'Une valeur hors bornes devrait être refusée', bad);
+    const ok = await brandApi('PUT', '/admin/settings/reminderRevisionPendingDays', { value: '1' });
+    expect(ok.status === 200 && ok.data.value === 1, 'Le réglage devrait être enregistré comme nombre', ok);
+    const d = await brandApi('GET', `/deliveries/${delivery._id}`);
+    expect(d.status === 200 && d.data.delivery.maxRevisions === 2 && d.data.delivery.canRequestRevision === false, 'La livraison devrait exposer maxRevisions et canRequestRevision (false en révision)', d);
+    // Révision demandée il y a 2 jours → relance au créateur ; refus automatique désactivé (0) → la mission reste ouverte
+    const deliveries = mongoose.connection.db.collection('deliveries');
+    await deliveries.updateOne({ _id: new mongoose.Types.ObjectId(delivery._id) }, { $set: { 'revisions.0.requestedAt': new Date(Date.now() - 2 * 86400000) } });
+    const jobs = await brandApi('POST', '/admin/jobs/run');
+    expect(jobs.status === 200 && jobs.data.followUps && jobs.data.followUps.revision >= 1 && jobs.data.followUps.autoRejected === 0, 'La relance « révision sans réponse » devrait être envoyée, sans refus automatique', jobs);
+    const again = await brandApi('POST', '/admin/jobs/run');
+    expect(again.data.followUps.revision === 0, 'La relance ne doit partir qu\'une fois', again);
+    const still = await creatorApi('GET', `/deliveries/${delivery._id}`);
+    expect(still.data.delivery.status === 'revision_requested' && still.data.delivery.reminders?.revisionAt, 'La mission devrait rester en révision, relance datée', still);
+    await brandApi('PUT', '/admin/settings/reminderRevisionPendingDays', { value: 3 });
+    return 'réglages validés et bornés, relance envoyée une seule fois';
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 await step('Créateur : nouvelle version + re-soumission', async () => {
   const form = new FormData();
   form.append('files', fakeVideo('livrable-1-v2.mp4'));
