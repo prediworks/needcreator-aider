@@ -358,6 +358,9 @@ export default function CampaignDetailPage() {
                                   <span className="mx-1">•</span>
                                   {c.profile?.stats?.completedJobs || 0} mission(s)
                                 </div>
+                                {c.profile?.availability?.unavailableUntil && new Date(c.profile.availability.unavailableUntil) > new Date() && (
+                                  <div className="text-xs text-orange-700 mt-0.5">Indisponible jusqu&apos;au {new Date(c.profile.availability.unavailableUntil).toLocaleDateString('fr-FR')}{c.profile.availability.note ? ` · ${c.profile.availability.note}` : ''}</div>
+                                )}
                               </div>
                             </div>
                             <div className="text-right">

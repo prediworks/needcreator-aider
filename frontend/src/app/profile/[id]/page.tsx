@@ -95,7 +95,8 @@ export default function PublicProfilePage() {
                 <span className="flex items-center gap-1"><Star className="w-4 h-4 text-yellow-500 fill-yellow-500" /><strong>{stats.totalReviews ? stats.rating.toFixed(1) : 'Nouveau'}</strong> ({stats.totalReviews || 0} avis)</span>
                 <span className="flex items-center gap-1"><Briefcase className="w-4 h-4" />{stats.completedJobs || 0} mission(s)</span>
                 {totalFollowers > 0 && <span className="flex items-center gap-1"><Users className="w-4 h-4" />{formatFollowers(totalFollowers)} abonnés cumulés</span>}
-                {creator.profile.pricing?.minPrice && <span className="text-primary-700 font-medium">dès {creator.profile.pricing.minPrice}€ / vidéo</span>}
+                {creator.profile.pricing?.minPrice && <span className="text-primary-700 font-medium">dès {creator.profile.pricing.minPrice}€ HT / vidéo</span>}
+                {creator.unavailableUntil ? <span className="text-orange-700 font-medium">Indisponible jusqu&apos;au {formatDate(creator.unavailableUntil)}{creator.availabilityNote ? ` · ${creator.availabilityNote}` : ''}</span> : creator.activeMissions > 0 ? <span className="text-neutral-500">{creator.activeMissions} mission(s) en cours</span> : <span className="text-green-700">Disponible</span>}
               </div>
               {creator.profile.bio && <p className="text-neutral-700 whitespace-pre-line mb-3">{creator.profile.bio}</p>}
               <div className="flex flex-wrap gap-2 mb-3">
@@ -105,6 +106,12 @@ export default function PublicProfilePage() {
               </div>
               <SocialIcons socials={socials} />
             </div>
+            {!user && (
+              <div className="flex flex-col gap-2 w-full sm:w-auto">
+                <Link href={`/register?role=brand&creator=${creator.id || creator._id}`}><Button className="w-full">Me proposer une mission</Button></Link>
+                <p className="text-xs text-neutral-500 max-w-[220px]">Créez votre compte marque (gratuit), puis invitez {creator.profile.name.split(' ')[0]} sur votre campagne. Paiement bloqué, contrat automatique.</p>
+              </div>
+            )}
             {user?.role === 'brand' && (
               <div className="flex flex-col gap-2 w-full sm:w-auto">
                 <InviteCreatorButton creatorId={creator.id || creator._id} creatorName={creator.profile.name} />
@@ -223,8 +230,9 @@ export default function PublicProfilePage() {
                           <span className="font-medium text-neutral-900">{r.reviewerId?.profile?.companyName || r.reviewerId?.profile?.name || 'Marque'}</span>
                           <Stars value={r.rating} size="w-4 h-4" />
                         </div>
-                        <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.createdAt)}</p>
+                        <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.publishedAt || r.createdAt)}</p>
                         {r.comment && <p className="text-neutral-700">{r.comment}</p>}
+                        {r.response?.comment && <div className="mt-2 ml-4 border-l-2 border-primary-200 pl-3 text-sm"><span className="text-neutral-500">Réponse de {creator.profile.name} :</span> <span className="text-neutral-800">{r.response.comment}</span></div>}
                       </div>
                     ))}
                   </div>

@@ -3,6 +3,7 @@ import { authenticate, authenticateFirebase, authorize } from '../middleware/aut
 import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import { acceptTerms, exportData, deleteAccount, updateLegalInfo } from '../controllers/account.js';
+import { getMediaKit, getPayouts, submitQuiz } from '../controllers/creatorTools.js';
 import { sendVerificationEmail, requestPasswordReset, passwordResetLimiter } from '../controllers/authEmails.js';
 import {
   registerCreator,
@@ -51,6 +52,9 @@ router.post('/business-verification', authenticate, authorize('brand'), validate
 // Parrainage et revenus
 router.get('/referral', authenticate, getReferral);
 router.get('/earnings', authenticate, authorize('creator'), getEarnings);
+router.get('/media-kit', authenticate, authorize('creator'), getMediaKit);   // lien court + QR code
+router.get('/payouts', authenticate, authorize('creator'), getPayouts);       // calendrier des virements + seuils micro
+router.post('/academy/:slug/quiz', authenticate, authorize('creator'), submitQuiz);
 
 // Badge Ambassadeur : lien vers une vidéo qui parle de NeedCreator
 router.post('/ambassador', authenticate, authorize('creator'), validate(schemas.ambassadorVideo), submitAmbassadorVideo);

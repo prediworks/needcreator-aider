@@ -128,6 +128,13 @@ const userSchema = new mongoose.Schema({
     // Vidéo "parlez de NeedCreator" → badge Ambassadeur + accès anticipé aux campagnes
     isAmbassador: { type: Boolean, default: false, index: true }, // = ambassador.status approved (pour trier / mettre en avant)
     // Accord du créateur pour le site public et la communication NeedCreator
+    // Disponibilité déclarée par le créateur (visible par les marques, pèse dans le matching)
+    availability: {
+      unavailableUntil: Date,
+      note: String,
+    },
+    slug: { type: String, index: true, sparse: true }, // adresse publique courte /c/<slug> (kit média)
+    academy: [{ slug: String, score: Number, passed: Boolean, completedAt: Date, _id: false }],
     publicConsent: {
       site: { type: Boolean, default: false },      // fiche et portfolio visibles sur le site public (hors application)
       marketing: { type: Boolean, default: false }, // vidéos réutilisables sur la page d'accueil et les réseaux NeedCreator

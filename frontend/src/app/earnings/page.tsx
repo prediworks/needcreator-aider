@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Download, Euro, Clock, Gift, TrendingUp } from 'lucide-react';
+import PayoutsCard from '@/components/PayoutsCard';
 import Link from 'next/link';
 
 export default function EarningsPage() {
@@ -71,6 +72,8 @@ export default function EarningsPage() {
             </Card>
           ))}
         </div>
+
+        <PayoutsCard />
 
         <Card className="p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Missions payées ({rows.length})</h2>

@@ -31,6 +31,8 @@ import { formatDate } from '@/lib/utils';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { useScrollToHash } from '@/hooks/useScrollToHash';
 import MissingHint from '@/components/ui/MissingHint';
+import AvailabilityCard from '@/components/AvailabilityCard';
+import MediaKitCard from '@/components/MediaKitCard';
 
 function ProfileContent() {
   const { user, ready } = useRequireAuth();
@@ -442,6 +444,8 @@ function ProfileContent() {
 
           {/* Ambassadeur (créateur) */}
           <div id="ambassador" className="scroll-mt-24 rounded-lg">{isCreator && profile.status === 'active' && profile.verification?.portfolio && <AmbassadorCard ambassador={profile.profile.ambassador} />}</div>
+          <div id="availability" className="scroll-mt-24 rounded-lg">{isCreator && <AvailabilityCard profile={profile} />}</div>
+          <div id="media-kit" className="scroll-mt-24 rounded-lg">{isCreator && profile.status === 'active' && <MediaKitCard />}</div>
 
           {/* Stripe Connect (créateur) */}
           <div id="legal" className="scroll-mt-24 rounded-lg">{isCreator && <LegalInfoCard profile={profile} />}</div>

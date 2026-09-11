@@ -215,6 +215,15 @@ await step('Créateur : navigation Campagnes / Missions', async () => {
   return 'OK';
 });
 
+await step('Académie : liste des guides et un guide avec son quiz', async () => {
+  await cp.goto(`${FRONT}/academie`);
+  await cp.getByRole('heading', { name: /Académie/ }).waitFor({ timeout: 20000 });
+  await cp.getByRole('link', { name: /Lire le guide/ }).first().click();
+  await cp.getByRole('heading', { name: 'Quiz' }).waitFor({ timeout: 20000 });
+  await cp.getByText(/Il manque : \d+ réponse/).waitFor({ timeout: 10000 });
+  return 'guides listés, quiz affiché';
+});
+
 await step('Pages publiques /marques et /createurs', async () => {
   await cp.goto(`${FRONT}/marques`);
   await cp.getByRole('heading', { level: 1 }).waitFor({ timeout: 20000 });

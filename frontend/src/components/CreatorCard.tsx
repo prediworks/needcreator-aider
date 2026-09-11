@@ -41,6 +41,8 @@ export default function CreatorCard({ creator }: { creator: any }) {
       <div className="flex items-center gap-3 text-xs text-neutral-600 mb-3 flex-wrap">
         <span className="flex items-center gap-1"><Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />{stats.totalReviews ? `${stats.rating.toFixed(1)} (${stats.totalReviews})` : 'Nouveau'}</span>
         <span className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" />{stats.completedJobs || 0} mission(s)</span>
+        {creator.unavailableUntil && <span className="text-orange-700">Indisponible jusqu&apos;au {new Date(creator.unavailableUntil).toLocaleDateString('fr-FR')}</span>}
+        {!creator.unavailableUntil && creator.activeMissions > 0 && <span className="text-neutral-500">{creator.activeMissions} mission(s) en cours</span>}
         <span className="flex items-center gap-1"><Video className="w-3.5 h-3.5" />{creator.portfolioCount} vidéo(s)</span>
         {stats.totalFollowers ? <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{formatFollowers(stats.totalFollowers)} abonnés</span> : null}
       </div>

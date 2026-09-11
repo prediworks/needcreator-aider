@@ -18,6 +18,7 @@ import NextStepCard from '@/components/NextStepCard';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { plural } from '@/lib/publicConfig';
+import ProgressCard from '@/components/ProgressCard';
 import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
@@ -70,6 +71,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
             </NextStepCard>
           );
         })()}
+        {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
         {blockers.length > 0 && user.status !== 'pending' && (
           <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis :{' '}
             {blockers.map((b, i) => <span key={b}>{i > 0 && ' '}<Link href={blockerHref(b)} className="underline decoration-dotted hover:text-primary-600">{b}</Link></span>)}

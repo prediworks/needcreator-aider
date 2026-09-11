@@ -297,6 +297,7 @@ export async function updateProfile(req, res) {
           'profile.address.name', 'profile.address.line1', 'profile.address.line2', 'profile.address.postalCode',
           'profile.address.city', 'profile.address.country', 'profile.address.phone',
           'profile.publicConsent.site', 'profile.publicConsent.marketing',
+          'profile.availability.unavailableUntil', 'profile.availability.note',
           'preferences.emailNotifications',
           'preferences.language',
         ]

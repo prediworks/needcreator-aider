@@ -72,11 +72,11 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Idée | Ce que ça apporte | Effort |
 |---|---|---|
-| **Disponibilités et charge** (« indisponible jusqu'au… », nombre de missions en cours affiché) | Évite les sélections qui traînent | S |
-| **Kit média automatique** (page publique partageable avec stats, portfolio, tarifs, QR code) | Le créateur fait sa promotion et ramène des marques | S |
-| **Retrait à la demande / calendrier de virements** et rappel des seuils micro-entreprise | Transparence financière | S |
-| **Académie** : courts guides (éclairage, accroche, formats), quiz donnant un badge « Formé » | Qualité des vidéos, différenciation face à Influee | M (contenu à produire) |
-| **Objectifs et progression** (barre vers le niveau suivant, missions recommandées) | Engagement | S |
+| ~~**Disponibilités et charge**~~ | Livré le 11 septembre 2026 : « indisponible jusqu'au » + message dans le profil, visibles sur le profil public, l'annuaire et les devis ; missions en cours affichées ; matching ÷ 2 si indisponible, −10 si ≥ 3 missions en cours | — |
+| ~~**Kit média**~~ | Livré le 11 septembre 2026 : adresse courte `/c/<slug>` avec métadonnées et image de partage, QR code et texte prêt à coller depuis le profil, bouton « Me proposer une mission » pour les visiteurs non connectés | — |
+| ~~**Calendrier de virements et seuils micro**~~ | Livré le 11 septembre 2026 : page Revenus → solde Stripe, virements bancaires à venir avec dates d'arrivée, périodicité ; chiffre d'affaires facturé de l'année comparé aux seuils de franchise de TVA et du régime micro (`VAT_FRANCHISE_THRESHOLD`, `MICRO_REVENUE_THRESHOLD`) | — |
+| ~~**Académie**~~ | Livré le 11 septembre 2026 : 5 guides de 5 minutes (brief, lumière et cadrage, son, trois premières secondes, devis) avec quiz corrigé côté serveur ; badge « Formé » après `ACADEMY_REQUIRED` guides réussis (3) à `ACADEMY_PASS_SCORE` % (75), visible par les marques, +3 points de matching ; page `/academie` publique | — |
+| ~~**Objectifs et progression**~~ | Livré le 11 septembre 2026 : carte « Votre progression » sur le tableau de bord (niveau, barre vers le suivant, ce qu'il apporte, avancement académie) et trois missions recommandées dans ses niches | — |
 | ~~**Avis en double aveugle et réponse publique**~~ | Livré le 11 septembre 2026 : un avis reste caché jusqu'à l'avis de l'autre partie (email « laissez le vôtre pour découvrir le sien », notification), publication simultanée, sinon publication automatique après un délai réglable (Administration → Réglages, 14 jours) ; la note du profil ne compte que les avis publiés ; réponse publique unique depuis le profil, visible sous l'avis | — |
 
 ### Pour la plateforme

@@ -57,7 +57,7 @@ export async function searchCreators(req, res) {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const [creators, total] = await Promise.all([
       User.find(query)
-        .select('profile.name profile.avatar profile.bio profile.niches profile.pricing profile.stats profile.socials profile.portfolio profile.realisations profile.ambassador.status createdAt')
+        .select('profile.name profile.avatar profile.bio profile.niches profile.pricing profile.stats profile.socials profile.portfolio profile.realisations profile.ambassador.status profile.availability profile.academy createdAt')
         .sort(sortMap[sort] || sortMap.rating)
         .skip(skip)
         .limit(parseInt(limit))
@@ -66,10 +66,16 @@ export async function searchCreators(req, res) {
     ]);
 
     const collabSet = new Set((collaboratorIds || []).map(String));
+    const { default: DeliveryModel } = await import('../models/Delivery.js');
+    const loadAgg = await DeliveryModel.aggregate([{ $match: { creatorId: { $in: creators.map(c => c._id) }, status: { $in: ['pending', 'revision_requested', 'submitted'] } } }, { $group: { _id: '$creatorId', n: { $sum: 1 } } }]);
+    const loadMap = new Map(loadAgg.map(x => [String(x._id), x.n]));
     const out = await Promise.all(creators.map(async c => {
       const firstVideo = c.profile.portfolio?.[0];
+      const until = c.profile.availability?.unavailableUntil;
       return {
         id: c._id,
+        unavailableUntil: until && new Date(until) > new Date() ? until : null,
+        activeMissions: loadMap.get(String(c._id)) || 0,
         name: c.profile.name,
         avatar: c.profile.avatar,
         bio: c.profile.bio,

@@ -666,6 +666,43 @@ await step('Marque : approbation (encaissement Stripe)', async () => {
   return `paiement ${res.data.delivery.payment.status}${res.data.warning ? ' — ' + res.data.warning : ''}`;
 });
 
+await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {
+  // Disponibilité déclarée → visible sur le profil public, pénalise le matching
+  const until = new Date(Date.now() + 10 * 86400000).toISOString();
+  const av = await creatorApi('PATCH', '/auth/profile', { profile: { availability: { unavailableUntil: until, note: 'Tournage à l\'étranger' } } });
+  expect(av.status === 200 && av.data.user.profile.availability?.note === 'Tournage à l\'étranger', 'Disponibilité non enregistrée', av);
+  const pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  expect(pub.creator && pub.creator.unavailableUntil && pub.creator.availabilityNote === 'Tournage à l\'étranger' && typeof pub.creator.activeMissions === 'number', 'Le profil public devrait afficher la disponibilité et la charge', { status: 200, data: pub.creator });
+  const back = await creatorApi('PATCH', '/auth/profile', { profile: { availability: { unavailableUntil: null, note: '' } } });
+  expect(back.status === 200 && !back.data.user.profile.availability?.unavailableUntil, 'Retour à disponible échoué', back);
+  // Kit média : lien court + QR + adresse publique
+  const kit = await creatorApi('GET', '/auth/media-kit');
+  expect(kit.status === 200 && /\/c\/[a-z0-9-]+$/.test(kit.data.url) && kit.data.qr.startsWith('data:image/png;base64,') && kit.data.shareText.includes(kit.data.url), 'Kit média incomplet', kit);
+  const bySlug = await fetch(`${API}/creators/slug/${kit.data.slug}`).then(r => r.json());
+  expect(String(bySlug.id) === creatorUser.id && bySlug.name, 'Le slug devrait résoudre vers le créateur', { status: 200, data: bySlug });
+  // Académie : guides publics sans réponses ; quiz raté puis réussi ; badge Formé après `required` guides
+  const ac = await fetch(`${API}/academy`).then(r => r.json());
+  expect(ac.guides?.length >= 5 && ac.guides.every(g => g.quiz.every(q => q.answer === undefined)), 'Les guides ne doivent pas exposer les réponses', { status: 200, data: { n: ac.guides?.length } });
+  const { GUIDES } = await import('../config/academy.js');
+  const wrong = await creatorApi('POST', `/auth/academy/${GUIDES[0].slug}/quiz`, { answers: GUIDES[0].quiz.map(q => (q.answer + 1) % q.options.length) });
+  expect(wrong.status === 200 && wrong.data.passed === false && wrong.data.score === 0, 'Un quiz raté ne doit pas valider le guide', wrong);
+  let last;
+  for (const g of GUIDES.slice(0, ac.required)) {
+    last = await creatorApi('POST', `/auth/academy/${g.slug}/quiz`, { answers: g.quiz.map(q => q.answer) });
+    expect(last.status === 200 && last.data.passed === true && last.data.score === 100, `Quiz « ${g.title} » devrait être réussi`, last);
+  }
+  expect(last.data.trained === true && last.data.badges.includes('trained'), 'Le badge Formé devrait être attribué', last);
+  const prof = await creatorApi('GET', '/auth/profile');
+  expect(prof.data.user.badges.includes('trained') && prof.data.user.profile.academy.filter(a => a.passed).length === ac.required, 'Le profil devrait porter le badge Formé', prof);
+  // Calendrier des virements + seuils micro
+  const po = await creatorApi('GET', '/auth/payouts');
+  expect(po.status === 200 && typeof po.data.connected === 'boolean' && po.data.thresholds && po.data.thresholds.vat > 0 && typeof po.data.ytd === 'number', 'Calendrier des virements / seuils attendus', po);
+  // Missions recommandées
+  const reco = await creatorApi('GET', '/campaigns?filter=recommended&limit=3');
+  expect(reco.status === 200 && Array.isArray(reco.data.campaigns), 'Missions recommandées attendues', reco);
+  return `kit ${kit.data.url}, badge Formé, virements ${po.data.stripeError ? 'indisponibles (' + po.data.stripeError.slice(0, 40) + ')' : 'OK'}`;
+});
+
 await step('Marque : annuaire des créateurs (filtres) et collaborateurs', async () => {
   const all = await brandApi('GET', '/creators?niches=beauty&network=tiktok&minFollowers=10000&sort=followers');
   expect(all.status === 200 && all.data.creators.some(c => c.id === creatorUser.id), 'Le créateur devrait ressortir avec ces filtres', all);

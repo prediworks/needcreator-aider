@@ -130,6 +130,13 @@ export const config = {
     expertRating: parseFloat(process.env.BADGE_EXPERT_RATING || '4.7'),
     // Accès anticipé aux campagnes pour les ambassadeurs (heures) ; 0 = désactivé
     earlyAccessHours: parseInt(process.env.EARLY_ACCESS_HOURS || '24', 10),
+    trainedMatchBonus: parseInt(process.env.TRAINED_MATCH_BONUS || '3', 10), // points de matching pour le badge « Formé »
+  },
+
+  // Académie (guides + quiz) : badge « Formé » après ACADEMY_REQUIRED guides réussis à ACADEMY_PASS_SCORE %
+  academy: {
+    required: parseInt(process.env.ACADEMY_REQUIRED || '3', 10),
+    passScore: parseInt(process.env.ACADEMY_PASS_SCORE || '75', 10),
   },
 
   // Outils d'administration temporaires (validation de la prod)
@@ -155,6 +162,11 @@ export const config = {
     minCreatorVideos: parseInt(process.env.MIN_CREATOR_VIDEOS || '3', 10),
     replacementGraceHours: parseInt(process.env.REPLACEMENT_GRACE_HOURS || '48', 10), // délai après la date prévue avant remplacement possible
     minQuotePrice: parseInt(process.env.MIN_QUOTE_PRICE || '50', 10), // prix minimum d'un devis / d'un budget (€)
+    // Seuils micro-entreprise rappelés aux créateurs (prestations de services, valeurs 2025)
+    microRevenueThreshold: parseInt(process.env.MICRO_REVENUE_THRESHOLD || '77700', 10),
+    vatFranchiseThreshold: parseInt(process.env.VAT_FRANCHISE_THRESHOLD || '37500', 10),
+    vatFranchiseTolerance: parseInt(process.env.VAT_FRANCHISE_TOLERANCE || '41250', 10),
+    maxActiveMissionsHint: parseInt(process.env.MAX_ACTIVE_MISSIONS_HINT || '3', 10), // au-delà, le matching baisse (créateur chargé)
     maxVideoSizeMB: 500,
     // STRIPE_AUTO_CONFIRM_TEST=true : confirme les paiements avec une carte de test sans écran de saisie (jamais en production)
     autoConfirmTestPayments: process.env.NODE_ENV !== 'production' && process.env.STRIPE_AUTO_CONFIRM_TEST === 'true',

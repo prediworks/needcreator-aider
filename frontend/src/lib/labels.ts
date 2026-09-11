@@ -137,6 +137,7 @@ export const LEVELS: Record<string, { label: string; className: string; descript
   confirmed: { label: 'Confirmé', className: 'bg-blue-100 text-blue-800', description: '3 missions ou plus, note ≥ 4,5' },
   expert: { label: 'Expert', className: 'bg-purple-100 text-purple-800', description: '10 missions ou plus, note ≥ 4,7' },
   ambassador: { label: '🌟 Ambassadeur', className: 'bg-yellow-100 text-yellow-800', description: 'A parlé de NeedCreator sur ses réseaux' },
+  trained: { label: '🎓 Formé', className: 'bg-emerald-100 text-emerald-800', description: 'A suivi les guides de l\'académie NeedCreator (brief, image, son, accroche, devis)' },
 };
 
 export const CAMPAIGN_TYPES: Record<string, { label: string; className: string }> = {

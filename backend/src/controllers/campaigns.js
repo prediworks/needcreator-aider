@@ -11,7 +11,7 @@ import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
-import { levelFor, badgesFor, isAmbassador } from '../utils/badges.js';
+import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
 
@@ -253,6 +253,15 @@ export async function getCampaigns(req, res) {
         query.$or = [{ selectedCreators: user._id }, { selectedCreator: user._id }];
       } else if (mode === 'all') {
         query.status = { $in: ['active', 'in_progress', 'completed'] };
+      } else if (mode === 'recommended') {
+        // Missions recommandées (tableau de bord) : ouvertes, dans ses niches, pas encore candidaté
+        query.status = 'active';
+        query['matching.niches'] = { $in: user.profile?.niches || [] };
+        query['applications.creatorId'] = { $ne: user._id };
+        query['matching.excludedCreators'] = { $ne: user._id };
+        if (!user.acceptsGifting(levelFor(user.profile?.stats))) query.type = { $ne: 'gifting' };
+        const hours = config.badges.earlyAccessHours;
+        if (hours > 0 && !isAmbassador(user)) query.$or = [{ 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } }, { 'invitations.creatorId': user._id }];
       } else {
         // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
@@ -341,7 +350,7 @@ export async function getCampaign(req, res) {
 
     const campaignDoc = await Campaign.findById(campaignId)
       .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
-      .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status status')
+      .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status profile.availability profile.academy profile.slug status')
       .populate('selectedCreator', 'profile.name profile.avatar')
       .populate('selectedCreators', 'profile.name profile.avatar');
 
@@ -440,7 +449,7 @@ export async function getCampaign(req, res) {
  * Score de matching (0-100) entre un créateur et une campagne
  * niches 50% · budget 25% · note 15% · réactivité 10%
  */
-function computeMatchScore(campaign, creator, price) {
+function computeMatchScore(campaign, creator, price, { activeMissions = 0 } = {}) {
   const niches = campaign.matching.niches || [];
   const nicheMatch = niches.length
     ? niches.filter(n => (creator.profile.niches || []).includes(n)).length / niches.length
@@ -459,9 +468,13 @@ function computeMatchScore(campaign, creator, price) {
   const hours = creator.profile.stats?.responseTimeHours;
   const responseScore = hours == null ? 0.6 : Math.max(0, 1 - hours / 72);
 
-  const base = Math.round((nicheMatch * 0.5 + budgetFit * 0.25 + ratingScore * 0.15 + responseScore * 0.1) * 100);
-  // Ambassadeur : mis en avant auprès des marques (+5 points, plafonné à 100)
-  const bonus = creator.profile.ambassador?.status === 'approved' ? config.badges.ambassadorMatchBonus : 0;
+  let base = Math.round((nicheMatch * 0.5 + budgetFit * 0.25 + ratingScore * 0.15 + responseScore * 0.1) * 100);
+  // Disponibilité déclarée : un créateur absent est fortement pénalisé ; un créateur chargé légèrement
+  const until = creator.profile.availability?.unavailableUntil;
+  if (until && new Date(until) > new Date()) base = Math.round(base * 0.5);
+  if (activeMissions >= config.business.maxActiveMissionsHint) base = Math.max(0, base - 10);
+  // Ambassadeur : mis en avant auprès des marques (+5 points) ; Formé (académie) : +3 ; plafonné à 100
+  const bonus = (creator.profile.ambassador?.status === 'approved' ? config.badges.ambassadorMatchBonus : 0) + (isTrained(creator) ? config.badges.trainedMatchBonus : 0);
   return Math.min(100, base + bonus);
 }
 
@@ -507,7 +520,8 @@ export async function applyToCampaign(req, res) {
       return res.status(400).json({ error: `Le prix minimum est de ${config.business.minQuotePrice} €` });
     }
 
-    const matchScore = computeMatchScore(campaign, creator, finalPrice);
+    const activeMissions = await Delivery.countDocuments({ creatorId: creator._id, status: { $in: ['pending', 'revision_requested', 'submitted'] } });
+    const matchScore = computeMatchScore(campaign, creator, finalPrice, { activeMissions });
 
     campaign.applications.push({
       creatorId: creator._id,
@@ -598,7 +612,7 @@ export async function updateQuote(req, res) {
     application.price = campaign.type === 'gifting' ? 0 : price;
     if (campaign.type !== 'gifting' && price < config.business.minQuotePrice) return res.status(400).json({ error: `Le prix minimum est de ${config.business.minQuotePrice} €` });
     application.estimatedDeliveryDays = estimatedDeliveryDays;
-    application.matchScore = computeMatchScore(campaign, creator, price);
+    application.matchScore = computeMatchScore(campaign, creator, price, { activeMissions: await Delivery.countDocuments({ creatorId: creator._id, status: { $in: ['pending', 'revision_requested', 'submitted'] } }) });
     application.quote.version = (application.quote.version || 1) + 1;
     application.quote.updatedAt = new Date();
     application.quote.rights = rights;

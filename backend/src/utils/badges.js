@@ -19,7 +19,14 @@ export function badgesFor(user) {
   const stats = user.profile?.stats || {};
   const badges = [levelFor(stats)];
   if (user.profile?.ambassador?.status === 'approved') badges.push('ambassador');
+  if (isTrained(user)) badges.push('trained');
   return badges;
+}
+
+/** Badge « Formé » : assez de guides de l'académie réussis */
+export function isTrained(user) {
+  const passed = (user?.profile?.academy || []).filter(a => a.passed).length;
+  return passed >= config.academy.required;
 }
 
 export function isAmbassador(user) {

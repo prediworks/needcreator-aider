@@ -172,7 +172,7 @@ export async function getCreatorPortfolio(req, res) {
       role: 'creator',
       status: 'active',
     })
-      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing profile.ambassador.status profile.socials profile.realisations createdAt')
+      .select('profile.name profile.avatar profile.bio profile.portfolio profile.stats profile.niches profile.pricing profile.ambassador.status profile.socials profile.realisations profile.availability profile.academy profile.slug createdAt')
       .lean();
 
     if (!creator) {
@@ -182,7 +182,7 @@ export async function getCreatorPortfolio(req, res) {
     creator.profile.portfolio = await resolveUrlsIn(creator.profile.portfolio || []);
 
     // Derniers avis reçus
-    const reviews = await Review.find({ revieweeId: creatorId, isPublic: true })
+    const reviews = await Review.find({ revieweeId: creatorId, isPublic: true, publishedAt: { $ne: null } })
       .populate('reviewerId', 'profile.name profile.companyName')
       .populate('campaignId', 'title')
       .sort({ createdAt: -1 })
@@ -208,8 +208,12 @@ export async function getCreatorPortfolio(req, res) {
       collaborated = !!(await Delivery.exists({ creatorId, brandId: req.user._id }));
     }
 
+    const activeMissions = await Delivery.countDocuments({ creatorId: creator._id, status: { $in: ['pending', 'revision_requested', 'submitted'] } });
+    const unavailableUntil = creator.profile.availability?.unavailableUntil && new Date(creator.profile.availability.unavailableUntil) > new Date() ? creator.profile.availability.unavailableUntil : null;
+    const trainedCount = (creator.profile.academy || []).filter(a => a.passed).length;
+    delete creator.profile.academy;
     res.json({
-      creator: { ...creator, id: creator._id, level: levelFor(creator.profile?.stats), badges: badgesFor(creator) },
+      creator: { ...creator, id: creator._id, level: levelFor(creator.profile?.stats), badges: badgesFor(creator), activeMissions, unavailableUntil, availabilityNote: unavailableUntil ? (creator.profile.availability?.note || '') : '', trainedCount, slug: creator.profile.slug || null },
       reviews,
       realisations,
       collaborated,
