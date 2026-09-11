@@ -197,6 +197,17 @@ await step('Créateur : navigation Campagnes / Missions', async () => {
   return 'OK';
 });
 
+await step('Pages publiques /marques et /createurs', async () => {
+  await cp.goto(`${FRONT}/marques`);
+  await cp.getByRole('heading', { level: 1 }).waitFor({ timeout: 20000 });
+  await cp.getByText('Pourquoi les marques choisissent NeedCreator').waitFor({ timeout: 20000 });
+  await cp.getByRole('link', { name: /Publier ma première campagne/ }).first().waitFor();
+  await cp.goto(`${FRONT}/createurs`);
+  await cp.getByText('Pourquoi les créateurs choisissent NeedCreator').waitFor({ timeout: 20000 });
+  await cp.getByText(/% du devis pour vous/).first().waitFor();
+  return 'les deux pages se chargent avec leurs arguments et boutons';
+});
+
 await step('Page /auth/action : lien invalide affiche une erreur claire', async () => {
   await cp.goto(`${FRONT}/auth/action?mode=verifyEmail&oobCode=invalide`);
   await cp.getByText('Lien invalide').waitFor({ timeout: 30000 });

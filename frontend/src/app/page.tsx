@@ -77,12 +77,12 @@ export default async function HomePage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/register?role=brand">
+              <Link href="/marques">
                 <Button size="lg" className="w-full sm:w-auto">
                   Je suis une marque
                 </Button>
               </Link>
-              <Link href="/register?role=creator">
+              <Link href="/createurs">
                 <Button variant="outline" size="lg" className="w-full sm:w-auto">
                   Je suis créateur
                 </Button>

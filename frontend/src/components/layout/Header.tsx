@@ -41,6 +41,8 @@ export default function Header() {
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]
     : [
+        { href: '/marques', label: 'Marques' },
+        { href: '/createurs', label: 'Créateurs' },
         { href: '/how-it-works', label: 'Comment ça marche' },
         { href: '/nos-createurs', label: 'Nos créateurs' },
         { href: '/annuaire-createurs', label: 'Annuaire' },

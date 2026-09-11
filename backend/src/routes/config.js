@@ -15,6 +15,12 @@ router.get('/public', async (req, res) => {
     minQuotePrice: config.business.minQuotePrice,
     replacementGraceHours: config.business.replacementGraceHours,
     minCreatorVideos: config.business.minCreatorVideos,
+    platformFeePercent: config.stripe.platformFeePercent,
+    creatorSharePercent: 100 - config.stripe.platformFeePercent,
+    referralCreatorBonus: config.referral.creatorBonus,
+    referralBrandDiscountPercent: config.referral.brandDiscountPercent,
+    earlyAccessHours: config.badges.earlyAccessHours,
+    aiBriefFreeQuota: config.plans.aiBriefFreeQuota,
   });
 });
 

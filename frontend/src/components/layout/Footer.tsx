@@ -19,8 +19,8 @@ export default function Footer() {
             <li><Link href="/pricing" className="hover:text-primary-600">Tarifs</Link></li>
             <li><Link href="/nos-createurs" className="hover:text-primary-600">Nos créateurs</Link></li>
             <li><Link href="/annuaire-createurs" className="hover:text-primary-600">Annuaire des créateurs</Link></li>
-            <li><Link href="/register?role=brand" className="hover:text-primary-600">Je suis une marque</Link></li>
-            <li><Link href="/register?role=creator" className="hover:text-primary-600">Je suis créateur</Link></li>
+            <li><Link href="/marques" className="hover:text-primary-600">Je suis une marque</Link></li>
+            <li><Link href="/createurs" className="hover:text-primary-600">Je suis créateur</Link></li>
           </ul>
         </div>
         <div>

@@ -15,7 +15,7 @@ Séquence de trois emails destinée aux créateurs importés dans l'annuaire (Ad
 
 Variables du CSV utilisables : `{{prenom}}`, `{{pseudo}}`, `{{niche}}`, `{{abonnes}}`, `{{fiche}}`, `{{retrait}}`.
 
-Lien d'inscription à utiliser : `https://needcreator.com/register?role=creator&from={{pseudo}}` (le paramètre permet de rattacher l'inscription à la fiche référencée).
+Lien d'inscription à utiliser : `https://needcreator.com/register?role=creator&from={{pseudo}}` (le paramètre permet de rattacher l'inscription à la fiche référencée). Pour un lien « en savoir plus » sans inscription immédiate : `https://needcreator.com/createurs` (page dédiée aux créateurs).
 
 ---
 

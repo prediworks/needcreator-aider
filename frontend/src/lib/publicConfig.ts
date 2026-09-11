@@ -8,6 +8,12 @@ export interface PublicConfig {
   minQuotePrice: number;
   replacementGraceHours: number;
   minCreatorVideos: number;
+  platformFeePercent: number;
+  creatorSharePercent: number;
+  referralCreatorBonus: number;
+  referralBrandDiscountPercent: number;
+  earlyAccessHours: number;
+  aiBriefFreeQuota: number;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -16,6 +22,12 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   minQuotePrice: Number(process.env.NEXT_PUBLIC_MIN_QUOTE_PRICE || 50),
   replacementGraceHours: 48,
   minCreatorVideos: 3,
+  platformFeePercent: 10,
+  creatorSharePercent: 90,
+  referralCreatorBonus: 10,
+  referralBrandDiscountPercent: 5,
+  earlyAccessHours: 24,
+  aiBriefFreeQuota: 3,
 };
 
 /** Côté serveur (pages marketing) : mis en cache 5 minutes, repli sur les valeurs par défaut si l'API ne répond pas */
