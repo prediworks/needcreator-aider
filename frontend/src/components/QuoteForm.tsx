@@ -1,5 +1,6 @@
 'use client';
 
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -44,6 +45,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
  * Devis du créateur : prix, délai, cession de droits, livraison, conditions libres
  */
 export default function QuoteForm({ campaign, initial, submitLabel, isLoading, onSubmit, onCancel }: QuoteFormProps) {
+  const cfg = usePublicConfig();
   const deliverables = campaign?.brief?.deliverables || 1;
   const [proposal, setProposal] = useState(initial?.proposal || '');
   const [price, setPrice] = useState(String(initial?.price || campaign?.budget?.total || ''));
@@ -55,7 +57,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
   const [exclusivityMonths, setExclusivityMonths] = useState(String(initial?.rights?.exclusivityMonths || 6));
   const [deliveryTypes, setDeliveryTypes] = useState<string[]>(initial?.deliveryTypes?.length ? initial.deliveryTypes : (campaign?.brief?.deliveryTypes || ['file', 'link']));
   const [platforms, setPlatforms] = useState<string[]>(initial?.platforms?.length ? initial.platforms : (campaign?.brief?.platforms || []));
-  const [revisions, setRevisions] = useState(String(initial?.revisions ?? 2));
+  const [revisions, setRevisions] = useState(String(initial?.revisions ?? cfg.maxRevisions));
   const [terms, setTerms] = useState(initial?.terms || '');
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
@@ -160,7 +162,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
           ))}
         </div>
         <div className="w-48">
-          <Input label="Révisions incluses" type="number" min={0} max={5} value={revisions} onChange={(e) => setRevisions(e.target.value)} />
+          <Input label="Révisions incluses" type="number" min={0} max={10} value={revisions} onChange={(e) => setRevisions(e.target.value)} />
         </div>
       </div>
 
@@ -200,11 +202,12 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
  * Résumé lisible d'un devis
  */
 export function QuoteSummary({ application, compact = false }: { application: any; compact?: boolean }) {
+  const cfg = usePublicConfig();
   const q = application?.quote || {};
   const r = q.rights || {};
   return (
     <div className={cn('text-sm text-neutral-700 space-y-1', compact && 'text-xs')}>
-      <div><span className="text-neutral-500">Prix :</span> <strong>{application.price ? formatCurrency(application.price) : 'Produit offert (gifting)'}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? 2} révision(s)</div>
+      <div><span className="text-neutral-500">Prix :</span> <strong>{application.price ? formatCurrency(application.price) : 'Produit offert (gifting)'}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? cfg.maxRevisions} révision(s)</div>
       <div>
         <span className="text-neutral-500">Droits :</span> {RIGHTS_DURATION[r.duration] || '1 an'} · {(r.supports || []).map((s: string) => RIGHTS_SUPPORTS[s]).join(', ') || 'réseaux sociaux'} · {r.territories || 'France'}
         {r.exclusivity ? ` · exclusivité ${r.exclusivityMonths || ''} mois` : ''}

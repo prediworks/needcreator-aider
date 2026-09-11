@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { config } from '../config/index.js';
 
 /**
  * Réglages modifiables depuis l'admin sans redémarrage (clé → valeur)
@@ -44,7 +45,7 @@ export const SETTINGS = {
   reminderRevisionPendingDays: { key: 'reminderRevisionPendingDays', type: 'number', unit: 'jours', min: 0, max: 60, group: 'Relances automatiques', default: 3, label: 'Créateur : révision demandée sans nouvelle version', description: 'Email au créateur ce nombre de jours après une demande de révision restée sans nouvelle version. 0 = désactivé.' },
 
   // Révisions et refus définitif automatique
-  maxRevisions: { key: 'maxRevisions', type: 'number', unit: 'révisions', min: 0, max: 10, group: 'Révisions et refus', default: 2, label: 'Nombre maximum de révisions par mission', description: 'Au-delà, la marque ne peut plus demander de révision : elle valide (ou la validation automatique s\'applique).' },
+  maxRevisions: { key: 'maxRevisions', type: 'number', unit: 'révisions', min: 0, max: 10, group: 'Révisions et refus', default: config.business.maxRevisions, label: 'Nombre maximum de révisions par mission', description: 'Au-delà, la marque ne peut plus demander de révision : elle valide (ou la validation automatique s\'applique).' },
   autoRejectAfterRevisionDays: { key: 'autoRejectAfterRevisionDays', type: 'number', unit: 'jours', min: 0, max: 90, group: 'Révisions et refus', default: 0, label: 'Refus définitif automatique : silence du créateur après une demande de révision', description: 'Si le créateur n\'a envoyé aucune nouvelle version ce nombre de jours après la demande de révision, la mission est refusée définitivement : montant bloqué libéré ou remboursé à la marque, place libérée sur la campagne, les deux parties prévenues. 0 = désactivé (la mission reste ouverte). Conseil : au moins le double du délai de relance ci-dessus.' },
 };
 

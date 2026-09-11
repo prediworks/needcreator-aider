@@ -187,7 +187,7 @@ const campaignSchema = new mongoose.Schema({
       },
       deliveryTypes: [{ type: String, enum: ['file', 'link'] }],
       platforms: [{ type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'] }],
-      revisions: { type: Number, default: 2 },
+      revisions: Number, // vide = réglage admin au moment du devis
       terms: String, // conditions libres du créateur
       history: [{
         version: Number,

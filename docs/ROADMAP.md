@@ -88,6 +88,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | ~~**Relances automatiques**~~ | Livré le 11 septembre 2026 : devis sans réponse (marque, 3 j), mission sans vidéo (créateur, 5 j), produit expédié non confirmé (créateur, 5 j), révision sans nouvelle version (créateur, 3 j). Délais réglables dans Administration → Réglages, 0 = désactivé, une relance par élément | — |
 | **Statistiques admin** : GMV, commission par mois, délai moyen de livraison, taux de réponse (indicateurs de la spec, section 9) | Pilotage | S |
 | **Tests automatiques dans l'intégration continue** (GitHub Actions lance `test:e2e` à chaque push) | Évite les régressions | S |
+| ~~**Plus de chiffres en dur**~~ | Livré le 11 septembre 2026 : `GET /api/config/public` (révisions, validation automatique, devis minimum…) alimente les pages marketing, les formulaires et les emails ; devis et contrat prennent le réglage admin des révisions par défaut ; `AUTO_APPROVAL_DAYS` et `MAX_REVISIONS` en variables d'environnement | — |
 | ~~**Emails HTML soignés**~~ | Livré le 11 septembre 2026 : gabarit commun (logo, carte, bouton d'action, encart résumé, pied de page légal), version texte générée avec les liens ; `npm run check:email` envoie un aperçu | — |
 | **Page d'accueil avec preuves sociales réelles** (créateurs mis en avant, campagnes récentes anonymisées) | Conversion | S |
 

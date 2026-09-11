@@ -9,6 +9,7 @@ import {
 } from '../services/email.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
+import { getMaxRevisions } from '../models/Setting.js';
 import { levelFor, badgesFor, isAmbassador } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -514,7 +515,7 @@ export async function applyToCampaign(req, res) {
         rights,
         deliveryTypes,
         platforms: platforms?.length ? platforms : campaign.brief.platforms,
-        revisions,
+        revisions: revisions ?? await getMaxRevisions(),
         terms,
         history: [],
       },
@@ -590,7 +591,7 @@ export async function updateQuote(req, res) {
     application.quote.rights = rights;
     application.quote.deliveryTypes = deliveryTypes;
     application.quote.platforms = platforms?.length ? platforms : campaign.brief.platforms;
-    application.quote.revisions = revisions;
+    application.quote.revisions = revisions ?? await getMaxRevisions();
     application.quote.terms = terms;
 
     await campaign.save();

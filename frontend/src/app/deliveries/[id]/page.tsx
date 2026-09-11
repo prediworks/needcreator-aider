@@ -47,6 +47,8 @@ import {
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
 import { DELIVERY_STATUS, PAYMENT_STATUS, VIDEO_TYPES, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { plural } from '@/lib/publicConfig';
 
 export default function DeliveryDetailPage() {
   const params = useParams();
@@ -73,6 +75,7 @@ export default function DeliveryDetailPage() {
   const [notes, setNotes] = useState('');
   const [revisionFeedback, setRevisionFeedback] = useState('');
   const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const cfg = usePublicConfig();
 
   if (!ready || isLoading) return <Spinner />;
 
@@ -135,7 +138,7 @@ export default function DeliveryDetailPage() {
   const myConsent = (l: any) => (isBrand ? l.visibility?.brand !== false : l.visibility?.creator !== false);
 
   const handleSubmit = async () => {
-    if (!confirm('Soumettre mes vidéos à la marque ? Elle aura 7 jours pour valider ou demander une révision.')) return;
+    if (!confirm(`Soumettre mes vidéos à la marque ? Elle aura ${plural(cfg.autoApprovalDays, 'jour')} pour valider ou demander une révision.`)) return;
     await submitMutation.mutateAsync({ deliveryId, notes });
   };
 

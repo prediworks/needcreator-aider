@@ -234,7 +234,7 @@ export async function sendDeliverySubmitted(email, companyName, campaignTitle, d
   const html = `
     <h1>Bonjour ${companyName} !</h1>
     <p>Le créateur a soumis les livrables pour "${campaignTitle}".</p>
-    <p><strong>Important :</strong> Vous avez 7 jours pour valider ou demander des révisions.</p>
+    <p><strong>Important :</strong> Vous avez ${config.business.autoApprovalDays} jours pour valider ou demander des révisions.</p>
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir les livrables</a></p>
   `;
   
@@ -297,7 +297,7 @@ export async function sendAutoApprovalNotification(brandEmail, creatorEmail, com
     `Approbation automatique : "${campaignTitle}"`,
     `
       <h1>Bonjour ${companyName}</h1>
-      <p>La livraison pour "${campaignTitle}" a été automatiquement approuvée après 7 jours.</p>
+      <p>La livraison pour "${campaignTitle}" a été automatiquement approuvée après ${config.business.autoApprovalDays} jours.</p>
       <p>Le paiement de ${amount}€ a été effectué au créateur.</p>
     `
   );

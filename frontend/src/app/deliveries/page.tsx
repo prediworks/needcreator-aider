@@ -12,6 +12,8 @@ import Spinner from '@/components/ui/Spinner';
 import { Package, Clock, CheckCircle, AlertCircle, ArrowRight, CalendarClock, Video } from 'lucide-react';
 import { formatCurrency, formatRelativeTime, formatDate } from '@/lib/utils';
 import { DELIVERY_STATUS } from '@/lib/labels';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { plural } from '@/lib/publicConfig';
 
 /**
  * Onglets de filtre. Côté créateur la page s'appelle « Mes missions » (une mission = brief, tournage, envoi, validation, paiement).
@@ -48,6 +50,7 @@ function DeliveriesContent() {
   const legacyStatus = searchParams.get('status');
   const filter = searchParams.get('filter') || (legacyStatus ? FILTERS.find((f) => f.statuses.includes(legacyStatus))?.key || 'all' : 'all');
   const { data, isLoading } = useDeliveries({ limit: 100 }, ready);
+  const cfg = usePublicConfig();
 
   const isBrand = user?.role === 'brand';
   const all: any[] = useMemo(() => data?.deliveries || [], [data]);
@@ -98,7 +101,7 @@ function DeliveriesContent() {
           </h1>
           <p className="text-neutral-600">
             {isBrand
-              ? 'Validez les vidéos ou demandez des révisions (2 maximum). Sans réponse sous 7 jours, la livraison est approuvée automatiquement.'
+              ? `Validez les vidéos ou demandez des révisions (${cfg.maxRevisions} maximum). Sans réponse sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée automatiquement.`
               : 'Une mission par campagne gagnée : envoyez vos vidéos avant la date limite, soumettez-les, puis recevez votre paiement après validation.'}
           </p>
         </div>

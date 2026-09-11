@@ -1,4 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { plural } from '@/lib/publicConfig';
 import api, { getErrorMessage } from '@/lib/api';
 import { directUpload, ProgressFn } from '@/lib/upload';
 import { toast } from 'sonner';
@@ -57,6 +59,7 @@ export function useUploadDeliverables() {
 
 export function useSubmitDelivery() {
   const queryClient = useQueryClient();
+  const cfg = usePublicConfig();
 
   return useMutation({
     mutationFn: async ({ deliveryId, notes }: { deliveryId: string; notes?: string }) => {
@@ -66,7 +69,7 @@ export function useSubmitDelivery() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['delivery', variables.deliveryId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-      toast.success('Livraison soumise ! La marque a 7 jours pour valider.');
+      toast.success(`Vidéos soumises ! La marque a ${plural(cfg.autoApprovalDays, 'jour')} pour valider.`);
     },
     onError: (error: any) => {
       toast.error(getErrorMessage(error, 'Erreur lors de la soumission'));

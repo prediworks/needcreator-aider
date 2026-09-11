@@ -241,7 +241,7 @@ export const schemas = {
     }).default(),
     deliveryTypes: Joi.array().items(Joi.string().valid('file', 'link')).min(1).default(['file', 'link']),
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).default([]),
-    revisions: Joi.number().integer().min(0).max(5).default(2),
+    revisions: Joi.number().integer().min(0).max(10), // vide = réglage admin « Nombre maximum de révisions »
     terms: Joi.string().max(2000).allow(''),
   }),
 

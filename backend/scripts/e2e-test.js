@@ -557,6 +557,13 @@ await step('Marque : demande de révision (feedback obligatoire)', async () => {
   return 'révision 1/2 demandée';
 });
 
+await step('Réglages publics : GET /config/public sans authentification', async () => {
+  const res = await fetch(`${API}/config/public`);
+  const data = await res.json();
+  expect(res.status === 200 && data.maxRevisions === 2 && data.autoApprovalDays >= 1 && data.minQuotePrice >= 1, 'Les réglages publics devraient être exposés (maxRevisions, autoApprovalDays, minQuotePrice)', { status: res.status, data });
+  return `révisions ${data.maxRevisions}, validation auto ${data.autoApprovalDays} j, devis min ${data.minQuotePrice} €`;
+});
+
 await step('Admin : réglages numériques (relances, révisions) + relance « révision sans réponse »', async () => {
   const users = mongoose.connection.db.collection('users');
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });

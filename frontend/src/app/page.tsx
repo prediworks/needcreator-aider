@@ -4,14 +4,15 @@ import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSigna
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
+import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 
 export const metadata: Metadata = {
   title: 'NeedCreator : plateforme UGC pour marques et créateurs',
-  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez le prix du devis à la validation, sans frais ajoutés. 2 révisions incluses.',
+  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez le prix du devis à la validation, sans frais ajoutés. Révisions incluses.',
   alternates: { canonical: '/' },
 };
 
-const JSON_LD = {
+const jsonLd = (cfg: { autoApprovalDays: number }) => ({
   '@context': 'https://schema.org',
   '@graph': [
     {
@@ -40,15 +41,17 @@ const JSON_LD = {
       mainEntity: [
         { '@type': 'Question', name: 'Qu\'est-ce qu\'une vidéo UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Une vidéo UGC (user generated content) est un contenu authentique tourné par un créateur indépendant pour présenter un produit ou un service, dans le style des réseaux sociaux.' } },
         { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. La marque paie exactement ce prix, sans frais ajoutés. NeedCreator retient une commission de 10 % sur le versement au créateur.' } },
-        { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après 7 jours sans réponse.' } },
+        { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après ' + plural(cfg.autoApprovalDays, 'jour') + ' sans réponse.' } },
         { '@type': 'Question', name: 'Qui détient les droits sur les vidéos UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Les droits cédés (durée, supports, territoire, exclusivité) sont définis dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. La marque est prévenue 30 jours avant l\'expiration et peut prolonger les droits.' } },
         { '@type': 'Question', name: 'Que se passe-t-il si le créateur ne livre pas ?', acceptedAnswer: { '@type': 'Answer', text: 'Après 48 heures de retard, la marque peut confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic. Le montant bloqué est libéré et la nouvelle mission démarre immédiatement.' } },
       ],
     },
   ],
-};
+});
 
-export default function HomePage() {
+export default async function HomePage() {
+  const cfg = await fetchPublicConfig();
+  const JSON_LD = jsonLd(cfg);
   return (
     <div className="min-h-screen">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
@@ -97,7 +100,7 @@ export default function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>2 révisions incluses</span>
+                <span>{plural(cfg.maxRevisions, 'révision')} incluses</span>
               </div>
             </div>
           </div>
@@ -120,7 +123,7 @@ export default function HomePage() {
             {[
               [Zap, 'Matching intelligent', 'Chaque candidature affiche un score basé sur les niches, le budget, la note et la réactivité du créateur.'],
               [Shield, 'Paiement sécurisé', 'Le montant est bloqué via Stripe à la sélection et versé au créateur seulement après votre validation.'],
-              [Clock, 'Validation automatique', 'Sans réponse de la marque sous 7 jours, la livraison est approuvée. Personne ne reste bloqué.'],
+              [Clock, 'Validation automatique', `Sans réponse de la marque sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée. Personne ne reste bloqué.`],
               [FileSignature, 'Contrat et droits clairs', 'Chaque devis accepté génère un contrat de cession de droits en PDF. Durée, supports et territoire sont écrits, avec rappel avant expiration.'],
               [UserX, 'Garantie de remplacement', 'Un créateur qui ne livre pas ? Après 48 h de retard, confiez la mission à un autre devis en un clic, sans frais.'],
               [ShieldCheck, 'Conformité vérifiée', 'À la livraison, durée, format, son et mention du produit sont contrôlés automatiquement avant votre validation.'],
@@ -148,7 +151,7 @@ export default function HomePage() {
               ['1', 'Publiez un brief', '5 minutes, budget suggéré'],
               ['2', 'Choisissez un créateur', 'Portfolio vidéo + score de matching'],
               ['3', 'Recevez vos vidéos', 'En moyenne sous 7 à 10 jours'],
-              ['4', 'Validez et payez', 'Ou 2 révisions incluses'],
+              ['4', 'Validez et payez', `Ou ${plural(cfg.maxRevisions, 'révision')} incluses`],
             ].map(([n, title, sub]) => (
               <div key={n}>
                 <div className="text-4xl font-bold text-primary-500 mb-2">{n}</div>

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 
@@ -8,23 +9,26 @@ export const metadata = {
   alternates: { canonical: '/how-it-works' },
 };
 
-const BRAND_STEPS = [
+const brandSteps = (cfg: { maxRevisions: number; autoApprovalDays: number }) => [
   ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
   ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation. Un contrat de mission et de cession de droits en PDF est généré automatiquement.'],
-  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez jusqu\'à 2 révisions. Sans réponse sous 7 jours, la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
+  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez jusqu\'à ' + plural(cfg.maxRevisions, 'révision') + '. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
   ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger.'],
 ];
 
-const CREATOR_STEPS = [
+const creatorSteps = (cfg: { autoApprovalDays: number }) => [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio. Validation par notre équipe sous 24h.'],
   ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire).'],
   ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis moins la commission de 10 %.'],
-  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou 7 jours max), le virement part sur votre compte Stripe. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
+  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'La réactivité des marques est visible par tous les créateurs.'],
 ];
 
-export default function HowItWorksPage() {
+export default async function HowItWorksPage() {
+  const cfg = await fetchPublicConfig();
+  const BRAND_STEPS = brandSteps(cfg);
+  const CREATOR_STEPS = creatorSteps(cfg);
   return (
     <div className="min-h-screen bg-neutral-50 py-12">
       <div className="container mx-auto px-4 max-w-5xl">
@@ -97,7 +101,7 @@ export default function HowItWorksPage() {
               <p className="text-neutral-600">Pour la marque, le prix du devis est le prix payé. Pour le créateur, une commission de 10 % est retenue sur le versement. Rien d'autre.</p>
             </div>
             <div>
-              <div className="font-semibold text-neutral-900 mb-1">Validation automatique à 7 jours</div>
+              <div className="font-semibold text-neutral-900 mb-1">Validation automatique à {plural(cfg.autoApprovalDays, 'jour')}</div>
               <p className="text-neutral-600">Un créateur n&apos;attend jamais indéfiniment une marque silencieuse. Rappels à J+3 et J+6.</p>
             </div>
             <div>

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { plural } from '@/lib/publicConfig';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +28,7 @@ const CARD_STYLE = {
 interface CheckoutProps { deliveryId: string; amount: number; clientSecret: string; confirmPath: string; buttonLabel?: string; immediate?: boolean }
 
 function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLabel, immediate }: CheckoutProps) {
+  const cfg = usePublicConfig();
   const stripe = useStripe();
   const elements = useElements();
   const queryClient = useQueryClient();
@@ -77,7 +80,7 @@ function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLab
       </Button>
       {!immediate && (
         <p className="text-xs text-neutral-500 text-center">
-          Votre carte est autorisée, pas débitée. Le montant n&apos;est prélevé qu&apos;à la validation de la livraison (ou après 7 jours sans réponse).
+          Votre carte est autorisée, pas débitée. Le montant n&apos;est prélevé qu&apos;à la validation de la livraison (ou après {plural(cfg.autoApprovalDays, 'jour')} sans réponse).
         </p>
       )}
     </form>

@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { config } from '../config/index.js';
 import { uploadFile } from './storage.js';
 import logger from '../utils/logger.js';
+import { getMaxRevisions } from '../models/Setting.js';
 
 const DURATIONS = { '6m': '6 mois', '1y': '1 an', '2y': '2 ans', '3y': '3 ans', unlimited: 'illimitée' };
 const SUPPORTS = {
@@ -27,7 +28,7 @@ function creatorAddress(li) {
 /**
  * Photographie des parties et du devis au moment de l'acceptation (stockée sur la livraison)
  */
-export function buildContractData({ campaign, application, delivery, brand, creator }) {
+export function buildContractData({ campaign, application, delivery, brand, creator, maxRevisions = config.business.maxRevisions }) {
   const bli = brand.legalInfo || {};
   const cli = creator.legalInfo || {};
   const q = application?.quote || {};
@@ -58,7 +59,7 @@ export function buildContractData({ campaign, application, delivery, brand, crea
       deliverables: campaign.brief?.deliverables || 1,
       videoType: campaign.brief?.videoType || null,
       estimatedDeliveryDays: application?.estimatedDeliveryDays || delivery.estimatedDeliveryDays || null,
-      revisions: q.revisions ?? config.business.maxRevisions,
+      revisions: q.revisions ?? maxRevisions,
       terms: q.terms || null,
       // Photographie du brief au moment de l'acceptation (annexe du contrat)
       brief: {
@@ -259,7 +260,7 @@ export async function generateAddendumPdf({ contract, addendum, parties }) {
  * Génère, stocke et rattache le contrat à la livraison
  */
 export async function attachContract(delivery, ctx) {
-  const data = buildContractData({ ...ctx, delivery });
+  const data = buildContractData({ ...ctx, delivery, maxRevisions: await getMaxRevisions() });
   const pdf = await generateContractPdf(data);
   const { url } = await uploadFile(pdf, `contrat-${data.number}.pdf`, 'application/pdf', `contracts/${delivery._id}`);
   delivery.contract = {

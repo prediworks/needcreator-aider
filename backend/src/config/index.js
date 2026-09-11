@@ -145,9 +145,8 @@ export const config = {
 
   // Business rules
   business: {
-    autoApprovalDays: 7,
-    maxRevisions: 2,
-    revisionDeadlineDays: 3,
+    autoApprovalDays: parseInt(process.env.AUTO_APPROVAL_DAYS || '7', 10), // délai contractuel (CGU) avant validation automatique
+    maxRevisions: parseInt(process.env.MAX_REVISIONS || '2', 10),          // valeur initiale du réglage admin « Nombre maximum de révisions »
     minCreatorVideos: parseInt(process.env.MIN_CREATOR_VIDEOS || '3', 10),
     replacementGraceHours: parseInt(process.env.REPLACEMENT_GRACE_HOURS || '48', 10), // délai après la date prévue avant remplacement possible
     minQuotePrice: parseInt(process.env.MIN_QUOTE_PRICE || '50', 10), // prix minimum d'un devis / d'un budget (€)

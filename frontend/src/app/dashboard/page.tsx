@@ -16,6 +16,8 @@ import AmbassadorCard from '@/components/AmbassadorCard';
 import LevelBadges from '@/components/LevelBadges';
 import NextStepCard from '@/components/NextStepCard';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { plural } from '@/lib/publicConfig';
 import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
@@ -272,6 +274,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
 }
 
 function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData }: any) {
+  const cfg = usePublicConfig();
   const router = useRouter();
   const campaigns = campaignsData?.campaigns || [];
   const toValidate = (deliveriesData?.deliveries || []).filter((d: any) => d.status === 'submitted');
@@ -312,7 +315,7 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
                     {toValidate.length} livraison(s) à valider
                   </h3>
                   <p className="text-sm text-blue-700">
-                    Sans action de votre part, elles seront approuvées automatiquement après 7 jours.
+                    Sans action de votre part, elles seront approuvées automatiquement après {plural(cfg.autoApprovalDays, 'jour')}.
                   </p>
                 </div>
               </div>
