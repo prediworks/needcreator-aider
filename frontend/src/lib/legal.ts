@@ -24,7 +24,7 @@ export const COMPANY = {
 };
 
 /** Date de la version courante des documents légaux (affichée sur les pages) */
-export const LEGAL_VERSION_DATE = '9 septembre 2026';
+export const LEGAL_VERSION_DATE = '11 septembre 2026';
 
 /** Règles commerciales reprises dans les CGU (garder en cohérence avec backend/.env) */
 export const TERMS_FIGURES = {

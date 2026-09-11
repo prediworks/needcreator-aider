@@ -102,7 +102,11 @@ export default async function HowItWorksPage() {
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Validation automatique à {plural(cfg.autoApprovalDays, 'jour')}</div>
-              <p className="text-neutral-600">Un créateur n&apos;attend jamais indéfiniment une marque silencieuse. Rappels à J+3 et J+6.</p>
+              <p className="text-neutral-600">Un créateur n&apos;attend jamais indéfiniment une marque silencieuse : rappels avant l&apos;échéance, puis validation et paiement automatiques.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Relances automatiques</div>
+              <p className="text-neutral-600">Devis sans réponse, mission sans vidéo, produit non confirmé, révision sans nouvelle version : la plateforme relance la bonne personne au bon moment. Aucune mission ne s&apos;enlise en silence.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Paiement sécurisé Stripe</div>

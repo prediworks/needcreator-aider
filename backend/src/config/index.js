@@ -140,7 +140,7 @@ export const config = {
 
   // Documents légaux (version acceptée à l'inscription)
   legal: {
-    termsVersion: process.env.LEGAL_TERMS_VERSION || '2026-09-09',
+    termsVersion: process.env.LEGAL_TERMS_VERSION || '2026-09-11',
   },
 
   // Business rules

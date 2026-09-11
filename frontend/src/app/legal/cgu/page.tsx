@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import LegalLayout from '@/components/legal/LegalLayout';
-import { COMPANY, TERMS_FIGURES as F } from '@/lib/legal';
+import { COMPANY, TERMS_FIGURES } from '@/lib/legal';
+import { fetchPublicConfig } from '@/lib/publicConfig';
 
 export const metadata: Metadata = {
   title: 'Conditions générales d\'utilisation',
@@ -8,7 +9,9 @@ export const metadata: Metadata = {
   alternates: { canonical: '/legal/cgu' },
 };
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const cfg = await fetchPublicConfig();
+  const F = { ...TERMS_FIGURES, maxRevisions: cfg.maxRevisions, autoApprovalDays: cfg.autoApprovalDays, minCreatorVideos: cfg.minCreatorVideos };
   return (
     <LegalLayout title="Conditions générales d'utilisation">
       <h2>1. Objet</h2>
@@ -32,7 +35,7 @@ export default function TermsPage() {
         <li>La Marque publie une campagne décrivant le contenu attendu (brief), le nombre de vidéos et, le cas échéant, un budget.</li>
         <li>Les Créateurs intéressés transmettent un devis (prix, délai, droits d&apos;utilisation proposés).</li>
         <li>La Marque sélectionne un ou plusieurs devis. Le montant correspondant est alors autorisé sur son moyen de paiement (empreinte bancaire), sans être débité. Un contrat de mission et de cession de droits, reprenant le devis accepté et les informations administratives des deux parties, est généré au format PDF et mis à leur disposition.</li>
-        <li>Le Créateur livre les vidéos via la Plateforme. La Marque dispose de {F.autoApprovalDays} jours pour valider ou demander des modifications, dans la limite de {F.maxRevisions} révisions. Sans réponse dans ce délai, la livraison est réputée acceptée.</li>
+        <li>Le Créateur livre les vidéos via la Plateforme. La Marque dispose de {F.autoApprovalDays} jours pour valider ou demander des modifications, dans la limite de {F.maxRevisions} révisions. Sans réponse dans ce délai, la livraison est réputée acceptée. Lorsqu&apos;une modification est demandée, le Créateur livre une nouvelle version dans le délai indiqué par la Plateforme ; à défaut, et après relance, la mission peut être refusée définitivement : le montant réservé est alors restitué à la Marque et le Créateur n&apos;est pas rémunéré.</li>
         <li>À la validation, le paiement est débité. La Marque ne paie que le montant du devis. Le Créateur reçoit ce montant, déduction faite de la commission de la Plateforme.</li>
       </ol>
 
