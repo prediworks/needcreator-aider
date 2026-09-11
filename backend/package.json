@@ -16,6 +16,7 @@
     "check:connect": "node scripts/check-connect.js",
     "r2:cors": "node scripts/r2-cors.js",
     "check:email": "node scripts/check-email.js",
+    "check:transcription": "node scripts/check-transcription.js",
     "make-admin": "node scripts/make-admin.js",
     "test:e2e": "node scripts/e2e-test.js",
     "test:unit": "NODE_ENV=test jest --coverage --detectOpenHandles"

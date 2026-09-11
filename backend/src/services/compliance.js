@@ -94,7 +94,7 @@ export async function runComplianceCheck(deliveryId) {
           items.push({ key: 'mentions', label: 'Mention du produit / de la marque', status: 'skip', detail: `Transcription indisponible (${err.message.split('\n')[0]})`, file: name });
         }
       } else if (videos.length) {
-        items.push({ key: 'mentions', label: 'Mention du produit / de la marque', status: 'skip', detail: canTranscribe ? 'Aucun mot-clé dans le brief' : 'Transcription non configurée (clé OpenAI)', file: name });
+        items.push({ key: 'mentions', label: 'Mention du produit / de la marque', status: 'skip', detail: canTranscribe ? 'Aucun mot-clé dans le brief' : 'Transcription non configurée (TRANSCRIPTION_* dans le .env)', file: name });
       }
     }
     if (!videos.length && links.length) {

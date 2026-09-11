@@ -11,7 +11,7 @@
 ## Services (optionnels)
 
 - [ ] Fournisseur IA (`AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`) pour le brief IA
-- [ ] `OPENAI_API_KEY` pour les sous-titres automatiques
+- [ ] Transcription (`TRANSCRIPTION_PROVIDER=groq` + `GROQ_API_KEY`, ou OpenAI / Mistral) pour les sous-titres et le contrôle « mention du produit »
 - [ ] Application Shopify (`SHOPIFY_*`)
 - [ ] Webhook Stripe (Stripe CLI en local, URL publique en production)
 

@@ -14,7 +14,7 @@ const run = promisify(execFile);
 
 /**
  * Pack "vidéo prête à diffuser" : déclinaisons de format, vignette, sous-titres.
- * ffmpeg est embarqué (ffmpeg-static) ; la transcription passe par le fournisseur IA (OpenAI) si configuré.
+ * ffmpeg est embarqué (ffmpeg-static) ; la transcription passe par le fournisseur configuré (TRANSCRIPTION_*, Groq par défaut si sa clé est présente).
  */
 
 export const FORMATS = {
@@ -23,8 +23,64 @@ export const FORMATS = {
   '16:9': { w: 1920, h: 1080, label: 'Horizontal 16:9 (YouTube, site web)' },
 };
 
+/**
+ * Transcription (score de conformité « mention du produit », sous-titres du pack prêt à diffuser).
+ * Paramétrage séparé de celui du brief IA :
+ *  TRANSCRIPTION_PROVIDER = groq | openai | mistral | openai-compatible   (déduit des clés présentes si absent)
+ *  TRANSCRIPTION_API_KEY  = clé (repli : GROQ_API_KEY pour groq, OPENAI_API_KEY pour openai, MISTRAL_API_KEY pour mistral)
+ *  TRANSCRIPTION_MODEL    = modèle (repli : whisper-large-v3 chez Groq, whisper-1 chez OpenAI, voxtral-mini-latest chez Mistral)
+ *  TRANSCRIPTION_BASE_URL = URL de base (uniquement openai-compatible, ou pour remplacer celle du fournisseur)
+ */
+const TRANSCRIPTION_DEFAULTS = {
+  groq: { model: 'whisper-large-v3', baseURL: 'https://api.groq.com/openai/v1', keyVar: 'GROQ_API_KEY' },
+  openai: { model: 'whisper-1', baseURL: 'https://api.openai.com/v1', keyVar: 'OPENAI_API_KEY' },
+  mistral: { model: 'voxtral-mini-latest', baseURL: 'https://api.mistral.ai/v1', keyVar: 'MISTRAL_API_KEY' },
+  'openai-compatible': { model: null, baseURL: null, keyVar: 'TRANSCRIPTION_API_KEY' },
+};
+
+export function transcriptionConfig() {
+  const env = process.env;
+  let provider = (env.TRANSCRIPTION_PROVIDER || '').trim().toLowerCase();
+  if (!provider) {
+    // Déduction : clé dédiée sans fournisseur = openai-compatible si URL, sinon clés connues par ordre de préférence
+    if (env.TRANSCRIPTION_API_KEY && env.TRANSCRIPTION_BASE_URL) provider = 'openai-compatible';
+    else if (env.GROQ_API_KEY) provider = 'groq';
+    else if (env.OPENAI_API_KEY) provider = 'openai';
+    else if (env.MISTRAL_API_KEY) provider = 'mistral';
+    else return null;
+  }
+  const d = TRANSCRIPTION_DEFAULTS[provider];
+  if (!d) return { provider, error: `TRANSCRIPTION_PROVIDER inconnu : ${provider}` };
+  const apiKey = env.TRANSCRIPTION_API_KEY || env[d.keyVar];
+  const model = env.TRANSCRIPTION_MODEL || env.AI_TRANSCRIPTION_MODEL || d.model;
+  const baseURL = (env.TRANSCRIPTION_BASE_URL || d.baseURL || '').replace(/\/$/, '');
+  const missing = !apiKey ? (provider === 'openai-compatible' ? 'TRANSCRIPTION_API_KEY' : `${d.keyVar} (ou TRANSCRIPTION_API_KEY)`) : !model ? 'TRANSCRIPTION_MODEL' : !baseURL ? 'TRANSCRIPTION_BASE_URL' : null;
+  return { provider, apiKey, model, baseURL, missing };
+}
+
 export function transcriptionAvailable() {
-  return !!process.env.OPENAI_API_KEY;
+  const c = transcriptionConfig();
+  return !!c && !c.error && !c.missing;
+}
+
+/**
+ * Appel HTTP au format OpenAI (/audio/transcriptions, verbose_json) : commun à Groq, OpenAI, Mistral et les compatibles.
+ * Retourne { text, language, segments: [{ text, startSecond, endSecond }], durationInSeconds }
+ */
+async function callTranscriptionApi(audioFile, { apiKey, model, baseURL, provider }) {
+  const form = new FormData();
+  form.append('file', new Blob([fs.readFileSync(audioFile)], { type: 'audio/mpeg' }), 'audio.mp3');
+  form.append('model', model);
+  form.append('response_format', 'verbose_json');
+  if (provider === 'mistral') form.append('timestamp_granularities', 'segment');
+  const res = await fetch(`${baseURL}/audio/transcriptions`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Transcription ${provider} HTTP ${res.status} : ${body.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  const segments = (data.segments || []).map(seg => ({ text: seg.text, startSecond: Number(seg.start ?? 0), endSecond: Number(seg.end ?? 0) }));
+  return { text: data.text || '', language: data.language, segments, durationInSeconds: data.duration };
 }
 
 export async function probe(file) {
@@ -39,13 +95,11 @@ export async function probe(file) {
  * Transcrit l'audio en segments horodatés puis génère un fichier SRT
  */
 export async function transcribeToSrt(inputFile, workDir) {
-  if (!transcriptionAvailable()) return null;
+  const cfg = transcriptionConfig();
+  if (!cfg || cfg.error || cfg.missing) return null;
   const audioFile = path.join(workDir, 'audio.mp3');
   await run(ffmpegPath, ['-y', '-i', inputFile, '-vn', '-acodec', 'libmp3lame', '-q:a', '4', audioFile]);
-  const { experimental_transcribe: transcribe } = await import('ai');
-  const { createOpenAI } = await import('@ai-sdk/openai');
-  const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const result = await transcribe({ model: openai.transcription(process.env.AI_TRANSCRIPTION_MODEL || 'whisper-1'), audio: fs.readFileSync(audioFile) });
+  const result = await callTranscriptionApi(audioFile, cfg);
   const segments = result.segments?.length ? result.segments : [{ text: result.text, startSecond: 0, endSecond: Math.max(2, result.durationInSeconds || 5) }];
   const ts = (s) => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60), ms = Math.round((s - Math.floor(s)) * 1000);

@@ -65,7 +65,7 @@ Un serveur SMTP suffit (`SMTP_*` + `FROM_EMAIL`). SendGrid n'est utilisé qu'en 
 | Service | Sert à | Variables |
 |---|---|---|
 | Fournisseur IA (Anthropic, OpenAI, Groq, Novita…) | Brief assisté par IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL` — détails dans `backend/config/prompts/README.md` |
-| OpenAI | Sous-titres automatiques du pack vidéo | `OPENAI_API_KEY` |
+| Transcription (Groq, OpenAI, Mistral ou compatible) | Sous-titres du pack vidéo et contrôle « mention du produit » | `TRANSCRIPTION_PROVIDER`, `TRANSCRIPTION_API_KEY`, `TRANSCRIPTION_MODEL` (repli sur `GROQ_API_KEY` / `OPENAI_API_KEY` / `MISTRAL_API_KEY`) |
 | Shopify | Import produit, publication des vidéos sur la fiche produit | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL` (application créée sur partners.shopify.com) |
 | Cloudflare Turnstile | Anti-robot sur le formulaire d'inscription | `TURNSTILE_SECRET_KEY` (backend) et `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (frontend). Création : dash.cloudflare.com → Turnstile → Add site (mode « Managed »). Clés de test : `1x00000000000000000000AA` / `1x0000000000000000000000000000000AA` |
 
@@ -99,7 +99,8 @@ cp frontend/.env.local.example frontend/.env.local
 | Documents légaux | `LEGAL_TERMS_VERSION=2026-09-09` | date de la version des CGU ; la changer redemande l'acceptation à tous les utilisateurs connectés |
 | Anti-robot | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile sur l'inscription ; vide = désactivé. Clé de site côté frontend : `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
 | Pack vidéo | `READY_PACK_PRICE=15`, `AI_TRANSCRIPTION_MODEL=whisper-1` | 0 = inclus |
-| IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
+| IA (brief) | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
+| Transcription | `TRANSCRIPTION_PROVIDER`, `TRANSCRIPTION_API_KEY`, `TRANSCRIPTION_MODEL`, `TRANSCRIPTION_BASE_URL` | Indépendant du brief IA |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
 | Tests | `STRIPE_AUTO_CONFIRM_TEST=false` | `true` = paiements confirmés sans écran de carte (jamais en production) |
 | Monitoring | `SENTRY_DSN`, `SENTRY_TRACES_RATE=0.05`, `ADMIN_ALERT_EMAIL` | Sentry (ou GlitchTip) actif seulement si le DSN est renseigné ; `ADMIN_ALERT_EMAIL` = destinataires des alertes admin (vide = tous les comptes admin). Côté frontend : `NEXT_PUBLIC_SENTRY_DSN` |
