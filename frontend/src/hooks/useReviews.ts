@@ -32,3 +32,12 @@ export function useCreateReview() {
     },
   });
 }
+
+export function useRespondToReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ reviewId, comment }: { reviewId: string; comment: string }) => (await api.post(`/reviews/${reviewId}/respond`, { comment })).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['reviews'] }); toast.success('Réponse publiée.'); },
+    onError: (error: any) => toast.error(getErrorMessage(error, 'Réponse impossible')),
+  });
+}

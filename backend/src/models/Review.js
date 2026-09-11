@@ -65,6 +65,10 @@ const reviewSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+
+  // Double aveugle : l'avis reste caché jusqu'à l'avis de l'autre partie, ou jusqu'à la date limite
+  publishedAt: Date,
+  publishDeadline: Date,
   
   helpful: {
     type: Number,
@@ -77,12 +81,13 @@ const reviewSchema = new mongoose.Schema({
 
 // Indexes
 reviewSchema.index({ revieweeId: 1, createdAt: -1 });
+reviewSchema.index({ publishedAt: 1, publishDeadline: 1 });
 reviewSchema.index({ campaignId: 1, reviewerId: 1, revieweeId: 1 }, { unique: true });
 
 // Statics
 reviewSchema.statics.calculateAverageRating = async function(userId) {
   const result = await this.aggregate([
-    { $match: { revieweeId: new mongoose.Types.ObjectId(userId) } },
+    { $match: { revieweeId: new mongoose.Types.ObjectId(userId), publishedAt: { $ne: null } } },
     {
       $group: {
         _id: null,

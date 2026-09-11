@@ -1467,7 +1467,8 @@ export async function getDelivery(req, res) {
       .lean();
     const otherId = idOf(delivery.brandId) === user._id.toString() ? idOf(delivery.creatorId) : idOf(delivery.brandId);
     delivery.myReview = reviews.find(r => idOf(r.reviewerId) === user._id.toString() && idOf(r.revieweeId) === otherId) || null;
-    delivery.receivedReview = reviews.find(r => idOf(r.revieweeId) === user._id.toString() && idOf(r.reviewerId) === otherId) || null;
+    delivery.receivedReview = reviews.find(r => idOf(r.revieweeId) === user._id.toString() && idOf(r.reviewerId) === otherId && r.publishedAt) || null;
+    delivery.otherHasReviewed = reviews.some(r => idOf(r.revieweeId) === user._id.toString() && idOf(r.reviewerId) === otherId); // l'autre partie a noté (peut-être encore caché)
     delivery.canReview = ['approved', 'auto_approved'].includes(delivery.status) && !delivery.myReview;
 
     res.json({ delivery });

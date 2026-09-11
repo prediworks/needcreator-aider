@@ -9,6 +9,7 @@ import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
 import { sendAdminDigest } from '../services/adminAlerts.js';
 import { runFollowUps } from './followUps.js';
+import { publishExpiredReviews } from '../controllers/reviews.js';
 import { notify } from '../services/notifications.js';
 
 /**
@@ -243,10 +244,11 @@ export async function runScheduledJobs() {
       retryPendingTransfers(),
     ]);
     const followUps = await runFollowUps();
+    const reviewsPublished = await publishExpiredReviews().catch(err => { logger.error('publishExpiredReviews:', err); return 0; });
     const adminDigest = await sendAdminDigest().catch(err => ({ sent: false, error: err.message }));
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, adminDigest };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, adminDigest };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

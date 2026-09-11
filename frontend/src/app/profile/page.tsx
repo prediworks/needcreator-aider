@@ -4,7 +4,7 @@ import { useState, Suspense } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useProfile, useUpdateProfile } from '@/hooks/useProfile';
 import { useUploadPortfolioVideo, useDeletePortfolioVideo } from '@/hooks/usePortfolio';
-import { useUserReviews } from '@/hooks/useReviews';
+import { useUserReviews, useRespondToReview } from '@/hooks/useReviews';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -669,8 +669,13 @@ function ProfileContent() {
                       <span className="font-medium text-neutral-900">{r.reviewerId?.profile?.companyName || r.reviewerId?.profile?.name}</span>
                       <Stars value={r.rating} size="w-4 h-4" />
                     </div>
-                    <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.createdAt)}</p>
+                    <p className="text-xs text-neutral-500 mb-1">{r.campaignId?.title} · {formatDate(r.publishedAt || r.createdAt)}</p>
                     {r.comment && <p className="text-neutral-700">{r.comment}</p>}
+                    {r.response?.comment ? (
+                      <div className="mt-2 ml-4 border-l-2 border-primary-200 pl-3 text-sm"><span className="text-neutral-500">Votre réponse :</span> <span className="text-neutral-800">{r.response.comment}</span></div>
+                    ) : (
+                      <ReviewReply reviewId={r._id} />
+                    )}
                   </div>
                 ))}
               </div>
@@ -689,5 +694,22 @@ export default function ProfilePage() {
     <Suspense fallback={<Spinner />}>
       <ProfileContent />
     </Suspense>
+  );
+}
+
+/** Réponse publique à un avis reçu (une seule, 5 à 500 caractères) */
+function ReviewReply({ reviewId }: { reviewId: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const respond = useRespondToReview();
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="mt-1 text-xs text-primary-600 underline">Répondre publiquement</button>;
+  return (
+    <div className="mt-2 space-y-2">
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={500} placeholder="Votre réponse sera visible par tous, sous l'avis." className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => respond.mutate({ reviewId, comment: text.trim() }, { onSuccess: () => setOpen(false) })} isLoading={respond.isPending} disabled={text.trim().length < 5}>Publier ma réponse</Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
+      </div>
+    </div>
   );
 }

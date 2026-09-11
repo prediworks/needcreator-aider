@@ -560,9 +560,17 @@ export default function DeliveryDetailPage() {
                     <p className="text-sm font-medium text-neutral-700 mb-1">Votre avis sur {otherPartyName}</p>
                     <Stars value={delivery.myReview.rating} size="w-5 h-5" />
                     {delivery.myReview.comment && <p className="text-neutral-700 mt-2">{delivery.myReview.comment}</p>}
+                    <p className="text-xs text-neutral-500 mt-2">
+                      {delivery.myReview.publishedAt
+                        ? `Publié le ${formatDate(delivery.myReview.publishedAt)}.`
+                        : `Caché jusqu'à l'avis de ${otherPartyName}, ou publié automatiquement le ${formatDate(delivery.myReview.publishDeadline)}.`}
+                    </p>
                   </div>
                 ) : (
-                  <ReviewForm campaignId={campaign._id} revieweeName={otherPartyName || ''} />
+                  <>
+                    {delivery.otherHasReviewed && <p className="text-sm text-primary-700 bg-primary-50 rounded-lg p-3 mb-3">{otherPartyName} a déjà laissé un avis sur cette mission. Laissez le vôtre pour le découvrir : les deux sont publiés en même temps.</p>}
+                    <ReviewForm campaignId={campaign._id} revieweeName={otherPartyName || ''} />
+                  </>
                 )}
                 {delivery.receivedReview && (
                   <div className="mt-4 bg-green-50 rounded-lg p-4">

@@ -1298,16 +1298,38 @@ await step('Signalement : créateur → campagne, traitement admin', async () =>
 
 await step('Avis : marque → créateur et créateur → marque', async () => {
   const r1 = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, comment: 'Excellent travail', communication: 5, quality: 5, timeliness: 4, professionalism: 5 });
-  expect(r1.status === 201, 'Avis marque échoué', r1);
+  expect(r1.status === 201 && !r1.data.review.publishedAt && r1.data.review.publishDeadline, 'Avis marque échoué (devrait être caché en attendant l\'avis du créateur)', r1);
+  // Double aveugle : caché tant que le créateur n'a pas noté
+  const hidden = await fetch(`${API}/reviews/user/${creatorUser.id}`).then(r => r.json());
+  expect(!hidden.reviews.some(x => x._id === r1.data.review._id), 'L\'avis de la marque ne doit pas être visible avant celui du créateur', { status: 200, data: hidden });
+  const det = await creatorApi('GET', `/deliveries/${delivery._id}`);
+  expect(det.data.delivery.otherHasReviewed === true && !det.data.delivery.receivedReview, 'Le créateur doit savoir qu\'un avis l\'attend sans le voir', det);
+  const early = await creatorApi('POST', `/reviews/${r1.data.review._id}/respond`, { comment: 'Merci beaucoup !' });
+  expect(early.status === 400, 'Pas de réponse à un avis non publié', early);
   const r2 = await creatorApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 4, comment: '', communication: 4, quality: 4, timeliness: 4, professionalism: 4 });
-  expect(r2.status === 201, 'Avis créateur échoué', r2);
+  expect(r2.status === 201 && r2.data.review.publishedAt, 'Avis créateur échoué (devrait publier les deux)', r2);
   const dup = await brandApi('POST', `/reviews/campaign/${campaign._id}`, { rating: 5, communication: 5, quality: 5, timeliness: 5, professionalism: 5 });
   expect(dup.status === 400, 'Un double avis devrait être refusé', dup);
   const list = await fetch(`${API}/reviews/user/${creatorUser.id}`).then(r => r.json());
-  expect(list.stats.avgRating === 5 && list.reviews.length === 2, 'Moyenne des avis incorrecte (1 avis campagne multi + 1 avis ici)', { status: 200, data: list });
+  expect(list.stats.avgRating === 5 && list.reviews.length === 1, 'Un seul avis publié attendu (celui de la campagne multi reste caché : le créateur n\'a pas noté)', { status: 200, data: list });
   const profile = await creatorApi('GET', '/auth/profile');
   expect(profile.data.user.profile.stats.rating === 5, 'La note du profil créateur devrait être 5', profile);
-  return 'note créateur 5.0';
+  // Réponse publique du créateur à l'avis publié
+  const reply = await creatorApi('POST', `/reviews/${r1.data.review._id}/respond`, { comment: 'Merci beaucoup, ravi de cette collaboration !' });
+  expect(reply.status === 200 && reply.data.review.response.comment, 'Réponse publique échouée', reply);
+  const again = await creatorApi('POST', `/reviews/${r1.data.review._id}/respond`, { comment: 'Encore moi' });
+  expect(again.status === 400, 'Une seule réponse par avis', again);
+  // Publication automatique après le délai : l'avis de la campagne multi (sans avis en retour) est publié par la tâche planifiée
+  const reviewsCol = mongoose.connection.db.collection('reviews');
+  await reviewsCol.updateMany({ revieweeId: new mongoose.Types.ObjectId(creatorUser.id), publishedAt: null }, { $set: { publishDeadline: new Date(Date.now() - 60000) } });
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  let jobs;
+  try { jobs = await brandApi('POST', '/admin/jobs/run'); } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  expect(jobs.status === 200 && jobs.data.reviewsPublished >= 1, 'La tâche planifiée devrait publier l\'avis en attente', jobs);
+  const after = await fetch(`${API}/reviews/user/${creatorUser.id}`).then(r => r.json());
+  expect(after.reviews.length === 2 && after.stats.avgRating === 5, 'Deux avis publiés attendus après le délai', { status: 200, data: after });
+  return 'double aveugle vérifié, réponse publique, publication automatique après délai';
 });
 
 await step('Livraison : détail avec avis (canReview / myReview)', async () => {

@@ -77,7 +77,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Retrait à la demande / calendrier de virements** et rappel des seuils micro-entreprise | Transparence financière | S |
 | **Académie** : courts guides (éclairage, accroche, formats), quiz donnant un badge « Formé » | Qualité des vidéos, différenciation face à Influee | M (contenu à produire) |
 | **Objectifs et progression** (barre vers le niveau suivant, missions recommandées) | Engagement | S |
-| **Réponse aux avis** visible publiquement (le champ existe déjà en base) | Droit de réponse | S |
+| ~~**Avis en double aveugle et réponse publique**~~ | Livré le 11 septembre 2026 : un avis reste caché jusqu'à l'avis de l'autre partie (email « laissez le vôtre pour découvrir le sien », notification), publication simultanée, sinon publication automatique après un délai réglable (Administration → Réglages, 14 jours) ; la note du profil ne compte que les avis publiés ; réponse publique unique depuis le profil, visible sous l'avis | — |
 
 ### Pour la plateforme
 

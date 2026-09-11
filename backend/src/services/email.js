@@ -654,3 +654,37 @@ export async function sendDisputeResolved(brandEmail, creatorEmail, companyName,
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
   `);
 }
+
+/**
+ * Avis (double aveugle)
+ */
+export async function sendReviewNudge(email, name, otherName, campaignTitle, deadline, campaignId) {
+  const subject = `${otherName} a laissé un avis sur « ${campaignTitle} »`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>${otherName} vient de laisser un avis sur votre collaboration. Il restera caché jusqu'à ce que vous laissiez le vôtre : les deux avis sont publiés en même temps, pour que chacun s'exprime librement.</p>
+    ${summary([['Mission', campaignTitle], ['Publication automatique', `le ${new Date(deadline).toLocaleDateString('fr-FR')} si vous ne répondez pas`]])}
+    <p><a href="${config.cors.origin}/campaigns/${campaignId}">Laisser mon avis et découvrir le sien</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendReviewsPublished(email, name, otherName, campaignTitle) {
+  const subject = `Votre avis et celui de ${otherName} sont publiés`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Les avis sur la mission « ${campaignTitle} » sont maintenant visibles. Vous pouvez répondre publiquement à l'avis reçu depuis votre profil.</p>
+    <p><a href="${config.cors.origin}/profile">Voir l'avis reçu</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendReviewResponse(email, name, responderName, campaignTitle, comment) {
+  const subject = `${responderName} a répondu à votre avis`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>${responderName} a répondu publiquement à votre avis sur « ${campaignTitle} ».</p>
+    ${summary([['Réponse', comment]])}
+  `;
+  return sendEmail(email, subject, html);
+}
