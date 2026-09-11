@@ -184,11 +184,13 @@ await step('Créateur : profil, Stripe et upload portfolio', async () => {
   return 'vidéo listée avec lecteur';
 });
 
-await step('Créateur : navigation Campagnes / Livraisons', async () => {
+await step('Créateur : navigation Campagnes / Missions', async () => {
   await cp.goto(`${FRONT}/campaigns?filter=applied`);
   await cp.getByText('Vous n\'avez pas encore candidaté').waitFor({ timeout: 20000 });
   await cp.goto(`${FRONT}/deliveries`);
-  await cp.getByText('Aucune livraison').waitFor({ timeout: 20000 });
+  await cp.getByRole('heading', { name: 'Mes missions' }).waitFor({ timeout: 20000 });
+  await cp.getByRole('tab', { name: /À livrer/ }).click();
+  await cp.getByText('Aucune mission').waitFor({ timeout: 20000 });
   return 'OK';
 });
 

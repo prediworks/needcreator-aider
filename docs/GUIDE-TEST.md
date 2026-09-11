@@ -86,7 +86,7 @@ Utilisez une fenêtre de navigation privée pour être connecté avec plusieurs 
 
 ### Livraison
 
-1. Créateur : "Livraisons" → envoyez une ou plusieurs vidéos → "Soumettre la livraison".
+1. Créateur : "Missions" (onglets À livrer / Révision / En attente de validation / Terminées, date limite, montant) → envoyez une ou plusieurs vidéos → "Soumettre mes vidéos".
 2. Marque : "Livraisons" → regardez les vidéos → "Approuver et payer" ou "Demander une révision" (2 max, 20 caractères min).
 3. Après approbation : chacun peut noter l'autre (étoiles + critères). La note apparaît sur le profil public du créateur.
 

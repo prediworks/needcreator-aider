@@ -80,10 +80,10 @@ export default function DeliveryDetailPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Card className="p-8 text-center">
-          <h2 className="text-xl font-semibold mb-2">Livraison introuvable</h2>
-          <p className="text-neutral-600 mb-4">Cette livraison n&apos;existe pas ou vous n&apos;y avez pas accès</p>
+          <h2 className="text-xl font-semibold mb-2">{user?.role === 'creator' ? 'Mission introuvable' : 'Livraison introuvable'}</h2>
+          <p className="text-neutral-600 mb-4">{user?.role === 'creator' ? 'Cette mission' : 'Cette livraison'} n&apos;existe pas ou vous n&apos;y avez pas accès</p>
           <Link href="/deliveries">
-            <Button>Retour aux livraisons</Button>
+            <Button>{user?.role === 'creator' ? 'Retour aux missions' : 'Retour aux livraisons'}</Button>
           </Link>
         </Card>
       </div>
@@ -135,7 +135,7 @@ export default function DeliveryDetailPage() {
   const myConsent = (l: any) => (isBrand ? l.visibility?.brand !== false : l.visibility?.creator !== false);
 
   const handleSubmit = async () => {
-    if (!confirm('Soumettre la livraison à la marque ? Elle aura 7 jours pour valider ou demander une révision.')) return;
+    if (!confirm('Soumettre mes vidéos à la marque ? Elle aura 7 jours pour valider ou demander une révision.')) return;
     await submitMutation.mutateAsync({ deliveryId, notes });
   };
 
@@ -158,7 +158,7 @@ export default function DeliveryDetailPage() {
         <Link href="/deliveries">
           <Button variant="ghost" size="sm" className="mb-6">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Retour aux livraisons
+            {isCreator ? 'Retour aux missions' : 'Retour aux livraisons'}
           </Button>
         </Link>
 
@@ -420,7 +420,7 @@ export default function DeliveryDetailPage() {
 
               {canUpload && itemCount >= expected && (
                 <div className="mt-6 pt-6 border-t border-neutral-200 text-sm text-green-700">
-                  ✓ Vous avez atteint le nombre de vidéos attendu. Vous pouvez soumettre la livraison.
+                  ✓ Vous avez atteint le nombre de vidéos attendu. Vous pouvez soumettre vos vidéos.
                 </div>
               )}
 
@@ -640,7 +640,7 @@ export default function DeliveryDetailPage() {
                         isLoading={submitMutation.isPending}
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        Soumettre la livraison
+                        Soumettre mes vidéos
                       </Button>
                     </>
                   )}

@@ -1279,13 +1279,14 @@ export async function getDeliveries(req, res) {
       query.creatorId = user._id;
     }
 
-    if (status) query.status = status;
+    // status : un statut ou une liste séparée par des virgules (onglets « Missions »)
+    if (status) query.status = String(status).includes(',') ? { $in: String(status).split(',') } : status;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     let [deliveries, total] = await Promise.all([
       Delivery.find(query)
-        .populate('campaignId', 'title')
+        .populate('campaignId', 'title brief.deliverables')
         .populate('creatorId', 'profile.name profile.avatar')
         .populate('brandId', 'profile.companyName profile.avatar')
         .sort({ createdAt: -1 })
@@ -1293,7 +1294,14 @@ export async function getDeliveries(req, res) {
         .limit(parseInt(limit)),
       Delivery.countDocuments(query),
     ]);
-    deliveries = deliveries.map(d => d.toObject({ virtuals: true }));
+    const now = Date.now();
+    deliveries = deliveries.map(doc => {
+      const d = doc.toObject({ virtuals: true });
+      d.expectedCount = doc.campaignId?.brief?.deliverables || 1;
+      d.itemCount = itemCount(doc);
+      d.isLate = d.status === 'pending' && !!d.productionDeadline && new Date(d.productionDeadline).getTime() < now;
+      return d;
+    });
 
     res.json({
       deliveries,

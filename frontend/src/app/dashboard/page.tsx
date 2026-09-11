@@ -237,7 +237,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                 <Link href="/deliveries" className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Package className="w-4 h-4 mr-2" />
-                    Mes livraisons
+                    Mes missions
                   </Button>
                 </Link>
                 <Link href={profileHref('portfolio')} className="block">
@@ -316,7 +316,7 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
                   </p>
                 </div>
               </div>
-              <Link href="/deliveries?status=submitted">
+              <Link href="/deliveries?filter=submitted">
                 <Button size="sm">Valider</Button>
               </Link>
             </div>
