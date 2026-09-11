@@ -15,6 +15,7 @@ import { CAMPAIGN_STATUS, DELIVERY_STATUS, VIDEO_TYPES } from '@/lib/labels';
 import AmbassadorCard from '@/components/AmbassadorCard';
 import LevelBadges from '@/components/LevelBadges';
 import NextStepCard from '@/components/NextStepCard';
+import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
@@ -68,7 +69,9 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
           );
         })()}
         {blockers.length > 0 && user.status !== 'pending' && (
-          <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis : {blockers.join(' ')}</p>
+          <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis :{' '}
+            {blockers.map((b, i) => <span key={b}>{i > 0 && ' '}<Link href={blockerHref(b)} className="underline decoration-dotted hover:text-primary-600">{b}</Link></span>)}
+          </p>
         )}
 
         {/* Stats Cards */}
@@ -237,7 +240,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                     Mes livraisons
                   </Button>
                 </Link>
-                <Link href="/profile" className="block">
+                <Link href={profileHref('portfolio')} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Plus className="w-4 h-4 mr-2" />
                     Ajouter une vidéo
@@ -249,7 +252,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
             <Card className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-neutral-900">Portfolio</h3>
-                <Link href="/profile" className="text-sm text-primary-500 hover:text-primary-600">
+                <Link href={profileHref('portfolio')} className="text-sm text-primary-500 hover:text-primary-600">
                   Gérer
                 </Link>
               </div>

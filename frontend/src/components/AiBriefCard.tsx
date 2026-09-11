@@ -59,7 +59,7 @@ export default function AiBriefCard({ videoType, platforms, niches, onGenerated 
         <Wand2 className="w-4 h-4 mr-2" /> {generate.isPending ? 'Rédaction en cours (10-20 s)…' : 'Générer le brief'}
       </Button>
       {status?.quota && !status.quota.pro && status.quota.remaining <= 0 && (
-        <p className="text-xs text-neutral-600 mt-2">Quota mensuel atteint. <a href="/profile" className="text-primary-600 underline">Passez en Pro</a> pour un accès illimité.</p>
+        <p className="text-xs text-neutral-600 mt-2">Quota mensuel atteint. <a href="/profile#subscription" className="text-primary-600 underline">Passez en Pro</a> pour un accès illimité.</p>
       )}
       {status && !status.configured && (
         <p className="text-xs text-neutral-500 mt-2">Pour activer : renseignez une clé API IA dans <code>backend/.env</code> (voir <code>backend/config/prompts/README.md</code>).</p>

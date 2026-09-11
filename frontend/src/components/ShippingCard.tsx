@@ -104,7 +104,7 @@ export default function ShippingCard({ delivery, role }: { delivery: any; role: 
       {role === 'creator' && shipping.status === 'pending' && (
         <div className="text-sm text-neutral-700">
           La marque doit vous envoyer un produit avant la production.{' '}
-          {hasAddress ? 'Votre adresse est transmise.' : <>Renseignez votre adresse dans <Link href="/profile" className="text-primary-600 underline">votre profil</Link> pour qu&apos;elle puisse l&apos;expédier.</>}
+          {hasAddress ? 'Votre adresse est transmise.' : <>Renseignez votre adresse dans <Link href="/profile#address" className="text-primary-600 underline">votre profil</Link> pour qu&apos;elle puisse l&apos;expédier.</>}
         </div>
       )}
       {role === 'creator' && shipping.status === 'shipped' && (

@@ -607,7 +607,7 @@ export default function DeliveryDetailPage() {
                     </span>
                   </div>
                   {isCreator && delivery.payment?.status === 'captured' && (
-                    <Link href="/profile" className="text-sm text-primary-600 hover:underline block mt-2">
+                    <Link href="/profile#stripe" className="text-sm text-primary-600 hover:underline block mt-2">
                       → Connecter mon compte Stripe pour recevoir le virement
                     </Link>
                   )}

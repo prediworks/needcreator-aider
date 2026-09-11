@@ -37,7 +37,7 @@ export default function Header() {
         { href: '/deliveries', label: 'Livraisons' },
         ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
-        ...(user?.role === 'creator' ? [{ href: '/earnings', label: 'Mes revenus' }, { href: '/profile', label: 'Mon portfolio' }] : []),
+        ...(user?.role === 'creator' ? [{ href: '/earnings', label: 'Mes revenus' }, { href: '/profile#portfolio', label: 'Mon portfolio' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]
     : [

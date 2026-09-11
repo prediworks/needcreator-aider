@@ -64,7 +64,7 @@ Utilisez une fenêtre de navigation privée pour être connecté avec plusieurs 
 
 ### Parcours créateur
 
-1. Inscription (email, mot de passe, nom, pays/langue, niches, CGU : le reste se complète après) → tableau de bord : la carte « Prochaine étape » indique la seule chose à faire maintenant (3 vidéos, puis informations administratives, puis validation, puis vidéo Ambassadeur).
+1. Inscription (email, mot de passe, nom, pays/langue, niches, CGU : le reste se complète après) → tableau de bord : la carte « Prochaine étape » indique la seule chose à faire maintenant et son bouton mène directement au bloc concerné du profil (défilement + surlignage) (3 vidéos, puis informations administratives, puis validation, puis vidéo Ambassadeur).
 2. "Mon portfolio" : ajoutez 3 vidéos (n'importe quel fichier vidéo court). Elles se lisent directement sur la page.
 3. Bloc "Recevoir mes paiements" → "Connecter Stripe" (fonctionne uniquement si Stripe Connect est activé).
 4. Attendez la validation admin (étape suivante).

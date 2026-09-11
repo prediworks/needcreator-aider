@@ -333,7 +333,7 @@ function NewCampaignForm() {
                     </button>
                   ))}
                 </div>
-                {!isPro && <p className="text-xs text-neutral-500 mt-2">Le gifting et les campagnes multi-créateurs sont réservés au <Link href="/profile" className="text-primary-600 underline">plan Pro</Link>.</p>}
+                {!isPro && <p className="text-xs text-neutral-500 mt-2">Le gifting et les campagnes multi-créateurs sont réservés au <Link href="/profile#subscription" className="text-primary-600 underline">plan Pro</Link>.</p>}
               </div>
 
               {campaignType === 'gifting' && (

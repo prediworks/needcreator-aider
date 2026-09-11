@@ -28,6 +28,8 @@ import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'luc
 import Link from 'next/link';
 import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS, COUNTRIES } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
+import { profileHref, blockerHref } from '@/lib/profileAnchors';
+import { useScrollToHash } from '@/hooks/useScrollToHash';
 
 function ProfileContent() {
   const { user, ready } = useRequireAuth();
@@ -56,6 +58,12 @@ function ProfileContent() {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [videoType, setVideoType] = useState('testimonial');
+
+  // Défilement ciblé (#portfolio, #legal…) ; #edit ouvre le formulaire. Hook avant le return anticipé.
+  useScrollToHash(!!profile && !isLoading, (hash) => {
+    if (hash === 'edit' && profile) { setName(profile.profile.name || ''); setBio(profile.profile.bio || ''); setNiches(profile.profile.niches || []); setMinPrice(profile.profile.pricing?.minPrice?.toString() || ''); setCompanyName(profile.profile.companyName || ''); setWebsite(profile.profile.website || ''); setIndustry(profile.profile.industry || ''); setCountry(profile.profile.country || 'FR'); setIsEditing(true); }
+    if (hash === 'portfolio') setShowVideoUpload(true);
+  });
 
   if (!ready || isLoading || !profile) return <Spinner />;
 
@@ -158,7 +166,7 @@ function ProfileContent() {
           )}
 
           {/* Header */}
-          <Card className="p-6">
+          <Card id="edit" className="p-6 scroll-mt-24">
             <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
               <div className="flex items-center gap-4">
                 <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center">
@@ -189,7 +197,10 @@ function ProfileContent() {
                     </div>
                     {(profile.profileChecklist || []).some((i: any) => !i.done) && (
                       <p className="text-xs text-neutral-600 mt-1">
-                        Il manque : {(profile.profileChecklist || []).filter((i: any) => !i.done).map((i: any) => i.label.toLowerCase()).join(', ')}.
+                        Il manque :{' '}
+                        {(profile.profileChecklist || []).filter((i: any) => !i.done).map((i: any, idx: number) => (
+                          <span key={i.key}>{idx > 0 && ', '}<Link href={profileHref(i.key)} className="underline decoration-dotted hover:text-primary-600">{i.label.toLowerCase()}</Link></span>
+                        ))}.
                       </p>
                     )}
                   </div>
@@ -401,9 +412,9 @@ function ProfileContent() {
           </Card>
 
           {/* Vérification et abonnement (marque) */}
-          {profile.role === 'brand' && <BusinessVerificationCard profile={profile} />}
-          {profile.role === 'brand' && <LegalInfoCard profile={profile} />}
-          {profile.role === 'brand' && <SubscriptionCard />}
+          <div id="business" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <BusinessVerificationCard profile={profile} />}</div>
+          <div id="legal" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <LegalInfoCard profile={profile} />}</div>
+          <div id="subscription" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <SubscriptionCard />}</div>
 
           {/* Gifting (créateur) */}
           {isCreator && (
@@ -428,20 +439,20 @@ function ProfileContent() {
           {(isCreator || profile.role === 'brand') && <ReferralCard role={isCreator ? 'creator' : 'brand'} />}
 
           {/* Ambassadeur (créateur) */}
-          {isCreator && profile.status === 'active' && profile.verification?.portfolio && <AmbassadorCard ambassador={profile.profile.ambassador} />}
+          <div id="ambassador" className="scroll-mt-24 rounded-lg">{isCreator && profile.status === 'active' && profile.verification?.portfolio && <AmbassadorCard ambassador={profile.profile.ambassador} />}</div>
 
           {/* Stripe Connect (créateur) */}
-          {isCreator && <LegalInfoCard profile={profile} />}
-          {isCreator && <StripeConnectCard />}
+          <div id="legal" className="scroll-mt-24 rounded-lg">{isCreator && <LegalInfoCard profile={profile} />}</div>
+          <div id="stripe" className="scroll-mt-24 rounded-lg">{isCreator && <StripeConnectCard />}</div>
 
           {/* Réseaux sociaux + réalisations (créateur) */}
-          {isCreator && <AddressEditor address={profile.profile.address} />}
-          {isCreator && <SocialsEditor socials={profile.profile.socials} />}
+          <div id="address" className="scroll-mt-24 rounded-lg">{isCreator && <AddressEditor address={profile.profile.address} />}</div>
+          <div id="socials" className="scroll-mt-24 rounded-lg">{isCreator && <SocialsEditor socials={profile.profile.socials} />}</div>
           {isCreator && <RealisationsEditor realisations={profile.profile.realisations} />}
 
           {/* Portfolio (Creator only) */}
           {isCreator && (
-            <Card className="p-6">
+            <Card id="portfolio" className="p-6 scroll-mt-24">
               <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                 <h2 className="text-xl font-semibold text-neutral-900">
                   Portfolio ({profile.profile.portfolio?.length || 0} vidéo{(profile.profile.portfolio?.length || 0) > 1 ? 's' : ''})
@@ -640,7 +651,7 @@ function ProfileContent() {
               )}
               {blockers.length > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                  <strong>Pour candidater :</strong> {blockers.join(' ')}
+                  <strong>Pour candidater :</strong>{' '}{blockers.map((b, i) => <span key={b}>{i > 0 && ' '}<Link href={blockerHref(b)} className="underline decoration-dotted hover:text-primary-700">{b}</Link></span>)}
                 </div>
               )}
             </Card>

@@ -53,7 +53,7 @@ export default function EarningsPage() {
 
         {!data?.stripeConnected && (t.pendingPayout || 0) > 0 && (
           <Card className="p-4 mb-6 bg-orange-50 border-orange-200 text-sm text-orange-800">
-            {formatCurrency(t.pendingPayout)} vous attendent : <Link href="/profile" className="underline font-medium">connectez votre compte Stripe</Link> pour recevoir le virement.
+            {formatCurrency(t.pendingPayout)} vous attendent : <Link href="/profile#stripe" className="underline font-medium">connectez votre compte Stripe</Link> pour recevoir le virement.
           </Card>
         )}
 

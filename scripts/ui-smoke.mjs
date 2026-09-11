@@ -151,6 +151,16 @@ await step('Créateur : inscription via le formulaire', async () => {
   return 'tableau de bord avec les étapes à compléter';
 });
 
+await step('Créateur : « Ajouter mes vidéos » mène directement au bloc portfolio', async () => {
+  await cp.goto(`${FRONT}/dashboard`);
+  await cp.getByRole('link', { name: /Ajouter mes vidéos/ }).click();
+  await cp.waitForURL(/\/profile#portfolio$/, { timeout: 20000 });
+  await cp.locator('#portfolio').waitFor({ timeout: 20000 });
+  await cp.getByLabel('Titre', { exact: true }).waitFor({ timeout: 10000 }); // formulaire d'ajout ouvert automatiquement
+  await cp.screenshot({ path: `${SHOTS}/04b-profile-portfolio-anchor.png` });
+  return 'défilement ciblé + formulaire d\'ajout ouvert';
+});
+
 await step('Créateur : campagne fraîchement publiée = avant-première Ambassadeurs', async () => {
   await cp.goto(campaignUrl);
   await cp.getByText(/avant-première/i).first().waitFor({ timeout: 20000 });

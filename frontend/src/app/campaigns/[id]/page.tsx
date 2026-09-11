@@ -33,6 +33,7 @@ import {
 import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
 import { NICHES, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
+import { blockerHref } from '@/lib/profileAnchors';
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -566,7 +567,7 @@ export default function CampaignDetailPage() {
                       ))}
                     </ul>
                     {campaign.applyBlockers?.length > 0 && (
-                      <Link href="/profile">
+                      <Link href={blockerHref(campaign.applyBlockers[0])}>
                         <Button variant="outline" className="w-full" size="sm">Compléter mon profil</Button>
                       </Link>
                     )}
