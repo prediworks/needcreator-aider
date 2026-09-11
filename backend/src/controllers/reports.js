@@ -29,6 +29,7 @@ export async function createReport(req, res) {
     if (existing) return res.status(400).json({ error: 'Vous avez déjà signalé ce contenu' });
     const report = await Report.create({ reporterId: req.user._id, targetType, targetId, targetUserId, reason, details });
     logger.warn(`Report ${report._id}: ${targetType} ${targetId} by ${req.user._id} (${reason})`);
+    import('../services/adminAlerts.js').then(m => m.alertNewReport(report, req.user)).catch(() => {});
     res.status(201).json({ message: 'Signalement envoyé, notre équipe le traite sous 24 h', report });
   } catch (error) {
     logger.error('Failed to create report:', error);

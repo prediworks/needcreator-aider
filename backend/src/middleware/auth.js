@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { Sentry, sentryEnabled } from '../instrument.js';
 import { config } from '../config/index.js';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
@@ -78,6 +79,7 @@ export async function authenticate(req, res, next) {
     
     // Attach user to request
     req.user = user;
+    if (sentryEnabled) Sentry.setUser({ id: String(user._id), role: user.role });
     req.firebaseUser = decodedToken;
     
     // Update last login (sans re-valider tout le document)

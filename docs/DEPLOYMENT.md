@@ -109,7 +109,7 @@ Alternative sur le VPS : `cd frontend && npm ci && npm run build && pm2 start "n
 - [ ] Mentions légales : compléter `frontend/src/lib/legal.ts` (raison sociale, SIREN, adresse, hébergeur, directeur de publication)
 - [ ] SEO : `NEXT_PUBLIC_SITE_URL=https://needcreator.com`, site déclaré dans Google Search Console (sitemap : `/sitemap.xml`)
 - [ ] Sauvegardes MongoDB Atlas activées
-- [ ] Monitoring : `pm2 logs needcreator-api`, et un outil externe (UptimeRobot sur `/health`, Sentry) recommandé
+- [ ] Monitoring : Sentry (`SENTRY_DSN` backend, `NEXT_PUBLIC_SENTRY_DSN` frontend, projets gratuits sur sentry.io ou GlitchTip auto-hébergé), `ADMIN_ALERT_EMAIL` pour les alertes admin (virement en échec, signalement, récapitulatif quotidien), et un moniteur de disponibilité (Uptime Kuma ou UptimeRobot) sur `https://api.needcreator.com/health` (mot-clé `"status":"ok"`) et `https://needcreator.com/` (mot-clé `NeedCreator`), toutes les 5 min, alerte après 2 échecs
 - [ ] Test complet en conditions réelles : inscription marque, vérification SIRET, campagne, sélection, carte, livraison, virement à un créateur
 
 ## 4. Intégration continue (optionnel)

@@ -1122,6 +1122,7 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
     transferred = result.transferred;
     transferId = result.transfer?.id || null;
     if (!transferred) {
+      if (creatorAccountId) { const { alertTransferFailed } = await import('../services/adminAlerts.js'); alertTransferFailed(delivery, result.transferError).catch(() => {}); }
       warning = creatorAccountId
         ? `Paiement encaissé, virement au créateur en échec : ${result.transferError || 'erreur inconnue'}`
         : 'Paiement encaissé. Le virement sera effectué dès que le créateur aura connecté son compte Stripe.';

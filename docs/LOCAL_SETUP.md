@@ -102,6 +102,7 @@ cp frontend/.env.local.example frontend/.env.local
 | IA | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |
 | Tests | `STRIPE_AUTO_CONFIRM_TEST=false` | `true` = paiements confirmés sans écran de carte (jamais en production) |
+| Monitoring | `SENTRY_DSN`, `SENTRY_TRACES_RATE=0.05`, `ADMIN_ALERT_EMAIL` | Sentry (ou GlitchTip) actif seulement si le DSN est renseigné ; `ADMIN_ALERT_EMAIL` = destinataires des alertes admin (vide = tous les comptes admin). Côté frontend : `NEXT_PUBLIC_SENTRY_DSN` |
 | Outil temporaire | `ADMIN_PURGE_ENABLED=false` | `true` = boutons admin « Purger (test) » (supprime campagnes, devis, missions, avis, conversations d'un compte ; paiements annulés/remboursés) et « Supprimer (test) » (suppression complète du compte : activité, fichiers, Stripe Connect, Firebase, document). À remettre à `false` après validation de la prod |
 
 ### `frontend/.env.local` : variables
@@ -118,6 +119,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=                      # facultatif, voir ci-dessus
 NEXT_PUBLIC_MIN_QUOTE_PRICE=50                       # doit être égal à MIN_QUOTE_PRICE du backend
+NEXT_PUBLIC_SENTRY_DSN=                              # facultatif : projet Next.js sur sentry.io
 ```
 
 Le fichier `.env` n'est pas rechargé à chaud : redémarrez le backend après une modification.

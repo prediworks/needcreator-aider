@@ -1375,6 +1375,18 @@ await step('RGPD : export des données + suppression de compte (anonymisation)',
   return 'export OK, refus si activité en cours, CGU obligatoires, compte anonymisé';
 });
 
+await step('Monitoring : récapitulatif admin dans les tâches planifiées, alertes immédiates branchées', async () => {
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const jobs = await brandApi('POST', '/admin/jobs/run');
+    expect(jobs.status === 200 && jobs.data.adminDigest && typeof jobs.data.adminDigest.sent === 'boolean', 'Le récapitulatif admin devrait être évalué par les tâches planifiées', jobs);
+    return `récapitulatif ${jobs.data.adminDigest.sent ? 'envoyé' : `non envoyé (${jobs.data.adminDigest.reason || jobs.data.adminDigest.error})`}`;
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 await step('Admin : purge des campagnes, devis et missions d\'un compte (outil temporaire)', async () => {
   const users = mongoose.connection.db.collection('users');
   const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;

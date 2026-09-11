@@ -34,7 +34,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Multi-langues** (anglais, espagnol) | Prévu en phase 3 ; les libellés sont déjà centralisés dans `frontend/src/lib/labels.ts`. Préparation faite le 11 septembre 2026 : pays et langue demandés à l'inscription et modifiables dans le profil (`profile.country`, `preferences.language`), pays utilisé pour le compte Stripe Connect | M |
 | **API publique** pour agences et intégrateurs | Prévu en phase 3 | L |
 | **Application mobile** (ou PWA installable en première étape) | Les créateurs tournent au téléphone | PWA : S, app : L |
-| **Monitoring** (Sentry) et sauvegardes automatiques de la base | Indispensable avant la mise en ligne | S |
+| ~~**Monitoring** (Sentry)~~ et sauvegardes automatiques de la base | Livré le 11 septembre 2026 : Sentry backend et frontend (actif si DSN), pages d'erreur propres, alertes admin immédiates (virement en échec, signalement) et récapitulatif quotidien des éléments à traiter ; disponibilité via Uptime Kuma (réglage côté exploitant). Reste : activer les sauvegardes Atlas | S (vous) |
 | **Google login** | Fonctionne uniquement sur un nom de domaine autorisé dans Firebase, pas sur une adresse IP | S (vous, nom de domaine) |
 | ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
 | ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |

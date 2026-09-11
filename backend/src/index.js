@@ -1,3 +1,5 @@
+import './instrument.js'; // Sentry : doit être importé en premier
+import { Sentry, sentryEnabled } from './instrument.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -85,7 +87,8 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Error handler
+// Error handler (Sentry reçoit l'erreur avant la réponse)
+if (sentryEnabled) Sentry.setupExpressErrorHandler(app);
 app.use((err, req, res, next) => {
   logger.error('Unhandled error:', err);
   
@@ -115,6 +118,7 @@ async function startServer() {
       logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
       logger.info(`📊 Health check: http://localhost:${PORT}/health`);
       logger.info(`🌐 CORS autorisé pour : ${config.cors.origins.join(', ')}`);
+      logger.info(sentryEnabled ? '🛰️  Sentry actif' : '🛰️  Sentry inactif (SENTRY_DSN vide)');
     });
     
     // Tâches planifiées (auto-approbation à J+7, rappels J+3/J+6)
@@ -135,6 +139,7 @@ async function startServer() {
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', error);
+  if (sentryEnabled) Sentry.captureException(error);
   process.exit(1);
 });
 
@@ -142,6 +147,7 @@ process.on('uncaughtException', (error) => {
 // on journalise (et Sentry remontera l'erreur), le processus continue.
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection:', reason instanceof Error ? reason.stack : reason);
+  if (sentryEnabled) Sentry.captureException(reason);
 });
 
 // Start the server

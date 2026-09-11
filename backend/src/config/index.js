@@ -130,6 +130,7 @@ export const config = {
   // Outils d'administration temporaires (validation de la prod)
   admin: {
     purgeEnabled: process.env.ADMIN_PURGE_ENABLED === 'true',
+    alertEmails: (process.env.ADMIN_ALERT_EMAIL || '').split(',').map(s => s.trim()).filter(Boolean),
   },
 
   // Authentification
