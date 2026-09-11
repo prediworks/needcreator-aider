@@ -14,6 +14,8 @@ import { formatCurrency } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, VIDEO_TYPES } from '@/lib/labels';
 import AmbassadorCard from '@/components/AmbassadorCard';
 import LevelBadges from '@/components/LevelBadges';
+import NextStepCard from '@/components/NextStepCard';
+import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
   const { user, ready } = useRequireAuth();
@@ -56,46 +58,17 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
           </p>
         </div>
 
-        {/* Blocages / statut */}
-        {blockers.length > 0 && (
-          <Card className="p-4 mb-6 bg-yellow-50 border-yellow-200">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <h3 className="font-semibold text-yellow-900 mb-1">
-                  Avant de pouvoir candidater
-                </h3>
-                <ul className="text-sm text-yellow-800 list-disc list-inside space-y-0.5">
-                  {blockers.map((b: string) => <li key={b}>{b}</li>)}
-                </ul>
-              </div>
-              <Link href="/profile">
-                <Button variant="outline" size="sm">Compléter mon profil</Button>
-              </Link>
-            </div>
-          </Card>
-        )}
-
-        {blockers.length === 0 && user.profileCompletion < 100 && (
-          <Card className="p-4 mb-6 bg-primary-50 border-primary-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-neutral-900 mb-1">
-                  Profil complété à {user.profileCompletion}%
-                </h3>
-                <p className="text-sm text-neutral-700">
-                  Il manque : {(user.profileChecklist || []).filter((i: any) => !i.done).map((i: any) => i.label.toLowerCase()).join(', ') || 'rien'}.
-                </p>
-              </div>
-              <Link href="/profile">
-                <Button variant="outline" size="sm">Compléter</Button>
-              </Link>
-            </div>
-          </Card>
-        )}
-
-        {user.profile.ambassador?.status !== 'approved' && (
-          <div className="mb-6"><AmbassadorCard ambassador={user.profile.ambassador} compact /></div>
+        {/* Prochaine étape (une seule), puis le reste en petit */}
+        {(() => {
+          const ns = creatorNextStep(user);
+          return (
+            <NextStepCard step={ns.step} remaining={ns.remaining}>
+              {ns.showAmbassador && <div className="mt-3"><AmbassadorCard ambassador={user.profile.ambassador} compact /></div>}
+            </NextStepCard>
+          );
+        })()}
+        {blockers.length > 0 && user.status !== 'pending' && (
+          <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis : {blockers.join(' ')}</p>
         )}
 
         {/* Stats Cards */}
@@ -320,6 +293,11 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
             </Button>
           </Link>
         </div>
+
+        {(() => {
+          const ns = brandNextStep(user, (campaignsData?.campaigns || []).length);
+          return <NextStepCard step={ns.step} remaining={ns.remaining} />;
+        })()}
 
         {toValidate.length > 0 && (
           <Card className="p-4 mb-6 bg-blue-50 border-blue-200">

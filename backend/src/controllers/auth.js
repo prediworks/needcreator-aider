@@ -87,7 +87,8 @@ async function applyReferral(user, referralCode) {
  */
 export async function registerCreator(req, res) {
   try {
-    const { email, name, bio, niches, minPrice, referralCode, country = 'FR', language = 'fr' } = req.body;
+    const { email, name, bio, niches, referralCode, country = 'FR', language = 'fr' } = req.body;
+    const minPrice = req.body.minPrice || Math.max(100, config.business.minQuotePrice);
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -180,8 +181,8 @@ export async function registerBrand(req, res) {
         name: companyName,
         companyName,
         country,
-        website,
-        industry,
+        website: website || undefined,
+        industry: industry || undefined,
       },
       stripeCustomerId: stripeCustomer.id,
       status: 'active', // Brands are active immediately

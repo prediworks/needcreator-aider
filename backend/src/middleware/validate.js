@@ -45,7 +45,7 @@ export const schemas = {
     name: Joi.string().min(2).max(100).required(),
     bio: Joi.string().max(500).allow(''),
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
-    minPrice: Joi.number().min(config.business.minQuotePrice).max(10000).required(),
+    minPrice: Joi.number().min(config.business.minQuotePrice).max(10000), // facultatif à l'inscription : demandé dans le profil
     referralCode: Joi.string().max(20).allow(''),
   }),
   
@@ -55,8 +55,8 @@ export const schemas = {
     language: Joi.string().valid('fr', 'en').default('fr'),
     acceptTerms: Joi.boolean().valid(true).required().messages({ 'any.only': 'Vous devez accepter les CGU et la politique de confidentialité', 'any.required': 'Vous devez accepter les CGU et la politique de confidentialité' }),
     companyName: Joi.string().min(2).max(100).required(),
-    website: Joi.string().uri().required(),
-    industry: Joi.string().required(),
+    website: Joi.string().uri().allow(''),   // facultatif à l'inscription : demandé dans le profil
+    industry: Joi.string().allow(''),
     referralCode: Joi.string().max(20).allow(''),
   }),
   

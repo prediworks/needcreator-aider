@@ -11,9 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
-import { NICHES, NICHE_OPTIONS, INDUSTRIES, COUNTRIES, LANGUAGES } from '@/lib/labels';
+import { NICHES, NICHE_OPTIONS, COUNTRIES, LANGUAGES } from '@/lib/labels';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
-import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { toast } from 'sonner';
 
 function RegisterForm() {
@@ -32,14 +31,10 @@ function RegisterForm() {
   const [name, setName] = useState('');
 
   // Creator fields
-  const [bio, setBio] = useState('');
   const [niches, setNiches] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState('100');
 
   // Brand fields
   const [companyName, setCompanyName] = useState('');
-  const [website, setWebsite] = useState('');
-  const [industry, setIndustry] = useState('');
   const [country, setCountry] = useState('FR');
   const [language, setLanguage] = useState('fr');
   const referralCode = searchParams.get('ref') || '';
@@ -93,8 +88,8 @@ function RegisterForm() {
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
-        ? { email, name, bio, niches, minPrice: parseInt(minPrice), referralCode, turnstileToken, acceptTerms, country, language }
-        : { email, companyName, website, industry, referralCode, turnstileToken, acceptTerms, country, language };
+        ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language }
+        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language };
 
       await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -255,19 +250,6 @@ function RegisterForm() {
                     required
                   />
 
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Bio (optionnel)
-                    </label>
-                    <textarea
-                      value={bio}
-                      onChange={(e) => setBio(e.target.value)}
-                      placeholder="Parlez-nous de vous, de votre style..."
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      rows={3}
-                      maxLength={500}
-                    />
-                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-2">
@@ -291,16 +273,6 @@ function RegisterForm() {
                     </div>
                   </div>
 
-                  <Input
-                    label={`Prix minimum par vidéo (€, entre ${MIN_QUOTE_PRICE} et 10 000)`}
-                    type="number"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                    placeholder="100"
-                    min={MIN_QUOTE_PRICE}
-                    max={10000}
-                    required
-                  />
                 </>
               ) : (
                 <>
@@ -313,31 +285,7 @@ function RegisterForm() {
                     required
                   />
 
-                  <Input
-                    label="Site web (avec https://)"
-                    type="url"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    placeholder="https://votre-site.com"
-                    required
-                  />
 
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Secteur d&apos;activité
-                    </label>
-                    <select
-                      value={industry}
-                      onChange={(e) => setIndustry(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
-                      required
-                    >
-                      <option value="">Sélectionnez...</option>
-                      {Object.entries(INDUSTRIES).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
                 </>
               )}
 

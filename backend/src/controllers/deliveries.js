@@ -21,6 +21,7 @@ import {
   sendExtensionPaid,
   sendMissionWithdrawn,
   sendApplicationAccepted,
+  sendBecomeAmbassador,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -1148,6 +1149,12 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   // Stats créateur : missions complétées + taux de livraison à temps
   if (creator) {
     await User.updateOne({ _id: creator._id }, { $inc: { 'profile.stats.completedJobs': 1 } });
+    // Première mission validée : moment idéal pour proposer le programme Ambassadeur
+    const fresh = await User.findById(creator._id).select('email profile.name profile.stats.completedJobs profile.ambassador.status');
+    if (fresh && fresh.profile?.stats?.completedJobs === 1 && !['approved', 'pending'].includes(fresh.profile?.ambassador?.status)) {
+      const title = delivery.campaignId?.title || (await Campaign.findById(campaignId).select('title'))?.title || 'votre campagne';
+      sendBecomeAmbassador(fresh.email, fresh.profile.name, title).catch(() => {});
+    }
   }
   // Réactivité de la marque
   updateBrandStats(idOf(delivery.brandId));

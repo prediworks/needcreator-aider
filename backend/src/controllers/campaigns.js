@@ -170,7 +170,7 @@ export async function publishCampaign(req, res) {
 
     if (!brand.isBusinessVerified()) {
       return res.status(403).json({
-        error: 'Vérifiez votre entreprise (SIRET ou TVA, site web) dans votre profil avant de publier une campagne.',
+        error: 'Vérifiez votre entreprise (SIRET ou TVA) dans votre profil avant de publier une campagne.',
         code: 'BUSINESS_NOT_VERIFIED',
       });
     }

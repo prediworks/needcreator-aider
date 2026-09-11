@@ -59,9 +59,10 @@ export function evaluateBusiness({ siret, vatNumber, website, email }) {
   if (siret && !siretOk) reasons.push('SIRET invalide');
   if (vatNumber && !vatOk) reasons.push('Numéro de TVA invalide');
   if (!siretOk && !vatOk) reasons.push('Aucun identifiant d\'entreprise valide');
-  if (!website) reasons.push('Site web manquant');
+  if (!website) reasons.push('Site web non renseigné (facultatif)');
   if (isFreeEmail(email)) reasons.push('Email non professionnel (contrôle manuel)');
-  const valid = (siretOk || vatOk) && !!website;
+  // Le site web est facultatif : l'identifiant d'entreprise (SIRET ou TVA) suffit
+  const valid = siretOk || vatOk;
   return {
     status: valid && !isFreeEmail(email) ? 'verified' : valid ? 'pending' : 'rejected',
     reasons,

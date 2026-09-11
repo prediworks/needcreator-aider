@@ -38,6 +38,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | **Google login** | Fonctionne uniquement sur un nom de domaine autorisé dans Firebase, pas sur une adresse IP | S (vous, nom de domaine) |
 | ~~**SEO** : métadonnées, sitemap, robots, données structurées, image de partage, favicon~~ | Livré le 9 septembre 2026. Reste : déclarer le site dans Google Search Console | S (vous) |
 | ~~**Anti-robot Turnstile** à l'inscription~~ | Livré le 8 septembre 2026 | — |
+| ~~**Inscription allégée + « Prochaine étape »**~~ | Livré le 11 septembre 2026 : inscription réduite au minimum (bio, tarif, site web, secteur retirés ; site web facultatif pour la vérification), carte « Prochaine étape » unique sur les tableaux de bord, bloc Ambassadeur affiché seulement après validation du profil, email « Devenez Ambassadeur » après la première mission payée | — |
 | ~~**Programme Ambassadeur : mise en avant réelle**~~ | Livré le 10 septembre 2026 : bonus de matching (`AMBASSADOR_MATCH_BONUS`), tête d'annuaire, badge dans l'email « nouveau devis », section page d'accueil ; textes du programme (vidéo publiée sur leurs réseaux, même commission) | — |
 | ~~**Portfolio sur le site public**~~ | Livré le 10 septembre 2026 : accord du créateur en deux cases (site public / communication NeedCreator), page `/nos-createurs`, endpoint public sans email | — |
 | ~~**Suggestion de prix fondée sur les devis acceptés**~~ | Livré le 10 septembre 2026 : à la création de campagne, fourchette = quartiles et médiane des devis acceptés par type de vidéo (grille indicative tant qu'il y a moins de 10 devis), avec la source affichée | — |
@@ -91,7 +92,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Sujet | Décision | Réglage |
 |---|---|---|
-| Vérification des marques | SIRET ou TVA (format + registre national des entreprises), site web, email pro. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | Admin → Réglages, `BUSINESS_REGISTRY_CHECK` |
+| Vérification des marques | SIRET ou TVA (format + registre national des entreprises), email pro ; site web facultatif. Email grand public → vérification manuelle admin. Non vérifiée : brouillons seulement, pas de publication | Admin → Réglages, `BUSINESS_REGISTRY_CHECK` |
 | Limites progressives (tant qu'aucune campagne terminée) | 2 campagnes ouvertes, 5 invitations / jour, 20 messages / jour | `LIMIT_NEW_BRAND_*` |
 | Brief IA | 3 / mois en gratuit, illimité en Pro | `AI_BRIEF_FREE_QUOTA` |
 | Abonnement Pro | 79 € / mois, essai 14 jours sans carte à l'inscription, commission inchangée (décision du 9 septembre 2026 : la marque paie le prix du devis sans frais ajoutés, le créateur reçoit 90 %), débloque brief IA illimité, gifting et multi-créateurs | `PRO_PRICE_EUR`, `PRO_TRIAL_DAYS`, `PRO_FEE_PERCENT`, `STRIPE_PRO_PRICE_ID` |

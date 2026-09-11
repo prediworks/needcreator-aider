@@ -454,3 +454,18 @@ export async function sendExternalCreatorInvitation(email, name, brandName, camp
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Première mission validée : invitation à devenir Ambassadeur
+ */
+export async function sendBecomeAmbassador(email, name, campaignTitle) {
+  const subject = 'Première mission validée : et si vous parliez de NeedCreator ?';
+  const html = `
+    <h1>Bravo ${name} !</h1>
+    <p>Votre première mission ("${campaignTitle}") est validée et votre paiement est en route.</p>
+    <p>Vous avez maintenant une vraie expérience à raconter : publiez sur vos réseaux une courte vidéo sincère sur NeedCreator, avec votre lien de parrainage, et devenez <strong>Ambassadeur</strong> :
+    campagnes 24 h en avant-première, devis remontés en tête chez les marques, place en tête de l'annuaire, et 10 € par créateur inscrit via votre lien qui livre sa première mission.</p>
+    <p><a href="${config.cors.origin}/profile">Envoyer le lien de ma vidéo</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}

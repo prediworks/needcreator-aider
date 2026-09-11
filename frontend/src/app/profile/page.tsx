@@ -428,7 +428,7 @@ function ProfileContent() {
           {(isCreator || profile.role === 'brand') && <ReferralCard role={isCreator ? 'creator' : 'brand'} />}
 
           {/* Ambassadeur (créateur) */}
-          {isCreator && <AmbassadorCard ambassador={profile.profile.ambassador} />}
+          {isCreator && profile.status === 'active' && profile.verification?.portfolio && <AmbassadorCard ambassador={profile.profile.ambassador} />}
 
           {/* Stripe Connect (créateur) */}
           {isCreator && <LegalInfoCard profile={profile} />}

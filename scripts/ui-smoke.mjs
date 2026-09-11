@@ -64,8 +64,6 @@ await step('Marque : inscription via le formulaire', async () => {
   await bp.getByLabel('Email').fill(brandEmail);
   await bp.getByLabel(/Mot de passe/).fill(PASSWORD);
   await bp.getByLabel(/Nom de l'entreprise/).fill('Marque UI Test');
-  await bp.getByLabel(/Site web/).fill('https://exemple.fr');
-  await bp.locator('select').last().selectOption('beauty'); // dernière liste = secteur (pays et langue précèdent)
   await bp.getByRole('checkbox').check();
   await bp.getByRole('button', { name: 'Créer mon compte' }).click();
   await bp.waitForURL(/\/dashboard/, { timeout: 30000 });
@@ -147,7 +145,7 @@ await step('Créateur : inscription via le formulaire', async () => {
   await cp.getByRole('checkbox').check();
   await cp.getByRole('button', { name: 'Créer mon compte' }).click();
   await cp.waitForURL(/\/dashboard/, { timeout: 30000 });
-  await cp.getByText('Avant de pouvoir candidater').waitFor({ timeout: 20000 });
+  await cp.getByText('Ajoutez 3 vidéos à votre portfolio').waitFor({ timeout: 20000 });
   await markEmailVerified(creatorEmail);
   await cp.screenshot({ path: `${SHOTS}/04-creator-dashboard.png`, fullPage: true });
   return 'tableau de bord avec les étapes à compléter';
