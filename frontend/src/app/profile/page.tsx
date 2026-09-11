@@ -94,7 +94,7 @@ function ProfileContent() {
         pricing: { minPrice: parseInt(minPrice) },
       };
     } else {
-      updates.profile = { name: companyName, companyName, website, industry, country };
+      updates.profile = { name: companyName, companyName, bio, website, industry, country };
     }
 
     await updateMutation.mutateAsync(updates);

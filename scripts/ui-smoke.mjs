@@ -127,9 +127,12 @@ await step('Marque : page profil (édition)', async () => {
   await bp.goto(`${FRONT}/profile`);
   await bp.getByRole('button', { name: 'Modifier le profil' }).click();
   await bp.getByLabel(/Nom de l'entreprise/).fill('Marque UI Test Modifiée');
+  await bp.getByPlaceholder(/Qui êtes-vous, que vendez-vous/).fill('Marque de cosmétiques bio testée par le parcours interface.');
   await bp.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await bp.getByText('Marque UI Test Modifiée').first().waitFor({ timeout: 20000 });
-  return 'nom modifié';
+  await bp.reload();
+  await bp.getByText('Marque de cosmétiques bio testée par le parcours interface.').waitFor({ timeout: 20000 }); // présentation sauvegardée et affichée hors édition
+  return 'nom et présentation modifiés, visibles après rechargement';
 });
 
 // ---------- CRÉATEUR ----------
