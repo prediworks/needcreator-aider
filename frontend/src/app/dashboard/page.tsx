@@ -242,6 +242,12 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                     Mes missions
                   </Button>
                 </Link>
+                <Link href="/invoices" className="block">
+                  <Button variant="outline" className="w-full justify-start">
+                    <Package className="w-4 h-4 mr-2" />
+                    Mes factures
+                  </Button>
+                </Link>
                 <Link href={profileHref('portfolio')} className="block">
                   <Button variant="outline" className="w-full justify-start">
                     <Plus className="w-4 h-4 mr-2" />
@@ -292,12 +298,15 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
               Gérez vos campagnes UGC
             </p>
           </div>
+          <div className="flex items-center gap-3">
+          <Link href="/invoices" className="text-sm text-neutral-600 hover:text-primary-600 underline">Mes factures</Link>
           <Link href="/campaigns/new">
             <Button size="lg">
               <Plus className="w-5 h-5 mr-2" />
               Nouvelle campagne
             </Button>
           </Link>
+          </div>
         </div>
 
         {(() => {

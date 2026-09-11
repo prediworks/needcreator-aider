@@ -188,6 +188,7 @@ const campaignSchema = new mongoose.Schema({
       deliveryTypes: [{ type: String, enum: ['file', 'link'] }],
       platforms: [{ type: String, enum: ['tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other'] }],
       revisions: Number, // vide = réglage admin au moment du devis
+      vatRate: { type: Number, default: 0 }, // TVA du créateur au moment du devis (prix HT + TVA payés par la marque si > 0)
       terms: String, // conditions libres du créateur
       history: [{
         version: Number,

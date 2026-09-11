@@ -18,6 +18,7 @@ import admin from 'firebase-admin';
 
 dotenv.config();
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const API = process.env.E2E_API_URL || `http://localhost:${process.env.PORT || 3002}/api`;
 const CLEAN = process.argv.includes('--clean');
 const RUN = Date.now().toString(36);
@@ -89,7 +90,7 @@ async function firebaseUser(email, emailVerified = true) {
 async function setLegalInfo(api, role) {
   const body = role === 'brand'
     ? { signatoryName: 'Jean Test', signatoryTitle: 'Gérant' }
-    : { firstName: 'Camille', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '1 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' } };
+    : { firstName: 'Camille', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '1 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, billingMandate: true };
   const r = await api('PUT', '/auth/legal-info', body);
   expect(r.status === 200 && r.data.hasLegalInfo === true, `Informations administratives (${role}) refusées`, r);
   return r;
@@ -879,6 +880,51 @@ await step('Créateurs référencés : import admin (xlsx/csv), annuaire public,
   return 'import dédoublonné et borné à l\'Europe, annuaire sans email, invitation limitée, retrait, rattachement à l\'inscription';
 });
 
+await step('Factures : émises à la validation (créateur → marque par mandat, commission NeedCreator)', async () => {
+  let brandInv, creatorInv;
+  for (let i = 0; i < 20; i++) { brandInv = await brandApi('GET', '/invoices'); if (brandInv.data.invoices?.some(x => String(x.deliveryId) === delivery._id)) break; await sleep(500); }
+  const mission = brandInv.data.invoices.find(x => String(x.deliveryId) === delivery._id && x.kind === 'creator_to_brand');
+  expect(brandInv.status === 200 && mission && /^CR-[A-Z0-9]{6}-\d{4}-\d{4}$/.test(mission.number) && mission.mandate === true && mission.totals.vatRate === 0 && mission.totals.ht === 260 && mission.totals.ttc === 260 && /293 B/.test(mission.vatNote || ''), 'Facture créateur → marque attendue (franchise : 260 € sans TVA, mention 293 B)', brandInv);
+  expect(!brandInv.data.invoices.some(x => x.kind === 'commission'), 'La marque ne doit pas voir les factures de commission', brandInv);
+  creatorInv = await creatorApi('GET', '/invoices');
+  const com = creatorInv.data.invoices.find(x => String(x.deliveryId) === delivery._id && x.kind === 'commission');
+  expect(com && /^NC-F-\d{4}-\d{6}$/.test(com.number) && com.totals.ttc === 26 && com.totals.vatRate === 20 && Math.abs(com.totals.ht - 21.67) < 0.02, 'Facture de commission attendue (26 € TTC = 21,67 HT + TVA)', creatorInv);
+  const pdf = await creatorApi('GET', `/invoices/${mission._id}`);
+  expect(pdf.status === 200 && /^https?:\/\//.test(pdf.data.invoice.pdfUrl), 'Lien PDF de la facture attendu', pdf);
+  const forbidden = await c2Api('GET', `/invoices/${mission._id}`);
+  expect(forbidden.status === 403, 'Un autre créateur ne doit pas accéder à la facture', forbidden);
+  const det = await brandApi('GET', `/deliveries/${delivery._id}`);
+  expect(det.data.delivery.invoices?.length === 1 && det.data.delivery.invoices[0].kind === 'creator_to_brand', 'La mission devrait lister la facture côté marque', det);
+  return `${mission.number} (260 €) et ${com.number} (26 € TTC)`;
+});
+
+await step('TVA : créateur assujetti → devis HT, marque paie TTC, créateur reçoit 90 % HT + TVA', async () => {
+  const vat = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'company', companyName: 'Léa Studio', siret: '35600000000048', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, vatRegistered: true, vatNumber: 'FR40303265045', billingMandate: true });
+  expect(vat.status === 200 && vat.data.legalInfo.vatRegistered === true && vat.data.legalInfo.vatNumber === 'FR40303265045', 'Statut TVA du créateur 2 non enregistré', vat);
+  const badVat = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'company', siret: '35600000000048', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, vatRegistered: true, vatNumber: 'XX1', billingMandate: true });
+  expect(badVat.status === 400, 'Un numéro de TVA invalide doit être refusé', badVat);
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne TVA', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const ap = await c2Api('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  expect(ap.status === 201 && ap.data.application.quote.vatRate === 20, 'Le devis devrait porter le taux de TVA du créateur', ap);
+  const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${c2Id}`);
+  const p = sel.data.delivery?.payment || {};
+  expect(sel.status === 200 && p.quotePrice === 100 && p.vatRate === 20 && p.amountHT === 100 && p.vatAmount === 20 && p.amount === 120 && p.creatorAmount === 108 && p.platformFee === 12 && p.platformFeeHT === 10 && p.platformFeeVat === 2, 'Montants TVA attendus : marque 120 TTC, créateur 108, commission 12 TTC (10 HT)', sel);
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  const pi = await stripe.paymentIntents.retrieve(p.stripePaymentIntentId);
+  expect(pi.amount === 12000, `L'autorisation Stripe devrait être de 120 € (reçu ${pi.amount / 100})`, { status: 200, data: { amount: pi.amount } });
+  await stripe.paymentIntents.cancel(p.stripePaymentIntentId).catch(() => {});
+  await mongoose.connection.db.collection('deliveries').deleteMany({ campaignId: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  // Retour en franchise pour les étapes suivantes (montants sans TVA)
+  const back = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, vatRegistered: false, billingMandate: true });
+  expect(back.status === 200 && back.data.legalInfo.vatRegistered === false, 'Retour en franchise échoué', back);
+  return 'devis 100 HT → 120 TTC payés, 108 au créateur, commission 10 HT + 2 TVA';
+});
+
 await step('Garantie de remplacement : créateur en retard → mission confiée à un autre devis, paiement libéré', async () => {
   const c2Id = (await c2Api('GET', '/auth/profile')).data.user.id;
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -1119,7 +1165,7 @@ await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vig
   await brandApi('POST', `/deliveries/${d}/approve`);
 
   const order = await brandApi('POST', `/deliveries/${d}/ready-pack`, { formats: ['9:16', '1:1'], thumbnail: true, subtitles: false });
-  expect(order.status === 200 && order.data.price === 15 && order.data.readyPack.status === 'awaiting_payment' && order.data.clientSecret, 'Commande du pack incorrecte', order);
+  expect(order.status === 200 && order.data.price === 18 && order.data.readyPack.priceHT === 15 && order.data.readyPack.status === 'awaiting_payment' && order.data.clientSecret, 'Commande du pack incorrecte (15 € HT = 18 € TTC attendus)', order);
   const notPaid = await brandApi('POST', `/deliveries/${d}/ready-pack/confirm`, {});
   expect(notPaid.status === 400, 'La confirmation sans paiement doit échouer', notPaid);
   await stripe.paymentIntents.confirm(order.data.readyPack.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
@@ -1189,7 +1235,7 @@ await step('Gifting : campagne produit offert (Pro), candidature à 0 €, frais
   const ap = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 999, estimatedDeliveryDays: 4 });
   expect(ap.status === 201 && ap.data.application.price === 0, 'Le prix d\'une candidature gifting est forcé à 0', ap);
   const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
-  expect(sel.status === 200 && sel.data.delivery.payment.amount === 10 && sel.data.delivery.payment.creatorAmount === 0 && sel.data.delivery.payment.platformFee === 10, 'Frais gifting attendus : 5 € × 2 vidéos, créateur 0 €', sel);
+  expect(sel.status === 200 && sel.data.delivery.payment.amount === 12 && sel.data.delivery.payment.amountHT === 10 && sel.data.delivery.payment.creatorAmount === 0 && sel.data.delivery.payment.platformFee === 12, 'Frais gifting attendus : 5 € HT × 2 vidéos = 10 € HT, 12 € TTC, créateur 0 €', sel);
   const { default: Stripe } = await import('stripe');
   await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
   await brandApi('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});

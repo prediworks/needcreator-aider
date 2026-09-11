@@ -50,7 +50,7 @@ export default function ReadyPackCard({ delivery }: { delivery: any }) {
       <div className="flex items-center gap-2 mb-1">
         <Clapperboard className="w-5 h-5 text-primary-500" />
         <h2 className="text-lg font-semibold text-neutral-900">Pack « prêt à diffuser »</h2>
-        {price > 0 && rp.status === 'none' && <span className="text-xs bg-primary-50 text-primary-800 px-2 py-0.5 rounded-full">{formatCurrency(delivery.readyPackPricePerVideo)} / vidéo</span>}
+        {price > 0 && rp.status === 'none' && <span className="text-xs bg-primary-50 text-primary-800 px-2 py-0.5 rounded-full">{formatCurrency(delivery.readyPackPricePerVideo)} HT / vidéo</span>}
       </div>
       <p className="text-sm text-neutral-600 mb-4">Recevez vos vidéos déclinées aux bons formats pour chaque réseau, avec vignette et sous-titres. Traitement automatique en quelques minutes.</p>
 

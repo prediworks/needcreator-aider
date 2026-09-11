@@ -81,6 +81,9 @@ export const schemas = {
       country: Joi.string().trim().max(60).default('France'),
     }).required(),
     individualAcknowledged: Joi.boolean().default(false),
+    vatRegistered: Joi.boolean().default(false),
+    vatNumber: Joi.string().trim().max(20).allow(''),
+    billingMandate: Joi.boolean().default(false),
   }),
   legalInfoBrand: Joi.object({
     signatoryName: Joi.string().trim().min(2).max(120).required(),

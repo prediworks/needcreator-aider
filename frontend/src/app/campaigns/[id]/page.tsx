@@ -362,7 +362,7 @@ export default function CampaignDetailPage() {
                             </div>
                             <div className="text-right">
                               <div className="font-semibold text-primary-600 text-lg">
-                                {formatCurrency(app.price)}
+                                {formatCurrency(app.price)}{app.quote?.vatRate > 0 ? <span className="text-xs text-neutral-500 font-normal"> HT · {formatCurrency(app.price * (1 + app.quote.vatRate / 100))} TTC</span> : null}
                               </div>
                               <div className="text-sm text-neutral-500">
                                 Match <strong>{app.matchScore}%</strong> · {app.estimatedDeliveryDays} j

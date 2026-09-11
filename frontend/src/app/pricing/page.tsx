@@ -6,7 +6,7 @@ import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata = {
   title: 'Tarifs',
-  description: 'Tarifs NeedCreator : la marque paie le prix du devis, sans frais ajoutés. Le créateur reçoit 90 % du devis. Offre Pro à 79 €/mois pour les marques.',
+  description: 'Tarifs NeedCreator : la marque paie le prix du devis HT (TVA en sus si le créateur y est assujetti), sans frais ajoutés. Le créateur reçoit 90 % de son devis. Offre Pro à 79 €/mois pour les marques.',
   alternates: { canonical: '/pricing' },
 };
 
@@ -28,7 +28,7 @@ const rows = (cfg: { maxRevisions: number; autoApprovalDays: number }): { label:
 ];
 
 const faq = (cfg: { maxRevisions: number; autoApprovalDays: number }) => [
-  ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté. La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
+  ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté, hors taxes, plus la TVA lorsque le créateur y est assujetti (indiqué sur chaque devis). La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement ' + plural(cfg.autoApprovalDays, 'jour') + ' après la livraison si vous ne répondez pas.'],
   ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander des modifications, dans la limite du nombre de révisions prévu par le devis que vous avez accepté. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
   ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
@@ -58,7 +58,7 @@ export default async function PricingPage() {
         <div className="container mx-auto px-4 max-w-3xl text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-4">Le prix du devis est le prix payé.</h1>
           <p className="text-lg text-neutral-600">
-            Aucun frais pour la marque. NeedCreator retient 10 % sur le versement au créateur. Rien d&apos;autre.
+            Aucun frais ajouté pour la marque : le prix du devis HT, plus la TVA lorsque le créateur y est assujetti. NeedCreator retient 10 % du devis sur le versement au créateur. Rien d&apos;autre.
           </p>
         </div>
       </section>
@@ -139,12 +139,12 @@ export default async function PricingPage() {
         <section>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-neutral-900 mb-2">Pour les créateurs</h2>
-            <p className="text-neutral-600">Inscription gratuite. Vous fixez votre prix, vous recevez 90 %.</p>
+            <p className="text-neutral-600">Inscription gratuite. Vous fixez votre prix HT, vous recevez 90 % (plus la TVA sur votre part si vous y êtes assujetti).</p>
           </div>
           <Card className="p-8 grid md:grid-cols-2 gap-8 items-center">
             <div>
               <div className="text-5xl font-bold text-secondary-500 mb-2">90 %</div>
-              <p className="text-neutral-700 mb-4">du prix de votre devis vous est viré, automatiquement, dès la validation de la livraison. NeedCreator retient 10 % sur chaque mission payée.</p>
+              <p className="text-neutral-700 mb-4">de votre devis HT vous est viré, automatiquement, dès la validation de la livraison. NeedCreator retient une commission de 10 % du devis sur chaque mission payée, facturée avec TVA. Vos factures à la marque sont émises en votre nom par la plateforme.</p>
               <ul className="space-y-2 text-sm text-neutral-700">
                 {[
                   'Vous fixez librement le prix de chaque devis',
@@ -161,9 +161,10 @@ export default async function PricingPage() {
             </div>
             <div className="bg-neutral-50 rounded-xl p-6 text-sm">
               <div className="text-neutral-500 mb-3">Exemple</div>
-              <div className="flex justify-between py-2 border-b border-neutral-200"><span>Votre devis</span><span className="font-medium">100 €</span></div>
+              <div className="flex justify-between py-2 border-b border-neutral-200"><span>Votre devis (HT)</span><span className="font-medium">100 €</span></div>
               <div className="flex justify-between py-2 border-b border-neutral-200 text-neutral-600"><span>Commission NeedCreator (10 %)</span><span>− 10 €</span></div>
               <div className="flex justify-between py-2 font-semibold text-green-700"><span>Viré sur votre compte</span><span>90 €</span></div>
+              <p className="text-xs text-neutral-500 mt-2">Créateur assujetti à la TVA : la marque paie 120 € TTC, vous recevez 108 € TTC (90 € HT + votre TVA), commission 12 € TTC.</p>
             </div>
           </Card>
         </section>
@@ -173,8 +174,8 @@ export default async function PricingPage() {
           <h2 className="text-2xl font-bold text-neutral-900 text-center mb-6">Une mission en chiffres</h2>
           <div className="grid md:grid-cols-3 gap-4 items-stretch">
             {[
-              ['Le créateur envoie un devis', '300 €', 'pour 3 vidéos'],
-              ['La marque paie', '300 €', 'exactement le devis, aucun frais ajouté'],
+              ['Le créateur envoie un devis', '300 € HT', 'pour 3 vidéos'],
+              ['La marque paie', '300 € HT', 'exactement le devis, aucun frais ajouté (TVA en sus si le créateur y est assujetti)'],
               ['Le créateur reçoit', '270 €', 'NeedCreator retient 30 € (10 %)'],
             ].map(([title, amount, sub], i) => (
               <div key={title} className="relative">

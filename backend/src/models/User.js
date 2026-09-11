@@ -241,6 +241,9 @@ const userSchema = new mongoose.Schema({
       country: { type: String, default: 'France' },
     },
     individualAcknowledged: Boolean, // particulier : déclare ses revenus lui-même
+    vatRegistered: { type: Boolean, default: false }, // assujetti à la TVA (sinon franchise en base, art. 293 B)
+    vatNumber: String,                                // numéro de TVA intracommunautaire (assujettis)
+    billingMandateAcceptedAt: Date,                   // mandat de facturation : NeedCreator émet les factures au nom du créateur
     // Marque
     signatoryName: String,
     signatoryTitle: String,
@@ -415,6 +418,7 @@ userSchema.methods.hasLegalInfo = function() {
     const addr = li.address || {};
     const base = li.firstName && li.lastName && li.status && addr.line1 && addr.postalCode && addr.city;
     if (!base) return false;
+    if (!li.billingMandateAcceptedAt) return false; // mandat de facturation obligatoire (factures émises en son nom)
     if (li.status === 'individual') return !!li.individualAcknowledged;
     return !!li.siret;
   }

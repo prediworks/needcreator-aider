@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
+import { issueMissionInvoices, issuePlatformInvoice, issueCreatorInvoices } from '../services/invoices.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
 import { runComplianceCheck } from '../services/compliance.js';
 import { levelFor } from '../utils/badges.js';
@@ -77,12 +78,15 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
 
   const application = campaign.applications.find(app => idOf(app.creatorId) === creatorId);
   const isGifting = campaign.type === 'gifting';
-  // Gifting : la marque paie uniquement les frais de plateforme (par vidéo), le créateur reçoit le produit
-  const amount = isGifting
-    ? Math.round(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1) * 100) / 100
-    : (price ?? application?.price ?? campaign.budget?.total);
-
   const creatorDoc = await User.findById(creatorId).select('email profile.address profile.name legalInfo');
+  const round2 = (n) => Math.round(n * 100) / 100;
+  // Gifting : la marque paie uniquement les frais de service (HT + TVA), le créateur reçoit le produit
+  const giftingFeeHT = isGifting ? round2(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1)) : 0;
+  const amount = isGifting
+    ? round2(giftingFeeHT * (1 + config.vat.rate / 100))
+    : (price ?? application?.price ?? campaign.budget?.total);
+  // TVA du créateur : figée au devis, sinon statut actuel du profil
+  const vatRate = application?.quote?.vatRate ?? (creatorDoc?.legalInfo?.vatRegistered ? config.vat.rate : 0);
   const days = application?.estimatedDeliveryDays || 7;
   const delivery = new Delivery({
     campaignId: campaign._id,
@@ -99,10 +103,16 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   });
   if (isGifting) {
     delivery.payment.platformFeePercent = 100;
+    delivery.payment.quotePrice = 0;
+    delivery.payment.vatRate = config.vat.rate;
+    delivery.payment.amountHT = giftingFeeHT;
+    delivery.payment.vatAmount = round2(amount - giftingFeeHT);
     delivery.payment.platformFee = amount;
+    delivery.payment.platformFeeHT = giftingFeeHT;
+    delivery.payment.platformFeeVat = round2(amount - giftingFeeHT);
     delivery.payment.creatorAmount = 0;
   } else {
-    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null, campaign.brandDiscountPercent || 0);
+    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null, campaign.brandDiscountPercent || 0, vatRate);
   }
 
   let warning = null;
@@ -586,8 +596,10 @@ export async function requestReadyPack(req, res) {
       return res.status(400).json({ error: 'Le pack nécessite des vidéos livrées en fichier (les liens ne peuvent pas être retraités)' });
     }
     const { formats, subtitles, thumbnail } = req.body;
-    const price = Math.round(config.readyPack.pricePerVideo * videos.length * 100) / 100;
+    const priceHT = Math.round(config.readyPack.pricePerVideo * videos.length * 100) / 100;
+    const price = Math.round(priceHT * (1 + config.vat.rate / 100) * 100) / 100; // TTC payé par la marque
     delivery.readyPack.options = { formats, subtitles, thumbnail };
+    delivery.readyPack.priceHT = priceHT;
     delivery.readyPack.price = price;
     delivery.readyPack.requestedAt = new Date();
     delivery.readyPack.outputs = [];
@@ -650,6 +662,8 @@ export async function confirmReadyPack(req, res) {
     delivery.readyPack.paymentStatus = 'paid';
     delivery.readyPack.status = 'queued';
     await delivery.save();
+    const brandForInvoice = await User.findById(delivery.brandId).select('email profile');
+    setImmediate(() => issuePlatformInvoice({ delivery, brand: brandForInvoice, label: `Pack vidéo prête à diffuser — ${(delivery.files || []).filter(f => !f.superseded && f.type === 'video').length} vidéo(s)`, ht: delivery.readyPack.priceHT ?? delivery.readyPack.price / (1 + config.vat.rate / 100), ttc: delivery.readyPack.price, source: 'ready_pack' }).catch(() => {}));
     setImmediate(() => runReadyPack(delivery._id).catch(err => logger.error('Ready pack job crashed:', err)));
     res.json({ message: 'Paiement confirmé, traitement lancé', readyPack: delivery.readyPack });
   } catch (error) {
@@ -714,11 +728,15 @@ export async function proposeRightsExtension(req, res) {
     if (delivery.rightsExtension?.status === 'awaiting_payment') return res.status(400).json({ error: 'Une proposition est en attente de paiement' });
     const { price, duration, note } = req.body;
     const feePercent = delivery.campaignId?.platformFeePercent ?? config.stripe.platformFeePercent;
-    const platformFee = Math.round(price * feePercent) / 100;
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const vatRate = delivery.payment?.vatRate || 0; // même régime que la mission (prix HT + TVA si créateur assujetti)
+    const amount = r2(price * (1 + vatRate / 100)); // payé par la marque (TTC)
+    const creatorAmount = r2(price * (1 - feePercent / 100) * (1 + vatRate / 100));
+    const platformFee = r2(amount - creatorAmount);
     delivery.rightsExtension = {
       ...(delivery.rightsExtension?.toObject?.() || {}),
-      status: 'proposed', price, duration, note: note || '', proposedAt: new Date(),
-      platformFee, creatorAmount: Math.round((price - platformFee) * 100) / 100,
+      status: 'proposed', price, vatRate, amount, duration, note: note || '', proposedAt: new Date(),
+      platformFee, creatorAmount,
       stripePaymentIntentId: null, paidAt: null,
     };
     await delivery.save();
@@ -755,7 +773,7 @@ export async function acceptRightsExtension(req, res) {
     if (!['proposed', 'awaiting_payment'].includes(ext?.status)) return res.status(400).json({ error: 'Aucune proposition à accepter' });
     if (ext.price > 0) {
       if (!ext.stripePaymentIntentId) {
-        const pi = await createPaymentIntent(ext.price, 'EUR', req.user.stripeCustomerId, { deliveryId: String(delivery._id), kind: 'rights_extension' }, { captureMethod: 'automatic' });
+        const pi = await createPaymentIntent(ext.amount || ext.price, 'EUR', req.user.stripeCustomerId, { deliveryId: String(delivery._id), kind: 'rights_extension' }, { captureMethod: 'automatic' });
         ext.stripePaymentIntentId = pi.id;
       }
       ext.status = 'awaiting_payment';
@@ -765,7 +783,7 @@ export async function acceptRightsExtension(req, res) {
         await confirmWithTestCard(pi.id);
         return finalizeRightsExtension(delivery, res);
       }
-      return res.json({ message: 'Paiement à confirmer', clientSecret: pi.client_secret, amount: ext.price, rightsExtension: ext });
+      return res.json({ message: 'Paiement à confirmer', clientSecret: pi.client_secret, amount: ext.amount || ext.price, rightsExtension: ext });
     }
     return finalizeRightsExtension(delivery, res);
   } catch (error) {
@@ -780,7 +798,7 @@ export async function rightsExtensionPaymentIntent(req, res) {
     const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id }).select('rightsExtension');
     if (!delivery?.rightsExtension?.stripePaymentIntentId) return res.status(400).json({ error: 'Aucun paiement de prolongation en attente' });
     const pi = await retrievePaymentIntent(delivery.rightsExtension.stripePaymentIntentId);
-    res.json({ clientSecret: pi.client_secret, status: pi.status, amount: delivery.rightsExtension.price, currency: 'EUR' });
+    res.json({ clientSecret: pi.client_secret, status: pi.status, amount: delivery.rightsExtension.amount || delivery.rightsExtension.price, currency: 'EUR' });
   } catch (error) {
     res.status(500).json({ error: 'Impossible de préparer le paiement' });
   }
@@ -837,6 +855,15 @@ async function finalizeRightsExtension(delivery, res) {
   await delivery.save();
 
   const title = delivery.campaignId?.title;
+  if (ext.price > 0 && ext.stripePaymentIntentId) {
+    const r2 = (n) => Math.round(n * 100) / 100;
+    const feeTTC = ext.platformFee || 0, feeHT = r2(feeTTC / (1 + config.vat.rate / 100));
+    setImmediate(() => issueCreatorInvoices({
+      delivery, creator: delivery.creatorId, brand: delivery.brandId, campaignTitle: title, source: 'rights_extension',
+      label: `Prolongation des droits d'utilisation (${EXT_DURATIONS[ext.duration] || ext.duration}) — ${title}`,
+      amounts: { ht: ext.price, vatRate: ext.vatRate || 0, vat: r2((ext.amount || ext.price) - ext.price), ttc: ext.amount || ext.price, feeHT, feeVat: r2(feeTTC - feeHT), feeTTC },
+    }).catch(() => {}));
+  }
   sendExtensionPaid(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
   sendExtensionPaid(delivery.creatorId.email, delivery.creatorId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
   notify(idOf(delivery.creatorId), { type: 'rights', title: 'Prolongation des droits payée', text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
@@ -1204,6 +1231,8 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   delivery.approve(isAuto, transferred);
   if (transferId) delivery.payment.stripeTransferId = transferId;
   await delivery.save();
+  // Factures (créateur → marque par mandat, commission NeedCreator ; ou frais de service gifting)
+  if (delivery.payment.stripePaymentIntentId) setImmediate(() => issueMissionInvoices(delivery).catch(() => {}));
 
   // Clôture la campagne quand toutes les livraisons sont approuvées
   const campaignId = idOf(delivery.campaignId);
@@ -1426,6 +1455,7 @@ export async function getDelivery(req, res) {
     delivery.maxRevisions = await allowedRevisionsFor(delivery); // révisions prévues au devis, plafonnées par l'admin
     delivery.canRequestRevision = delivery.status === 'submitted' && (delivery.revisions?.length || 0) < delivery.maxRevisions;
     delivery.canDispute = delivery.status === 'submitted' && (delivery.revisions?.length || 0) >= delivery.maxRevisions; // refus définitif possible (révisions épuisées)
+    { const { Invoice } = await import('../services/invoices.js'); const mine = user.role === 'brand' ? ['creator_to_brand', 'platform_to_brand'] : user.role === 'creator' ? ['creator_to_brand', 'commission'] : ['creator_to_brand', 'commission', 'platform_to_brand']; delivery.invoices = await Invoice.find({ deliveryId: delivery._id, kind: { $in: mine } }).select('number kind issuedAt totals source').sort({ issuedAt: 1 }).lean(); }
     delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
     delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;
     const { transcriptionAvailable } = await import('../services/video.js');

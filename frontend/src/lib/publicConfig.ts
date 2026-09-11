@@ -14,6 +14,7 @@ export interface PublicConfig {
   referralBrandDiscountPercent: number;
   earlyAccessHours: number;
   aiBriefFreeQuota: number;
+  vatRate: number;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -28,6 +29,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   referralBrandDiscountPercent: 5,
   earlyAccessHours: 24,
   aiBriefFreeQuota: 3,
+  vatRate: 20,
 };
 
 /** Côté serveur (pages marketing) : mis en cache 5 minutes, repli sur les valeurs par défaut si l'API ne répond pas */

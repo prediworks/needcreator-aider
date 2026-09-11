@@ -89,7 +89,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
         <div className="grid sm:grid-cols-2 gap-3">
           {!isGifting && <div>
             <Input
-              label={`Prix total pour ${deliverables} vidéo(s) (€)`}
+              label={`Prix total HT pour ${deliverables} vidéo(s) (€)`}
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
@@ -101,7 +101,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
               {campaign?.budget?.total
                 ? `Budget indiqué par la marque : ${formatCurrency(campaign.budget.total)}.`
                 : 'La marque n\'a pas fixé de budget : proposez votre prix.'}{' '}
-              Vous recevrez {formatCurrency(Math.round(priceNumber * 0.9))} net (commission 10%).
+              Vous recevrez {formatCurrency(Math.round(priceNumber * (1 - cfg.platformFeePercent / 100)))} (commission {cfg.platformFeePercent} % du devis, TVA en sus si vous êtes assujetti : la marque la paie en plus).
             </p>
           </div>}
           <Input
@@ -207,7 +207,7 @@ export function QuoteSummary({ application, compact = false }: { application: an
   const r = q.rights || {};
   return (
     <div className={cn('text-sm text-neutral-700 space-y-1', compact && 'text-xs')}>
-      <div><span className="text-neutral-500">Prix :</span> <strong>{application.price ? formatCurrency(application.price) : 'Produit offert (gifting)'}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? cfg.maxRevisions} révision(s)</div>
+      <div><span className="text-neutral-500">Prix :</span> <strong>{application.price ? `${formatCurrency(application.price)}${q.vatRate > 0 ? ` HT (${formatCurrency(application.price * (1 + q.vatRate / 100))} TTC)` : ''}` : 'Produit offert (gifting)'}</strong> · livraison sous {application.estimatedDeliveryDays} j · {q.revisions ?? cfg.maxRevisions} révision(s)</div>
       <div>
         <span className="text-neutral-500">Droits :</span> {RIGHTS_DURATION[r.duration] || '1 an'} · {(r.supports || []).map((s: string) => RIGHTS_SUPPORTS[s]).join(', ') || 'réseaux sociaux'} · {r.territories || 'France'}
         {r.exclusivity ? ` · exclusivité ${r.exclusivityMonths || ''} mois` : ''}

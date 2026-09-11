@@ -48,6 +48,8 @@ export function buildContractData({ campaign, application, delivery, brand, crea
       creator: {
         name: [cli.firstName, cli.lastName].filter(Boolean).join(' ') || creator.profile?.name,
         status: cli.status || null,
+        vatRegistered: !!cli.vatRegistered,
+        vatNumber: cli.vatRegistered ? (cli.vatNumber || null) : null,
         companyName: cli.status === 'company' ? (cli.legalName || cli.companyName || null) : (cli.legalName || null),
         siret: cli.siret || null,
         address: creatorAddress(cli) || cli.registryAddress || null,
@@ -87,7 +89,10 @@ export function buildContractData({ campaign, application, delivery, brand, crea
     price: delivery.payment?.quotePrice || application?.price || delivery.payment?.amount || 0,
     discountPercent: delivery.payment?.discountPercent || 0,
     discountAmount: delivery.payment?.discountAmount || 0,
-    paidPrice: delivery.payment?.amount || application?.price || 0,
+    paidPrice: delivery.payment?.amountHT ?? delivery.payment?.amount ?? application?.price ?? 0,
+    vatRate: delivery.payment?.vatRate || 0,
+    vatAmount: delivery.payment?.vatAmount || 0,
+    paidTTC: delivery.payment?.amount || 0,
     isGifting: campaign.type === 'gifting',
     giftingProduct: campaign.gifting?.productName || null,
     acceptedAt: application?.quote?.acceptedAt || new Date(),
@@ -148,6 +153,7 @@ function partiesBlock(doc, parties) {
   KV(doc, 'Raison sociale', c.companyName);
   KV(doc, 'SIRET', c.siret);
   KV(doc, 'Adresse', c.address);
+  KV(doc, 'TVA', c.vatRegistered ? `assujetti${c.vatNumber ? ` (${c.vatNumber})` : ''}` : 'non applicable, art. 293 B du CGI (franchise en base)');
   KV(doc, 'Email', c.email);
   if (c.status === 'individual') P(doc, 'Le Créateur déclare agir à titre occasionnel et faire son affaire de la déclaration des revenus perçus.');
 }
@@ -178,7 +184,7 @@ export async function generateContractPdf(data) {
     if (data.mission.estimatedDeliveryDays) KV(doc, 'Délai de livraison', `${data.mission.estimatedDeliveryDays} jours à compter de la sélection${data.isGifting ? ' (ou de la réception du produit)' : ''}`);
     KV(doc, 'Révisions incluses', data.mission.revisions);
     if (data.mission.terms) KV(doc, 'Conditions particulières du Créateur', data.mission.terms);
-    P(doc, 'Le Créateur réalise les contenus conformément au brief de la campagne consultable sur la plateforme. La Marque dispose de 7 jours après chaque livraison pour la valider ou demander une révision ; sans réponse dans ce délai, la livraison est réputée acceptée.');
+    P(doc, `Le Créateur réalise les contenus conformément au brief de la campagne consultable sur la plateforme. La Marque dispose de ${config.business.autoApprovalDays} jours après chaque livraison pour la valider ou demander une révision ; sans réponse dans ce délai, la livraison est réputée acceptée.`);
 
     H(doc, '3. Prix et paiement');
     if (data.isGifting) {
@@ -187,10 +193,16 @@ export async function generateContractPdf(data) {
       KV(doc, 'Prix de la mission (devis accepté)', fmtEur(data.price));
       if (data.discountAmount > 0) {
         KV(doc, `Remise parrainage NeedCreator (${data.discountPercent} %)`, `− ${fmtEur(data.discountAmount)}`);
-        KV(doc, 'Prix payé par la Marque', fmtEur(data.paidPrice));
+        KV(doc, 'Prix payé par la Marque (hors taxes)', fmtEur(data.paidPrice));
         P(doc, 'La remise est accordée par la plateforme sur sa commission ; la rémunération du Créateur reste calculée sur le prix du devis.');
       }
-      P(doc, 'Le prix est bloqué par la Marque sur la plateforme à l\'acceptation du devis et débité à la validation de la livraison. Il est versé au Créateur, déduction faite de la commission de la plateforme prévue par les conditions générales, par virement sur son compte de paiement. Le Créateur établit, s\'il y est tenu, la facture correspondante à la Marque.');
+      if (data.vatRate > 0) {
+        KV(doc, `TVA (${data.vatRate} %)`, fmtEur(data.vatAmount).replace(' HT', ''));
+        KV(doc, 'Total payé par la Marque (TTC)', fmtEur(data.paidTTC).replace(' HT', ' TTC'));
+      } else {
+        P(doc, 'TVA non applicable au prix de la mission, art. 293 B du CGI (Créateur en franchise en base).');
+      }
+      P(doc, 'Le prix est bloqué par la Marque sur la plateforme à l\'acceptation du devis et débité à la validation de la livraison. Il est versé au Créateur, déduction faite de la commission de la plateforme prévue par les conditions générales, par virement sur son compte de paiement. La facture du Créateur à la Marque est établie par la plateforme au nom et pour le compte du Créateur (mandat de facturation accepté dans son profil).');
     }
 
     H(doc, '4. Cession de droits d\'utilisation');

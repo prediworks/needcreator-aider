@@ -107,6 +107,11 @@ export const config = {
     pricePerVideo: parseFloat(process.env.READY_PACK_PRICE || '15'),
   },
 
+  // TVA (taux appliqué par PREDIWORKS sur sa commission et ses services, et par les créateurs assujettis)
+  vat: {
+    rate: parseFloat(process.env.VAT_RATE || '20'),
+  },
+
   // Parrainage (montants configurables)
   referral: {
     // Réduction (en % du devis) accordée à la marque parrainée sur sa 1re campagne, et à la marraine sur sa campagne suivante.

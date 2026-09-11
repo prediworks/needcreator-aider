@@ -20,7 +20,7 @@ const brandSteps = (cfg: { maxRevisions: number; autoApprovalDays: number }) => 
 const creatorSteps = (cfg: { autoApprovalDays: number }) => [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio. Validation par notre équipe sous 24h.'],
   ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire).'],
-  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis moins la commission de 10 %.'],
+  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom.'],
   ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'La réactivité des marques est visible par tous les créateurs.'],
 ];
@@ -98,7 +98,7 @@ export default async function HowItWorksPage() {
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Prix affichés partout</div>
-              <p className="text-neutral-600">Pour la marque, le prix du devis est le prix payé. Pour le créateur, une commission de 10 % est retenue sur le versement. Rien d'autre.</p>
+              <p className="text-neutral-600">Pour la marque, le prix du devis HT est le prix payé (TVA en sus si le créateur y est assujetti). Pour le créateur, une commission de 10 % est retenue sur le versement. Rien d'autre.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Validation automatique à {plural(cfg.autoApprovalDays, 'jour')}</div>

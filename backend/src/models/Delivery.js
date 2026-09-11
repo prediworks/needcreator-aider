@@ -95,7 +95,12 @@ const deliverySchema = new mongoose.Schema({
       type: String,
       default: 'EUR',
     },
-    quotePrice: Number,        // prix du devis (avant remise)
+    quotePrice: Number,        // prix du devis HT (avant remise)
+    vatRate: { type: Number, default: 0 }, // TVA du créateur (20 si assujetti, 0 en franchise) appliquée au prix
+    amountHT: Number,          // prix payé par la marque, hors TVA (après remise)
+    vatAmount: Number,         // TVA sur le prix (créateur assujetti)
+    platformFeeHT: Number,     // commission NeedCreator hors taxes
+    platformFeeVat: Number,    // TVA sur la commission (toujours due par PREDIWORKS)
     discountPercent: Number,   // remise parrainage accordée à la marque
     discountAmount: Number,
     platformFee: Number,
@@ -202,6 +207,8 @@ const deliverySchema = new mongoose.Schema({
   // Prolongation des droits (proposée par le créateur, payée par la marque)
   rightsExtension: {
     status: { type: String, enum: ['none', 'requested', 'proposed', 'awaiting_payment', 'paid', 'declined'], default: 'none' },
+    vatRate: Number,   // TVA du créateur (même régime que la mission)
+    amount: Number,    // payé par la marque (TTC)
     requestMessage: String,
     requestedAt: Date,
     price: Number,
@@ -217,6 +224,7 @@ const deliverySchema = new mongoose.Schema({
 
   readyPack: {
     status: { type: String, enum: ['none', 'awaiting_payment', 'queued', 'processing', 'done', 'failed'], default: 'none' },
+    priceHT: Number,   // prix hors taxes (price = TTC payé par la marque)
     options: {
       formats: [String],
       subtitles: Boolean,
@@ -389,18 +397,31 @@ deliverySchema.methods.requestRevision = function(feedback, maxRevisions = confi
  * Montants à partir du prix du devis (payment.amount = devis à l'appel) :
  * le créateur reçoit devis − commission ; la marque paie devis − remise parrainage ; NeedCreator garde la différence.
  */
-deliverySchema.methods.calculatePaymentAmounts = function(feePercent = null, discountPercent = 0) {
+/**
+ * Montants d'une mission. Le devis est HT.
+ *  - créateur assujetti (vatRate 20) : la marque paie TTC ; le créateur reçoit 90 % HT + la TVA sur sa part ; commission 10 % HT + TVA
+ *  - créateur en franchise (vatRate 0) : la marque paie le devis ; le créateur reçoit 90 % ; commission 10 % TTC (8,33 HT + TVA)
+ * La remise parrainage (marque) est prise sur la commission : le créateur garde ses 90 % du devis.
+ */
+deliverySchema.methods.calculatePaymentAmounts = function(feePercent = null, discountPercent = 0, vatRate = null) {
   const round2 = (n) => Math.round(n * 100) / 100;
   const platformFeePercent = feePercent ?? config.stripe.platformFeePercent;
+  const platformVat = config.vat.rate / 100;
+  const vat = (vatRate ?? this.payment.vatRate ?? 0) / 100;
   const quote = this.payment.quotePrice ?? this.payment.amount;
   const discount = Math.min(Math.max(discountPercent || 0, 0), platformFeePercent);
   this.payment.quotePrice = quote;
+  this.payment.vatRate = vat * 100;
   this.payment.platformFeePercent = platformFeePercent;
   this.payment.discountPercent = discount;
   this.payment.discountAmount = round2(quote * discount / 100);
-  this.payment.amount = round2(quote - this.payment.discountAmount);
-  this.payment.creatorAmount = round2(quote * (1 - platformFeePercent / 100));
-  this.payment.platformFee = round2(this.payment.amount - this.payment.creatorAmount);
+  this.payment.amountHT = round2(quote - this.payment.discountAmount);
+  this.payment.vatAmount = round2(this.payment.amountHT * vat);
+  this.payment.amount = round2(this.payment.amountHT + this.payment.vatAmount); // payé par la marque (TTC)
+  this.payment.creatorAmount = round2(quote * (1 - platformFeePercent / 100) * (1 + vat)); // versé au créateur
+  this.payment.platformFee = round2(this.payment.amount - this.payment.creatorAmount); // commission TTC
+  this.payment.platformFeeHT = round2(this.payment.platformFee / (1 + platformVat));
+  this.payment.platformFeeVat = round2(this.payment.platformFee - this.payment.platformFeeHT);
 };
 
 // Statics

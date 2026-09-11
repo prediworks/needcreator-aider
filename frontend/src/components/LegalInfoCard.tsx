@@ -31,6 +31,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     firstName: li.firstName || '', lastName: li.lastName || '', status: li.status || 'micro', companyName: li.companyName || '', siret: li.siret || '',
     address: { line1: '', line2: '', postalCode: '', city: '', country: 'France', ...(li.address || {}) },
     individualAcknowledged: !!li.individualAcknowledged,
+    vatRegistered: !!li.vatRegistered, vatNumber: li.vatNumber || '', billingMandate: !!li.billingMandateAcceptedAt,
     signatoryName: li.signatoryName || '', signatoryTitle: li.signatoryTitle || '',
   });
   const set = (k: string, v: any) => setForm({ ...form, [k]: v });
@@ -40,7 +41,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     mutationFn: async () => {
       const body = isBrand
         ? { signatoryName: form.signatoryName, signatoryTitle: form.signatoryTitle }
-        : { firstName: form.firstName, lastName: form.lastName, status: form.status, companyName: form.companyName, siret: form.status === 'individual' ? '' : form.siret, address: form.address, individualAcknowledged: form.individualAcknowledged };
+        : { firstName: form.firstName, lastName: form.lastName, status: form.status, companyName: form.companyName, siret: form.status === 'individual' ? '' : form.siret, address: form.address, individualAcknowledged: form.individualAcknowledged, vatRegistered: form.status !== 'individual' && form.vatRegistered, vatNumber: form.vatRegistered ? form.vatNumber : '', billingMandate: form.billingMandate };
       return (await api.put('/auth/legal-info', body)).data;
     },
     onSuccess: async (data) => {
@@ -54,7 +55,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
 
   const canSave = isBrand
     ? form.signatoryName.trim().length >= 2
-    : form.firstName && form.lastName && form.address.line1 && form.address.postalCode && form.address.city && (form.status === 'individual' ? form.individualAcknowledged : form.siret.replace(/\s/g, '').length === 14);
+    : form.firstName && form.lastName && form.address.line1 && form.address.postalCode && form.address.city && (form.status === 'individual' ? form.individualAcknowledged : form.siret.replace(/\s/g, '').length === 14) && form.billingMandate && (!form.vatRegistered || form.vatNumber.trim().length >= 4);
 
   return (
     <Card className={`p-6 ${!complete ? 'border-orange-300 bg-orange-50/40' : ''}`}>
@@ -82,6 +83,8 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
               <div><strong>{li.firstName} {li.lastName}</strong> · {STATUS_LABELS[li.status] || '—'}</div>
               {li.legalName && <div>{li.legalName}{li.registryChecked ? ' (vérifiée au registre)' : ''}</div>}
               {li.siret && <div>SIRET {li.siret}</div>}
+              <div>{li.vatRegistered ? `Assujetti à la TVA${li.vatNumber ? ` (${li.vatNumber})` : ''} : vos devis sont HT, la marque paie la TVA en plus` : 'Non assujetti à la TVA (franchise en base) : vos devis sont facturés sans TVA'}</div>
+              {li.billingMandateAcceptedAt && <div className="text-xs text-neutral-500">Mandat de facturation accepté le {new Date(li.billingMandateAcceptedAt).toLocaleDateString('fr-FR')} : NeedCreator émet vos factures en votre nom.</div>}
               {li.address?.line1 && <div>{li.address.line1}{li.address.line2 ? `, ${li.address.line2}` : ''}, {li.address.postalCode} {li.address.city}, {li.address.country}</div>}
             </>
           )}
@@ -90,6 +93,10 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
         <div className="space-y-3">
           <Input label="Nom et prénom du signataire" value={form.signatoryName} onChange={(e) => set('signatoryName', e.target.value)} placeholder="Marie Dupont" />
           <Input label="Fonction (optionnel)" value={form.signatoryTitle} onChange={(e) => set('signatoryTitle', e.target.value)} placeholder="Directrice marketing" />
+          <label className="flex items-start gap-2 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+            <input type="checkbox" checked={form.billingMandate} onChange={(e) => set('billingMandate', e.target.checked)} className="mt-0.5" disabled={!!li.billingMandateAcceptedAt} />
+            <span><strong>Mandat de facturation.</strong> J&apos;autorise NeedCreator (PREDIWORKS SAS) à établir et émettre en mon nom et pour mon compte les factures correspondant à mes missions sur la plateforme, avec une numérotation qui m&apos;est propre. Je reste responsable de leur déclaration. Obligatoire pour envoyer un devis.</span>
+          </label>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => save.mutate()} isLoading={save.isPending} disabled={!canSave}><Save className="w-4 h-4 mr-1" /> Enregistrer les informations administratives</Button>
             {complete && <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>}
@@ -115,6 +122,16 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
               <input type="checkbox" checked={form.individualAcknowledged} onChange={(e) => set('individualAcknowledged', e.target.checked)} className="mt-0.5" />
               <span>Je déclare exercer cette activité à titre occasionnel et déclarer moi-même les revenus perçus. Une activité régulière nécessite un statut (micro-entreprise).</span>
             </label>
+          )}
+          {form.status !== 'individual' && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-neutral-700">TVA</label>
+              <select value={form.vatRegistered ? 'yes' : 'no'} onChange={(e) => set('vatRegistered', e.target.value === 'yes')} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="no">Non assujetti (franchise en base, cas général des micro-entrepreneurs) : devis sans TVA</option>
+                <option value="yes">Assujetti à la TVA : devis HT, la marque paie la TVA en plus</option>
+              </select>
+              {form.vatRegistered && <Input label="Numéro de TVA intracommunautaire" value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} placeholder="FR12345678901" />}
+            </div>
           )}
           <Input label="Adresse" value={form.address.line1} onChange={(e) => setAddr('line1', e.target.value)} placeholder="12 rue des Lilas" />
           <Input label="Complément (optionnel)" value={form.address.line2 || ''} onChange={(e) => setAddr('line2', e.target.value)} />

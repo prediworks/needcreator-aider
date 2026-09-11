@@ -34,9 +34,9 @@ export default async function CreatorsPage() {
 
   const faq: [string, string][] = [
     ['Faut-il beaucoup d\'abonnés ?', 'Non. L\'UGC est publié sur les comptes des marques, pas sur le vôtre. Les marques regardent votre portfolio, pas votre audience. Trois vidéos suffisent pour commencer.'],
-    ['Combien je gagne par vidéo ?', `Le prix que vous demandez, moins la commission de ${cfg.platformFeePercent} %. Les devis acceptés démarrent en général autour de 80 € par vidéo et montent avec l'expérience et les droits cédés.`],
+    ['Combien je gagne par vidéo ?', `Le prix HT que vous demandez, moins la commission de ${cfg.platformFeePercent} % (si vous êtes assujetti à la TVA, la marque la paie en plus et vous la reversez). Les devis acceptés démarrent en général autour de 80 € par vidéo et montent avec l'expérience et les droits cédés.`],
     ['Et si la marque ne répond pas ?', `Elle a ${days} pour valider ou demander une révision. Passé ce délai, la livraison est validée et le paiement part automatiquement. Personne ne reste bloqué.`],
-    ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission. Le compte Stripe se connecte en deux minutes.'],
+    ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission, et NeedCreator émet vos factures en votre nom (mandat de facturation) : rien à rédiger. Le compte Stripe se connecte en deux minutes.'],
     ['C\'est gratuit ?', 'Oui. Aucun abonnement, aucun frais d\'inscription. La commission n\'est retenue que sur une mission payée.'],
   ];
 

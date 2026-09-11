@@ -9,7 +9,7 @@ import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { deleteFile } from '../services/storage.js';
 import logger from '../utils/logger.js';
-import { isValidSiret, lookupRegistry } from '../utils/business.js';
+import { isValidSiret, isValidVat, lookupRegistry } from '../utils/business.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 
 const ACTIVE_DELIVERY = ['pending', 'submitted', 'revision_requested'];
@@ -51,6 +51,10 @@ export async function updateLegalInfo(req, res) {
     } else if (!body.individualAcknowledged) {
       return res.status(400).json({ error: 'En tant que particulier, vous devez confirmer déclarer vous-même vos revenus' });
     }
+    const vatRegistered = body.status !== 'individual' && !!body.vatRegistered;
+    const vatNumber = vatRegistered ? String(body.vatNumber || '').replace(/\s/g, '').toUpperCase() : '';
+    if (vatRegistered && !isValidVat(vatNumber)) return res.status(400).json({ error: 'Numéro de TVA intracommunautaire invalide (ex. FR12345678901)' });
+    if (!body.billingMandate && !user.legalInfo?.billingMandateAcceptedAt) return res.status(400).json({ error: 'Acceptez le mandat de facturation : NeedCreator émet vos factures en votre nom pour chaque mission.' });
 
     let registry = null;
     const registryEnabled = await getSetting(SETTINGS.businessRegistryCheck.key, SETTINGS.businessRegistryCheck.default);
@@ -71,6 +75,9 @@ export async function updateLegalInfo(req, res) {
       registryChecked: !!registry?.found,
       address: body.address,
       individualAcknowledged: body.status === 'individual' ? !!body.individualAcknowledged : false,
+      vatRegistered,
+      vatNumber,
+      billingMandateAcceptedAt: user.legalInfo?.billingMandateAcceptedAt || (body.billingMandate ? new Date() : null),
       updatedAt: new Date(),
     });
     await user.save();

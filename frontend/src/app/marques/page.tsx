@@ -33,11 +33,11 @@ export default async function BrandsPage() {
   ];
 
   const faq: [string, string][] = [
-    ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix, généralement à partir de 80 €. Vous payez exactement le devis accepté : la commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement.`],
+    ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix hors taxes, généralement à partir de 80 €. Vous payez exactement le devis accepté, plus la TVA si le créateur y est assujetti (indiqué sur le devis). La commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement. Vous recevez une facture pour chaque mission.`],
     ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
     ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. En cas de désaccord persistant, notre équipe intervient.`],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
-    ['Faut-il un abonnement ?', 'Non. L\'inscription et les campagnes sont gratuites. L\'offre Pro, facultative, ajoute le brief IA illimité, les campagnes multi-créateurs et le gifting.'],
+    ['Faut-il un abonnement ?', 'Non. L\'inscription et les campagnes sont gratuites. Les factures sont générées automatiquement à chaque mission validée. L\'offre Pro, facultative, ajoute le brief IA illimité, les campagnes multi-créateurs et le gifting.'],
   ];
 
   const jsonLd = {

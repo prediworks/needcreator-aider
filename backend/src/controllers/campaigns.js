@@ -523,6 +523,7 @@ export async function applyToCampaign(req, res) {
         deliveryTypes,
         platforms: platforms?.length ? platforms : campaign.brief.platforms,
         revisions: revisions ?? maxRevisions,
+        vatRate: creator.legalInfo?.vatRegistered ? config.vat.rate : 0,
         terms,
         history: [],
       },
@@ -604,6 +605,7 @@ export async function updateQuote(req, res) {
     application.quote.deliveryTypes = deliveryTypes;
     application.quote.platforms = platforms?.length ? platforms : campaign.brief.platforms;
     application.quote.revisions = revisions ?? maxRevisions;
+    application.quote.vatRate = creator.legalInfo?.vatRegistered ? config.vat.rate : 0;
     application.quote.terms = terms;
 
     await campaign.save();

@@ -22,6 +22,7 @@ import ReviewForm, { Stars } from '@/components/ReviewForm';
 import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
 import DisputeCard from '@/components/DisputeCard';
+import InvoicesList from '@/components/InvoicesList';
 import PerformanceCard from '@/components/PerformanceCard';
 import ReadyPackCard from '@/components/ReadyPackCard';
 import ContractCard from '@/components/ContractCard';
@@ -529,6 +530,13 @@ export default function DeliveryDetailPage() {
 
             {/* Contrat de mission et droits (les deux parties) */}
             {(isBrand || isCreator) && <ContractCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
+            {(isBrand || isCreator) && (delivery.invoices?.length > 0 || isDone) && (
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold text-neutral-900 mb-3">Factures</h2>
+                <InvoicesList invoices={delivery.invoices || []} compact />
+                <p className="text-xs text-neutral-500 mt-3">Toutes vos factures : <Link href="/invoices" className="text-primary-600 underline">page Factures</Link>.</p>
+              </Card>
+            )}
 
             {/* Pack prêt à diffuser (marque, après validation) */}
             {isDone && isBrand && <ReadyPackCard delivery={delivery} />}
@@ -586,13 +594,19 @@ export default function DeliveryDetailPage() {
                     <span>− {formatCurrency(delivery.payment?.discountAmount)}</span>
                   </div>
                 )}
+                {delivery.payment?.vatRate > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm"><span className="text-neutral-600">{campaign.type === 'gifting' ? 'Frais de service HT' : 'Prix HT'}</span><span>{formatCurrency(delivery.payment?.amountHT)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-neutral-600">TVA ({delivery.payment.vatRate} %)</span><span>{formatCurrency(delivery.payment?.vatAmount)}</span></div>
+                  </>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-neutral-600">{campaign.type === 'gifting' ? 'Frais de plateforme' : isBrand ? 'Prix payé' : 'Prix de la mission'}</span>
+                  <span className="text-neutral-600">{campaign.type === 'gifting' ? 'Frais de plateforme TTC' : isBrand ? `Prix payé${delivery.payment?.vatRate > 0 ? ' TTC' : ''}` : `Prix de la mission${delivery.payment?.vatRate > 0 ? ' TTC' : ''}`}</span>
                   <span className="font-semibold">{formatCurrency(delivery.payment?.amount)}</span>
                 </div>
                 {campaign.type !== 'gifting' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-neutral-600">Commission NeedCreator ({delivery.payment?.platformFeePercent ?? 10} %{delivery.payment?.discountAmount > 0 ? ', remise déduite' : ''})</span>
+                    <span className="text-neutral-600">Commission NeedCreator ({delivery.payment?.platformFeePercent ?? 10} % du devis{delivery.payment?.discountAmount > 0 ? ', remise déduite' : ''}{delivery.payment?.platformFeeHT ? `, soit ${formatCurrency(delivery.payment.platformFeeHT)} HT + TVA` : ''})</span>
                     <span>{formatCurrency(delivery.payment?.platformFee)}</span>
                   </div>
                 )}

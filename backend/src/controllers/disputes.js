@@ -7,6 +7,7 @@ import { finalizeApproval } from './deliveries.js';
 import { sendDisputeOpened, sendDisputeResponse, sendDisputeResolved } from '../services/email.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import { notify } from '../services/notifications.js';
+import { issueMissionInvoices } from '../services/invoices.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -145,7 +146,11 @@ export async function resolveDispute(req, res) {
         }
       }
       delivery.payment.amount = paidAmount;
+      delivery.payment.amountHT = Math.round(paidAmount / (1 + (delivery.payment.vatRate || 0) / 100) * 100) / 100;
+      delivery.payment.vatAmount = Math.round((paidAmount - delivery.payment.amountHT) * 100) / 100;
       delivery.payment.platformFee = platformFee;
+      delivery.payment.platformFeeHT = Math.round(platformFee / (1 + config.vat.rate / 100) * 100) / 100;
+      delivery.payment.platformFeeVat = Math.round((platformFee - delivery.payment.platformFeeHT) * 100) / 100;
       delivery.payment.creatorAmount = creatorAmount;
       if (paidAmount > 0) {
         delivery.approve(false, transferred || creatorAmount <= 0);
@@ -162,6 +167,7 @@ export async function resolveDispute(req, res) {
       outcome, creatorPercent: outcome === 'split' ? Number(creatorPercent) : outcome === 'approve' ? 100 : 0, paidAmount, refundedAmount, note,
     };
     await delivery.save();
+    if (outcome === 'split' && ['approved', 'auto_approved'].includes(delivery.status) && delivery.payment?.stripePaymentIntentId) setImmediate(() => issueMissionInvoices(delivery, { source: 'dispute' }).catch(() => {}));
     if (outcome === 'split' && ['approved', 'auto_approved'].includes(delivery.status)) {
       await User.updateOne({ _id: idOf(delivery.creatorId) }, { $inc: { 'profile.stats.completedJobs': 1 } }).catch(() => {});
     }

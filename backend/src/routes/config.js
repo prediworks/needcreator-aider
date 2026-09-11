@@ -21,6 +21,7 @@ router.get('/public', async (req, res) => {
     referralBrandDiscountPercent: config.referral.brandDiscountPercent,
     earlyAccessHours: config.badges.earlyAccessHours,
     aiBriefFreeQuota: config.plans.aiBriefFreeQuota,
+    vatRate: config.vat.rate,
   });
 });
 
