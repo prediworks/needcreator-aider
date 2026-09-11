@@ -7,7 +7,7 @@ import { finalizeApproval } from './deliveries.js';
 import { sendDisputeOpened, sendDisputeResponse, sendDisputeResolved } from '../services/email.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import { notify } from '../services/notifications.js';
-import { issueMissionInvoices } from '../services/invoices.js';
+import { issueMissionInvoices, creditDeliveryInvoices } from '../services/invoices.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -120,6 +120,7 @@ export async function resolveDispute(req, res) {
       delivery.status = 'rejected';
       delivery.rejection = { at: new Date(), reason: `Litige tranché : ${note}`, auto: false };
       await freeCampaignSlot(delivery);
+      setImmediate(() => creditDeliveryInvoices(delivery._id, `Litige tranché : remboursement intégral (${note})`).catch(() => {}));
     } else {
       // split
       const pct = Math.max(0, Math.min(100, Number(creatorPercent)));

@@ -9,6 +9,7 @@ const KIND_LABELS: Record<string, string> = {
   creator_to_brand: 'Facture de mission (créateur → marque)',
   commission: 'Commission NeedCreator',
   platform_to_brand: 'Service NeedCreator',
+  credit_note: 'Avoir',
 };
 const SOURCE_LABELS: Record<string, string> = { mission: 'Mission', gifting: 'Gifting', ready_pack: 'Pack prêt à diffuser', rights_extension: 'Prolongation des droits', dispute: 'Litige tranché' };
 
@@ -49,7 +50,7 @@ export default function InvoicesList({ invoices, compact = false }: { invoices?:
               <tr key={inv._id} className="border-b border-neutral-100">
                 <td className="py-2 pr-4 whitespace-nowrap">{formatDate(inv.issuedAt)}</td>
                 <td className="py-2 pr-4 font-mono text-xs">{inv.number}</td>
-                <td className="py-2 pr-4">{KIND_LABELS[inv.kind] || inv.kind}<span className="text-xs text-neutral-500"> · {SOURCE_LABELS[inv.source] || inv.source}</span></td>
+                <td className="py-2 pr-4">{KIND_LABELS[inv.kind] || inv.kind}<span className="text-xs text-neutral-500"> · {SOURCE_LABELS[inv.source] || inv.source}{inv.creditedBy ? ' · annulée par avoir' : ''}</span></td>
                 <td className="py-2 pr-4">{inv.campaignId?.title || '—'}</td>
                 <td className="py-2 pr-4 text-right">{formatCurrency(inv.totals?.ht)}</td>
                 <td className="py-2 pr-4 text-right text-neutral-500">{inv.totals?.vatRate ? `${formatCurrency(inv.totals?.vat)} (${inv.totals.vatRate} %)` : '—'}</td>

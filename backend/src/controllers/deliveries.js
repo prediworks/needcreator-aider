@@ -1455,7 +1455,7 @@ export async function getDelivery(req, res) {
     delivery.maxRevisions = await allowedRevisionsFor(delivery); // révisions prévues au devis, plafonnées par l'admin
     delivery.canRequestRevision = delivery.status === 'submitted' && (delivery.revisions?.length || 0) < delivery.maxRevisions;
     delivery.canDispute = delivery.status === 'submitted' && (delivery.revisions?.length || 0) >= delivery.maxRevisions; // refus définitif possible (révisions épuisées)
-    { const { Invoice } = await import('../services/invoices.js'); const mine = user.role === 'brand' ? ['creator_to_brand', 'platform_to_brand'] : user.role === 'creator' ? ['creator_to_brand', 'commission'] : ['creator_to_brand', 'commission', 'platform_to_brand']; delivery.invoices = await Invoice.find({ deliveryId: delivery._id, kind: { $in: mine } }).select('number kind issuedAt totals source').sort({ issuedAt: 1 }).lean(); }
+    { const { Invoice, kindFilter } = await import('../services/invoices.js'); delivery.invoices = await Invoice.find({ deliveryId: delivery._id, ...kindFilter(user.role) }).select('number kind issuedAt totals source creditedBy').sort({ issuedAt: 1 }).lean(); }
     delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
     delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;
     const { transcriptionAvailable } = await import('../services/video.js');

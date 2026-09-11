@@ -33,7 +33,11 @@ const partySchema = new mongoose.Schema({
 
 const invoiceSchema = new mongoose.Schema({
   number: { type: String, required: true, unique: true },
-  kind: { type: String, enum: ['creator_to_brand', 'commission', 'platform_to_brand'], required: true },
+  kind: { type: String, enum: ['creator_to_brand', 'commission', 'platform_to_brand', 'credit_note'], required: true },
+  creditOf: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },   // avoir : facture annulée
+  creditedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' }, // facture : avoir qui l'annule
+  originalKind: String, // avoir : nature de la facture annulée
+  reason: String,
   issuedAt: { type: Date, default: Date.now },
   issuer: partySchema,
   recipient: partySchema,
@@ -101,7 +105,7 @@ export function renderInvoicePdf(inv) {
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const isCredit = false;
+    const isCredit = inv.kind === 'credit_note';
     doc.font('Helvetica-Bold').fontSize(20).fillColor('#111').text(isCredit ? 'AVOIR' : 'FACTURE', { align: 'right' });
     doc.font('Helvetica').fontSize(10).fillColor('#444').text(`N° ${inv.number}`, { align: 'right' }).text(`Date : ${fmtDate(inv.issuedAt)}`, { align: 'right' });
     doc.moveDown(1.2);
@@ -123,6 +127,10 @@ export function renderInvoicePdf(inv) {
     doc.y = Math.max(yAfterIssuer, doc.y) + 12;
     doc.x = 50;
 
+    if (isCredit && inv.creditNumber) {
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text(`Annule et remplace la facture n° ${inv.creditNumber}${inv.reason ? ` — motif : ${inv.reason}` : ''}`, 50, doc.y, { width: 495 });
+      doc.moveDown(0.6);
+    }
     if (inv.mandate) {
       doc.font('Helvetica-Oblique').fontSize(9).fillColor('#555').text(`Facture établie par ${PLATFORM.name} (${PLATFORM.brand}) au nom et pour le compte de l'émetteur, en vertu d'un mandat de facturation.`, 50, doc.y, { width: 495 });
       doc.moveDown(0.6);
@@ -155,7 +163,7 @@ export function renderInvoicePdf(inv) {
 
     doc.moveDown(2);
     doc.font('Helvetica').fontSize(8).fillColor('#777').text(
-      inv.kind === 'creator_to_brand'
+      (inv.kind === 'creator_to_brand' || (isCredit && inv.originalKind === 'creator_to_brand'))
         ? `Document émis via la plateforme ${PLATFORM.brand}. En cas de retard de paiement : pénalités au taux légal et indemnité forfaitaire de recouvrement de 40 € (art. L441-10 C. com.). Pas d'escompte pour paiement anticipé.`
         : `${PLATFORM.name} · ${PLATFORM.address} · SIREN ${PLATFORM.siren} · ${PLATFORM.rcs} · TVA ${PLATFORM.vat}. Pas d'escompte pour paiement anticipé ; pénalités de retard au taux légal, indemnité forfaitaire de recouvrement 40 €.`,
       50, 760, { width: 495, align: 'center' });
@@ -256,7 +264,123 @@ export async function issueMissionInvoices(delivery, { source = 'mission' } = {}
   }
 }
 
+/** Natures visibles par un rôle (les avoirs suivent la facture qu'ils annulent) */
+export function kindsFor(role) {
+  return role === 'brand' ? ['creator_to_brand', 'platform_to_brand'] : role === 'creator' ? ['creator_to_brand', 'commission'] : ['creator_to_brand', 'commission', 'platform_to_brand'];
+}
+export function kindFilter(role) {
+  const kinds = kindsFor(role);
+  return { $or: [{ kind: { $in: kinds } }, { kind: 'credit_note', originalKind: { $in: kinds } }] };
+}
+
 export async function listInvoicesFor(user, { limit = 200 } = {}) {
-  const q = user.role === 'admin' ? {} : user.role === 'brand' ? { brandId: user._id, kind: { $in: ['creator_to_brand', 'platform_to_brand'] } } : { creatorId: user._id, kind: { $in: ['creator_to_brand', 'commission'] } };
+  const who = user.role === 'admin' ? {} : user.role === 'brand' ? { brandId: user._id } : { creatorId: user._id };
+  const q = user.role === 'admin' ? {} : { ...who, ...kindFilter(user.role) };
   return Invoice.find(q).sort({ issuedAt: -1 }).limit(limit).populate('campaignId', 'title').lean();
+}
+
+
+/**
+ * Avoir : annule intégralement une facture (montants négatifs), même émetteur, même destinataire.
+ * Numérotation : NC-A-AAAA-NNNNNN (NeedCreator) ou AV-XXXXXX-AAAA-NNNN (créateur, par mandat).
+ */
+export async function issueCreditNote(invoiceId, { reason = '', userId = null } = {}) {
+  const original = await Invoice.findById(invoiceId);
+  if (!original) throw new Error('Facture introuvable');
+  if (original.kind === 'credit_note') throw new Error('Un avoir ne peut pas être annulé par un avoir');
+  if (original.creditedBy) throw new Error('Cette facture a déjà été annulée par un avoir');
+  const byCreator = original.kind === 'creator_to_brand';
+  const number = byCreator
+    ? await nextNumber(`creator:${original.creatorId}:credit`, `AV-${shortId(original.creatorId)}`, 4)
+    : await nextNumber('platform:credit', 'NC-A');
+  const neg = (n) => -r2(n);
+  const credit = new Invoice({
+    number, kind: 'credit_note', originalKind: original.kind, creditOf: original._id, reason,
+    issuer: original.issuer, recipient: original.recipient,
+    issuerUserId: original.issuerUserId, recipientUserId: original.recipientUserId,
+    brandId: original.brandId, creatorId: original.creatorId, deliveryId: original.deliveryId, campaignId: original.campaignId, source: original.source,
+    lines: original.lines.map(l => ({ label: `Annulation — ${l.label}`, quantity: l.quantity, unitHT: neg(l.unitHT), totalHT: neg(l.totalHT) })),
+    totals: { ht: neg(original.totals.ht), vatRate: original.totals.vatRate, vat: neg(original.totals.vat), ttc: neg(original.totals.ttc) },
+    vatNote: original.vatNote, mandate: original.mandate, paymentNote: 'Avoir : montant restitué ou compensé selon le remboursement effectué.',
+  });
+  credit.creditNumber = original.number; // utilisé par le PDF (non persisté)
+  const pdf = await renderInvoicePdf(credit);
+  const { url } = await uploadFile(pdf, `avoir-${credit.number}.pdf`, 'application/pdf', `invoices/${credit.deliveryId || 'divers'}`);
+  credit.pdfUrl = url;
+  await credit.save();
+  original.creditedBy = credit._id;
+  await original.save();
+  logger.info(`Credit note ${credit.number} issued for ${original.number} (${reason || 'sans motif'}) by ${userId || 'system'}`);
+  return credit;
+}
+
+/** Avoirs automatiques sur toutes les factures d'une mission (remboursement après encaissement) */
+export async function creditDeliveryInvoices(deliveryId, reason) {
+  const invoices = await Invoice.find({ deliveryId, kind: { $ne: 'credit_note' }, creditedBy: null });
+  const out = [];
+  for (const inv of invoices) {
+    try { out.push(await issueCreditNote(inv._id, { reason })); } catch (err) { logger.warn(`Avoir non émis pour ${inv.number}: ${err.message}`); }
+  }
+  return out;
+}
+
+/**
+ * Relevé mensuel (PDF généré à la volée) : factures du mois de l'utilisateur, totaux, net.
+ * month = 'AAAA-MM'
+ */
+export async function renderStatementPdf(user, month) {
+  const [y, m] = month.split('-').map(Number);
+  const from = new Date(y, m - 1, 1), to = new Date(y, m, 1);
+  const kinds = user.role === 'brand' ? ['creator_to_brand', 'platform_to_brand', 'credit_note'] : ['creator_to_brand', 'commission', 'credit_note'];
+  const q = user.role === 'brand' ? { brandId: user._id } : { creatorId: user._id };
+  const invoices = await Invoice.find({ ...q, kind: { $in: kinds }, issuedAt: { $gte: from, $lt: to } }).sort({ issuedAt: 1 }).populate('campaignId', 'title').lean();
+  const isBrand = user.role === 'brand';
+  const label = new Date(y, m - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  const sum = (arr, f) => r2(arr.reduce((a, i) => a + (f(i) || 0), 0));
+  const sales = invoices.filter(i => i.kind === 'creator_to_brand' || (i.kind === 'credit_note' && i.originalKind === 'creator_to_brand'));
+  const fees = invoices.filter(i => i.kind === 'commission' || (i.kind === 'credit_note' && i.originalKind === 'commission'));
+  const services = invoices.filter(i => i.kind === 'platform_to_brand' || (i.kind === 'credit_note' && i.originalKind === 'platform_to_brand'));
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 50, info: { Title: `Relevé ${month}`, Author: PLATFORM.brand } });
+    const chunks = []; doc.on('data', (c) => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
+    doc.font('Helvetica-Bold').fontSize(18).fillColor('#111').text(`Relevé ${isBrand ? 'de factures' : "d'activité"} — ${label}`);
+    const party = isBrand ? brandParty(user) : creatorParty(user);
+    doc.font('Helvetica').fontSize(10).fillColor('#444').text(`${party.legalName && party.legalName !== party.name ? party.legalName + ' · ' : ''}${party.name}${party.siret ? ` · SIRET ${party.siret}` : ''}${party.vatNumber ? ` · TVA ${party.vatNumber}` : ''}`);
+    doc.text(`Établi le ${fmtDate(new Date())} par ${PLATFORM.brand} (${PLATFORM.name}). Document récapitulatif, sans valeur de facture : les factures listées font foi.`);
+    doc.moveDown(1);
+
+    const table = (title, rows) => {
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#111').text(title); doc.moveDown(0.3);
+      if (!rows.length) { doc.font('Helvetica').fontSize(10).fillColor('#666').text('Aucune.'); doc.moveDown(0.8); return; }
+      const cols = { date: 50, num: 120, camp: 250, ht: 400, vat: 450, ttc: 500 };
+      let y = doc.y;
+      doc.rect(50, y - 3, 495, 16).fill('#f1f5f4'); doc.fillColor('#111').font('Helvetica-Bold').fontSize(8);
+      doc.text('Date', cols.date, y); doc.text('Numéro', cols.num, y); doc.text('Campagne', cols.camp, y); doc.text('HT', cols.ht, y); doc.text('TVA', cols.vat, y); doc.text('TTC', cols.ttc, y);
+      y += 18; doc.font('Helvetica').fontSize(8.5).fillColor('#222');
+      for (const i of rows) {
+        if (y > 740) { doc.addPage(); y = 50; }
+        doc.text(new Date(i.issuedAt).toLocaleDateString('fr-FR'), cols.date, y); doc.text(i.number, cols.num, y, { width: 125 });
+        doc.text((i.campaignId?.title || '—').slice(0, 34), cols.camp, y, { width: 145 });
+        doc.text(fmt(i.totals.ht), cols.ht, y); doc.text(fmt(i.totals.vat), cols.vat, y); doc.text(fmt(i.totals.ttc), cols.ttc, y);
+        y += 14;
+      }
+      doc.moveTo(50, y).lineTo(545, y).strokeColor('#ddd').stroke(); y += 6;
+      doc.font('Helvetica-Bold').fontSize(9).text('Total', cols.camp, y); doc.text(fmt(sum(rows, r => r.totals.ht)), cols.ht, y); doc.text(fmt(sum(rows, r => r.totals.vat)), cols.vat, y); doc.text(fmt(sum(rows, r => r.totals.ttc)), cols.ttc, y);
+      doc.y = y + 20; doc.x = 50;
+    };
+    if (isBrand) {
+      table('Factures des créateurs (missions)', sales);
+      table('Factures NeedCreator (services)', services);
+      doc.font('Helvetica-Bold').fontSize(11).text(`Total du mois : ${fmt(sum(invoices, i => i.totals.ttc))} TTC (${fmt(sum(invoices, i => i.totals.ht))} HT, TVA ${fmt(sum(invoices, i => i.totals.vat))})`);
+    } else {
+      table('Vos factures aux marques (émises en votre nom)', sales);
+      table('Commissions NeedCreator (réglées par compensation)', fees);
+      const ca = sum(sales, i => i.totals.ht), vat = sum(sales, i => i.totals.vat), feeTTC = sum(fees, i => i.totals.ttc), net = r2(sum(sales, i => i.totals.ttc) - feeTTC);
+      doc.font('Helvetica-Bold').fontSize(11).text(`Chiffre d'affaires facturé : ${fmt(ca)} HT${vat ? ` · TVA collectée : ${fmt(vat)}` : ''}`);
+      doc.text(`Commissions NeedCreator : ${fmt(feeTTC)} TTC · Net versé sur votre compte Stripe : ${fmt(net)}`);
+      if (!party.vatRegistered) { doc.moveDown(0.4); doc.font('Helvetica').fontSize(9).fillColor('#555').text('Franchise en base de TVA (art. 293 B du CGI) : à déclarer dans vos recettes selon votre régime. La TVA figurant sur les commissions NeedCreator est un coût, non récupérable.'); }
+    }
+    doc.end();
+  });
 }

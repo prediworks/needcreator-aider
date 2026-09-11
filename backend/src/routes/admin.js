@@ -63,6 +63,21 @@ router.post('/businesses/:userId/approve', reviewBusiness);
 router.post('/businesses/:userId/reject', reviewBusiness);
 
 // Signalements
+router.get('/invoices', async (req, res) => {
+  const { Invoice } = await import('../services/invoices.js');
+  const q = req.query.deliveryId ? { deliveryId: req.query.deliveryId } : {};
+  const invoices = await Invoice.find(q).sort({ issuedAt: -1 }).limit(parseInt(req.query.limit) || 200).populate('campaignId', 'title').populate('brandId', 'email profile.companyName').populate('creatorId', 'email profile.name').lean();
+  res.json({ invoices });
+});
+router.post('/invoices/:id/credit', async (req, res) => {
+  try {
+    const { issueCreditNote } = await import('../services/invoices.js');
+    const credit = await issueCreditNote(req.params.id, { reason: String(req.body?.reason || '').slice(0, 300), userId: req.user._id });
+    res.json({ message: `Avoir ${credit.number} émis`, credit });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 router.get('/disputes', listDisputes);
 router.post('/disputes/:deliveryId/resolve', validate(schemas.resolveDispute), resolveDispute);
 router.get('/reports', listReports);

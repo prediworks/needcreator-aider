@@ -88,6 +88,17 @@ export function usePendingBusinesses(enabled = true) {
 export const useApproveBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/approve`, 'Entreprise vérifiée');
 export const useRejectBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/reject`, 'Vérification refusée');
 
+export function useAdminInvoices(enabled = true) {
+  return useQuery({ queryKey: ['admin', 'invoices'], queryFn: async () => (await api.get('/admin/invoices')).data, enabled });
+}
+export function useCreditInvoice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => (await api.post(`/admin/invoices/${id}/credit`, { reason })).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin', 'invoices'] }); toast.success(d.message); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
+}
 export function useDisputes(status = 'open', enabled = true) {
   return useQuery({ queryKey: ['admin', 'disputes', status], queryFn: async () => (await api.get('/admin/disputes', { params: { status } })).data, enabled });
 }

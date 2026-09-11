@@ -895,7 +895,26 @@ await step('Factures : émises à la validation (créateur → marque par mandat
   expect(forbidden.status === 403, 'Un autre créateur ne doit pas accéder à la facture', forbidden);
   const det = await brandApi('GET', `/deliveries/${delivery._id}`);
   expect(det.data.delivery.invoices?.length === 1 && det.data.delivery.invoices[0].kind === 'creator_to_brand', 'La mission devrait lister la facture côté marque', det);
-  return `${mission.number} (260 €) et ${com.number} (26 € TTC)`;
+  // Relevé mensuel (PDF à la volée) et avoir admin sur la facture de commission
+  const month = new Date().toISOString().slice(0, 7);
+  const st = await fetch(`${API}/invoices/statement?month=${month}`, { headers: { Authorization: `Bearer ${creator.idToken}` } });
+  const stBuf = Buffer.from(await st.arrayBuffer());
+  expect(st.status === 200 && (st.headers.get('content-type') || '').includes('application/pdf') && stBuf.slice(0, 4).toString() === '%PDF', 'Le relevé mensuel du créateur devrait être un PDF', { status: st.status, data: { type: st.headers.get('content-type'), size: stBuf.length } });
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const all = await brandApi('GET', '/admin/invoices');
+    expect(all.status === 200 && all.data.invoices.some(x => x._id === com._id), 'L\'admin devrait lister la facture de commission', all);
+    const credit = await brandApi('POST', `/admin/invoices/${com._id}/credit`, { reason: 'Test avoir' });
+    expect(credit.status === 200 && credit.data.credit.kind === 'credit_note' && /^NC-A-\d{4}-\d{6}$/.test(credit.data.credit.number) && credit.data.credit.totals.ttc === -26, 'Avoir NeedCreator attendu (−26 € TTC)', credit);
+    const twice = await brandApi('POST', `/admin/invoices/${com._id}/credit`, { reason: 'Test avoir' });
+    expect(twice.status === 400, 'Un second avoir sur la même facture doit être refusé', twice);
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+  const mine = await creatorApi('GET', '/invoices');
+  expect(mine.data.invoices.some(x => x.kind === 'credit_note') && mine.data.invoices.find(x => x._id === com._id)?.creditedBy, 'Le créateur devrait voir l\'avoir et la commission annulée', mine);
+  return `${mission.number} (260 €), ${com.number} (26 € TTC), relevé ${month} et avoir OK`;
 });
 
 await step('TVA : créateur assujetti → devis HT, marque paie TTC, créateur reçoit 90 % HT + TVA', async () => {
@@ -1618,6 +1637,7 @@ if (CLEAN) {
     const campIds = camps.map(c => c._id);
     await db.collection('reviews').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('reports').deleteMany({ $or: [{ reporterId: { $in: ids } }, { targetUserId: { $in: ids } }] });
+    await db.collection('invoices').deleteMany({ $or: [{ brandId: { $in: ids } }, { creatorId: { $in: ids } }] });
     await db.collection('deliveries').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('campaigns').deleteMany({ _id: { $in: campIds } });
     const extraIds = extraCleanup.map(e => new mongoose.Types.ObjectId(e.userId));

@@ -1,6 +1,6 @@
 'use client';
 
-import { useDisputes, useResolveDispute } from '@/hooks/useAdmin';
+import { useDisputes, useResolveDispute, useAdminInvoices, useCreditInvoice } from '@/hooks/useAdmin';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
@@ -22,7 +22,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -47,6 +47,8 @@ export default function AdminPage() {
   const rejectBiz = useRejectBusiness();
   const { data: reports } = useReports('open', ready && tab === 'reports');
   const { data: disputes } = useDisputes('open', ready && tab === 'disputes');
+  const { data: adminInvoices } = useAdminInvoices(ready && tab === 'invoices');
+  const creditInvoice = useCreditInvoice();
   const resolveDispute = useResolveDispute();
   const { data: settings } = useAdminSettings(ready && tab === 'settings');
   const updateSetting = useUpdateSetting();
@@ -67,6 +69,7 @@ export default function AdminPage() {
     { key: 'businesses', label: 'Marques à vérifier' },
     { key: 'reports', label: 'Signalements' },
     { key: 'disputes', label: 'Litiges', count: disputes?.disputes?.length || undefined },
+    { key: 'invoices', label: 'Factures' },
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
@@ -251,6 +254,38 @@ export default function AdminPage() {
                 ))}
               </div>
             ) : <p className="text-neutral-500 text-sm">Aucun litige ouvert.</p>}
+          </Card>
+        )}
+
+        {tab === 'invoices' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-1">Factures ({adminInvoices?.invoices?.length || 0})</h2>
+            <p className="text-sm text-neutral-500 mb-4">Toutes les factures émises par la plateforme : factures des créateurs aux marques (mandat), commissions NeedCreator, services. « Émettre un avoir » annule intégralement une facture (montants négatifs, numérotation propre) : à utiliser après un remboursement ou une erreur.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-neutral-500 border-b"><th className="py-2 pr-3">Date</th><th className="py-2 pr-3">Numéro</th><th className="py-2 pr-3">Nature</th><th className="py-2 pr-3">Marque</th><th className="py-2 pr-3">Créateur</th><th className="py-2 pr-3 text-right">HT</th><th className="py-2 pr-3 text-right">TTC</th><th className="py-2"></th></tr></thead>
+                <tbody>
+                  {(adminInvoices?.invoices || []).map((inv: any) => (
+                    <tr key={inv._id} className="border-b border-neutral-100">
+                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(inv.issuedAt)}</td>
+                      <td className="py-2 pr-3 font-mono text-xs">{inv.number}{inv.creditedBy ? <span className="text-red-600"> (annulée)</span> : null}</td>
+                      <td className="py-2 pr-3">{({ creator_to_brand: 'Créateur → marque', commission: 'Commission', platform_to_brand: 'Service', credit_note: 'Avoir' } as any)[inv.kind] || inv.kind}</td>
+                      <td className="py-2 pr-3">{inv.brandId?.profile?.companyName || inv.brandId?.email || '—'}</td>
+                      <td className="py-2 pr-3">{inv.creatorId?.profile?.name || inv.creatorId?.email || '—'}</td>
+                      <td className="py-2 pr-3 text-right">{formatCurrency(inv.totals?.ht)}</td>
+                      <td className="py-2 pr-3 text-right font-medium">{formatCurrency(inv.totals?.ttc)}</td>
+                      <td className="py-2 text-right whitespace-nowrap">
+                        <Link href={`/deliveries/${inv.deliveryId}`} className="text-primary-600 underline text-xs mr-3">Mission</Link>
+                        {inv.kind !== 'credit_note' && !inv.creditedBy && (
+                          <Button size="sm" variant="ghost" isLoading={creditInvoice.isPending} onClick={() => { const reason = prompt(`Émettre un avoir annulant ${inv.number} ? Motif (obligatoire) :`); if (reason && reason.trim().length >= 3) creditInvoice.mutate({ id: inv._id, reason: reason.trim() }); }}>Émettre un avoir</Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!adminInvoices?.invoices?.length && <p className="text-sm text-neutral-500">Aucune facture.</p>}
+            </div>
           </Card>
         )}
 
