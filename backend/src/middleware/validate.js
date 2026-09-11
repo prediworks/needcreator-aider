@@ -274,4 +274,15 @@ export const schemas = {
   requestRevision: Joi.object({
     feedback: Joi.string().min(20).max(1000).required(),
   }),
+  openDispute: Joi.object({
+    reason: Joi.string().min(20).max(2000).required(),
+  }),
+  disputeResponse: Joi.object({
+    response: Joi.string().min(10).max(2000).required(),
+  }),
+  resolveDispute: Joi.object({
+    outcome: Joi.string().valid('approve', 'split', 'refund_full').required(),
+    creatorPercent: Joi.number().integer().min(0).max(100).when('outcome', { is: 'split', then: Joi.required() }),
+    note: Joi.string().min(10).max(2000).required(),
+  }),
 };

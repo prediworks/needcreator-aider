@@ -60,6 +60,7 @@ export const DELIVERY_STATUS: Record<string, { label: string; className: string 
   pending: { label: 'En attente des fichiers', className: 'bg-yellow-100 text-yellow-700' },
   submitted: { label: 'Soumise, à valider', className: 'bg-blue-100 text-blue-700' },
   revision_requested: { label: 'Révision demandée', className: 'bg-orange-100 text-orange-700' },
+  disputed: { label: 'Litige en cours', className: 'bg-red-100 text-red-700' },
   approved: { label: 'Approuvée', className: 'bg-green-100 text-green-700' },
   auto_approved: { label: 'Approuvée automatiquement', className: 'bg-green-100 text-green-700' },
   rejected: { label: 'Rejetée', className: 'bg-red-100 text-red-700' },

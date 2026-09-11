@@ -9,6 +9,7 @@ import { signOut } from 'firebase/auth';
 import Button from '@/components/ui/Button';
 import { User, LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import NotificationBell from '@/components/NotificationBell';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
@@ -94,6 +95,7 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
             {loading && knownUser ? null : connected ? (
               <>
+                <NotificationBell enabled={isAuthenticated} />
                 <Link href="/profile" title="Mon profil">
                   <Button variant="ghost" size="sm" aria-label="Mon profil">
                     <User className="w-4 h-4 xl:mr-2" />

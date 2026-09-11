@@ -607,8 +607,56 @@ await step('Créateur : nouvelle version + re-soumission', async () => {
   return 'révision résolue, anciennes versions conservées comme historique';
 });
 
+await step('Notifications : cloche du créateur (liste, non lues, marquage lu)', async () => {
+  const list = await creatorApi('GET', '/notifications');
+  expect(list.status === 200 && Array.isArray(list.data.notifications) && list.data.unread >= 1 && list.data.notifications.some(n => n.type === 'revision'), 'Le créateur devrait avoir des notifications non lues (révision demandée)', list);
+  const read = await creatorApi('POST', '/notifications/read', {});
+  expect(read.status === 200 && read.data.updated >= 1, 'Le marquage lu devrait mettre à jour des notifications', read);
+  const after = await creatorApi('GET', '/notifications');
+  expect(after.data.unread === 0, 'Plus aucune notification non lue attendue', after);
+  return `${list.data.notifications.length} notification(s), ${read.data.updated} marquée(s) lue(s)`;
+});
+
+await step('Litige : refus définitif par la marque (révisions épuisées), réponse du créateur, arbitrage admin', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const tooEarly = await brandApi('POST', `/deliveries/${delivery._id}/dispute`, { reason: 'Les vidéos ne correspondent pas au brief : produit absent.' });
+  expect(tooEarly.status === 400 && tooEarly.data.code === 'REVISIONS_REMAINING', 'Le refus définitif doit être refusé tant que des révisions restent', tooEarly);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    await brandApi('PUT', '/admin/settings/maxRevisions', { value: 1 }); // plafond 1 → la révision déjà faite épuise le devis
+    const det = await brandApi('GET', `/deliveries/${delivery._id}`);
+    expect(det.data.delivery.maxRevisions === 1 && det.data.delivery.canDispute === true && det.data.delivery.canRequestRevision === false, 'Le refus définitif devrait être possible', det);
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+  const open = await brandApi('POST', `/deliveries/${delivery._id}/dispute`, { reason: 'Les vidéos ne correspondent pas au brief : le produit n\'apparaît pas à l\'écran.' });
+  expect(open.status === 200 && open.data.delivery.status === 'disputed' && open.data.delivery.dispute.status === 'open' && !open.data.delivery.autoApprovalDate, 'Ouverture du litige échouée (validation automatique suspendue attendue)', open);
+  const resp = await creatorApi('POST', `/deliveries/${delivery._id}/dispute/respond`, { response: 'Le produit est visible à 0:12 et 0:40, conformément au brief.' });
+  expect(resp.status === 200 && resp.data.delivery.dispute.creatorResponse, 'Réponse du créateur non enregistrée', resp);
+  const again = await creatorApi('POST', `/deliveries/${delivery._id}/dispute/respond`, { response: 'Deuxième réponse interdite.' });
+  expect(again.status === 400, 'Une seule réponse par litige', again);
+  const notif = await brandApi('GET', '/notifications');
+  expect(notif.data.notifications.some(n => n.type === 'dispute'), 'La marque devrait être notifiée de la réponse', notif);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const jobs = await brandApi('POST', '/admin/jobs/run');
+    expect(jobs.data.autoApprovals === 0, 'Aucune validation automatique pendant un litige', jobs);
+    const list = await brandApi('GET', '/admin/disputes');
+    expect(list.status === 200 && list.data.disputes.some(d => d._id === delivery._id) && list.data.defaultCreatorPercent >= 0, 'Le litige devrait être listé pour l\'admin', list);
+    const bad = await brandApi('POST', `/admin/disputes/${delivery._id}/resolve`, { outcome: 'split', note: 'Sans pourcentage' });
+    expect(bad.status === 400, 'Un partage sans pourcentage doit être refusé', bad);
+    const res = await brandApi('POST', `/admin/disputes/${delivery._id}/resolve`, { outcome: 'approve', note: 'Le produit est bien visible, la livraison respecte le brief.' });
+    expect(res.status === 200 && res.data.delivery.status === 'approved' && res.data.delivery.dispute.status === 'resolved' && res.data.delivery.dispute.outcome === 'approve', 'Arbitrage « paiement intégral » échoué', res);
+    await brandApi('PUT', '/admin/settings/maxRevisions', { value: 2 });
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+  return 'litige ouvert, réponse unique, validation auto suspendue, tranché en paiement intégral';
+});
+
 await step('Marque : approbation (encaissement Stripe)', async () => {
-  const res = await brandApi('POST', `/deliveries/${delivery._id}/approve`);
+  const before = await brandApi('GET', `/deliveries/${delivery._id}`);
+  const res = before.data.delivery.status === 'approved' ? { status: 200, data: { delivery: before.data.delivery, warning: 'déjà approuvée par arbitrage' } } : await brandApi('POST', `/deliveries/${delivery._id}/approve`);
   expect(res.status === 200 && res.data.delivery.status === 'approved', 'Approbation échouée', res);
   const camp = await brandApi('GET', `/campaigns/${campaign._id}`);
   expect(camp.data.campaign.status === 'completed', 'La campagne devrait être terminée', camp);
@@ -874,6 +922,50 @@ await step('Garantie de remplacement : créateur en retard → mission confiée 
   await deliveries.deleteMany({ campaignId: new mongoose.Types.ObjectId(c.data.campaign._id) });
   await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
   return `retard signalé, autorisation ${pi.status}, mission confiée au créateur 2 (110 €)`;
+});
+
+await step('Garantie de remplacement sans autre devis : retrait de la mission, campagne rouverte, blocage après N retraits', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne retrait', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  const a1 = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  expect(a1.status === 201, 'Candidature échouée', a1);
+  const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel.status === 200, 'Sélection échouée', sel);
+  const d = sel.data.delivery._id;
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  await stripe.paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+  await brandApi('POST', `/deliveries/${d}/confirm-payment`, {});
+  const early = await brandApi('POST', `/deliveries/${d}/replacement/withdraw`);
+  expect(early.status === 400, 'Le retrait doit être refusé sans retard', early);
+  const deliveries = mongoose.connection.db.collection('deliveries');
+  await deliveries.updateOne({ _id: new mongoose.Types.ObjectId(d) }, { $set: { productionDeadline: new Date(Date.now() - 3 * 86400000) } });
+  const cands = await brandApi('GET', `/deliveries/${d}/replacement/candidates`);
+  expect(cands.status === 200 && cands.data.allowed && cands.data.candidates.length === 0, 'Aucun autre devis attendu', cands);
+  const wd = await brandApi('POST', `/deliveries/${d}/replacement/withdraw`);
+  expect(wd.status === 200 && String(wd.data.campaignId) === c.data.campaign._id, 'Retrait échoué', wd);
+  const old = await brandApi('GET', `/deliveries/${d}`);
+  expect(old.data.delivery.status === 'rejected' && old.data.delivery.payment.status === 'refunded', 'La mission devrait être close et le paiement libéré', old);
+  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId);
+  expect(pi.status === 'canceled', `L'autorisation Stripe devrait être annulée (statut ${pi.status})`, { status: 200, data: { status: pi.status } });
+  const camp = await brandApi('GET', `/campaigns/${c.data.campaign._id}`);
+  expect(camp.data.campaign.status === 'active' && !(camp.data.campaign.selectedCreators || []).length, 'La campagne devrait être rouverte sans créateur sélectionné', camp);
+  // Blocage : avec un plafond de 1 retrait, le créateur (2 retraits) ne peut plus candidater ; remis à 3 ensuite
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try { await brandApi('PUT', '/admin/settings/maxLateWithdrawals', { value: 1 }); } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const prof = await creatorApi('GET', '/auth/profile');
+  expect(prof.data.user.canApply === false && prof.data.user.applyBlockers.some(b => /suspendues/.test(b)), 'Le créateur devrait être bloqué après trop de retraits', prof);
+  const blocked = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+  expect(blocked.status === 403, 'La candidature devrait être refusée', blocked);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try { await brandApi('PUT', '/admin/settings/maxLateWithdrawals', { value: 3 }); } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const prof2 = await creatorApi('GET', '/auth/profile');
+  expect(prof2.data.user.canApply === true, 'Le créateur devrait pouvoir candidater à nouveau', prof2);
+  await deliveries.deleteMany({ campaignId: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return `mission retirée, autorisation ${pi.status}, campagne rouverte, blocage au-delà du plafond vérifié`;
 });
 
 await step('Parrainage : codes, remise de 5 % pour la marque parrainée, bonus créateur', async () => {

@@ -50,8 +50,9 @@ async function serializeUser(userDoc) {
     out.level = levelFor(user.profile?.stats);
     out.badges = badgesFor(user);
     out.nextLevel = nextLevelHint(user.profile?.stats);
-    out.applyBlockers = typeof userDoc.applyBlockers === 'function' ? userDoc.applyBlockers() : [];
-    out.canApply = typeof userDoc.canApplyToCampaign === 'function' ? userDoc.canApplyToCampaign() : false;
+    const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
+    out.applyBlockers = typeof userDoc.applyBlockers === 'function' ? userDoc.applyBlockers(maxLate) : [];
+    out.canApply = typeof userDoc.canApplyToCampaign === 'function' ? userDoc.canApplyToCampaign(maxLate) : false;
     if (user.profile?.portfolio?.length) {
       out.profile = { ...user.profile, portfolio: await resolveUrlsIn(user.profile.portfolio) };
     }

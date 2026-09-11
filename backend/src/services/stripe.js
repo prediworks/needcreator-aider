@@ -139,6 +139,26 @@ export async function capturePayment(paymentIntentId) {
 }
 
 /**
+ * Capture partielle d'une autorisation (litige tranché par un partage) ; le reste de l'autorisation est libéré par Stripe.
+ * Si le paiement était déjà capturé, rembourse la différence.
+ */
+export async function capturePartial(paymentIntentId, amountToCapture) {
+  const current = await stripe.paymentIntents.retrieve(paymentIntentId);
+  const cents = Math.round(amountToCapture * 100);
+  if (current.status === 'succeeded') {
+    const diff = current.amount_received - cents;
+    if (diff > 0) await stripe.refunds.create({ payment_intent: paymentIntentId, amount: diff });
+    return await stripe.paymentIntents.retrieve(paymentIntentId);
+  }
+  if (cents <= 0) {
+    return await stripe.paymentIntents.cancel(paymentIntentId);
+  }
+  const pi = await stripe.paymentIntents.capture(paymentIntentId, { amount_to_capture: cents });
+  logger.info(`Payment partially captured: ${pi.id} (${amountToCapture})`);
+  return pi;
+}
+
+/**
  * Transfert au créateur (montant déjà net de commission)
  */
 /** Identifiant du paiement (charge) rattaché à un PaymentIntent, quelle que soit la version d'API */

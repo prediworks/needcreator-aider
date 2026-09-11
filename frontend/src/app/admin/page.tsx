@@ -1,5 +1,6 @@
 'use client';
 
+import { useDisputes, useResolveDispute } from '@/hooks/useAdmin';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
@@ -21,11 +22,15 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
-  const [tab, setTab] = useState<Tab>('pending');
+  const [tab, setTab] = useState<Tab>(() => {
+    if (typeof window === 'undefined') return 'pending';
+    const t = new URLSearchParams(window.location.search).get('tab');
+    return (t as Tab) || 'pending';
+  });
   const [userSearch, setUserSearch] = useState('');
 
   const { data: stats } = useAdminStats(ready);
@@ -41,6 +46,8 @@ export default function AdminPage() {
   const approveBiz = useApproveBusiness();
   const rejectBiz = useRejectBusiness();
   const { data: reports } = useReports('open', ready && tab === 'reports');
+  const { data: disputes } = useDisputes('open', ready && tab === 'disputes');
+  const resolveDispute = useResolveDispute();
   const { data: settings } = useAdminSettings(ready && tab === 'settings');
   const updateSetting = useUpdateSetting();
   const resolveReport = useResolveReport();
@@ -59,6 +66,7 @@ export default function AdminPage() {
     { key: 'ambassadors', label: 'Vidéos Ambassadeur' },
     { key: 'businesses', label: 'Marques à vérifier' },
     { key: 'reports', label: 'Signalements' },
+    { key: 'disputes', label: 'Litiges', count: disputes?.disputes?.length || undefined },
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
@@ -232,6 +240,20 @@ export default function AdminPage() {
         )}
 
         {/* Reports */}
+        {tab === 'disputes' && (
+          <Card className="p-6">
+            <h2 className="text-xl font-semibold mb-1">Litiges ouverts ({disputes?.disputes?.length || 0})</h2>
+            <p className="text-sm text-neutral-500 mb-4">Refus définitif demandé par une marque après épuisement des révisions. Regardez les vidéos et le brief depuis la page de la mission, lisez les deux parties, puis tranchez. La décision est envoyée aux deux parties et appliquée sur le paiement immédiatement.</p>
+            {disputes?.disputes?.length ? (
+              <div className="space-y-4">
+                {disputes.disputes.map((d: any) => (
+                  <DisputeResolver key={d._id} dispute={d} defaultPercent={disputes.defaultCreatorPercent ?? 50} onResolve={(payload) => resolveDispute.mutate({ deliveryId: d._id, ...payload })} loading={resolveDispute.isPending} />
+                ))}
+              </div>
+            ) : <p className="text-neutral-500 text-sm">Aucun litige ouvert.</p>}
+          </Card>
+        )}
+
         {tab === 'reports' && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Signalements ouverts ({reports?.reports?.length || 0})</h2>
@@ -464,5 +486,45 @@ function SettingNumber({ setting, onSave }: { setting: any; onSave: (value: numb
       <span className="text-sm text-neutral-600 w-20">{disabled ? 'désactivé' : setting.unit}</span>
       <Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>
     </form>
+  );
+}
+
+/** Fiche d'un litige avec le formulaire de décision */
+function DisputeResolver({ dispute: d, defaultPercent, onResolve, loading }: { dispute: any; defaultPercent: number; onResolve: (p: { outcome: string; creatorPercent?: number; note: string }) => void; loading: boolean }) {
+  const [outcome, setOutcome] = useState<'approve' | 'split' | 'refund_full'>('split');
+  const [percent, setPercent] = useState(String(defaultPercent));
+  const [note, setNote] = useState('');
+  const price = d.payment?.amount || 0;
+  const paid = outcome === 'approve' ? price : outcome === 'refund_full' ? 0 : Math.round(price * Number(percent || 0)) / 100;
+  return (
+    <div className="border border-neutral-200 rounded-lg p-4 text-sm">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="font-medium text-neutral-900">{d.campaignId?.title} <span className="text-xs text-neutral-500">· ouvert le {formatDate(d.dispute?.openedAt)} · {price} €</span></div>
+          <div className="text-neutral-700">Marque : <strong>{d.brandId?.profile?.companyName || d.brandId?.profile?.name}</strong> ({d.brandId?.email}) · Créateur : <strong>{d.creatorId?.profile?.name}</strong> ({d.creatorId?.email})</div>
+        </div>
+        <Link href={`/deliveries/${d._id}`} className="text-primary-600 underline text-xs">Voir la mission et les vidéos</Link>
+      </div>
+      <div className="grid md:grid-cols-2 gap-3 mt-3">
+        <div className="bg-neutral-50 rounded-lg p-3"><div className="text-xs text-neutral-500 mb-1">Motif de la marque</div><p className="whitespace-pre-line">{d.dispute?.reason}</p></div>
+        <div className="bg-neutral-50 rounded-lg p-3"><div className="text-xs text-neutral-500 mb-1">Réponse du créateur</div><p className="whitespace-pre-line">{d.dispute?.creatorResponse || <span className="text-neutral-400">Pas encore de réponse</span>}</p></div>
+      </div>
+      <div className="mt-4 space-y-3">
+        <div className="flex gap-4 flex-wrap">
+          {([['approve', 'Paiement intégral au créateur'], ['split', 'Partage'], ['refund_full', 'Remboursement intégral de la marque']] as const).map(([k, l]) => (
+            <label key={k} className="flex items-center gap-2 cursor-pointer"><input type="radio" name={`outcome-${d._id}`} checked={outcome === k} onChange={() => setOutcome(k)} /> {l}</label>
+          ))}
+        </div>
+        {outcome === 'split' && (
+          <div className="flex items-center gap-2">
+            <span>Part versée au créateur :</span>
+            <input type="number" min={0} max={100} value={percent} onChange={(e) => setPercent(e.target.value)} className="w-20 px-2 py-1 border border-neutral-300 rounded-lg" />
+            <span>% soit {paid} € payés par la marque, {Math.round((price - paid) * 100) / 100} € rendus</span>
+          </div>
+        )}
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Décision motivée (10 caractères minimum), envoyée aux deux parties" className="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+        <Button size="sm" isLoading={loading} disabled={note.trim().length < 10 || (outcome === 'split' && (percent === '' || Number(percent) < 0 || Number(percent) > 100))} onClick={() => { if (confirm(`Trancher ce litige : ${paid} € payés par la marque ? Cette décision est définitive.`)) onResolve({ outcome, creatorPercent: outcome === 'split' ? Number(percent) : undefined, note }); }}>Trancher</Button>
+      </div>
+    </div>
   );
 }

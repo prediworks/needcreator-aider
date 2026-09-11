@@ -65,7 +65,7 @@ const deliverySchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['pending', 'submitted', 'revision_requested', 'approved', 'auto_approved', 'rejected'],
+    enum: ['pending', 'submitted', 'revision_requested', 'disputed', 'approved', 'auto_approved', 'rejected'],
     default: 'pending',
     index: true,
   },
@@ -143,6 +143,22 @@ const deliverySchema = new mongoose.Schema({
     transcript: String,
   },
   // Garantie de remplacement (créateur en retard)
+  // Litige : refus définitif demandé par la marque quand les révisions sont épuisées, tranché par l'admin
+  dispute: {
+    status: { type: String, enum: ['none', 'open', 'resolved'], default: 'none' },
+    openedAt: Date,
+    reason: String,
+    creatorResponse: String,
+    creatorRespondedAt: Date,
+    autoApprovalDateBefore: Date, // validation automatique suspendue pendant le litige
+    resolvedAt: Date,
+    resolvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    outcome: { type: String, enum: ['approve', 'split', 'refund_full'] },
+    creatorPercent: Number,   // part du prix versée au créateur (split)
+    paidAmount: Number,       // montant finalement encaissé auprès de la marque
+    refundedAmount: Number,   // montant rendu à la marque
+    note: String,             // décision motivée, visible par les deux parties
+  },
   replacement: {
     status: { type: String, enum: ['none', 'late', 'offered', 'replaced'], default: 'none' },
     lateSince: Date,

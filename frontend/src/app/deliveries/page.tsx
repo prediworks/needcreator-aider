@@ -23,11 +23,11 @@ const FILTERS: { key: string; label: string; brandLabel?: string; statuses: stri
   { key: 'all', label: 'Toutes', statuses: [] },
   { key: 'todo', label: 'À livrer', brandLabel: 'En production', statuses: ['pending'] },
   { key: 'revision', label: 'Révision demandée', statuses: ['revision_requested'] },
-  { key: 'submitted', label: 'En attente de validation', brandLabel: 'À valider', statuses: ['submitted'] },
+  { key: 'submitted', label: 'En attente de validation', brandLabel: 'À valider', statuses: ['submitted', 'disputed'] },
   { key: 'done', label: 'Terminées', statuses: ['approved', 'auto_approved', 'rejected'] },
 ];
 
-const ORDER: Record<string, number> = { pending: 0, revision_requested: 1, submitted: 2, approved: 3, auto_approved: 3, rejected: 4 };
+const ORDER: Record<string, number> = { pending: 0, revision_requested: 1, submitted: 2, disputed: 2, approved: 3, auto_approved: 3, rejected: 4 };
 
 function daysLeft(date?: string | null) {
   if (!date) return null;

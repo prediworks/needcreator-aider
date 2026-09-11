@@ -9,7 +9,8 @@ import {
 } from '../services/email.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
-import { getMaxRevisions } from '../models/Setting.js';
+import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
+import { notify } from '../services/notifications.js';
 import { levelFor, badgesFor, isAmbassador } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -409,8 +410,9 @@ export async function getCampaign(req, res) {
       ) || null;
       campaign.isSelected = isSelectedCreator;
       campaign.invited = isInvited;
-      campaign.canApply = Campaign.prototype.canApply.call(campaign, user._id) && user.canApplyToCampaign();
-      campaign.applyBlockers = user.applyBlockers();
+      const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
+      campaign.canApply = Campaign.prototype.canApply.call(campaign, user._id) && user.canApplyToCampaign(maxLate);
+      campaign.applyBlockers = user.applyBlockers(maxLate);
       // Ne pas exposer les autres candidatures aux créateurs
       delete campaign.applications;
       delete campaign.invitations;
@@ -475,11 +477,12 @@ export async function applyToCampaign(req, res) {
       return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
     }
     const creator = req.user;
+    const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
 
-    if (!creator.canApplyToCampaign()) {
+    if (!creator.canApplyToCampaign(maxLate)) {
       return res.status(403).json({
-        error: creator.applyBlockers().join(' ') || 'Complétez votre profil et votre portfolio avant de candidater',
-        blockers: creator.applyBlockers(),
+        error: creator.applyBlockers(maxLate).join(' ') || 'Complétez votre profil et votre portfolio avant de candidater',
+        blockers: creator.applyBlockers(maxLate),
       });
     }
 
@@ -539,6 +542,7 @@ export async function applyToCampaign(req, res) {
       campaign.title,
       creator.profile.ambassador?.status === 'approved'
     ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(campaign.brandId._id, { type: 'application', title: `Nouveau devis de ${creator.profile.name}`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
 
     logger.info(`Creator ${creator._id} applied to campaign ${campaign._id} (match ${matchScore}%)`);
 
@@ -684,6 +688,7 @@ export async function selectCreator(req, res) {
       campaign.title,
       campaign._id
     ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(creatorId, { type: 'selection', title: 'Votre devis a été accepté', text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
 
     logger.info(`Creator ${creatorId} selected for campaign ${campaign._id}`);
 
@@ -850,6 +855,7 @@ export async function inviteCreator(req, res) {
 
     sendCampaignInvitation(creator.email, creator.profile.name, brand.profile.companyName || brand.profile.name, campaign.title, campaign._id, message)
       .catch(err => logger.error('Invitation email failed:', err.message));
+    notify(creatorId, { type: 'application', title: `${brand.profile.companyName || brand.profile.name} vous invite à candidater`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
 
     logger.info(`Creator ${creatorId} invited to campaign ${campaign._id}`);
     res.json({ message: `${creator.profile.name} a été invité(e) par email`, invitations: campaign.invitations.length });

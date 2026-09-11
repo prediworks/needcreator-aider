@@ -98,7 +98,7 @@ cp frontend/.env.local.example frontend/.env.local
 | Email confirmé | `REQUIRE_EMAIL_VERIFICATION=true` | lien de confirmation envoyé par Firebase à l'inscription ; sans confirmation, pas de publication ni de devis |
 | Documents légaux | `LEGAL_TERMS_VERSION=2026-09-09` | date de la version des CGU ; la changer redemande l'acceptation à tous les utilisateurs connectés |
 | Anti-robot | `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile sur l'inscription ; vide = désactivé. Clé de site côté frontend : `NEXT_PUBLIC_TURNSTILE_SITE_KEY` |
-| Pack vidéo | `READY_PACK_PRICE=15`, `AI_TRANSCRIPTION_MODEL=whisper-1` | 0 = inclus |
+| Pack vidéo | `READY_PACK_PRICE=15`, transcription : `TRANSCRIPTION_*` | 0 = inclus |
 | IA (brief) | `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | |
 | Transcription | `TRANSCRIPTION_PROVIDER`, `TRANSCRIPTION_API_KEY`, `TRANSCRIPTION_MODEL`, `TRANSCRIPTION_BASE_URL` | Indépendant du brief IA |
 | Shopify | `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL` | |

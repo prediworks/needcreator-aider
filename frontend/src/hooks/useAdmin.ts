@@ -88,6 +88,17 @@ export function usePendingBusinesses(enabled = true) {
 export const useApproveBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/approve`, 'Entreprise vérifiée');
 export const useRejectBusiness = () => useAdminAction((id) => `/admin/businesses/${id}/reject`, 'Vérification refusée');
 
+export function useDisputes(status = 'open', enabled = true) {
+  return useQuery({ queryKey: ['admin', 'disputes', status], queryFn: async () => (await api.get('/admin/disputes', { params: { status } })).data, enabled });
+}
+export function useResolveDispute() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ deliveryId, outcome, creatorPercent, note }: { deliveryId: string; outcome: string; creatorPercent?: number; note: string }) => (await api.post(`/admin/disputes/${deliveryId}/resolve`, { outcome, creatorPercent, note })).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin'] }); toast.success(d.message); if (d.warning) toast.warning(d.warning, { duration: 10000 }); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
+}
 export function useReports(status = 'open', enabled = true) {
   return useQuery({ queryKey: ['admin', 'reports', status], queryFn: async () => (await api.get('/admin/reports', { params: { status } })).data, enabled });
 }

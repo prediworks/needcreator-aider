@@ -4,6 +4,7 @@ import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions } from '../models/Setting.js';
+import { notify } from '../services/notifications.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
 import { runComplianceCheck } from '../services/compliance.js';
 import { levelFor } from '../utils/badges.js';
@@ -154,6 +155,8 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     const title = campaign.title;
     sendContractGenerated(brand.email, brand.profile?.companyName || brand.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
     if (creatorDoc?.email) sendContractGenerated(creatorDoc.email, creatorDoc.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
+    notify(brand._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    if (creatorDoc?._id) notify(creatorDoc._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
   }
 
   return { delivery, warning, clientSecret };
@@ -431,6 +434,7 @@ export async function submitDelivery(req, res) {
       delivery.campaignId.title,
       delivery._id
     ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(idOf(delivery.brandId), { type: 'delivery', title: 'Vidéos livrées, à valider', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
 
     logger.info(`Delivery submitted: ${delivery._id}`);
 
@@ -694,6 +698,7 @@ export async function requestRightsExtension(req, res) {
     delivery.rightsExtension = { status: 'requested', requestMessage: req.body.message || '', requestedAt: new Date() };
     await delivery.save();
     sendExtensionRequested(delivery.creatorId.email, delivery.creatorId.profile?.name, delivery.campaignId.title, req.body.message, delivery._id).catch(() => {});
+    notify(idOf(delivery.creatorId), { type: 'rights', title: 'Demande de prolongation des droits', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
     res.json({ message: 'Demande envoyée au créateur', rightsExtension: delivery.rightsExtension });
   } catch (error) {
     logger.error('requestRightsExtension failed:', error);
@@ -718,6 +723,7 @@ export async function proposeRightsExtension(req, res) {
     };
     await delivery.save();
     sendExtensionProposed(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, delivery.campaignId.title, price, EXT_DURATIONS[duration], delivery._id).catch(() => {});
+    notify(idOf(delivery.brandId), { type: 'rights', title: `Proposition de prolongation : ${price} €`, text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
     res.json({ message: 'Proposition envoyée à la marque', rightsExtension: delivery.rightsExtension });
   } catch (error) {
     logger.error('proposeRightsExtension failed:', error);
@@ -833,8 +839,56 @@ async function finalizeRightsExtension(delivery, res) {
   const title = delivery.campaignId?.title;
   sendExtensionPaid(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
   sendExtensionPaid(delivery.creatorId.email, delivery.creatorId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
+  notify(idOf(delivery.creatorId), { type: 'rights', title: 'Prolongation des droits payée', text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
   logger.info(`Droits prolongés sur ${delivery._id} : avenant ${addendum.number}, fin ${newEndAt ? newEndAt.toISOString() : 'illimitée'}`);
   return res.json({ message: 'Prolongation confirmée', addendum: { ...addendum, url }, rightsEndAt: newEndAt, warning });
+}
+
+/**
+ * Garantie de remplacement sans remplaçant : la marque retire la mission au créateur en retard et rouvre la campagne
+ * aux candidatures. Montant bloqué libéré, place libérée, retard compté sur le créateur.
+ */
+export async function withdrawLateDelivery(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, brandId: req.user._id })
+      .populate('campaignId', 'title').populate('creatorId', 'email profile.name');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (!replacementAllowed(delivery)) return res.status(400).json({ error: `Le retrait n'est possible qu'après ${config.business.replacementGraceHours} h de retard sur une mission sans livraison.` });
+    const campaign = await Campaign.findById(idOf(delivery.campaignId));
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    let paymentNote = 'aucun paiement associé';
+    if (delivery.payment?.stripePaymentIntentId) {
+      try {
+        const r = await cancelOrRefundPaymentIntent(delivery.payment.stripePaymentIntentId);
+        paymentNote = r.action === 'canceled' ? 'montant bloqué libéré' : r.action === 'refunded' ? 'montant remboursé' : `paiement ${r.status}`;
+        if (r.action !== 'none') delivery.payment.status = 'refunded';
+      } catch (err) {
+        return res.status(500).json({ error: `Impossible de libérer le paiement : ${err?.raw?.message || err.message}` });
+      }
+    }
+    const oldCreatorId = idOf(delivery.creatorId);
+    delivery.status = 'rejected';
+    delivery.rejection = { at: new Date(), reason: 'Mission retirée pour retard (garantie de remplacement), campagne rouverte', auto: false };
+    delivery.replacement = { ...(delivery.replacement?.toObject?.() || {}), status: 'replaced', replacedAt: new Date() };
+    await delivery.save();
+    await User.updateOne({ _id: oldCreatorId }, { $inc: { 'profile.stats.lateDeliveries': 1 } });
+
+    campaign.selectedCreators = (campaign.selectedCreators || []).filter(id => idOf(id) !== oldCreatorId);
+    if (idOf(campaign.selectedCreator) === oldCreatorId) campaign.selectedCreator = undefined;
+    campaign.applications.forEach(a => { if (idOf(a.creatorId) === oldCreatorId) a.status = 'rejected'; });
+    campaign.status = 'active'; // rouverte aux candidatures
+    if (campaign.timeline) campaign.timeline.reopenedAt = new Date();
+    await campaign.save();
+
+    sendMissionWithdrawn(delivery.creatorId.email, delivery.creatorId.profile?.name, campaign.title).catch(() => {});
+    notify(oldCreatorId, { type: 'replacement', title: 'Mission retirée pour retard', text: campaign.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    logger.info(`Mission ${delivery._id} retirée à ${oldCreatorId}, campagne ${campaign._id} rouverte (${paymentNote})`);
+    res.json({ message: `Mission retirée (${paymentNote}). Votre campagne est de nouveau ouverte aux candidatures.`, campaignId: campaign._id });
+  } catch (error) {
+    logger.error('withdrawLateDelivery failed:', error);
+    res.status(500).json({ error: 'Failed to withdraw delivery' });
+  }
 }
 
 /**
@@ -1005,6 +1059,7 @@ export async function updateShipping(req, res) {
       await delivery.save();
       sendProductShipped(delivery.creatorId.email, delivery.creatorId.profile.name, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.campaignId.title, carrier, trackingNumber, trackingUrl, delivery._id)
         .catch(err => logger.error('Shipping email failed:', err.message));
+      notify(idOf(delivery.creatorId), { type: 'delivery', title: 'Produit expédié', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
     } else if (action === 'received') {
       if (!isCreator) return res.status(403).json({ error: 'Seul le créateur peut confirmer la réception' });
       if (delivery.shipping.status !== 'shipped') return res.status(400).json({ error: 'Le produit n\'est pas encore marqué comme expédié' });
@@ -1016,6 +1071,7 @@ export async function updateShipping(req, res) {
       await delivery.save();
       sendProductReceived(delivery.brandId.email, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.creatorId.profile.name, delivery.campaignId.title, delivery.productionDeadline, delivery._id)
         .catch(err => logger.error('Shipping email failed:', err.message));
+      notify(idOf(delivery.brandId), { type: 'delivery', title: 'Produit reçu par le créateur', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
     } else if (action === 'not_required') {
       if (!isBrand) return res.status(403).json({ error: 'Réservé à la marque' });
       delivery.shipping.required = false;
@@ -1212,6 +1268,7 @@ export async function approveDelivery(req, res) {
       delivery.campaignId.title,
       delivery.payment.creatorAmount
     ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(idOf(delivery.creatorId), { type: 'approval', title: `Vidéos validées : ${delivery.payment.creatorAmount} € en route`, text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
 
     logger.info(`Delivery approved: ${delivery._id}`);
 
@@ -1263,6 +1320,7 @@ export async function requestRevision(req, res) {
       feedback,
       delivery._id
     ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(idOf(delivery.creatorId), { type: 'revision', title: 'Révision demandée', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
 
     logger.info(`Revision requested for delivery ${delivery._id}`);
 
@@ -1367,6 +1425,7 @@ export async function getDelivery(req, res) {
     delivery.readyPackPricePerVideo = config.readyPack.pricePerVideo;
     delivery.maxRevisions = await allowedRevisionsFor(delivery); // révisions prévues au devis, plafonnées par l'admin
     delivery.canRequestRevision = delivery.status === 'submitted' && (delivery.revisions?.length || 0) < delivery.maxRevisions;
+    delivery.canDispute = delivery.status === 'submitted' && (delivery.revisions?.length || 0) >= delivery.maxRevisions; // refus définitif possible (révisions épuisées)
     delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
     delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;
     const { transcriptionAvailable } = await import('../services/video.js');

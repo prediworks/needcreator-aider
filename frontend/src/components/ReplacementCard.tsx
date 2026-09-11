@@ -23,6 +23,11 @@ export default function ReplacementCard({ delivery }: { delivery: any }) {
     queryFn: async () => (await api.get(`/deliveries/${delivery._id}/replacement/candidates`)).data,
     enabled: !!delivery.replacementAvailable,
   });
+  const withdraw = useMutation({
+    mutationFn: async () => (await api.post(`/deliveries/${delivery._id}/replacement/withdraw`)).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['delivery', delivery._id] }); queryClient.invalidateQueries({ queryKey: ['deliveries'] }); if (d.campaignId) router.push(`/campaigns/${d.campaignId}`); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
   const select = useMutation({
     mutationFn: async (creatorId: string) => (await api.post(`/deliveries/${delivery._id}/replacement/select/${creatorId}`)).data,
     onSuccess: (d) => {
@@ -48,7 +53,17 @@ export default function ReplacementCard({ delivery }: { delivery: any }) {
         <>
           <p className="text-sm font-medium text-neutral-900 mb-3">Garantie de remplacement : choisissez un autre créateur parmi les meilleurs devis reçus. Le montant bloqué est libéré, la nouvelle mission démarre tout de suite.</p>
           {isLoading ? <p className="text-sm text-neutral-500">Chargement des candidats…</p> : !data?.candidates?.length ? (
-            <p className="text-sm text-neutral-600">Aucun autre devis disponible sur cette campagne. Vous pouvez la republier ou inviter des créateurs depuis l&apos;annuaire.</p>
+            <div className="text-sm text-neutral-600 space-y-3">
+              <p>Aucun autre devis disponible sur cette campagne. Vous pouvez retirer la mission au créateur en retard : le montant bloqué est libéré et votre campagne est rouverte aux candidatures, sans rien ressaisir.</p>
+              {confirming === 'withdraw' ? (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => withdraw.mutate()} isLoading={withdraw.isPending}><RefreshCw className="w-4 h-4 mr-1" /> Confirmer le retrait</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Annuler</Button>
+                </div>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setConfirming('withdraw')}>Retirer la mission et rouvrir la campagne</Button>
+              )}
+            </div>
           ) : (
             <div className="space-y-3">
               {data.candidates.map((c: any) => (

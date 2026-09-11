@@ -8,6 +8,7 @@ import {
   sendRevisionPendingReminder, sendAutoRejected,
 } from '../services/email.js';
 import logger from '../utils/logger.js';
+import { notify } from '../services/notifications.js';
 
 /**
  * Relances automatiques et refus définitif automatique.
@@ -38,6 +39,7 @@ export async function remindBrandsOnPendingQuotes() {
     if (!due.length || !campaign.brandId?.email) continue;
     try {
       await sendQuotesAwaitingReminder(campaign.brandId.email, campaign.brandId.profile?.companyName || campaign.brandId.profile?.name, campaign.title, due.length, campaign._id, days).catch(safeSend('Relance devis', campaign._id));
+      notify(campaign.brandId._id, { type: 'reminder', title: `${due.length} devis attend${due.length > 1 ? 'ent' : ''} votre réponse`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
       const now = new Date();
       due.forEach(a => { a.reminderSentAt = now; });
       await campaign.save();
@@ -65,6 +67,7 @@ export async function remindCreatorsWithoutUpload() {
     }
     try {
       await sendCreatorNoUploadReminder(d.creatorId.email, d.creatorId.profile?.name, d.campaignId?.title, d._id, d.productionDeadline).catch(safeSend('Relance mission sans vidéo', d._id));
+      notify(d.creatorId._id, { type: 'reminder', title: 'Aucune vidéo envoyée sur votre mission', text: d.campaignId?.title, href: `/deliveries/${d._id}` }).catch(() => {});
       d.reminders = { ...(d.reminders?.toObject?.() || d.reminders || {}), noUploadAt: new Date() };
       await d.save();
       sent++;
@@ -87,6 +90,7 @@ export async function remindCreatorsProductNotReceived() {
     if (!d.creatorId?.email) continue;
     try {
       await sendProductReceivedCheck(d.creatorId.email, d.creatorId.profile?.name, d.campaignId?.title, d.brandId?.profile?.companyName || d.brandId?.profile?.name, d._id, d.shipping.shippedAt).catch(safeSend('Relance produit non confirmé', d._id));
+      notify(d.creatorId._id, { type: 'reminder', title: 'Avez-vous reçu le produit ?', text: d.campaignId?.title, href: `/deliveries/${d._id}` }).catch(() => {});
       d.reminders = { ...(d.reminders?.toObject?.() || d.reminders || {}), productReceivedAt: new Date() };
       await d.save();
       sent++;
@@ -112,6 +116,7 @@ export async function remindCreatorsRevisionPending() {
     try {
       const autoRejectAt = autoDays ? new Date(at.getTime() + autoDays * DAY) : null;
       await sendRevisionPendingReminder(d.creatorId.email, d.creatorId.profile?.name, d.campaignId?.title, d._id, autoRejectAt).catch(safeSend('Relance révision', d._id));
+      notify(d.creatorId._id, { type: 'reminder', title: 'Révision en attente de votre nouvelle version', text: d.campaignId?.title, href: `/deliveries/${d._id}` }).catch(() => {});
       d.reminders = { ...(d.reminders?.toObject?.() || d.reminders || {}), revisionAt: new Date() };
       await d.save();
       sent++;
@@ -159,6 +164,8 @@ export async function processAutoRejections() {
       await User.updateOne({ _id: idOf(d.creatorId) }, { $inc: { 'profile.stats.lateDeliveries': 1 } });
       await sendAutoRejected(d.brandId?.email, d.creatorId?.email, d.brandId?.profile?.companyName || d.brandId?.profile?.name, d.creatorId?.profile?.name, d.campaignId?.title, days, d._id, idOf(d.campaignId), paymentNote)
         .catch(err => logger.error('Auto-rejection emails failed:', err.message));
+      notify(d.brandId?._id, { type: 'dispute', title: 'Mission refusée définitivement (créateur silencieux)', text: d.campaignId?.title, href: `/campaigns/${idOf(d.campaignId)}` }).catch(() => {});
+      notify(d.creatorId?._id, { type: 'dispute', title: 'Mission refusée : aucune nouvelle version', text: d.campaignId?.title, href: `/deliveries/${d._id}` }).catch(() => {});
       logger.info(`Auto-rejected delivery ${d._id} (${paymentNote})`);
       done++;
     } catch (err) {

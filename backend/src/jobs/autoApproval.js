@@ -9,6 +9,7 @@ import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
 import { sendAdminDigest } from '../services/adminAlerts.js';
 import { runFollowUps } from './followUps.js';
+import { notify } from '../services/notifications.js';
 
 /**
  * Check and process auto-approvals (J+7 après soumission)
@@ -35,6 +36,8 @@ export async function processAutoApprovals() {
           delivery.payment.creatorAmount
         ).catch(err => logger.error('Failed to send auto-approval emails:', err.message));
 
+        notify(delivery.brandId._id, { type: 'approval', title: 'Livraison approuvée automatiquement', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+        notify(delivery.creatorId._id, { type: 'approval', title: `Validation automatique : ${delivery.payment.creatorAmount} € en route`, text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
         logger.info(`Auto-approved delivery: ${delivery._id}`);
       } catch (error) {
         logger.error(`Failed to auto-approve delivery ${delivery._id}:`, error);
@@ -153,11 +156,13 @@ export async function flagLateDeliveries() {
       const title = d.campaignId?.title || 'votre mission';
       if (d.replacement?.status !== 'late') {
         if (d.creatorId?.email) await sendDeliveryLate(d.creatorId.email, d.creatorId.profile?.name, title, d.productionDeadline, d._id).catch(err => logger.warn(`Rappel retard non envoyé ${d._id}: ${err?.message}`));
+        notify(d.creatorId?._id, { type: 'reminder', title: 'Mission en retard', text: title, href: `/deliveries/${d._id}` }).catch(() => {});
         d.replacement = { ...(d.replacement?.toObject?.() || {}), status: 'late', lateSince: now };
         await d.save(); flagged++;
       }
       if (now - new Date(d.productionDeadline) >= grace && !d.replacement.offeredAt) {
         if (d.brandId?.email) await sendReplacementAvailable(d.brandId.email, d.brandId.profile?.companyName || d.brandId.profile?.name, d.creatorId?.profile?.name || 'Le créateur', title, d._id).catch(err => logger.warn(`Email remplacement non envoyé ${d._id}: ${err?.message}`));
+        notify(d.brandId?._id, { type: 'replacement', title: 'Garantie de remplacement disponible', text: title, href: `/deliveries/${d._id}` }).catch(() => {});
         d.replacement.status = 'offered';
         d.replacement.offeredAt = now;
         await d.save(); flagged++;

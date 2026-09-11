@@ -52,7 +52,7 @@ export function transcriptionConfig() {
   const d = TRANSCRIPTION_DEFAULTS[provider];
   if (!d) return { provider, error: `TRANSCRIPTION_PROVIDER inconnu : ${provider}` };
   const apiKey = env.TRANSCRIPTION_API_KEY || env[d.keyVar];
-  const model = env.TRANSCRIPTION_MODEL || env.AI_TRANSCRIPTION_MODEL || d.model;
+  const model = env.TRANSCRIPTION_MODEL || d.model;
   const baseURL = (env.TRANSCRIPTION_BASE_URL || d.baseURL || '').replace(/\/$/, '');
   const missing = !apiKey ? (provider === 'openai-compatible' ? 'TRANSCRIPTION_API_KEY' : `${d.keyVar} (ou TRANSCRIPTION_API_KEY)`) : !model ? 'TRANSCRIPTION_MODEL' : !baseURL ? 'TRANSCRIPTION_BASE_URL' : null;
   return { provider, apiKey, model, baseURL, missing };

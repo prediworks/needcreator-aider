@@ -422,9 +422,10 @@ userSchema.methods.hasLegalInfo = function() {
 };
 
 // Methods
-userSchema.methods.canApplyToCampaign = function() {
+userSchema.methods.canApplyToCampaign = function(maxLateWithdrawals = 0) {
   // Le compte Stripe n'est pas requis pour candidater : il est demandé avant le paiement
   return (
+    !(maxLateWithdrawals > 0 && (this.profile?.stats?.lateDeliveries || 0) >= maxLateWithdrawals) &&
     this.role === 'creator' &&
     this.status === 'active' &&
     this.verification.portfolio &&
@@ -436,8 +437,9 @@ userSchema.methods.canApplyToCampaign = function() {
 /**
  * Explique pourquoi un créateur ne peut pas candidater (pour un message clair côté UI)
  */
-userSchema.methods.applyBlockers = function() {
+userSchema.methods.applyBlockers = function(maxLateWithdrawals = 0) {
   const blockers = [];
+  if (maxLateWithdrawals > 0 && (this.profile?.stats?.lateDeliveries || 0) >= maxLateWithdrawals) blockers.push(`Vos candidatures sont suspendues : ${this.profile.stats.lateDeliveries} missions vous ont été retirées pour retard. Contactez-nous pour réactiver votre compte.`);
   if (this.status === 'pending') blockers.push('Votre profil est en attente de validation par notre équipe.');
   if (this.status === 'suspended' || this.status === 'banned') blockers.push('Votre compte est suspendu.');
   if (!this.verification.portfolio && this.status === 'active') blockers.push('Votre portfolio n\'a pas encore été validé.');

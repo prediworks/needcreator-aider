@@ -23,6 +23,8 @@ import {
   updateSetting,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
+import { listDisputes, resolveDispute } from '../controllers/disputes.js';
+import { validate, schemas } from '../middleware/validate.js';
 
 const router = express.Router();
 
@@ -61,6 +63,8 @@ router.post('/businesses/:userId/approve', reviewBusiness);
 router.post('/businesses/:userId/reject', reviewBusiness);
 
 // Signalements
+router.get('/disputes', listDisputes);
+router.post('/disputes/:deliveryId/resolve', validate(schemas.resolveDispute), resolveDispute);
 router.get('/reports', listReports);
 router.post('/reports/:reportId/resolve', resolveReport);
 

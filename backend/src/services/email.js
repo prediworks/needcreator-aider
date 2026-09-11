@@ -607,3 +607,50 @@ export async function sendAutoRejected(brandEmail, creatorEmail, companyName, cr
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
   `);
 }
+
+/**
+ * Litiges
+ */
+export async function sendDisputeOpened(email, name, brandName, campaignTitle, reason, deliveryId) {
+  const subject = `Refus définitif demandé — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>${brandName} a demandé un refus définitif de vos vidéos, les révisions prévues au devis étant épuisées. La validation automatique est suspendue le temps de l'examen.</p>
+    ${summary([['Mission', campaignTitle], ['Motif de la marque', reason]])}
+    <p>Vous pouvez répondre une fois depuis la page de la mission : notre équipe lira les deux versions et tranchera (paiement intégral, partage, ou remboursement de la marque).</p>
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Répondre au litige</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendDisputeResponse(email, companyName, creatorName, campaignTitle, response, deliveryId) {
+  const subject = `Réponse du créateur au litige — "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${companyName},</h1>
+    <p>${creatorName} a répondu à votre demande de refus définitif. Notre équipe tranchera sous peu.</p>
+    ${summary([['Mission', campaignTitle], ['Réponse du créateur', response]])}
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+export async function sendDisputeResolved(brandEmail, creatorEmail, companyName, creatorName, campaignTitle, dispute, deliveryId) {
+  const outcome = dispute.outcome === 'approve'
+    ? 'Paiement intégral au créateur : les vidéos sont considérées comme livrées conformément au brief.'
+    : dispute.outcome === 'refund_full'
+      ? 'Remboursement intégral de la marque : la mission est refusée, aucun paiement au créateur.'
+      : `Partage : la marque paie ${dispute.creatorPercent} % du prix (${dispute.paidAmount} €), le reste (${dispute.refundedAmount} €) lui est rendu.`;
+  const rows = summary([['Mission', campaignTitle], ['Décision', outcome], ['Motivation', dispute.note]]);
+  await sendEmail(brandEmail, `Litige tranché — "${campaignTitle}"`, `
+    <h1>Bonjour ${companyName},</h1>
+    <p>Notre équipe a examiné la livraison de ${creatorName} et votre motif de refus.</p>
+    ${rows}
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
+  `);
+  await sendEmail(creatorEmail, `Litige tranché — "${campaignTitle}"`, `
+    <h1>Bonjour ${creatorName},</h1>
+    <p>Notre équipe a examiné vos vidéos et le motif de ${companyName}.</p>
+    ${rows}
+    <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Voir la mission</a></p>
+  `);
+}

@@ -21,6 +21,7 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import ReviewForm, { Stars } from '@/components/ReviewForm';
 import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
+import DisputeCard from '@/components/DisputeCard';
 import PerformanceCard from '@/components/PerformanceCard';
 import ReadyPackCard from '@/components/ReadyPackCard';
 import ContractCard from '@/components/ContractCard';
@@ -260,6 +261,9 @@ export default function DeliveryDetailPage() {
                 </p>
               </Card>
             )}
+
+            {/* Litige : refus définitif (révisions épuisées), réponse du créateur, décision */}
+            {(isBrand || isCreator) && <DisputeCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
 
             {/* Retard et garantie de remplacement (marque) */}
             {isBrand && <ReplacementCard delivery={delivery} />}
@@ -670,7 +674,7 @@ export default function DeliveryDetailPage() {
                         </Button>
                       )}
                       {!canRequestRevision && (
-                        <p className="text-xs text-neutral-500 text-center">Nombre maximum de révisions atteint</p>
+                        <p className="text-xs text-neutral-500 text-center">Révisions prévues au devis épuisées : approuvez, ou demandez un refus définitif ci-dessous.</p>
                       )}
 
                       {showRevisionForm && (

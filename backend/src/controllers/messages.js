@@ -2,6 +2,7 @@ import Conversation from '../models/Conversation.js';
 import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
 import { sendNewMessageNotification } from '../services/email.js';
+import { notify } from '../services/notifications.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -177,6 +178,7 @@ export async function sendMessage(req, res) {
 
     if (shouldNotify) {
       const recipientId = recipientSide === 'brand' ? r.brandId : r.creatorId;
+      notify(recipientId, { type: 'message', title: `Nouveau message de ${user.profile.companyName || user.profile.name}`, text: r.campaign?.title || '', href: `/messages?campaign=${r.campaign._id}&creator=${r.creatorId}` }).catch(() => {});
       const recipient = await User.findById(recipientId).select('email profile.name profile.companyName preferences.emailNotifications');
       if (recipient && recipient.preferences?.emailNotifications !== false) {
         const senderName = user.profile.companyName || user.profile.name;

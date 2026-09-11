@@ -4,6 +4,7 @@ import Delivery from '../models/Delivery.js';
 import Review from '../models/Review.js';
 import { sendCreatorApproved, sendAmbassadorApproved } from '../services/email.js';
 import { runScheduledJobs } from '../jobs/autoApproval.js';
+import { notify } from '../services/notifications.js';
 import { resolveUrlsIn } from '../services/storage.js';
 import { stripe, cancelOrRefundPaymentIntent } from '../services/stripe.js';
 import Conversation from '../models/Conversation.js';
@@ -308,6 +309,7 @@ export async function approveCreator(req, res) {
     // Send approval email
     await sendCreatorApproved(user.email, user.profile.name)
       .catch(err => logger.error('Failed to send approval email:', err));
+    notify(user._id, { type: 'system', title: 'Profil validé : vous pouvez envoyer des devis', text: 'Découvrez les campagnes ouvertes.', href: '/campaigns' }).catch(() => {});
     
     logger.info(`Creator approved: ${user._id}`);
     

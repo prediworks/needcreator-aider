@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
+import { openDispute, respondDispute } from '../controllers/disputes.js';
 import {
   createDelivery,
   uploadDeliverables,
@@ -24,6 +25,7 @@ import {
   getContract,
   replacementCandidates,
   replaceCreator,
+  withdrawLateDelivery,
   requestRightsExtension,
   proposeRightsExtension,
   declineRightsExtension,
@@ -62,6 +64,7 @@ router.post('/:deliveryId/ready-pack/confirm', authenticate, authorize('brand'),
 // Garantie de remplacement (créateur en retard)
 router.get('/:deliveryId/replacement/candidates', authenticate, authorize('brand'), replacementCandidates);
 router.post('/:deliveryId/replacement/select/:creatorId', authenticate, authorize('brand'), replaceCreator);
+router.post('/:deliveryId/replacement/withdraw', authenticate, authorize('brand'), withdrawLateDelivery); // sans remplaçant : campagne rouverte
 // Contrat et prolongation des droits
 router.get('/:deliveryId/contract', authenticate, getContract);
 router.post('/:deliveryId/rights-extension/request', authenticate, authorize('brand'), validate(schemas.rightsExtensionRequest), requestRightsExtension);
@@ -77,5 +80,7 @@ router.post('/:deliveryId/approve', authenticate, authorize('brand'), approveDel
 router.get('/:deliveryId/payment-intent', authenticate, authorize('brand'), getPaymentIntent);
 router.post('/:deliveryId/confirm-payment', authenticate, authorize('brand'), confirmPayment);
 router.post('/:deliveryId/revision', authenticate, authorize('brand'), validate(schemas.requestRevision), requestRevision);
+router.post('/:deliveryId/dispute', authenticate, authorize('brand'), validate(schemas.openDispute), openDispute); // refus définitif (révisions épuisées)
+router.post('/:deliveryId/dispute/respond', authenticate, authorize('creator'), validate(schemas.disputeResponse), respondDispute);
 
 export default router;
