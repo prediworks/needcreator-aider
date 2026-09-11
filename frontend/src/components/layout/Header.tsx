@@ -99,7 +99,7 @@ export default function Header() {
                 <Link href="/profile" title="Mon profil">
                   <Button variant="ghost" size="sm" aria-label="Mon profil">
                     <User className="w-4 h-4 xl:mr-2" />
-                    <span className="hidden xl:inline max-w-[160px] truncate">{user?.profile?.companyName || user?.profile?.name}</span>
+                    <span className="hidden xl:inline max-w-[160px] truncate">{(user as any)?.actor ? `${(user as any).actor.name || (user as any).actor.email} · ${user?.profile?.companyName}` : (user?.profile?.companyName || user?.profile?.name)}</span>
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout} aria-label="Déconnexion" title="Déconnexion">

@@ -20,11 +20,14 @@ import logger from '../utils/logger.js';
 /**
  * Sérialise un utilisateur pour le frontend (ajoute id, complétion, blocages)
  */
-async function serializeUser(userDoc) {
+async function serializeUser(userDoc, { actor = null } = {}) {
   const user = userDoc.toObject ? userDoc.toObject() : userDoc;
+  delete user.teamInvitations;
   const out = {
     ...user,
     id: user._id,
+    // Équipe marque : l'utilisateur connecté agit au nom du compte propriétaire
+    actor: actor ? { id: actor._id, email: actor.email, name: actor.profile?.name } : null,
     profileCompletion: userDoc.profileCompletion ?? user.profileCompletion,
     profileChecklist: typeof userDoc.profileChecklist === 'function' ? userDoc.profileChecklist() : [],
   };
@@ -159,7 +162,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr' } = req.body;
+    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -196,10 +199,16 @@ export async function registerBrand(req, res) {
     });
 
     user.ensureReferralCode();
-    await applyReferral(user, referralCode);
+    let teamOwner = null;
+    if (teamToken) {
+      const { attachTeamMember } = await import('./team.js');
+      try { teamOwner = await attachTeamMember(user, teamToken); } catch (e) { return res.status(400).json({ error: e.message }); }
+    } else {
+      await applyReferral(user, referralCode);
+    }
     await user.save();
 
-    logger.info(`Brand user saved to database: ${user._id}`);
+    logger.info(`Brand user saved to database: ${user._id}${teamOwner ? ` (membre de l'équipe ${teamOwner._id})` : ''}`);
 
     // Send welcome email (non bloquant)
     if (!req.firebaseUser.email_verified) sendVerificationAfterRegistration(user);
@@ -252,7 +261,7 @@ export async function getProfile(req, res) {
     // Otherwise get current user's full profile
     const user = await User.findById(req.user._id).select('-__v');
 
-    res.json({ user: await serializeUser(user) });
+    res.json({ user: await serializeUser(user, { actor: req.actor }) });
   } catch (error) {
     logger.error('Failed to get profile:', error);
     res.status(500).json({ error: 'Failed to get profile' });

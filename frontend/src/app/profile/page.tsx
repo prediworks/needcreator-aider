@@ -33,6 +33,7 @@ import { useScrollToHash } from '@/hooks/useScrollToHash';
 import MissingHint from '@/components/ui/MissingHint';
 import AvailabilityCard from '@/components/AvailabilityCard';
 import MediaKitCard from '@/components/MediaKitCard';
+import TeamCard from '@/components/TeamCard';
 
 function ProfileContent() {
   const { user, ready } = useRequireAuth();
@@ -417,7 +418,8 @@ function ProfileContent() {
 
           {/* Vérification et abonnement (marque) */}
           <div id="business" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <BusinessVerificationCard profile={profile} />}</div>
-          <div id="legal" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <LegalInfoCard profile={profile} />}</div>
+          <div id="legal" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && !profile.actor && <LegalInfoCard profile={profile} />}</div>
+          <div id="team" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <TeamCard profile={profile} />}</div>
           <div id="subscription" className="scroll-mt-24 rounded-lg">{profile.role === 'brand' && <SubscriptionCard />}</div>
 
           {/* Gifting (créateur) */}

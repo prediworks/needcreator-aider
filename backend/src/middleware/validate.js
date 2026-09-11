@@ -58,6 +58,7 @@ export const schemas = {
     website: Joi.string().uri().allow(''),   // facultatif à l'inscription : demandé dans le profil
     industry: Joi.string().allow(''),
     referralCode: Joi.string().max(20).allow(''),
+    teamToken: Joi.string().max(60).allow(''), // invitation à rejoindre l'équipe d'une marque
   }),
   
   // Stripe Connect onboarding
@@ -160,6 +161,7 @@ export const schemas = {
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).max(8).default([]),
     creatorsWanted: Joi.number().integer().min(1).max(20).default(1),
     productShipping: Joi.boolean().default(false),
+    visibility: Joi.string().valid('public', 'private').default('public'),
     productDescription: Joi.string().max(300).allow(''),
     type: Joi.string().valid('paid', 'gifting').default('paid'),
     giftingProductName: Joi.string().max(200).allow(''),
@@ -224,6 +226,7 @@ export const schemas = {
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).max(8),
     creatorsWanted: Joi.number().integer().min(1).max(20),
     productShipping: Joi.boolean(),
+    visibility: Joi.string().valid('public', 'private'),
     productDescription: Joi.string().max(300).allow(''),
     type: Joi.string().valid('paid', 'gifting'),
     giftingProductName: Joi.string().max(200).allow(''),

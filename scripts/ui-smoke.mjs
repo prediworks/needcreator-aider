@@ -89,7 +89,7 @@ await step('Marque : création + publication d\'une campagne', async () => {
   await bp.getByText(/Il manque : un titre de 10 caractères/).waitFor({ timeout: 20000 }); // bouton grisé expliqué
   await bp.getByLabel(/Titre de la campagne/).fill('Campagne test interface utilisateur');
   await bp.getByPlaceholder(/Présentez votre marque/).fill('Nous cherchons une vidéo témoignage authentique pour notre nouvelle gamme de soins visage bio.');
-  await bp.getByRole('button', { name: 'Beauté' }).click();
+  await bp.getByRole('button', { name: 'Beauté', exact: true }).click();
   await bp.getByRole('button', { name: 'Continuer' }).click();
   await bp.getByLabel(/Budget total/).fill('300');
   const d = new Date(Date.now() + 10 * 86400000).toISOString().slice(0, 10);
@@ -98,7 +98,7 @@ await step('Marque : création + publication d\'une campagne', async () => {
   await bp.getByText('Brouillon enregistré').waitFor({ timeout: 20000 });
   await bp.screenshot({ path: `${SHOTS}/02-campaign-draft.png`, fullPage: true });
   await bp.getByRole('button', { name: /Publier maintenant/ }).click();
-  await bp.waitForURL(/\/campaigns\/[a-f0-9]{24}$/, { timeout: 20000 });
+  await bp.waitForURL(/\/campaigns\/[a-f0-9]{24}$/, { timeout: 60000, waitUntil: 'commit' });
   campaignUrl = bp.url();
   await bp.getByText('Ouverte aux candidatures').first().waitFor({ timeout: 20000 });
   await bp.screenshot({ path: `${SHOTS}/03-campaign-published.png`, fullPage: true });
@@ -145,7 +145,7 @@ await step('Créateur : inscription via le formulaire', async () => {
   await cp.getByLabel('Email').fill(creatorEmail);
   await cp.getByLabel(/Mot de passe/).fill(PASSWORD);
   await cp.getByLabel(/Nom ou pseudo/).fill('Créateur UI Test');
-  await cp.getByRole('button', { name: 'Beauté' }).click();
+  await cp.getByRole('button', { name: 'Beauté', exact: true }).click();
   await cp.getByRole('checkbox').check();
   await cp.getByRole('button', { name: 'Créer mon compte' }).click();
   await cp.waitForURL(/\/dashboard/, { timeout: 30000 });

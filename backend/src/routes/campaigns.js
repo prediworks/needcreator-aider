@@ -14,6 +14,7 @@ import {
   inviteCreator,
   createPaymentSetup,
   payAllPending,
+  listTemplates,
 } from '../controllers/campaigns.js';
 
 import { aiBrief, aiStatus } from '../controllers/ai.js';
@@ -28,6 +29,7 @@ router.post('/ai-brief', authenticate, authorize('brand'), validate(schemas.aiBr
 
 // Campaign CRUD
 router.post('/', authenticate, authorize('brand'), validate(schemas.createCampaign), createCampaign);
+router.get('/templates', authenticate, authorize('brand'), listTemplates); // modèles par secteur
 router.get('/', authenticate, getCampaigns);
 router.get('/:campaignId', authenticate, getCampaign);
 router.patch('/:campaignId', authenticate, authorize('brand'), validate(schemas.updateCampaign), updateCampaign);

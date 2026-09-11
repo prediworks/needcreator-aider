@@ -79,6 +79,7 @@ export async function createCampaign(req, res) {
       platforms,
       creatorsWanted,
       productShipping,
+      visibility,
       productDescription,
       type = 'paid',
       giftingProductName,
@@ -122,6 +123,7 @@ export async function createCampaign(req, res) {
         productShipping: !!productShipping,
         productDescription,
       },
+      visibility: visibility || 'public',
       budget: budget && type !== 'gifting'
         ? { total: budget, perVideo: Math.round(budget / deliverables) }
         : {},
@@ -195,7 +197,7 @@ export async function publishCampaign(req, res) {
     // Notify matching creators (en arrière-plan, sans bloquer la réponse)
     // Avec l'avant-première, seuls les ambassadeurs sont prévenus tout de suite ; les autres par la tâche planifiée
     const earlyAccess = config.badges.earlyAccessHours > 0;
-    const matchingCreators = await User.find({
+    const matchingCreators = campaign.visibility === 'private' ? [] : await User.find({
       role: 'creator',
       status: 'active',
       'preferences.emailNotifications': { $ne: false },
@@ -276,6 +278,9 @@ export async function getCampaigns(req, res) {
             { 'invitations.creatorId': user._id },
           ];
         }
+      }
+      if (['available', 'recommended', 'all'].includes(mode)) {
+        query.$and = [...(query.$and || []), { $or: [{ visibility: { $ne: 'private' } }, { 'invitations.creatorId': user._id }, { 'applications.creatorId': user._id }, { selectedCreators: user._id }, { selectedCreator: user._id }] }];
       }
     } else if (status) {
       query.status = status;
@@ -372,6 +377,9 @@ export async function getCampaign(req, res) {
       return res.status(403).json({ error: 'Campaign not available' });
     }
     const isInvited = user.role === 'creator' && (campaign.invitations || []).some(i => idOf(i.creatorId) === user._id.toString());
+    if (user.role === 'creator' && campaign.visibility === 'private' && !isInvited && !hasApplied && !isSelectedCreator) {
+      return res.status(403).json({ error: 'Cette campagne est privée : elle est réservée aux créateurs invités par la marque.' });
+    }
     if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isInvited && !isAmbassador(user) && config.badges.earlyAccessHours > 0) {
       const openAt = new Date(campaign.timeline.publishedAt).getTime() + config.badges.earlyAccessHours * 3600 * 1000;
       if (Date.now() < openAt) {
@@ -506,6 +514,9 @@ export async function applyToCampaign(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
+    if (campaign.visibility === 'private' && !(campaign.invitations || []).some(i => idOf(i.creatorId) === creator._id.toString())) {
+      return res.status(403).json({ error: 'Cette campagne est privée : seuls les créateurs invités peuvent candidater.' });
+    }
     if (!campaign.canApply(creator._id)) {
       return res.status(400).json({ error: 'Vous ne pouvez pas (ou plus) candidater à cette campagne' });
     }
@@ -756,6 +767,7 @@ export async function updateCampaign(req, res) {
     if (u.deliveryTypes !== undefined) campaign.brief.deliveryTypes = u.deliveryTypes;
     if (u.platforms !== undefined) campaign.brief.platforms = u.platforms;
     if (u.productShipping !== undefined) campaign.brief.productShipping = u.productShipping;
+    if (u.visibility !== undefined) campaign.visibility = u.visibility;
     if (u.productDescription !== undefined) campaign.brief.productDescription = u.productDescription;
     if (u.niches !== undefined) campaign.matching.niches = u.niches;
     if (u.creatorsWanted !== undefined) campaign.matching.creatorsWanted = u.creatorsWanted;
@@ -943,4 +955,11 @@ export async function payAllPending(req, res) {
     logger.error('Failed to pay all:', error);
     res.status(500).json({ error: 'Échec du paiement groupé' });
   }
+}
+
+
+/** Bibliothèque de modèles de campagne par secteur (pré-remplissage du formulaire) */
+export async function listTemplates(req, res) {
+  const { CAMPAIGN_TEMPLATES } = await import('../../config/campaignTemplates.js');
+  res.json({ templates: CAMPAIGN_TEMPLATES });
 }

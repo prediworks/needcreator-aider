@@ -688,3 +688,18 @@ export async function sendReviewResponse(email, name, responderName, campaignTit
   `;
   return sendEmail(email, subject, html);
 }
+
+/**
+ * Équipe marque : invitation d'un collaborateur
+ */
+export async function sendTeamInvitation(email, name, companyName, invitedBy, link) {
+  const subject = `${invitedBy} vous invite à rejoindre ${companyName} sur NeedCreator`;
+  const html = `
+    <h1>Bonjour ${name || ''},</h1>
+    <p>${invitedBy} vous invite à gérer les campagnes UGC de <strong>${companyName}</strong> sur NeedCreator : créer des campagnes, choisir des créateurs, valider les vidéos, au nom de l'entreprise.</p>
+    <p>Créez votre accès avec cette adresse email (${email}) : votre compte sera automatiquement rattaché à l'équipe.</p>
+    <p><a href="${link}">Rejoindre l'équipe</a></p>
+    <p style="color:#666;font-size:13px">Vous ne connaissez pas ${companyName} ? Ignorez cet email.</p>
+  `;
+  return sendEmail(email, subject, html);
+}

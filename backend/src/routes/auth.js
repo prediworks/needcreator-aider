@@ -4,6 +4,7 @@ import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import { acceptTerms, exportData, deleteAccount, updateLegalInfo } from '../controllers/account.js';
 import { getMediaKit, getPayouts, submitQuiz } from '../controllers/creatorTools.js';
+import { ownerOnly, getTeam, inviteMember, cancelInvitation, removeMember, invitationInfo } from '../controllers/team.js';
 import { sendVerificationEmail, requestPasswordReset, passwordResetLimiter } from '../controllers/authEmails.js';
 import {
   registerCreator,
@@ -37,9 +38,9 @@ router.post('/password-reset', passwordResetLimiter, requestPasswordReset);
 
 // Légal / RGPD
 router.post('/accept-terms', authenticate, acceptTerms);
-router.put('/legal-info', authenticate, (req, res, next) => validate(req.user.role === 'brand' ? schemas.legalInfoBrand : schemas.legalInfoCreator)(req, res, next), updateLegalInfo);
+router.put('/legal-info', authenticate, ownerOnly, (req, res, next) => validate(req.user.role === 'brand' ? schemas.legalInfoBrand : schemas.legalInfoCreator)(req, res, next), updateLegalInfo);
 router.get('/export', authenticate, exportData);
-router.delete('/account', authenticate, deleteAccount);
+router.delete('/account', authenticate, ownerOnly, deleteAccount);
 
 // Profile (authenticate required)
 router.get('/profile', authenticate, getProfile);
@@ -47,7 +48,14 @@ router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
 
 // Vérification d'entreprise (marques)
-router.post('/business-verification', authenticate, authorize('brand'), validate(schemas.businessVerification), verifyBusiness);
+router.post('/business-verification', authenticate, authorize('brand'), ownerOnly, validate(schemas.businessVerification), verifyBusiness);
+
+// Équipe marque (propriétaire seulement, sauf lecture de l'invitation à l'inscription)
+router.get('/team', authenticate, authorize('brand'), ownerOnly, getTeam);
+router.post('/team/invite', authenticate, authorize('brand'), ownerOnly, inviteMember);
+router.delete('/team/invitations/:email', authenticate, authorize('brand'), ownerOnly, cancelInvitation);
+router.delete('/team/members/:memberId', authenticate, authorize('brand'), ownerOnly, removeMember);
+router.get('/team/invitations/:token', invitationInfo);
 
 // Parrainage et revenus
 router.get('/referral', authenticate, getReferral);

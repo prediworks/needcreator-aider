@@ -92,6 +92,8 @@ const campaignSchema = new mongoose.Schema({
     }
   },
   
+  // Privée : visible uniquement par les créateurs invités (lancement confidentiel)
+  visibility: { type: String, enum: ['public', 'private'], default: 'public' },
   status: {
     type: String,
     enum: ['draft', 'active', 'in_progress', 'completed', 'cancelled'],

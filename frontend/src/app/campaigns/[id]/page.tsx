@@ -132,6 +132,8 @@ export default function CampaignDetailPage() {
                     </span>
                     <Badge map={CAMPAIGN_STATUS} value={campaign.status} />
                     {campaign.type === 'gifting' && <Badge map={CAMPAIGN_TYPES} value="gifting" />}
+                    {campaign.visibility === 'private' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-neutral-800 text-white">Privée · sur invitation</span>}
+                    {user?.role === 'brand' && <Link href={`/campaigns/new?from=${campaignId}`} className="text-xs text-primary-600 underline">Dupliquer</Link>}
                   </div>
                 </div>
                 {isCreator && <ReportButton targetType="campaign" targetId={campaignId} />}

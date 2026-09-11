@@ -296,6 +296,14 @@ const userSchema = new mongoose.Schema({
   },
 
   // Parrainage
+  // Équipe marque : membre rattaché à un compte propriétaire (agit en son nom)
+  team: {
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    role: { type: String, enum: ['member'], default: 'member' },
+    joinedAt: Date,
+  },
+  teamInvitations: [{ email: String, name: String, token: String, invitedAt: Date, acceptedAt: Date, _id: false }],
+
   referral: {
     code: { type: String, unique: true, sparse: true },
     referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

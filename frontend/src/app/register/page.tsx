@@ -40,6 +40,8 @@ function RegisterForm() {
   const [country, setCountry] = useState('FR');
   const [language, setLanguage] = useState('fr');
   const referralCode = searchParams.get('ref') || '';
+  const teamToken = searchParams.get('team') || '';
+  const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileReset, setTurnstileReset] = useState(0);
@@ -67,6 +69,14 @@ function RegisterForm() {
     if (!authLoading && user) router.replace('/dashboard');
   }, [authLoading, user, router]);
 
+  // Invitation à rejoindre l'équipe d'une marque : email et entreprise pré-remplis
+  useEffect(() => {
+    if (!teamToken) return;
+    api.get(`/auth/team/invitations/${teamToken}`).then(({ data }) => {
+      setTeamInfo(data); setRole('brand'); setStep(2); setEmail(data.email); setCompanyName(data.companyName); setName(data.name || '');
+    }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
+  }, [teamToken]);
+
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
       prev.includes(niche)
@@ -91,7 +101,7 @@ function RegisterForm() {
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
         ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language }
-        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language };
+        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}) };
 
       await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -197,6 +207,11 @@ function RegisterForm() {
               ← Changer de type de compte ({role === 'creator' ? 'Créateur' : 'Marque'})
             </button>
 
+            {teamInfo && (
+              <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
+                👥 Vous rejoignez l&apos;équipe <strong>{teamInfo.companyName}</strong>. Créez votre accès avec l&apos;adresse invitée : vous agirez au nom de l&apos;entreprise.
+              </div>
+            )}
             {referralCode && (
               <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-800">
                 🎁 Vous êtes parrainé(e) avec le code <strong>{referralCode}</strong>{role === 'brand' ? ' : 5 % de réduction sur votre première campagne.' : '.'}

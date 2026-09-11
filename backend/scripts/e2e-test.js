@@ -1098,6 +1098,71 @@ await step('Garantie de remplacement sans autre devis : retrait de la mission, c
   return `mission retirée, autorisation ${pi.status}, campagne rouverte, blocage au-delà du plafond vérifié`;
 });
 
+await step('Marque : modèles de campagne, campagne privée sur invitation', async () => {
+  const tpl = await brandApi('GET', '/campaigns/templates');
+  expect(tpl.status === 200 && tpl.data.templates.length >= 5 && tpl.data.templates.every(t => t.title && t.description && t.niches?.length), 'Bibliothèque de modèles attendue', tpl);
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Lancement confidentiel', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 150, niches: ['beauty'], applicationDeadline: deadline, visibility: 'private' });
+  expect(c.status === 201 && c.data.campaign.visibility === 'private', 'Campagne privée non créée', c);
+  const pub = await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+  expect(pub.status === 200, 'Publication échouée', pub);
+  const feed = await creatorApi('GET', '/campaigns?filter=available&limit=50');
+  expect(feed.status === 200 && !feed.data.campaigns.some(x => x._id === c.data.campaign._id), 'Une campagne privée ne doit pas apparaître dans le fil', feed);
+  const detail = await creatorApi('GET', `/campaigns/${c.data.campaign._id}`);
+  expect(detail.status === 403, 'Une campagne privée ne doit pas être consultable sans invitation', detail);
+  const apply = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 150, estimatedDeliveryDays: 4 });
+  expect(apply.status === 403, 'Candidature refusée sans invitation', apply);
+  const inv = await brandApi('POST', `/campaigns/${c.data.campaign._id}/invite/${creatorUser.id}`, { message: 'Lancement confidentiel, on compte sur vous.' });
+  expect(inv.status === 200, 'Invitation échouée', inv);
+  const feed2 = await creatorApi('GET', '/campaigns?filter=available&limit=50');
+  expect(feed2.data.campaigns.some(x => x._id === c.data.campaign._id), 'Après invitation, la campagne apparaît dans le fil du créateur invité', feed2);
+  const detail2 = await creatorApi('GET', `/campaigns/${c.data.campaign._id}`);
+  expect(detail2.status === 200 && detail2.data.campaign.visibility === 'private', 'Le créateur invité doit voir la campagne', detail2);
+  const apply2 = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 150, estimatedDeliveryDays: 4 });
+  expect(apply2.status === 201, 'Le créateur invité doit pouvoir candidater', apply2);
+  const other = await c2Api('GET', `/campaigns/${c.data.campaign._id}`);
+  expect(other.status === 403, 'Un créateur non invité ne voit pas la campagne privée', other);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return `${tpl.data.templates.length} modèles ; campagne privée invisible puis ouverte au créateur invité`;
+});
+
+await step('Marque : équipe (invitation, membre agissant au nom de l\'entreprise, retrait)', async () => {
+  const memberEmail = `e2e-member-${RUN}@needcreator-test.com`;
+  const bad = await brandApi('POST', '/auth/team/invite', { email: brandEmail });
+  expect(bad.status === 400, 'Inviter sa propre adresse doit être refusé', bad);
+  const inv = await brandApi('POST', '/auth/team/invite', { email: memberEmail, name: 'Léo' });
+  expect(inv.status === 200 && /team=/.test(inv.data.link), 'Invitation équipe échouée', inv);
+  const token = inv.data.link.split('team=')[1];
+  const info = await fetch(`${API}/auth/team/invitations/${token}`).then(r => r.json());
+  expect(info.email === memberEmail && info.companyName, 'Infos d\'invitation attendues', { status: 200, data: info });
+  const m = await firebaseUser(memberEmail);
+  const mApi = client(m.idToken);
+  const wrongMail = await mApi('POST', '/auth/register/brand', { acceptTerms: true, email: memberEmail, companyName: 'X', teamToken: 'mauvais' });
+  expect(wrongMail.status === 400, 'Un jeton d\'invitation invalide doit être refusé', wrongMail);
+  const reg = await mApi('POST', '/auth/register/brand', { acceptTerms: true, email: memberEmail, companyName: 'Peu importe', teamToken: token });
+  expect(reg.status === 201, 'Inscription du membre échouée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: m.uid });
+  const prof = await mApi('GET', '/auth/profile');
+  expect(prof.status === 200 && prof.data.user.id === brandUser.id && prof.data.user.actor?.email === memberEmail, 'Le membre doit agir au nom du compte propriétaire (profil = propriétaire, acteur = membre)', prof);
+  const team = await brandApi('GET', '/auth/team');
+  expect(team.status === 200 && team.data.members.some(x => x.email === memberEmail) && team.data.invitations.length === 0, 'Le propriétaire doit voir le membre', team);
+  const forbidden = await mApi('GET', '/auth/team');
+  expect(forbidden.status === 403, 'Un membre ne gère pas l\'équipe', forbidden);
+  const legal = await mApi('PUT', '/auth/legal-info', { signatoryName: 'Pirate' });
+  expect(legal.status === 403, 'Un membre ne modifie pas les informations administratives', legal);
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await mApi('POST', '/campaigns', { title: 'Campagne créée par un membre', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  expect(c.status === 201 && String(c.data.campaign.brandId) === brandUser.id, 'La campagne du membre appartient à l\'entreprise', c);
+  const ownerSees = await brandApi('GET', `/campaigns/${c.data.campaign._id}`);
+  expect(ownerSees.status === 200, 'Le propriétaire voit la campagne créée par le membre', ownerSees);
+  const rm = await brandApi('DELETE', `/auth/team/members/${reg.data.user.id}`);
+  expect(rm.status === 200, 'Retrait du membre échoué', rm);
+  const after = await mApi('GET', '/auth/profile');
+  expect(after.data.user.id === reg.data.user.id && !after.data.user.actor, 'Après retrait, le membre redevient un compte indépendant', after);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
+  return 'invitation, inscription rattachée, actions au nom de l\'entreprise, droits limités, retrait';
+});
+
 await step('Parrainage : codes, remise de 5 % pour la marque parrainée, bonus créateur', async () => {
   const myRef = await creatorApi('GET', '/auth/referral');
   expect(myRef.status === 200 && /^[A-Z]{2,3}-[A-Z0-9]{6}$/.test(myRef.data.code) && myRef.data.link.includes('ref='), 'Code de parrainage créateur invalide', myRef);

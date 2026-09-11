@@ -18,6 +18,8 @@ import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import MissingHint from '@/components/ui/MissingHint';
+import { toast } from 'sonner';
+import TemplatePicker, { type CampaignPrefill } from '@/components/TemplatePicker';
 
 const PLATFORM_FEE_PERCENT = 10;
 
@@ -38,9 +40,11 @@ function NewCampaignForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
+  const fromId = searchParams.get('from'); // dupliquer une campagne passée
   const { ready, user } = useRequireAuth({ roles: ['brand'] });
   const updateMutation = useUpdateCampaign();
-  const { data: existing, isLoading: loadingExisting } = useCampaign(editId || '', ready && !!editId);
+  const { data: existing, isLoading: loadingExisting } = useCampaign(editId || fromId || '', ready && !!(editId || fromId));
+  const [visibility, setVisibility] = useState<'public' | 'private'>('public');
   const [prefilled, setPrefilled] = useState(false);
   const { data: marketRates } = useQuery({ queryKey: ['market-rates'], queryFn: async () => (await api.get('/campaigns/market-rates')).data, staleTime: 10 * 60 * 1000, enabled: ready });
   const feePercent = (user as any)?.referral?.discountedCampaignsLeft > 0 ? 5 : ((user as any)?.plan?.feePercent ?? PLATFORM_FEE_PERCENT);
@@ -72,7 +76,7 @@ function NewCampaignForm() {
   // Mode édition : pré-remplit le formulaire avec le brouillon existant
   useEffect(() => {
     if (!existing || prefilled) return;
-    setTitle(existing.title || '');
+    setTitle(fromId ? `${existing.title || ''} (copie)`.slice(0, 100) : (existing.title || ''));
     setDescription(existing.description || '');
     setVideoType(existing.brief?.videoType || 'testimonial');
     setDuration(String(existing.brief?.duration || 30));
@@ -80,7 +84,8 @@ function NewCampaignForm() {
     setRequirements((existing.brief?.requirements || []).join('\n'));
     setBudget(existing.budget?.total ? String(existing.budget.total) : '');
     setNiches(existing.matching?.niches || []);
-    setApplicationDeadline(existing.timeline?.applicationDeadline ? new Date(existing.timeline.applicationDeadline).toISOString().slice(0, 10) : '');
+    setApplicationDeadline(!fromId && existing.timeline?.applicationDeadline ? new Date(existing.timeline.applicationDeadline).toISOString().slice(0, 10) : '');
+    setVisibility(existing.visibility === 'private' ? 'private' : 'public');
     setDeliveryTypes(existing.brief?.deliveryTypes || ['file', 'link']);
     setPlatforms(existing.brief?.platforms || []);
     setCreatorsWanted(String(existing.matching?.creatorsWanted || 1));
@@ -88,7 +93,7 @@ function NewCampaignForm() {
     setProductDescription(existing.brief?.productDescription || '');
     setCampaignType(existing.type === 'gifting' ? 'gifting' : 'paid');
     setGiftingValue(existing.gifting?.productValue ? String(existing.gifting.productValue) : '');
-    setCreatedCampaignId(existing._id);
+    if (!fromId) setCreatedCampaignId(existing._id);
     setPrefilled(true);
   }, [existing, prefilled]);
 
@@ -146,6 +151,7 @@ function NewCampaignForm() {
     deliveryTypes,
     platforms,
     creatorsWanted: Math.max(1, parseInt(creatorsWanted) || 1),
+    visibility,
     productShipping: campaignType === 'gifting' ? true : productShipping,
     productDescription: (campaignType === 'gifting' || productShipping) ? productDescription : '',
     type: campaignType,
@@ -221,6 +227,9 @@ function NewCampaignForm() {
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-6">
+              {!isEdit && !fromId && (
+                <TemplatePicker enabled={ready} onPick={(p: CampaignPrefill, label) => { setTitle(p.title); setDescription(p.description); setVideoType(p.videoType); setDuration(String(p.duration)); setDeliverables(String(p.deliverables)); setNiches(p.niches); setPlatforms(p.platforms); setProductShipping(p.productShipping); setRequirements(p.requirements.join('\n')); toast.success(`Formulaire pré-rempli : ${label}`); }} />
+              )}
               <ShopifyProductPicker
                 onPick={(p) => {
                   setTitle((t) => t || `Vidéo UGC pour ${p.title}`.slice(0, 100));
@@ -422,6 +431,14 @@ function NewCampaignForm() {
                   max={isPro ? 20 : 1}
                   disabled={!isPro}
                 />
+              </div>
+
+              <div className="bg-neutral-50 rounded-lg p-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+                  <input type="checkbox" checked={visibility === 'private'} onChange={(e) => setVisibility(e.target.checked ? 'private' : 'public')} />
+                  Campagne privée : visible uniquement par les créateurs que vous invitez
+                </label>
+                <p className="text-xs text-neutral-500 mt-1">Pour un lancement confidentiel. Aucune notification aux créateurs à la publication ; invitez-les depuis l&apos;annuaire ou la page de la campagne.</p>
               </div>
 
               <div className="bg-neutral-50 rounded-lg p-4">

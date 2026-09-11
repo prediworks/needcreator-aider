@@ -77,8 +77,18 @@ export async function authenticate(req, res, next) {
       return res.status(403).json({ error: 'Account suspended or banned' });
     }
     
+    // Équipe marque : un membre agit au nom du compte propriétaire (campagnes, missions, factures, paiement)
+    req.actor = null;
+    if (user.role === 'brand' && user.team?.ownerId) {
+      const owner = await User.findById(user.team.ownerId).select('+integrations.shopify.accessToken');
+      if (owner && owner.status === 'active') { req.actor = user; req.user = owner; }
+      else req.user = user;
+    } else {
+      req.user = user;
+    }
+    const user_ = req.user; // eslint-disable-line no-unused-vars
+
     // Attach user to request
-    req.user = user;
     if (sentryEnabled) Sentry.setUser({ id: String(user._id), role: user.role });
     req.firebaseUser = decodedToken;
     
