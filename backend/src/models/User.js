@@ -38,6 +38,9 @@ const userSchema = new mongoose.Schema({
     // Creator-specific fields
     portfolio: [{
       videoUrl: String,
+      previewUrl: String,      // aperçu filigrané montré aux marques (l'original reste pour le créateur)
+      watermarkedAt: Date,
+      watermarkError: String,
       thumbnail: String,
       title: String,
       description: String,

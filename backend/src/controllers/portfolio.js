@@ -5,6 +5,7 @@ import { uploadVideo, createUploadUrl, statObject, deleteFile, keyFromUrl, resol
 import { publicRealisations } from './deliveries.js';
 import { levelFor, badgesFor } from '../utils/badges.js';
 import logger from '../utils/logger.js';
+import { watermarkPortfolioVideo, portfolioForViewer } from '../services/watermark.js';
 
 /**
  * Upload portfolio video
@@ -50,6 +51,7 @@ export async function uploadPortfolioVideo(req, res) {
     });
 
     await creator.save();
+    setImmediate(() => watermarkPortfolioVideo(creator._id, url).catch(() => {}));
 
     logger.info(`Portfolio video uploaded: ${creator._id}`);
 
@@ -103,6 +105,7 @@ export async function registerPortfolioVideo(req, res) {
       uploadedAt: new Date(),
     });
     await creator.save();
+    setImmediate(() => watermarkPortfolioVideo(creator._id, `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}`).catch(() => {}));
 
     const video = creator.profile.portfolio[creator.profile.portfolio.length - 1].toObject();
     const [resolved] = await resolveUrlsIn([video]);
@@ -179,7 +182,8 @@ export async function getCreatorPortfolio(req, res) {
       return res.status(404).json({ error: 'Creator not found' });
     }
 
-    creator.profile.portfolio = await resolveUrlsIn(creator.profile.portfolio || []);
+    const isOwner = !!req.user && (String(req.user._id) === String(creator._id) || req.user.role === 'admin');
+    creator.profile.portfolio = await resolveUrlsIn(portfolioForViewer(creator.profile.portfolio || [], { owner: isOwner }));
 
     // Derniers avis reçus
     const reviews = await Review.find({ revieweeId: creatorId, isPublic: true, publishedAt: { $ne: null } })

@@ -703,6 +703,34 @@ await step('Créateur : disponibilité, kit média, académie, virements, missio
   return `kit ${kit.data.url}, badge Formé, virements ${po.data.stripeError ? 'indisponibles (' + po.data.stripeError.slice(0, 40) + ')' : 'OK'}`;
 });
 
+await step('Filigrane : aperçu de portfolio marqué pour les marques, original pour le créateur', async () => {
+  const { makeSampleVideo } = await import('../src/services/video.js');
+  const sample = await makeSampleVideo(2);
+  const form = new FormData();
+  form.append('video', new File([fs.readFileSync(sample)], 'vraie-portfolio.mp4', { type: 'video/mp4' }));
+  form.append('title', 'Vidéo réelle'); form.append('videoType', 'demo');
+  const up = await creatorApi('POST', '/portfolio/upload', form, { form: true });
+  expect(up.status === 201, 'Upload portfolio (vraie vidéo) échoué', up);
+  const original = up.data.video.videoUrl;
+  let item = null;
+  for (let i = 0; i < 40; i++) {
+    const prof = await creatorApi('GET', '/auth/profile');
+    item = (prof.data.user.profile.portfolio || []).find(v => v.title === 'Vidéo réelle');
+    if (item?.previewUrl || item?.watermarkError) break;
+    await sleep(1000);
+  }
+  expect(item && item.previewUrl && /\/previews\//.test(item.previewUrl) && !item.watermarkError, `L'aperçu filigrané devrait être généré (${item?.watermarkError || 'non généré'}) ; champs : ${Object.keys(item || {}).join(',')}`, { status: 200, data: item });
+  const pub = await fetch(`${API}/portfolio/creator/${creatorUser.id}`).then(r => r.json());
+  const pubItem = (pub.creator.profile.portfolio || []).find(v => v.title === 'Vidéo réelle');
+  expect(pubItem && /\/previews\//.test(pubItem.videoUrl) && pubItem.protected === true && pubItem.previewUrl === undefined, 'Le visiteur doit voir l\'aperçu filigrané, sans l\'URL originale', { status: 200, data: pubItem });
+  const own = await creatorApi('GET', `/portfolio/creator/${creatorUser.id}`);
+  const ownItem = (own.data.creator.profile.portfolio || []).find(v => v.title === 'Vidéo réelle');
+  expect(ownItem && !/\/previews\//.test(ownItem.videoUrl) && !ownItem.protected, 'Le créateur doit voir son original', own);
+  const del = await creatorApi('DELETE', `/portfolio/${item._id}`);
+  expect(del.status === 200, 'Suppression de la vidéo test échouée', del);
+  return 'aperçu filigrané servi aux marques, original conservé';
+});
+
 await step('Marque : annuaire des créateurs (filtres) et collaborateurs', async () => {
   const all = await brandApi('GET', '/creators?niches=beauty&network=tiktok&minFollowers=10000&sort=followers');
   expect(all.status === 200 && all.data.creators.some(c => c.id === creatorUser.id), 'Le créateur devrait ressortir avec ces filtres', all);

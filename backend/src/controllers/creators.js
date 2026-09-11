@@ -5,6 +5,7 @@ import { levelFor, badgesFor } from '../utils/badges.js';
 import { resolveUrl } from '../services/storage.js';
 import { resolveUrlsIn } from '../services/storage.js';
 import logger from '../utils/logger.js';
+import { portfolioForViewer } from '../services/watermark.js';
 
 /**
  * Recherche de créateurs (marques) avec filtres, et liste des collaborateurs
@@ -70,7 +71,7 @@ export async function searchCreators(req, res) {
     const loadAgg = await DeliveryModel.aggregate([{ $match: { creatorId: { $in: creators.map(c => c._id) }, status: { $in: ['pending', 'revision_requested', 'submitted'] } } }, { $group: { _id: '$creatorId', n: { $sum: 1 } } }]);
     const loadMap = new Map(loadAgg.map(x => [String(x._id), x.n]));
     const out = await Promise.all(creators.map(async c => {
-      const firstVideo = c.profile.portfolio?.[0];
+      const firstVideo = portfolioForViewer(c.profile.portfolio || [])[0];
       const until = c.profile.availability?.unavailableUntil;
       return {
         id: c._id,
@@ -125,7 +126,7 @@ export async function publicCreators(req, res) {
       User.countDocuments(query),
     ]);
     const out = await Promise.all(creators.map(async c => {
-      const [video] = c.profile.portfolio?.length ? await resolveUrlsIn([c.profile.portfolio[0]]) : [null];
+      const [video] = c.profile.portfolio?.length ? await resolveUrlsIn([portfolioForViewer(c.profile.portfolio)[0]]) : [null];
       return {
         id: c._id,
         name: c.profile.name,
