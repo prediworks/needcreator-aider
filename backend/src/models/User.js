@@ -33,6 +33,7 @@ const userSchema = new mongoose.Schema({
     },
     avatar: String,
     bio: String,
+    country: { type: String, default: 'FR', uppercase: true, trim: true }, // ISO 3166-1 alpha-2 (préparation international : Stripe, contrats, TVA)
     
     // Creator-specific fields
     portfolio: [{

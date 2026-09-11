@@ -190,9 +190,10 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
   const res = await creatorApi('POST', '/auth/register/creator', {
-    acceptTerms: true, email: creatorEmail, name: 'Créateur Test E2E', bio: '', niches: ['beauty', 'lifestyle'], minPrice: 100,
+    acceptTerms: true, email: creatorEmail, name: 'Créateur Test E2E', bio: '', niches: ['beauty', 'lifestyle'], minPrice: 100, country: 'be', language: 'fr',
   });
   expect(res.status === 201, 'Inscription créateur échouée', res);
+  expect(res.data.user.profile.country === 'BE' && res.data.user.preferences.language === 'fr', 'Pays et langue devraient être enregistrés à l\'inscription', res);
   creatorUser = res.data.user;
   expect(creatorUser.status === 'pending', 'Le créateur devrait être en attente de validation', res);
   expect((creatorUser.applyBlockers || []).some(b => /administratives/i.test(b)), 'Les informations administratives devraient bloquer les devis', res);

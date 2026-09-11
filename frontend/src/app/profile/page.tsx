@@ -26,7 +26,7 @@ import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS } from '@/lib/labels';
+import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS, COUNTRIES } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
 
 function ProfileContent() {
@@ -49,6 +49,7 @@ function ProfileContent() {
   const [companyName, setCompanyName] = useState('');
   const [website, setWebsite] = useState('');
   const [industry, setIndustry] = useState('');
+  const [country, setCountry] = useState('FR');
 
   // Video upload state
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
@@ -69,6 +70,7 @@ function ProfileContent() {
     setCompanyName(profile.profile.companyName || '');
     setWebsite(profile.profile.website || '');
     setIndustry(profile.profile.industry || '');
+    setCountry(profile.profile.country || 'FR');
     setIsEditing(true);
   };
 
@@ -79,11 +81,12 @@ function ProfileContent() {
       updates.profile = {
         name,
         bio,
+        country,
         niches,
         pricing: { minPrice: parseInt(minPrice) },
       };
     } else {
-      updates.profile = { name: companyName, companyName, website, industry };
+      updates.profile = { name: companyName, companyName, website, industry, country };
     }
 
     await updateMutation.mutateAsync(updates);
@@ -274,6 +277,12 @@ function ProfileContent() {
                       required
                     />
                     <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Pays</label>
+                      <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        {Object.entries(COUNTRIES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">
                         Bio
                       </label>
@@ -347,6 +356,12 @@ function ProfileContent() {
                         rows={4}
                         maxLength={500}
                       />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">Pays</label>
+                      <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        {Object.entries(COUNTRIES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">Secteur</label>

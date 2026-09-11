@@ -65,7 +65,7 @@ await step('Marque : inscription via le formulaire', async () => {
   await bp.getByLabel(/Mot de passe/).fill(PASSWORD);
   await bp.getByLabel(/Nom de l'entreprise/).fill('Marque UI Test');
   await bp.getByLabel(/Site web/).fill('https://exemple.fr');
-  await bp.locator('select').selectOption('beauty');
+  await bp.locator('select').last().selectOption('beauty'); // dernière liste = secteur (pays et langue précèdent)
   await bp.getByRole('checkbox').check();
   await bp.getByRole('button', { name: 'Créer mon compte' }).click();
   await bp.waitForURL(/\/dashboard/, { timeout: 30000 });

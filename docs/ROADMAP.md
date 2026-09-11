@@ -31,7 +31,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | ~~**Vérification des marques**~~ | Livré le 8 septembre 2026 (SIRET / TVA, site, email pro, contrôle admin) | — |
 | **Notifications dans l'application** (cloche, centre de notifications) en plus des emails | Réactivité, moins d'emails | M |
 | **Notifications push** (navigateur / mobile) | Prévu en phase 2 | M |
-| **Multi-langues** (anglais, espagnol) | Prévu en phase 3 ; les libellés sont déjà centralisés dans `frontend/src/lib/labels.ts` | M |
+| **Multi-langues** (anglais, espagnol) | Prévu en phase 3 ; les libellés sont déjà centralisés dans `frontend/src/lib/labels.ts`. Préparation faite le 11 septembre 2026 : pays et langue demandés à l'inscription et modifiables dans le profil (`profile.country`, `preferences.language`), pays utilisé pour le compte Stripe Connect | M |
 | **API publique** pour agences et intégrateurs | Prévu en phase 3 | L |
 | **Application mobile** (ou PWA installable en première étape) | Les créateurs tournent au téléphone | PWA : S, app : L |
 | **Monitoring** (Sentry) et sauvegardes automatiques de la base | Indispensable avant la mise en ligne | S |

@@ -87,7 +87,7 @@ async function applyReferral(user, referralCode) {
  */
 export async function registerCreator(req, res) {
   try {
-    const { email, name, bio, niches, minPrice, referralCode } = req.body;
+    const { email, name, bio, niches, minPrice, referralCode, country = 'FR', language = 'fr' } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -101,9 +101,11 @@ export async function registerCreator(req, res) {
       firebaseUid: uid,
       email,
       role: 'creator',
+      preferences: { language },
       profile: {
         name,
         bio,
+        country,
         niches,
         pricing: {
           minPrice,
@@ -155,7 +157,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry, referralCode } = req.body;
+    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr' } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -173,9 +175,11 @@ export async function registerBrand(req, res) {
       firebaseUid: uid,
       email,
       role: 'brand',
+      preferences: { language },
       profile: {
         name: companyName,
         companyName,
+        country,
         website,
         industry,
       },
@@ -283,6 +287,7 @@ export async function updateProfile(req, res) {
       ? [
           'profile.name',
           'profile.bio',
+          'profile.country',
           'profile.avatar',
           'profile.niches',
           'profile.pricing.minPrice',
@@ -296,6 +301,7 @@ export async function updateProfile(req, res) {
       : [
           'profile.name',
           'profile.bio',
+          'profile.country',
           'profile.companyName',
           'profile.website',
           'profile.industry',
@@ -371,7 +377,7 @@ export async function startStripeConnect(req, res) {
     let accountId = user.profile.stripeConnect?.accountId || user.stripeAccountId;
 
     if (!accountId) {
-      const account = await createConnectAccount(user.email, 'FR');
+      const account = await createConnectAccount(user.email, user.profile?.country || 'FR');
       accountId = account.id;
       user.set('profile.stripeConnect.accountId', accountId);
       user.stripeAccountId = accountId;

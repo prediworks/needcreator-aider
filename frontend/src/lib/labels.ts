@@ -142,3 +142,11 @@ export const CAMPAIGN_TYPES: Record<string, { label: string; className: string }
   paid: { label: 'Rémunérée', className: 'bg-green-100 text-green-800' },
   gifting: { label: '🎁 Gifting (produit offert)', className: 'bg-pink-100 text-pink-800' },
 };
+
+/** Pays des comptes (ISO 3166-1 alpha-2). France en premier, puis francophonie, Europe, autres. */
+export const COUNTRIES: Record<string, string> = {
+  FR: 'France', BE: 'Belgique', CH: 'Suisse', LU: 'Luxembourg', MC: 'Monaco', CA: 'Canada', MA: 'Maroc', TN: 'Tunisie', DZ: 'Algérie',
+  DE: 'Allemagne', ES: 'Espagne', IT: 'Italie', NL: 'Pays-Bas', PT: 'Portugal', GB: 'Royaume-Uni', IE: 'Irlande', AT: 'Autriche',
+  SE: 'Suède', NO: 'Norvège', DK: 'Danemark', FI: 'Finlande', PL: 'Pologne', US: 'États-Unis', OT: 'Autre pays',
+};
+export const LANGUAGES: Record<string, string> = { fr: 'Français', en: 'English' };
