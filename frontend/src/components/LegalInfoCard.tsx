@@ -53,9 +53,18 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     onError: (e: any) => toast.error(getErrorMessage(e, 'Enregistrement impossible'), { duration: 8000 }),
   });
 
-  const canSave = isBrand
-    ? form.signatoryName.trim().length >= 2
-    : form.firstName && form.lastName && form.address.line1 && form.address.postalCode && form.address.city && (form.status === 'individual' ? form.individualAcknowledged : form.siret.replace(/\s/g, '').length === 14) && form.billingMandate && (!form.vatRegistered || form.vatNumber.trim().length >= 4);
+  // Ce qui manque pour enregistrer (affiché sous le bouton, pour ne jamais laisser un bouton grisé sans explication)
+  const missing: string[] = isBrand
+    ? (form.signatoryName.trim().length >= 2 ? [] : ['le nom du signataire'])
+    : [
+        !form.firstName && 'le prénom', !form.lastName && 'le nom',
+        form.status !== 'individual' && form.siret.replace(/\s/g, '').length !== 14 && `un SIRET de 14 chiffres (${form.siret.replace(/\s/g, '').length} saisis)`,
+        form.status === 'individual' && !form.individualAcknowledged && 'la déclaration « activité occasionnelle »',
+        form.vatRegistered && form.vatNumber.trim().length < 4 && 'le numéro de TVA intracommunautaire',
+        !form.address.line1 && "l'adresse", !form.address.postalCode && 'le code postal', !form.address.city && 'la ville',
+        !form.billingMandate && 'la case « Mandat de facturation » (en bas du formulaire)',
+      ].filter(Boolean) as string[];
+  const canSave = missing.length === 0;
 
   return (
     <Card className={`p-6 ${!complete ? 'border-orange-300 bg-orange-50/40' : ''}`}>
@@ -93,14 +102,11 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
         <div className="space-y-3">
           <Input label="Nom et prénom du signataire" value={form.signatoryName} onChange={(e) => set('signatoryName', e.target.value)} placeholder="Marie Dupont" />
           <Input label="Fonction (optionnel)" value={form.signatoryTitle} onChange={(e) => set('signatoryTitle', e.target.value)} placeholder="Directrice marketing" />
-          <label className="flex items-start gap-2 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
-            <input type="checkbox" checked={form.billingMandate} onChange={(e) => set('billingMandate', e.target.checked)} className="mt-0.5" disabled={!!li.billingMandateAcceptedAt} />
-            <span><strong>Mandat de facturation.</strong> J&apos;autorise NeedCreator (PREDIWORKS SAS) à établir et émettre en mon nom et pour mon compte les factures correspondant à mes missions sur la plateforme, avec une numérotation qui m&apos;est propre. Je reste responsable de leur déclaration. Obligatoire pour envoyer un devis.</span>
-          </label>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => save.mutate()} isLoading={save.isPending} disabled={!canSave}><Save className="w-4 h-4 mr-1" /> Enregistrer les informations administratives</Button>
             {complete && <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>}
           </div>
+          {!canSave && <p className="text-xs text-orange-700">Il manque : {missing.join(', ')}.</p>}
         </div>
       ) : (
         <div className="space-y-3">
@@ -140,10 +146,15 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
             <Input label="Ville" value={form.address.city} onChange={(e) => setAddr('city', e.target.value)} />
             <Input label="Pays" value={form.address.country} onChange={(e) => setAddr('country', e.target.value)} />
           </div>
+          <label className="flex items-start gap-2 text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
+            <input type="checkbox" checked={form.billingMandate} onChange={(e) => set('billingMandate', e.target.checked)} className="mt-0.5" disabled={!!li.billingMandateAcceptedAt} />
+            <span><strong>Mandat de facturation.</strong> J&apos;autorise NeedCreator (PREDIWORKS SAS) à établir et émettre en mon nom et pour mon compte les factures correspondant à mes missions sur la plateforme, avec une numérotation qui m&apos;est propre. Je reste responsable de leur déclaration. Obligatoire pour envoyer un devis.</span>
+          </label>
           <div className="flex gap-2">
             <Button size="sm" onClick={() => save.mutate()} isLoading={save.isPending} disabled={!canSave}><Save className="w-4 h-4 mr-1" /> Enregistrer les informations administratives</Button>
             {complete && <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>}
           </div>
+          {!canSave && <p className="text-xs text-orange-700">Il manque : {missing.join(', ')}.</p>}
         </div>
       )}
     </Card>

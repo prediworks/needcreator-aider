@@ -187,6 +187,23 @@ await step('Créateur : profil, Stripe et upload portfolio', async () => {
   return 'vidéo listée avec lecteur';
 });
 
+await step('Créateur : informations administratives (mandat de facturation) depuis le profil', async () => {
+  await cp.goto(`${FRONT}/profile#legal`);
+  await cp.getByText('Informations administratives').first().waitFor({ timeout: 20000 });
+  await cp.getByLabel('Prénom').fill('Camille');
+  await cp.getByLabel('Nom', { exact: true }).fill('Test');
+  await cp.getByLabel(/SIRET/).fill('356 000 000 00048');
+  await cp.getByLabel('Adresse', { exact: true }).fill('1 rue de la Paix');
+  await cp.getByLabel('Code postal').fill('75002');
+  await cp.getByLabel('Ville').fill('Paris');
+  await cp.getByText(/Il manque : .*Mandat de facturation/).waitFor({ timeout: 10000 }); // le bouton grisé explique ce qui manque
+  await cp.getByRole('checkbox', { name: /Mandat de facturation/ }).check();
+  await cp.getByRole('button', { name: 'Enregistrer les informations administratives' }).click();
+  await cp.getByText(/Mandat de facturation accepté le/).waitFor({ timeout: 30000 });
+  await cp.getByText(/Non assujetti à la TVA/).waitFor({ timeout: 10000 });
+  return 'formulaire explicite, mandat accepté, franchise de TVA par défaut';
+});
+
 await step('Créateur : navigation Campagnes / Missions', async () => {
   await cp.goto(`${FRONT}/campaigns?filter=applied`);
   await cp.getByText('Vous n\'avez pas encore candidaté').waitFor({ timeout: 20000 });
