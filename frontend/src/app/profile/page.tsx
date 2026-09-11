@@ -30,6 +30,7 @@ import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USE
 import { formatDate } from '@/lib/utils';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { useScrollToHash } from '@/hooks/useScrollToHash';
+import MissingHint from '@/components/ui/MissingHint';
 
 function ProfileContent() {
   const { user, ready } = useRequireAuth();
@@ -407,6 +408,7 @@ function ProfileContent() {
                     Annuler
                   </Button>
                 </div>
+                <MissingHint items={[isCreator && niches.length === 0 && 'au moins une niche']} />
               </div>
             )}
           </Card>

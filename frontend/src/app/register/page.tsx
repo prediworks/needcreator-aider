@@ -15,6 +15,7 @@ import { NICHES, NICHE_OPTIONS, COUNTRIES, LANGUAGES } from '@/lib/labels';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 import { toast } from 'sonner';
 import { isFreeEmail } from '@/lib/email';
+import MissingHint from '@/components/ui/MissingHint';
 
 function RegisterForm() {
   const router = useRouter();
@@ -318,6 +319,11 @@ function RegisterForm() {
               >
                 {completing ? 'Enregistrer mon profil' : 'Créer mon compte'}
               </Button>
+              <MissingHint items={[
+                role === 'creator' && niches.length === 0 && 'au moins une niche',
+                !acceptTerms && 'l\'acceptation des CGU',
+                turnstileEnabled && !turnstileToken && 'la vérification anti-robot (quelques secondes)',
+              ]} />
             </form>
 
             {!completing && (

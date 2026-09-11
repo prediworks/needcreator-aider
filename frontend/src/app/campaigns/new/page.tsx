@@ -17,6 +17,7 @@ import AiBriefCard from '@/components/AiBriefCard';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import MissingHint from '@/components/ui/MissingHint';
 
 const PLATFORM_FEE_PERCENT = 10;
 
@@ -308,6 +309,11 @@ function NewCampaignForm() {
               >
                 Continuer
               </Button>
+              <MissingHint items={[
+                title.trim().length < 10 && `un titre de 10 caractères (${title.trim().length} saisis)`,
+                description.trim().length < 50 && `une description de 50 caractères (${description.trim().length} saisis)`,
+                niches.length === 0 && 'au moins une niche',
+              ]} />
             </div>
           )}
 
@@ -503,6 +509,14 @@ function NewCampaignForm() {
                   {isEdit ? 'Enregistrer les modifications' : 'Enregistrer le brouillon'}
                 </Button>
               </div>
+              <MissingHint items={[
+                !(budgetNumber === 0 || budgetNumber >= MIN_QUOTE_PRICE) && `un budget d'au moins ${MIN_QUOTE_PRICE} € (ou vide)`,
+                !applicationDeadline && 'la date limite de candidature',
+                deliveryTypes.length === 0 && 'au moins un mode de livraison',
+                campaignType === 'gifting' && (parseFloat(giftingValue) || 0) < 30 && 'une valeur de produit d\'au moins 30 €',
+                campaignType === 'gifting' && !productDescription.trim() && 'la description du produit',
+                campaignType === 'gifting' && nbVideos > 2 && '2 vidéos maximum en gifting',
+              ]} />
             </div>
           )}
 

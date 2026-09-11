@@ -86,6 +86,7 @@ await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', a
 
 await step('Marque : création + publication d\'une campagne', async () => {
   await bp.goto(`${FRONT}/campaigns/new`);
+  await bp.getByText(/Il manque : un titre de 10 caractères/).waitFor({ timeout: 20000 }); // bouton grisé expliqué
   await bp.getByLabel(/Titre de la campagne/).fill('Campagne test interface utilisateur');
   await bp.getByPlaceholder(/Présentez votre marque/).fill('Nous cherchons une vidéo témoignage authentique pour notre nouvelle gamme de soins visage bio.');
   await bp.getByRole('button', { name: 'Beauté' }).click();
