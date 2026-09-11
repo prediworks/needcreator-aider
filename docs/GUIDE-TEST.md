@@ -141,3 +141,5 @@ Sans réponse de la marque, la livraison est validée automatiquement. Pour test
 ## Importer une liste de créateurs (admin)
 
 Administration → onglet « Créateurs référencés » → choisir le fichier (xlsx ou csv, colonnes `Username, Name, Country, Email, Instagram, YouTube, Followers, Posts, Likes, Niche`) et le périmètre (France, francophonie, Europe, monde) → Importer. Le résumé indique les créés, mis à jour, hors périmètre et doublons. L'import est rejouable sans créer de doublons. Résultat visible sur `/annuaire-createurs` (public) et dans Créateurs → « Référencés » (marques).
+
+Mailing : le même onglet propose l'export CSV pour l'outil d'emailing (filtres pays et abonnés minimum ; retirés et inscrits exclus) et l'import des désabonnés. Les emails à envoyer et les règles sont dans [MAILING-createurs.md](./MAILING-createurs.md).

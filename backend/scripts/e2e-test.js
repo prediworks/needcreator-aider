@@ -751,6 +751,14 @@ await step('Créateurs référencés : import admin (xlsx/csv), annuaire public,
     expect(again.status === 200 && again.data.stats.created === 0 && again.data.stats.updated === 2, 'Réimport : aucune création, 2 mises à jour', again);
     const stats = await brandApi('GET', '/external-creators/admin/stats');
     expect(stats.status === 200 && stats.data.total >= 2, 'Statistiques admin attendues', stats);
+    const exp = await fetch(`${API}/external-creators/admin/export?country=FR,BE&minFollowers=1`, { headers: { Authorization: `Bearer ${brand.idToken}` } });
+    const csvOut = await exp.text();
+    expect(exp.status === 200 && csvOut.replace(/^\uFEFF/, '').startsWith('email;prenom;pseudo') && csvOut.includes(extEmail) && csvOut.includes(`be-${RUN}@needcreator-test.com`), 'Export CSV attendu avec les créateurs FR et BE', { status: exp.status, data: csvOut.slice(0, 200) });
+    const unsub = new FormData(); unsub.append('file', new File([`be-${RUN}@needcreator-test.com\n`], 'desabonnes.csv', { type: 'text/csv' }));
+    const un = await brandApi('POST', '/external-creators/admin/unsubscribes', unsub, { form: true });
+    expect(un.status === 200 && un.data.updated === 1, 'Import des désabonnés attendu : 1 retiré', un);
+    const exp2 = await fetch(`${API}/external-creators/admin/export?country=FR,BE`, { headers: { Authorization: `Bearer ${brand.idToken}` } }).then(r => r.text());
+    expect(!exp2.includes(`be-${RUN}@needcreator-test.com`), 'Un désabonné ne doit plus être exporté', { status: 200, data: exp2.slice(0, 200) });
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   }
@@ -778,11 +786,9 @@ await step('Créateurs référencés : import admin (xlsx/csv), annuaire public,
   expect((me.data.user.profile.socials || []).some(s => s.network === 'instagram' && s.followers === 16903), 'Les réseaux du profil référencé devraient être pré-remplis', me);
   const gone = await fetch(`${API}/external-creators/${ext.slug}`).then(r => r.status);
   expect(gone === 404, 'Un créateur inscrit ne doit plus apparaître dans l\'annuaire externe', { status: gone, data: null });
-  // Retrait de l'autre profil (BE) avec le bon email
-  const be = (await fetch(`${API}/external-creators?country=BE&q=e2e_be_${RUN}`).then(r => r.json())).creators[0];
-  await fetch(`${API}/external-creators/${be.slug}/optout`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: `be-${RUN}@needcreator-test.com` }) });
-  const beGone = await fetch(`${API}/external-creators/${be.slug}`).then(r => r.status);
-  expect(beGone === 404, 'Le retrait avec le bon email doit masquer le profil', { status: beGone, data: null });
+  // Le profil BE, désabonné via l'import mailing, n'est plus visible publiquement
+  const beGone = await fetch(`${API}/external-creators/e2e_be_${RUN}`).then(r => r.status);
+  expect(beGone === 404, 'Un désabonné (retiré) ne doit plus être visible', { status: beGone, data: null });
   await mongoose.connection.db.collection('externalcreators').deleteMany({ username: { $in: [`e2e_ext_${RUN}`, `e2e_be_${RUN}`, `e2e_us_${RUN}`] } });
   return 'import dédoublonné et borné à l\'Europe, annuaire sans email, invitation limitée, retrait, rattachement à l\'inscription';
 });

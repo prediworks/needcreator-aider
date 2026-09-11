@@ -178,3 +178,57 @@ export async function claimExternalCreator(user) {
     return null;
   }
 }
+
+
+/**
+ * Admin : export CSV pour l'outil de mailing (jamais les retirés ni les inscrits). Filtres : country, minFollowers, niche, status (listed|invited).
+ */
+export async function adminExportExternalCreators(req, res) {
+  try {
+    const { country, minFollowers, niche, status } = req.query;
+    const filter = { status: { $in: status ? String(status).split(',') : ['listed', 'invited'] }, email: { $exists: true, $nin: ['', null] } };
+    if (country) filter.country = { $in: String(country).toUpperCase().split(',') };
+    if (minFollowers) filter.followers = { $gte: parseInt(minFollowers, 10) || 0 };
+    if (niche) filter.niches = String(niche);
+    const docs = await ExternalCreator.find(filter).select('+email').sort({ country: 1, followers: -1 }).lean();
+    const esc = (v) => { const s = v === null || v === undefined ? '' : String(v); return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const firstName = (name, username) => { const w = String(name || '').trim().split(/\s+/)[0]; return /^[A-Za-zÀ-ÿ'-]{2,}$/.test(w) ? w : (username || ''); };
+    const header = ['email', 'prenom', 'pseudo', 'nom', 'niche', 'abonnes', 'pays', 'instagram', 'youtube', 'tiktok', 'statut', 'fiche', 'retrait'];
+    const rows = docs.map(d => [
+      d.email, firstName(d.name, d.username), d.username, d.name, (d.niches || []).join('|') || d.sourceNiche || '', d.followers || 0, d.country || '',
+      d.instagram || '', d.youtube || '', d.tiktok || '', d.status, `${config.cors.origin}/annuaire-createurs/${d.slug}`, `${config.cors.origin}/annuaire-createurs/${d.slug}?retirer=1`,
+    ].map(esc).join(';'));
+    const csv = '\uFEFF' + [header.join(';'), ...rows].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="createurs-references-${new Date().toISOString().slice(0, 10)}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    logger.error('adminExportExternalCreators failed:', error);
+    res.status(500).json({ error: 'Export impossible' });
+  }
+}
+
+/**
+ * Admin : import des désabonnés de l'outil de mailing (fichier csv/xlsx ou liste d'emails) → statut « retiré », plus jamais exportés ni réimportés
+ */
+export async function adminImportUnsubscribes(req, res) {
+  try {
+    let emails = [];
+    if (req.file) {
+      const rows = parseCreatorsFile(req.file.buffer, req.file.originalname);
+      emails = rows.map(r => r.email).filter(Boolean);
+      if (!emails.length) {
+        // fichier d'emails bruts (un par ligne / séparés par des virgules)
+        emails = req.file.buffer.toString('utf8').split(/[\s,;]+/).map(e => e.trim().toLowerCase()).filter(e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+      }
+    } else if (Array.isArray(req.body?.emails)) {
+      emails = req.body.emails.map(e => String(e).trim().toLowerCase()).filter(Boolean);
+    }
+    if (!emails.length) return res.status(400).json({ error: 'Aucun email trouvé dans le fichier' });
+    const r = await ExternalCreator.updateMany({ email: { $in: emails }, status: { $ne: 'optout' } }, { $set: { status: 'optout', optoutAt: new Date() } });
+    res.json({ message: `${r.modifiedCount} créateur(s) marqué(s) comme retirés (sur ${emails.length} email(s) lus)`, received: emails.length, updated: r.modifiedCount });
+  } catch (error) {
+    logger.error('adminImportUnsubscribes failed:', error);
+    res.status(500).json({ error: `Import impossible : ${error.message}` });
+  }
+}

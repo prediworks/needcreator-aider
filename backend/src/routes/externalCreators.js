@@ -3,7 +3,7 @@ import multer from 'multer';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   listExternalCreators, getExternalCreator, optoutExternalCreator, inviteExternalCreator,
-  adminImportExternalCreators, adminExternalCreatorsStats, adminDeleteExternalCreator,
+  adminImportExternalCreators, adminExternalCreatorsStats, adminDeleteExternalCreator, adminExportExternalCreators, adminImportUnsubscribes,
 } from '../controllers/externalCreators.js';
 
 const router = express.Router();
@@ -17,6 +17,8 @@ router.post('/:id/invite', authenticate, authorize('brand'), inviteExternalCreat
 
 // Admin
 router.get('/admin/stats', authenticate, authorize('admin'), adminExternalCreatorsStats);
+router.get('/admin/export', authenticate, authorize('admin'), adminExportExternalCreators);
+router.post('/admin/unsubscribes', authenticate, authorize('admin'), upload.single('file'), adminImportUnsubscribes);
 router.post('/admin/import', authenticate, authorize('admin'), upload.single('file'), adminImportExternalCreators);
 router.delete('/admin/:id', authenticate, authorize('admin'), adminDeleteExternalCreator);
 

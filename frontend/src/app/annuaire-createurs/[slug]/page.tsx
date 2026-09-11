@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
@@ -13,11 +13,12 @@ import { countryLabel, nicheLabel } from '@/components/ExternalCreatorsList';
 import { Instagram, Youtube, Music2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ExternalCreatorPage() {
+function ExternalCreatorContent() {
   const { slug } = useParams() as { slug: string };
   const { data, isLoading, error } = useQuery({ queryKey: ['external-creator', slug], queryFn: async () => (await api.get(`/external-creators/${slug}`)).data.creator });
   const [email, setEmail] = useState('');
-  const [showOptout, setShowOptout] = useState(false);
+  const searchParams = useSearchParams();
+  const [showOptout, setShowOptout] = useState(searchParams.get('retirer') === '1');
   const optout = useMutation({
     mutationFn: async () => (await api.post(`/external-creators/${slug}/optout`, { email })).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); setShowOptout(false); },
@@ -64,5 +65,13 @@ export default function ExternalCreatorPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function ExternalCreatorPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <ExternalCreatorContent />
+    </Suspense>
   );
 }

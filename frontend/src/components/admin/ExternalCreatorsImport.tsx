@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { Upload } from 'lucide-react';
+import { Upload, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { countryLabel } from '@/components/ExternalCreatorsList';
 
@@ -19,6 +19,9 @@ export default function ExternalCreatorsImport() {
   const [file, setFile] = useState<File | null>(null);
   const [scope, setScope] = useState('europe');
   const [result, setResult] = useState<any>(null);
+  const [exportCountry, setExportCountry] = useState('FR');
+  const [exportMin, setExportMin] = useState('2000');
+  const [unsubFile, setUnsubFile] = useState<File | null>(null);
   const { data: stats } = useQuery({ queryKey: ['admin', 'external-stats'], queryFn: async () => (await api.get('/external-creators/admin/stats')).data });
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -29,8 +32,44 @@ export default function ExternalCreatorsImport() {
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
 
+  const exportCsv = async () => {
+    try {
+      const res = await api.get('/external-creators/admin/export', { params: { country: exportCountry || undefined, minFollowers: exportMin || undefined }, responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a'); a.href = url; a.download = `createurs-references-${exportCountry || 'tous'}.csv`; a.click(); URL.revokeObjectURL(url);
+    } catch (e: any) { toast.error(getErrorMessage(e, 'Export impossible')); }
+  };
+  const unsubMutation = useMutation({
+    mutationFn: async () => { const fd = new FormData(); fd.append('file', unsubFile as File); return (await api.post('/external-creators/admin/unsubscribes', fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data; },
+    onSuccess: (d) => { toast.success(d.message); setUnsubFile(null); queryClient.invalidateQueries({ queryKey: ['admin', 'external-stats'] }); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
+
   return (
     <div className="space-y-6">
+      <Card className="p-6">
+        <h2 className="text-xl font-semibold mb-1">Mailing : export et désabonnements</h2>
+        <p className="text-sm text-neutral-600 mb-4">Export CSV pour votre outil de mailing (colonnes : email, prénom, pseudo, nom, niche, abonnés, pays, réseaux, statut, lien de la fiche, lien de retrait). Les créateurs retirés et ceux déjà inscrits ne sont jamais exportés. Après chaque campagne d&apos;emails, réimportez ici les désabonnés : ils passent en « retiré » et ne seront plus exportés ni réimportés.</p>
+        <div className="grid md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Pays (codes, séparés par des virgules)</label>
+            <input value={exportCountry} onChange={(e) => setExportCountry(e.target.value.toUpperCase())} placeholder="FR,BE,CH" className="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Abonnés minimum</label>
+            <input type="number" value={exportMin} onChange={(e) => setExportMin(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+          </div>
+          <Button variant="outline" onClick={exportCsv}><Download className="w-4 h-4 mr-2" /> Exporter le CSV</Button>
+        </div>
+        <div className="grid md:grid-cols-4 gap-3 items-end mt-4">
+          <div className="md:col-span-3">
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Désabonnés (fichier csv/xlsx avec une colonne Email, ou liste d&apos;emails)</label>
+            <input type="file" accept=".csv,.xlsx,.txt" onChange={(e) => setUnsubFile(e.target.files?.[0] || null)} className="block w-full text-sm text-neutral-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-100 file:text-neutral-700" />
+          </div>
+          <Button variant="outline" onClick={() => unsubMutation.mutate()} isLoading={unsubMutation.isPending} disabled={!unsubFile}>Marquer comme retirés</Button>
+        </div>
+      </Card>
+
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-1">Importer une liste de créateurs</h2>
         <p className="text-sm text-neutral-600 mb-4">Fichier xlsx ou csv avec les colonnes : Username, Name, Country, Email, Instagram, YouTube, TikTok (optionnel), Followers, Posts, Likes, Niche. L&apos;import peut être relancé : les créateurs déjà présents (même pseudo ou même email) sont mis à jour, jamais dupliqués. Ceux qui ont demandé leur retrait ne sont jamais réimportés.</p>
