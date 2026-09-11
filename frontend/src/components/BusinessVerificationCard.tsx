@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { isFreeEmail, emailDomain } from '@/lib/email';
 import { ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
 
 /**
@@ -54,12 +55,17 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
       )}
       {open && (
         <div className="space-y-3">
-          <p className="text-sm text-neutral-600">Indiquez votre SIRET ou votre numéro de TVA intracommunautaire. Avec un email professionnel, la vérification est immédiate ; sinon notre équipe contrôle sous 24 h. Le site web est facultatif.</p>
+          <p className="text-sm text-neutral-600">Indiquez votre SIRET ou votre numéro de TVA intracommunautaire : il est contrôlé au registre national des entreprises.</p>
+          {isFreeEmail(profile.email) ? (
+            <p className="text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-lg p-3">Votre adresse <strong>{emailDomain(profile.email)}</strong> est une adresse grand public : sans site web, notre équipe contrôle votre entreprise manuellement sous 24 h. <strong>Ajoutez votre site web ci-dessous pour une vérification immédiate.</strong></p>
+          ) : (
+            <p className="text-sm text-neutral-600">Votre adresse email est au nom de votre entreprise : la vérification est immédiate. Le site web est facultatif.</p>
+          )}
           <div className="grid sm:grid-cols-2 gap-3">
             <Input label="SIRET (14 chiffres)" value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="732 829 320 00074" />
             <Input label="ou numéro de TVA" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="FR40303265045" />
           </div>
-          <Input label="Site web" type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://votre-site.fr" />
+          <Input label={isFreeEmail(profile.email) ? "Site web (pour une vérification immédiate)" : "Site web (facultatif)"} type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://votre-site.fr" />
           <Button onClick={() => verify.mutate()} isLoading={verify.isPending} disabled={!siret && !vat}>Vérifier mon entreprise</Button>
         </div>
       )}

@@ -56,18 +56,22 @@ export function evaluateBusiness({ siret, vatNumber, website, email }) {
   const reasons = [];
   const siretOk = siret ? isValidSiret(siret) : false;
   const vatOk = vatNumber ? isValidVat(vatNumber) : false;
+  const freeEmail = isFreeEmail(email);
   if (siret && !siretOk) reasons.push('SIRET invalide');
   if (vatNumber && !vatOk) reasons.push('Numéro de TVA invalide');
   if (!siretOk && !vatOk) reasons.push('Aucun identifiant d\'entreprise valide');
-  if (!website) reasons.push('Site web non renseigné (facultatif)');
-  if (isFreeEmail(email)) reasons.push('Email non professionnel (contrôle manuel)');
-  // Le site web est facultatif : l'identifiant d'entreprise (SIRET ou TVA) suffit
   const valid = siretOk || vatOk;
-  return {
-    status: valid && !isFreeEmail(email) ? 'verified' : valid ? 'pending' : 'rejected',
-    reasons,
-    identifierValid: siretOk || vatOk,
-  };
+  // Règle : identifiant d'entreprise valide + un second signal de confiance (email au nom de l'entreprise OU site web) = vérifiée.
+  // Email grand public (gmail…) sans site web = contrôle manuel sous 24 h.
+  let status = 'rejected';
+  if (valid) {
+    if (!freeEmail || website) status = 'verified';
+    else {
+      status = 'pending';
+      reasons.push('Email grand public sans site web : contrôle manuel sous 24 h (ajoutez votre site web pour une vérification immédiate)');
+    }
+  }
+  return { status, reasons, identifierValid: valid, freeEmail };
 }
 
 /**

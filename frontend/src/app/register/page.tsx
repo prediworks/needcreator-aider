@@ -14,6 +14,7 @@ import Card from '@/components/ui/Card';
 import { NICHES, NICHE_OPTIONS, COUNTRIES, LANGUAGES } from '@/lib/labels';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 import { toast } from 'sonner';
+import { isFreeEmail } from '@/lib/email';
 
 function RegisterForm() {
   const router = useRouter();
@@ -211,6 +212,10 @@ function RegisterForm() {
                 required
                 disabled={completing}
               />
+
+              {role === 'brand' && isFreeEmail(email) && (
+                <p className="text-xs text-neutral-500 -mt-2">Avec une adresse au nom de votre entreprise, la vérification de votre entreprise sera immédiate. Vous pourrez aussi la changer plus tard.</p>
+              )}
 
               {!completing && (
                 <Input
