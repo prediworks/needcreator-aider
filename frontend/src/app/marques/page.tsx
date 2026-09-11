@@ -15,7 +15,6 @@ export const metadata: Metadata = {
 export default async function BrandsPage() {
   const cfg = await fetchPublicConfig();
   const days = plural(cfg.autoApprovalDays, 'jour');
-  const revisions = plural(cfg.maxRevisions, 'révision');
 
   const reasons: [any, string, string][] = [
     [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
@@ -23,20 +22,20 @@ export default async function BrandsPage() {
     [ShieldCheck, 'Chaque vidéo est contrôlée avant votre validation', 'Nombre de vidéos, durée, format, résolution, son, et présence du produit dans la bande-son : un score de conformité au brief vous est présenté avant de valider.'],
     [UserX, 'Garantie de remplacement, sans frais', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à l'un des autres devis reçus, en un clic. Le montant bloqué est libéré.`],
     [Clapperboard, 'Des vidéos prêtes à diffuser', 'En option, recevez chaque vidéo déclinée aux formats de chaque réseau (vertical, carré, horizontal), avec vignette et sous-titres automatiques. Publication Shopify en un clic.'],
-    [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). ${revisions} incluses sur chaque livraison.`],
+    [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). Le nombre de révisions est écrit dans le devis que vous acceptez : pas de surprise après la livraison.`],
   ];
 
   const steps: [string, string, string][] = [
     ['1', 'Publiez votre brief', 'Cinq minutes suffisent. Les créateurs de vos niches sont prévenus.'],
     ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat.'],
     ['3', 'Sélectionnez et bloquez le montant', 'Votre carte est autorisée, pas débitée. Le contrat est généré.'],
-    ['4', 'Validez, diffusez', `Vidéos contrôlées, ${revisions} incluses, paiement à la validation. Vous gardez les droits convenus.`],
+    ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Vous gardez les droits convenus.'],
   ];
 
   const faq: [string, string][] = [
     ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix, généralement à partir de 80 €. Vous payez exactement le devis accepté : la commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement.`],
     ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
-    ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, ${revisions} incluses. Si le créateur ne livre pas, la garantie de remplacement s'applique. En cas de désaccord persistant, notre équipe intervient.`],
+    ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. En cas de désaccord persistant, notre équipe intervient.`],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
     ['Faut-il un abonnement ?', 'Non. L\'inscription et les campagnes sont gratuites. L\'offre Pro, facultative, ajoute le brief IA illimité, les campagnes multi-créateurs et le gifting.'],
   ];

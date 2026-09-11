@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,7 +30,19 @@ export default function Header() {
     window.location.href = '/';
   };
 
-  const links = isAuthenticated
+  // Pendant la résolution de la session : un visiteur voit tout de suite le menu public ; un utilisateur connu
+  // (indice mémorisé dans le navigateur) voit tout de suite le menu connecté. Plus de menu qui change après coup.
+  const [knownUser, setKnownUser] = useState(false);
+  useEffect(() => {
+    try { setKnownUser(localStorage.getItem('nc_auth') === '1'); } catch {}
+  }, []);
+  useEffect(() => {
+    if (loading) return;
+    try { localStorage.setItem('nc_auth', isAuthenticated ? '1' : '0'); } catch {}
+  }, [loading, isAuthenticated]);
+  const connected = loading ? knownUser : isAuthenticated;
+
+  const links = connected
     ? [
         { href: '/dashboard', label: 'Tableau de bord' },
         { href: '/campaigns', label: 'Campagnes' },
@@ -55,7 +67,7 @@ export default function Header() {
       href={l.href}
       onClick={() => setOpen(false)}
       className={cn(
-        'text-neutral-700 hover:text-primary-600 transition',
+        'text-neutral-700 hover:text-primary-600 transition whitespace-nowrap',
         pathname === l.href && 'text-primary-600 font-medium'
       )}
     >
@@ -68,29 +80,29 @@ export default function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center gap-2 shrink-0 mr-6 lg:mr-10">
             <img src="/icon.svg" alt="" width={32} height={32} className="w-8 h-8 rounded-lg" />
-            <span className="text-xl font-bold text-neutral-900">NeedCreator</span>
+            <span className="text-xl font-bold text-neutral-900 whitespace-nowrap">NeedCreator</span>
           </Link>
 
-          {/* Navigation desktop */}
-          <nav className="hidden md:flex items-center space-x-6">
+          {/* Navigation desktop (à partir de lg : en dessous, le menu hamburger évite tout chevauchement) */}
+          <nav className="hidden lg:flex items-center gap-x-4 xl:gap-x-7 flex-1 min-w-0 text-[15px] xl:text-base">
             {links.map(navLink)}
           </nav>
 
           {/* Actions */}
-          <div className="hidden md:flex items-center space-x-3">
-            {loading ? null : isAuthenticated ? (
+          <div className="hidden lg:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
+            {loading && knownUser ? null : connected ? (
               <>
-                <Link href="/profile">
-                  <Button variant="ghost" size="sm">
-                    <User className="w-4 h-4 mr-2" />
-                    {user?.profile?.companyName || user?.profile?.name}
+                <Link href="/profile" title="Mon profil">
+                  <Button variant="ghost" size="sm" aria-label="Mon profil">
+                    <User className="w-4 h-4 xl:mr-2" />
+                    <span className="hidden xl:inline max-w-[160px] truncate">{user?.profile?.companyName || user?.profile?.name}</span>
                   </Button>
                 </Link>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Déconnexion
+                <Button variant="ghost" size="sm" onClick={handleLogout} aria-label="Déconnexion" title="Déconnexion">
+                  <LogOut className="w-4 h-4 xl:mr-2" />
+                  <span className="hidden xl:inline">Déconnexion</span>
                 </Button>
               </>
             ) : (
@@ -106,13 +118,13 @@ export default function Header() {
           </div>
 
           {/* Menu mobile */}
-          <button className="md:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
+          <button className="lg:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
         {open && (
-          <div className="md:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
+          <div className="lg:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
             {links.map(navLink)}
             {isAuthenticated ? (
               <>

@@ -470,6 +470,10 @@ export async function applyToCampaign(req, res) {
   try {
     const { campaignId } = req.params;
     const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
+    const maxRevisions = await getMaxRevisions();
+    if (revisions !== undefined && revisions > maxRevisions) {
+      return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
+    }
     const creator = req.user;
 
     if (!creator.canApplyToCampaign()) {
@@ -515,7 +519,7 @@ export async function applyToCampaign(req, res) {
         rights,
         deliveryTypes,
         platforms: platforms?.length ? platforms : campaign.brief.platforms,
-        revisions: revisions ?? await getMaxRevisions(),
+        revisions: revisions ?? maxRevisions,
         terms,
         history: [],
       },
@@ -556,6 +560,10 @@ export async function updateQuote(req, res) {
     const { campaignId } = req.params;
     const creator = req.user;
     const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
+    const maxRevisions = await getMaxRevisions();
+    if (revisions !== undefined && revisions > maxRevisions) {
+      return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
+    }
 
     const campaign = await Campaign.findById(campaignId);
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
@@ -591,7 +599,7 @@ export async function updateQuote(req, res) {
     application.quote.rights = rights;
     application.quote.deliveryTypes = deliveryTypes;
     application.quote.platforms = platforms?.length ? platforms : campaign.brief.platforms;
-    application.quote.revisions = revisions ?? await getMaxRevisions();
+    application.quote.revisions = revisions ?? maxRevisions;
     application.quote.terms = terms;
 
     await campaign.save();

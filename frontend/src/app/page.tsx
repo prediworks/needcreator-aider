@@ -100,7 +100,7 @@ export default async function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>{plural(cfg.maxRevisions, 'révision')} incluses</span>
+                <span>Révisions incluses, précisées dans chaque devis</span>
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default async function HomePage() {
               ['1', 'Publiez un brief', '5 minutes, budget suggéré'],
               ['2', 'Choisissez un créateur', 'Portfolio vidéo + score de matching'],
               ['3', 'Recevez vos vidéos', 'En moyenne sous 7 à 10 jours'],
-              ['4', 'Validez et payez', `Ou ${plural(cfg.maxRevisions, 'révision')} incluses`],
+              ['4', 'Validez et payez', 'Révisions incluses, précisées dans le devis'],
             ].map(([n, title, sub]) => (
               <div key={n}>
                 <div className="text-4xl font-bold text-primary-500 mb-2">{n}</div>

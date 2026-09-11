@@ -20,7 +20,7 @@ export default async function CreatorsPage() {
     [Euro, 'Vous fixez votre prix', 'Chaque campagne, vous envoyez un devis : prix, délai, droits cédés. La marque accepte ou non. Pas de grille imposée, pas d\'enchères à la baisse.'],
     [Lock, 'Payé, c\'est garanti', `Le montant est bloqué par la marque avant que vous tourniez. Vous recevez ${cfg.creatorSharePercent} % de votre devis dès la validation, ou automatiquement sous ${days} si la marque ne répond pas. Virement Stripe direct.`],
     [FileSignature, 'Un contrat qui protège vos droits', 'Durée, supports et territoire d\'utilisation de vos vidéos sont écrits dans un contrat généré à chaque mission. Quand les droits expirent, la marque vous achète une prolongation, au prix que vous fixez.'],
-    [CalendarCheck, 'Des missions claires', 'Brief détaillé, date limite affichée, nombre de vidéos attendu, révisions cadrées. Vous savez exactement quoi livrer et quand vous serez payé.'],
+    [CalendarCheck, 'Des missions claires', `Brief détaillé, date limite affichée, nombre de vidéos attendu. Vous fixez le nombre de révisions dans votre devis (${cfg.maxRevisions} au plus). Vous savez exactement quoi livrer et quand vous serez payé.`],
     [Star, 'Devenez Ambassadeur', `Publiez une vidéo sur NeedCreator sur vos réseaux : vous voyez chaque campagne ${cfg.earlyAccessHours} h avant tout le monde, vos devis remontent en tête chez les marques et votre profil en tête de notre annuaire.`],
     [Gift, 'Parrainez, gagnez', `${cfg.referralCreatorBonus} € pour chaque créateur que vous parrainez et qui livre sa première mission. Et si vous aimez tester des produits, les campagnes gifting sont à vous, sans commission.`],
   ];

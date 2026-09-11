@@ -41,6 +41,17 @@ function platformFromUrl(url = '') {
   return 'other';
 }
 
+/**
+ * Révisions autorisées sur une mission : le nombre prévu au devis du créateur, plafonné par le réglage admin
+ */
+async function allowedRevisionsFor(delivery) {
+  const max = await getMaxRevisions();
+  const campaign = await Campaign.findById(idOf(delivery.campaignId)).select('applications.creatorId applications.quote.revisions').lean();
+  const app = campaign?.applications?.find(a => idOf(a.creatorId) === idOf(delivery.creatorId));
+  const quoted = app?.quote?.revisions;
+  return Number.isFinite(quoted) ? Math.min(quoted, max) : max;
+}
+
 function itemCount(delivery) {
   const current = (arr) => (arr || []).filter(i => !i.superseded).length;
   return current(delivery.files) + current(delivery.links);
@@ -1234,10 +1245,10 @@ export async function requestRevision(req, res) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    const maxRevisions = await getMaxRevisions();
+    const maxRevisions = await allowedRevisionsFor(delivery);
     if (!(delivery.status === 'submitted' && delivery.revisionCount < maxRevisions)) {
       return res.status(400).json({
-        error: `Nombre maximum de révisions atteint (${maxRevisions}) ou statut invalide`
+        error: `Nombre de révisions prévu au devis atteint (${maxRevisions}) ou statut invalide`
       });
     }
 
@@ -1354,7 +1365,7 @@ export async function getDelivery(req, res) {
       delivery.readyPack.outputs = await resolveUrlsIn(delivery.readyPack.outputs);
     }
     delivery.readyPackPricePerVideo = config.readyPack.pricePerVideo;
-    delivery.maxRevisions = await getMaxRevisions();
+    delivery.maxRevisions = await allowedRevisionsFor(delivery); // révisions prévues au devis, plafonnées par l'admin
     delivery.canRequestRevision = delivery.status === 'submitted' && (delivery.revisions?.length || 0) < delivery.maxRevisions;
     delivery.isLate = delivery.status === 'pending' && !!delivery.productionDeadline && new Date(delivery.productionDeadline) < new Date();
     delivery.replacementAvailable = delivery.isLate && (Date.now() - new Date(delivery.productionDeadline).getTime()) >= config.business.replacementGraceHours * 3600000;

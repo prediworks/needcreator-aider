@@ -24,13 +24,13 @@ const rows = (cfg: { maxRevisions: number; autoApprovalDays: number }): { label:
   { label: 'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
   { label: 'Garantie de remplacement si le créateur ne livre pas', free: { text: 'Incluse, sans frais', ok: true }, pro: { text: 'Incluse, sans frais', ok: true } },
   { label: 'Score de conformité au brief à la livraison', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: `${plural(cfg.maxRevisions, 'révision')} incluses, validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`, free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
+  { label: `Révisions incluses (précisées dans chaque devis), validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`, free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
 ];
 
 const faq = (cfg: { maxRevisions: number; autoApprovalDays: number }) => [
   ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté. La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement ' + plural(cfg.autoApprovalDays, 'jour') + ' après la livraison si vous ne répondez pas.'],
-  ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander jusqu\'à ' + plural(cfg.maxRevisions, 'révision') + ' incluses. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
+  ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander des modifications, dans la limite du nombre de révisions prévu par le devis que vous avez accepté. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
   ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
   ['Qui détient les droits sur les vidéos ?', 'Les droits cédés (durée, supports, territoire, exclusivité éventuelle) sont fixés dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. Vous êtes prévenu 30 jours avant l\'expiration et pouvez demander une prolongation, dont le créateur fixe le prix.'],
   ['Que se passe-t-il si le créateur ne livre pas ?', 'Il est relancé à la date prévue. Après 48 heures de retard, vous pouvez confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic : le montant bloqué est libéré et la nouvelle mission démarre immédiatement. Sans frais.'],

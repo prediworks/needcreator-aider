@@ -413,6 +413,8 @@ await step('Candidature du créateur', async () => {
 });
 
 await step('Créateur : modifie son devis (droits, conditions), version 2', async () => {
+  const tooMany = await creatorApi('PATCH', `/campaigns/${campaign._id}/quote`, { proposal: 'Je suis motivé !', price: 260, estimatedDeliveryDays: 6, revisions: 9 });
+  expect(tooMany.status === 400 && tooMany.data.code === 'REVISIONS_ABOVE_CAP', 'Un devis au-dessus du plafond de révisions (réglage admin) doit être refusé', tooMany);
   const res = await creatorApi('PATCH', `/campaigns/${campaign._id}/quote`, {
     proposal: 'Je suis motivé !', price: 260, estimatedDeliveryDays: 6,
     rights: { duration: '2y', supports: ['social_organic', 'paid_ads'], territories: 'Europe', exclusivity: true, exclusivityMonths: 3 },

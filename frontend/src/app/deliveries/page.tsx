@@ -101,7 +101,7 @@ function DeliveriesContent() {
           </h1>
           <p className="text-neutral-600">
             {isBrand
-              ? `Validez les vidéos ou demandez des révisions (${cfg.maxRevisions} maximum). Sans réponse sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée automatiquement.`
+              ? `Validez les vidéos ou demandez des révisions, dans la limite prévue par le devis. Sans réponse sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée automatiquement.`
               : 'Une mission par campagne gagnée : envoyez vos vidéos avant la date limite, soumettez-les, puis recevez votre paiement après validation.'}
           </p>
         </div>

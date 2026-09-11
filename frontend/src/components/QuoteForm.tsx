@@ -162,7 +162,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
           ))}
         </div>
         <div className="w-48">
-          <Input label="Révisions incluses" type="number" min={0} max={10} value={revisions} onChange={(e) => setRevisions(e.target.value)} />
+          <Input label={`Révisions incluses (${cfg.maxRevisions} au plus)`} type="number" min={0} max={cfg.maxRevisions} value={revisions} onChange={(e) => setRevisions(e.target.value)} />
         </div>
       </div>
 

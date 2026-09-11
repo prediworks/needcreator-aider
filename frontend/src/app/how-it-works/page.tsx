@@ -13,7 +13,7 @@ const brandSteps = (cfg: { maxRevisions: number; autoApprovalDays: number }) => 
   ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
   ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation. Un contrat de mission et de cession de droits en PDF est généré automatiquement.'],
-  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez jusqu\'à ' + plural(cfg.maxRevisions, 'révision') + '. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
+  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez des modifications dans la limite prévue par le devis. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
   ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger.'],
 ];
 
