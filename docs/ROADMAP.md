@@ -72,6 +72,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Idée | Ce que ça apporte | Effort |
 |---|---|---|
+| **Paiement par PayPal** (demande d'un créateur, 12/09/2026) | À ne faire que si plusieurs créateurs bloquent après le lancement : Stripe Connect se résume à saisir un IBAN, sans frais pour le créateur. Option 1 : PayPal Payouts depuis le compte NeedCreator (l'argent transite par la trésorerie de la plateforme, ~2 % de frais à notre charge, comptabilité de tiers : à valider par l'expert-comptable). Option 2 : bouton admin « payé manuellement » (une action par mission). | M (Payouts) / S (manuel) |
 | ~~**Disponibilités et charge**~~ | Livré le 11 septembre 2026 : « indisponible jusqu'au » + message dans le profil, visibles sur le profil public, l'annuaire et les devis ; missions en cours affichées ; matching ÷ 2 si indisponible, −10 si ≥ 3 missions en cours | — |
 | ~~**Kit média**~~ | Livré le 11 septembre 2026 : adresse courte `/c/<slug>` avec métadonnées et image de partage, QR code et texte prêt à coller depuis le profil, bouton « Me proposer une mission » pour les visiteurs non connectés | — |
 | ~~**Calendrier de virements et seuils micro**~~ | Livré le 11 septembre 2026 : page Revenus → solde Stripe, virements bancaires à venir avec dates d'arrivée, périodicité ; chiffre d'affaires facturé de l'année comparé aux seuils de franchise de TVA et du régime micro (`VAT_FRANCHISE_THRESHOLD`, `MICRO_REVENUE_THRESHOLD`) | — |
