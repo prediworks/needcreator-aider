@@ -117,6 +117,30 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 3. **Quand le volume arrive** : litiges et remboursements, facturation, tableau de bord ROI, connexion aux réseaux sociaux, PWA créateurs.
 4. **Croissance** : multi-langues, WooCommerce et PrestaShop, équipe marque, API publique, application mobile.
 
+## 4 ter. Implémenté, pas encore testé en conditions réelles (au 12/09/2026)
+
+Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'interface.
+
+**Jamais testé**
+- Litige tranché en partage : capture partielle Stripe (part créateur + remboursement du reste). Le test automatique ne couvre que l'approbation et le remboursement total.
+- Publication Shopify : aucune application déclarée chez Shopify, jamais connectée à une vraie boutique.
+- Premier virement réel vers un créateur (les tests utilisent des comptes Stripe de test).
+- Rendu des emails HTML dans de vrais clients (Gmail, Outlook, mobile) : vu seulement dans l'aperçu local.
+- Achat d'une prolongation de droits de bout en bout, avec paiement.
+
+**Testé par l'API, pas vu à l'écran**
+- Bloc « contre-proposition » côté créateur (accepter, refuser, modifier).
+- Inscription d'un collaborateur d'équipe depuis le lien reçu par email.
+- Kit média avec QR code ; relevé mensuel PDF.
+- Relances automatiques et auto-publication des avis : délais simulés, jamais attendus réellement.
+
+**Testé en local, à confirmer en production**
+- Factures, avoirs et relevés générés sur le VPS avec la raison sociale, l'adresse et le RCS du `.env`.
+- Filigrane sur les vidéos existantes (lancé le 12/09/2026).
+- Transcription Groq sur une mission complète (connexion validée, pas une livraison réelle).
+
+**À faire par vous, en mode test Stripe, environ 1 h** : une mission complète (paiement, facture, virement), puis un litige tranché en partage, puis une prolongation de droits.
+
 ## 4 bis. Réseaux sociaux NeedCreator (comptes créés le 12/09/2026)
 
 1. **Relier au site** (code, 1 h) : icônes dans le pied de page, adresses des comptes dans les données structurées de l'accueil. En attente des adresses exactes des comptes.
