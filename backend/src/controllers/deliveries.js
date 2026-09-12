@@ -3,7 +3,7 @@ import Campaign from '../models/Campaign.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { getMaxRevisions } from '../models/Setting.js';
+import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
 import { issueMissionInvoices, issuePlatformInvoice, issueCreatorInvoices } from '../services/invoices.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
@@ -25,6 +25,7 @@ import {
   sendMissionWithdrawn,
   sendApplicationAccepted,
   sendBecomeAmbassador,
+  sendShareAfterMission,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -78,7 +79,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
 
   const application = campaign.applications.find(app => idOf(app.creatorId) === creatorId);
   const isGifting = campaign.type === 'gifting';
-  const creatorDoc = await User.findById(creatorId).select('email profile.address profile.name legalInfo');
+  const creatorDoc = await User.findById(creatorId).select('email profile.address profile.name profile.ambassador.status legalInfo');
   const round2 = (n) => Math.round(n * 100) / 100;
   // Gifting : la marque paie uniquement les frais de service (HT + TVA), le créateur reçoit le produit
   const giftingFeeHT = isGifting ? round2(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1)) : 0;
@@ -112,7 +113,13 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     delivery.payment.platformFeeVat = round2(amount - giftingFeeHT);
     delivery.payment.creatorAmount = 0;
   } else {
-    delivery.calculatePaymentAmounts(campaign.platformFeePercent ?? null, campaign.brandDiscountPercent || 0, vatRate);
+    // Ambassadeur : commission réduite (réglage admin) si elle est plus basse que celle de la campagne
+    let feePercent = campaign.platformFeePercent ?? config.stripe.platformFeePercent;
+    if (creatorDoc?.profile?.ambassador?.status === 'approved') {
+      const ambassadorFee = await getSetting(SETTINGS.ambassadorFeePercent.key, SETTINGS.ambassadorFeePercent.default);
+      feePercent = Math.min(feePercent, ambassadorFee);
+    }
+    delivery.calculatePaymentAmounts(feePercent, campaign.brandDiscountPercent || 0, vatRate);
   }
 
   let warning = null;
@@ -727,7 +734,9 @@ export async function proposeRightsExtension(req, res) {
     if (error) return res.status(status).json({ error });
     if (delivery.rightsExtension?.status === 'awaiting_payment') return res.status(400).json({ error: 'Une proposition est en attente de paiement' });
     const { price, duration, note } = req.body;
-    const feePercent = delivery.campaignId?.platformFeePercent ?? config.stripe.platformFeePercent;
+    // Même commission que la mission (Ambassadeur inclus) ; gifting (100 % = frais de service) → commission de la campagne
+    const missionFee = delivery.payment?.platformFeePercent;
+    const feePercent = missionFee != null && missionFee < 100 ? missionFee : (delivery.campaignId?.platformFeePercent ?? config.stripe.platformFeePercent);
     const r2 = (n) => Math.round(n * 100) / 100;
     const vatRate = delivery.payment?.vatRate || 0; // même régime que la mission (prix HT + TVA si créateur assujetti)
     const amount = r2(price * (1 + vatRate / 100)); // payé par la marque (TTC)
@@ -1247,10 +1256,17 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
   if (creator) {
     await User.updateOne({ _id: creator._id }, { $inc: { 'profile.stats.completedJobs': 1 } });
     // Première mission validée : moment idéal pour proposer le programme Ambassadeur
-    const fresh = await User.findById(creator._id).select('email profile.name profile.stats.completedJobs profile.ambassador.status');
+    const fresh = await User.findById(creator._id).select('email profile.name profile.slug profile.stats.completedJobs profile.ambassador.status referral.code');
+    const title = delivery.campaignId?.title || (await Campaign.findById(campaignId).select('title'))?.title || 'votre campagne';
     if (fresh && fresh.profile?.stats?.completedJobs === 1 && !['approved', 'pending'].includes(fresh.profile?.ambassador?.status)) {
-      const title = delivery.campaignId?.title || (await Campaign.findById(campaignId).select('title'))?.title || 'votre campagne';
       sendBecomeAmbassador(fresh.email, fresh.profile.name, title).catch(() => {});
+    }
+    // Moment où le créateur est content : texte de publication prêt + lien de parrainage (viralité)
+    if (fresh && !isAuto) {
+      const code = fresh.referral?.code;
+      const referralLink = code ? `${config.cors.origin}/register?role=creator&ref=${code}` : `${config.cors.origin}/createurs`;
+      const mediaKitUrl = fresh.profile?.slug ? `${config.cors.origin}/c/${fresh.profile.slug}` : `${config.cors.origin}/profile`;
+      sendShareAfterMission(fresh.email, fresh.profile.name, title, referralLink, mediaKitUrl, config.referral.creatorBonus).catch(() => {});
     }
   }
   // Réactivité de la marque

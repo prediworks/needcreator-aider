@@ -56,6 +56,7 @@ export default function Header() {
     : [
         { href: '/marques', label: 'Marques' },
         { href: '/createurs', label: 'Créateurs' },
+        { href: '/campagnes', label: 'Campagnes' },
         { href: '/how-it-works', label: 'Comment ça marche' },
         { href: '/nos-createurs', label: 'Nos créateurs' },
         { href: '/annuaire-createurs', label: 'Annuaire' },

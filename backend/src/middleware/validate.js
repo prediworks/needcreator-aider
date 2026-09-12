@@ -47,6 +47,7 @@ export const schemas = {
     niches: Joi.array().items(Joi.string()).min(1).max(5).required(),
     minPrice: Joi.number().min(config.business.minQuotePrice).max(10000), // facultatif à l'inscription : demandé dans le profil
     referralCode: Joi.string().max(20).allow(''),
+    campaignInviteToken: Joi.string().max(64).allow(''), // invité par une marque sur une campagne
   }),
   
   registerBrand: Joi.object({
@@ -251,6 +252,12 @@ export const schemas = {
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).default([]),
     revisions: Joi.number().integer().min(0).max(10), // vide = réglage admin « Nombre maximum de révisions »
     terms: Joi.string().max(2000).allow(''),
+  }),
+
+  // Invitation d'un créateur extérieur (pas encore inscrit) sur une campagne
+  externalInvite: Joi.object({
+    email: Joi.string().email().required(),
+    name: Joi.string().trim().max(80).allow(''),
   }),
 
   // Contre-proposition de la marque sur un devis

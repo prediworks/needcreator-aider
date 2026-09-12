@@ -110,8 +110,23 @@ await step('Marque : création + publication d\'une campagne', async () => {
   await bp.waitForURL(/\/campaigns\/[a-f0-9]{24}$/, { timeout: 60000, waitUntil: 'commit' });
   campaignUrl = bp.url();
   await bp.getByText('Ouverte aux candidatures').first().waitFor({ timeout: 20000 });
+  await bp.getByText('Inviter un créateur que vous connaissez').waitFor({ timeout: 20000 }); // invitation d'un créateur extérieur
   await bp.screenshot({ path: `${SHOTS}/03-campaign-published.png`, fullPage: true });
   return campaignUrl;
+});
+
+await step('Site public : la campagne publiée est visible sans connexion (page indexable)', async () => {
+  const id = campaignUrl.split('/').pop();
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.goto(`${FRONT}/campagnes`, { waitUntil: 'commit' });
+  await p.getByText('Campagne test interface utilisateur').first().waitFor({ timeout: 60000 });
+  await p.screenshot({ path: `${SHOTS}/03b-public-campaigns.png`, fullPage: true });
+  await p.goto(`${FRONT}/campagnes/${id}`, { waitUntil: 'commit' });
+  await p.getByRole('button', { name: 'Créer mon profil et envoyer un devis' }).waitFor({ timeout: 60000 });
+  await p.screenshot({ path: `${SHOTS}/03c-public-campaign.png`, fullPage: true });
+  await ctx.close();
+  return 'liste et fiche publiques OK';
 });
 
 await step('Marque : rechargement de page = session conservée', async () => {

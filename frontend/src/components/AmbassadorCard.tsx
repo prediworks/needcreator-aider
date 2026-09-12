@@ -9,11 +9,13 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Megaphone, CheckCircle, Clock } from 'lucide-react';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 
 /**
  * Incitation "Parlez de NeedCreator" → badge Ambassadeur + accès anticipé 24 h
  */
 export default function AmbassadorCard({ ambassador, compact = false }: { ambassador?: any; compact?: boolean }) {
+  const cfg = usePublicConfig();
   const refreshUser = useAuthStore((s) => s.refreshUser);
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
@@ -37,7 +39,7 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
           <span className="text-2xl">🌟</span>
           <div>
             <h3 className="font-semibold text-yellow-900">Vous êtes Ambassadeur NeedCreator</h3>
-            <p className="text-sm text-yellow-800 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Campagnes 24 h en avant-première, devis remontés en tête chez les marques, place en tête de l&apos;annuaire, badge dans les emails aux marques.</p>
+            <p className="text-sm text-yellow-800 flex items-center gap-1"><CheckCircle className="w-4 h-4" /> Commission réduite à {cfg.ambassadorFeePercent} % (au lieu de {cfg.platformFeePercent} %), campagnes {cfg.earlyAccessHours} h en avant-première, devis remontés en tête chez les marques, place en tête de l&apos;annuaire, badge dans les emails aux marques.</p>
           </div>
         </div>
       </Card>
@@ -58,8 +60,9 @@ export default function AmbassadorCard({ ambassador, compact = false }: { ambass
           </p>
           <p className="text-sm text-neutral-800 mt-3 italic">Plus de visibilité auprès des marques, donc plus de chances d&apos;être sélectionné :</p>
           <ul className="text-sm text-neutral-700 mt-1 space-y-1">
+            <li>💶 Commission réduite : <strong>{cfg.ambassadorFeePercent} % au lieu de {cfg.platformFeePercent} %</strong> sur toutes vos missions</li>
             <li>🌟 Badge <strong>Ambassadeur</strong> visible par les marques</li>
-            <li>⏱️ Nouvelles campagnes <strong>24 h en avant-première</strong></li>
+            <li>⏱️ Nouvelles campagnes <strong>{cfg.earlyAccessHours} h en avant-première</strong></li>
             <li>📈 Vos devis <strong>remontent en tête</strong> chez les marques (bonus de matching) et vous êtes en tête de l&apos;annuaire</li>
             <li>🏠 Présence sur la <strong>page d&apos;accueil</strong> NeedCreator, si vous l&apos;autorisez dans votre portfolio</li>
             <li>🎁 Bonus de parrainage pour chaque créateur inscrit via votre lien</li>

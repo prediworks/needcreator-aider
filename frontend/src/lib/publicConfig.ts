@@ -15,6 +15,7 @@ export interface PublicConfig {
   earlyAccessHours: number;
   aiBriefFreeQuota: number;
   vatRate: number;
+  ambassadorFeePercent: number;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -30,6 +31,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   earlyAccessHours: 24,
   aiBriefFreeQuota: 3,
   vatRate: 20,
+  ambassadorFeePercent: 8,
 };
 
 /** Côté serveur (pages marketing) : mis en cache 5 minutes, repli sur les valeurs par défaut si l'API ne répond pas */

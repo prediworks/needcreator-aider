@@ -276,6 +276,17 @@ await step('Campagne : publication', async () => {
   return `${res.data.notifiedCreators} créateur(s) notifié(s) ; modification verrouillée`;
 });
 
+await step('Site public : campagnes ouvertes listées sans connexion (pages indexables)', async () => {
+  const list = await fetch(`${API}/campaigns/public`).then(r => r.json());
+  const mine = (list.campaigns || []).find(c => String(c.id) === String(campaign._id));
+  expect(mine && mine.brand?.name && mine.deliverables === 2 && !('applications' in mine && Array.isArray(mine.applications)), 'La campagne publiée doit apparaître dans la liste publique avec le nom de la marque', { status: 200, data: list });
+  const one = await fetch(`${API}/campaigns/public/${campaign._id}`).then(r => r.json());
+  expect(one.campaign?.open === true && one.campaign.title === campaign.title && one.campaign.brand.name, 'Détail public de la campagne incorrect', { status: 200, data: one });
+  const missing = await fetch(`${API}/campaigns/public/000000000000000000000000`);
+  expect(missing.status === 404, 'Une campagne inconnue doit renvoyer 404', { status: missing.status });
+  return `${list.campaigns.length} campagne(s) publique(s), détail OK`;
+});
+
 await step('Candidature refusée tant que le créateur n\'est pas validé', async () => {
   const res = await creatorApi('POST', `/campaigns/${campaign._id}/apply`, { proposal: '', price: 250, estimatedDeliveryDays: 5 });
   expect(res.status === 403, 'Devrait être refusé (403)', res);
@@ -364,6 +375,9 @@ await step('Ambassadeur : vidéo soumise puis validée par l\'admin', async () =
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const pending = await brandApi('GET', '/admin/ambassadors/pending');
   expect(pending.status === 200 && pending.data.creators.some(c => c._id === creatorUser.id), 'Vidéo absente de la liste admin', pending);
+  // Commission Ambassadeur neutralisée (= standard) pour garder les montants du flux principal ; la réduction (8 %) est testée sur la campagne par lien
+  const neutral = await brandApi('PUT', '/admin/settings/ambassadorFeePercent', { value: 10 });
+  expect(neutral.status === 200, 'Réglage commission Ambassadeur (neutralisation) échoué', neutral);
   const ok = await brandApi('POST', `/admin/ambassadors/${creatorUser.id}/approve`);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   expect(ok.status === 200 && ok.data.ambassador.status === 'approved', 'Validation échouée', ok);
@@ -805,8 +819,18 @@ await step('Liens publics/privés : accord des deux parties', async () => {
   await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
   const ap = await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 150, estimatedDeliveryDays: 4 });
   expect(ap.status === 201, 'Candidature sur campagne sans budget échouée', ap);
+  // Commission réduite Ambassadeur (réglage admin, 8 %) appliquée à la sélection d'un créateur Ambassadeur
+  const usersCol = mongoose.connection.db.collection('users');
+  await usersCol.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const fee = await brandApi('PUT', '/admin/settings/ambassadorFeePercent', { value: 8 });
+  expect(fee.status === 200, 'Réglage commission Ambassadeur échoué', fee);
+  await usersCol.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   const sel = await brandApi('POST', `/campaigns/${c.data.campaign._id}/select/${creatorUser.id}`);
   expect(sel.status === 200 && sel.data.delivery.payment.amount === 150, 'Sélection / montant du devis incorrect', sel);
+  expect(sel.data.delivery.payment.platformFeePercent === 8 && sel.data.delivery.payment.creatorAmount === 138, 'La commission Ambassadeur (8 %) doit s\'appliquer : 138 € pour le créateur', sel);
+  await usersCol.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  await brandApi('PUT', '/admin/settings/ambassadorFeePercent', { value: 10 });
+  await usersCol.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   const { default: Stripe } = await import('stripe');
   await new Stripe(process.env.STRIPE_SECRET_KEY).paymentIntents.confirm(sel.data.delivery.payment.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
   await brandApi('POST', `/deliveries/${sel.data.delivery._id}/confirm-payment`, {});
@@ -829,7 +853,7 @@ await step('Liens publics/privés : accord des deux parties', async () => {
   expect(fromDeliveries(pub.realisations).length === 0, 'Un lien privé ne doit pas apparaître publiquement', { status: 200, data: pub });
   const asBrand = await brandApi('GET', `/portfolio/creator/${creatorUser.id}`);
   expect(fromDeliveries(asBrand.data.realisations).length === 1 && fromDeliveries(asBrand.data.realisations)[0].isPublic === false, 'La marque concernée doit voir le lien privé', asBrand);
-  return 'public par défaut, privé dès qu\'une partie refuse, visible par la marque concernée';
+  return 'commission Ambassadeur 8 % appliquée (138 €) ; lien public par défaut, privé dès qu\'une partie refuse, visible par la marque concernée';
 });
 
 await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () => {
@@ -935,7 +959,7 @@ await step('Envoi de produit : adresse, expédition, réception, délai de produ
 
 await step('Créateurs référencés : import admin (xlsx/csv), annuaire public, invitation par une marque, retrait, rattachement à l\'inscription', async () => {
   const users = mongoose.connection.db.collection('users');
-  const extEmail = `e2e-ext-${RUN}@needcreator-test.com`;
+  const extEmail = `e2e-invited-${RUN}@needcreator-test.com`;
   const csv = ['Username,Name,Country,Email,Instagram,YouTube,Followers,Posts,Likes,Niche',
     `e2e_ext_${RUN},Ext Test,FRANCE,${extEmail},https://www.instagram.com/e2e_ext,,"16,903",422,"67,354",Technology`,
     `e2e_ext_${RUN},Ext Test doublon,FR,${extEmail},,,10,1,1,Technology`,
@@ -1833,6 +1857,39 @@ await step('Admin : suppression complète d\'un compte (outil temporaire)', asyn
 });
 
 // Nettoyage
+await step('Marque : invite un créateur extérieur par email, rattaché à la campagne à son inscription', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne avec invitation extérieure', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 120, niches: ['beauty'], applicationDeadline: deadline });
+  expect(c.status === 201, 'Création campagne échouée', c);
+  const cid = c.data.campaign._id;
+  const early = await brandApi('POST', `/campaigns/${cid}/invite-external`, { email: `e2e-guest-${RUN}@needcreator-test.com` });
+  expect(early.status === 400, 'Pas d\'invitation avant publication', early);
+  await brandApi('POST', `/campaigns/${cid}/publish`);
+  const self = await brandApi('POST', `/campaigns/${cid}/invite-external`, { email: brandEmail });
+  expect(self.status === 400, 'Sa propre adresse doit être refusée', self);
+  const extEmail = `e2e-guest-${RUN}@needcreator-test.com`;
+  const inv = await brandApi('POST', `/campaigns/${cid}/invite-external`, { email: extEmail, name: 'Léa' });
+  expect(inv.status === 200 && inv.data.existing === false && /campaignInvite=/.test(inv.data.link), 'Invitation extérieure non créée', inv);
+  const token = inv.data.link.split('campaignInvite=')[1];
+  const info = await fetch(`${API}/campaigns/invitation/${token}`).then(r => r.json());
+  expect(info.email === extEmail && info.campaignTitle === 'Campagne avec invitation extérieure' && info.companyName, 'Infos d\'invitation publiques incorrectes', { status: 200, data: info });
+  const fu = await firebaseUser(extEmail);
+  const extApi = client(fu.idToken);
+  const reg = await extApi('POST', '/auth/register/creator', { acceptTerms: true, email: extEmail, name: 'Léa Invitée', bio: '', niches: ['beauty'], minPrice: 80, campaignInviteToken: token });
+  expect(reg.status === 201 && String(reg.data.invitedCampaignId) === String(cid), 'L\'inscription avec jeton doit renvoyer la campagne rattachée', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+  const seen = await extApi('GET', `/campaigns/${cid}`);
+  expect(seen.status === 200 && seen.data.campaign.invited === true, 'Le créateur invité doit voir la campagne (malgré l\'avant-première) et être marqué invité', seen);
+  const used = await fetch(`${API}/campaigns/invitation/${token}`);
+  expect(used.status === 404, 'Un jeton utilisé ne doit plus être valide', { status: used.status });
+  const existing = await brandApi('POST', `/campaigns/${cid}/invite-external`, { email: creatorEmail });
+  expect(existing.status === 200 && existing.data.existing === true, 'Un créateur déjà inscrit doit être invité directement', existing);
+  const camp = await brandApi('GET', `/campaigns/${cid}`);
+  expect(camp.data.campaign.invitations?.some(i => String(i.creatorId?._id || i.creatorId) === creatorUser.id), 'Le créateur existant doit figurer dans les invitations', camp);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(cid) });
+  return 'invitation extérieure → inscription rattachée ; créateur existant invité directement';
+});
+
 if (CLEAN) {
   await step('Nettoyage des données de test', async () => {
     const db = mongoose.connection.db;

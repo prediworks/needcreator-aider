@@ -8,7 +8,9 @@ import {
   sendCampaignInvitation,
   sendCounterOffer,
   sendCounterOfferResponse,
+  sendExternalCampaignInvitation,
 } from '../services/email.js';
+import crypto from 'crypto';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
@@ -650,6 +652,117 @@ export async function updateQuote(req, res) {
     logger.error('Failed to update quote:', error);
     res.status(500).json({ error: 'Failed to update quote' });
   }
+}
+
+/**
+ * Campagnes publiques (sans authentification) : pages indexables par les moteurs de recherche.
+ * Seules les campagnes publiées, visibles de tous et encore ouvertes aux candidatures sont listées.
+ */
+const PUBLIC_FIELDS = 'title description brief.videoType brief.duration brief.deliverables brief.platforms brief.productShipping brief.requirements matching.niches matching.creatorsWanted budget type timeline.publishedAt timeline.applicationDeadline analytics.applications brandId';
+function publicCampaignView(c) {
+  const brand = c.brandId?.profile || {};
+  return {
+    id: c._id, title: c.title, description: c.description, type: c.type,
+    videoType: c.brief?.videoType, duration: c.brief?.duration, deliverables: c.brief?.deliverables, platforms: c.brief?.platforms || [], productShipping: !!c.brief?.productShipping, requirements: c.brief?.requirements || [],
+    niches: c.matching?.niches || [], creatorsWanted: c.matching?.creatorsWanted || 1,
+    budget: c.budget?.total || null, budgetPerVideo: c.budget?.perVideo || null,
+    publishedAt: c.timeline?.publishedAt, applicationDeadline: c.timeline?.applicationDeadline,
+    applications: c.analytics?.applications || 0,
+    brand: { name: brand.companyName || 'Marque', industry: brand.industry || null, avatar: brand.avatar || null, website: brand.website || null },
+  };
+}
+export async function listPublicCampaigns(req, res) {
+  try {
+    const now = new Date();
+    const query = { status: 'active', visibility: { $ne: 'private' }, $or: [{ 'timeline.applicationDeadline': null }, { 'timeline.applicationDeadline': { $gte: now } }] };
+    if (req.query.niche) query['matching.niches'] = req.query.niche;
+    const campaigns = await Campaign.find(query).select(PUBLIC_FIELDS).populate('brandId', 'profile.companyName profile.industry profile.avatar profile.website').sort({ 'timeline.publishedAt': -1 }).limit(100).lean();
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ campaigns: campaigns.map(publicCampaignView) });
+  } catch (error) {
+    logger.error('listPublicCampaigns failed:', error);
+    res.status(500).json({ error: 'Campagnes indisponibles' });
+  }
+}
+export async function getPublicCampaign(req, res) {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.campaignId)) return res.status(404).json({ error: 'Campagne introuvable' });
+    const c = await Campaign.findOne({ _id: req.params.campaignId, visibility: { $ne: 'private' }, status: { $in: ['active', 'in_progress', 'completed'] } }).select(PUBLIC_FIELDS + ' status').populate('brandId', 'profile.companyName profile.industry profile.avatar profile.website').lean();
+    if (!c) return res.status(404).json({ error: 'Campagne introuvable' });
+    const view = publicCampaignView(c);
+    view.open = c.status === 'active' && (!c.timeline?.applicationDeadline || new Date(c.timeline.applicationDeadline) >= new Date());
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ campaign: view });
+  } catch (error) {
+    logger.error('getPublicCampaign failed:', error);
+    res.status(500).json({ error: 'Campagne indisponible' });
+  }
+}
+
+/**
+ * Invitation d'un créateur extérieur par email : s'il a déjà un compte créateur, invitation directe ;
+ * sinon lien d'inscription avec jeton, rattaché à la campagne à l'inscription.
+ */
+export async function inviteExternalCreator(req, res) {
+  try {
+    const { campaignId } = req.params;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const name = String(req.body.name || '').trim();
+    const brand = req.user;
+    const campaign = await Campaign.findOne({ _id: campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.status !== 'active') return res.status(400).json({ error: 'La campagne doit être publiée pour inviter des créateurs' });
+    if (email === brand.email) return res.status(400).json({ error: 'C\'est votre propre adresse' });
+    const brandName = brand.profile?.companyName || brand.profile?.name;
+
+    const existing = await User.findOne({ email, status: { $ne: 'deleted' } }).select('role profile.name');
+    if (existing) {
+      if (existing.role !== 'creator') return res.status(400).json({ error: 'Cette adresse correspond à un compte qui n\'est pas un compte créateur' });
+      if (!(campaign.invitations || []).some(i => idOf(i.creatorId) === existing._id.toString())) {
+        campaign.invitations.push({ creatorId: existing._id, message: '' });
+        await campaign.save();
+      }
+      sendCampaignInvitation(email, existing.profile?.name, brandName, campaign.title, campaign._id).catch(() => {});
+      notify(existing._id, { type: 'invitation', title: `${brandName} vous invite sur une campagne`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      return res.json({ message: `${existing.profile?.name || email} a déjà un compte : invitation envoyée`, existing: true });
+    }
+
+    const list = campaign.externalInvitations || [];
+    if (list.filter(i => !i.acceptedAt).length >= 20) return res.status(400).json({ error: 'Au plus 20 invitations extérieures en attente par campagne' });
+    const token = crypto.randomBytes(20).toString('hex');
+    campaign.set('externalInvitations', [...list.filter(i => i.email !== email), { email, name, token, invitedAt: new Date() }]);
+    await campaign.save();
+    const link = `${config.cors.origin}/register?role=creator&campaignInvite=${token}`;
+    sendExternalCampaignInvitation(email, name, brandName, campaign.title, link).catch(err => logger.warn(`External invitation not sent: ${err.message}`));
+    logger.info(`External creator invited by brand ${brand._id} on campaign ${campaign._id}: ${email}`);
+    res.json({ message: `Invitation envoyée à ${email}`, existing: false, link });
+  } catch (error) {
+    logger.error('inviteExternalCreator failed:', error);
+    res.status(500).json({ error: 'Invitation impossible' });
+  }
+}
+
+/** Public : informations d'une invitation extérieure (pré-remplissage de l'inscription) */
+export async function externalInvitationInfo(req, res) {
+  const campaign = await Campaign.findOne({ 'externalInvitations.token': req.params.token }).select('title externalInvitations brandId').populate('brandId', 'profile.companyName').lean();
+  const inv = campaign?.externalInvitations?.find(i => i.token === req.params.token);
+  if (!campaign || !inv || inv.acceptedAt) return res.status(404).json({ error: 'Invitation introuvable ou déjà utilisée' });
+  res.json({ email: inv.email, name: inv.name, campaignId: campaign._id, campaignTitle: campaign.title, companyName: campaign.brandId?.profile?.companyName });
+}
+
+/** Rattache un créateur fraîchement inscrit à la campagne qui l'a invité (appelé par registerCreator) */
+export async function attachCampaignInvitation(user, token) {
+  if (!token) return null;
+  const campaign = await Campaign.findOne({ 'externalInvitations.token': token });
+  const inv = campaign?.externalInvitations?.find(i => i.token === token && !i.acceptedAt);
+  if (!campaign || !inv) return null; // jeton inconnu : l'inscription continue normalement
+  inv.acceptedAt = new Date();
+  inv.creatorId = user._id;
+  if (!(campaign.invitations || []).some(i => idOf(i.creatorId) === user._id.toString())) campaign.invitations.push({ creatorId: user._id, message: '' });
+  campaign.markModified('externalInvitations');
+  await campaign.save();
+  notify(campaign.brandId, { type: 'invitation', title: `${user.profile?.name || user.email} a créé son profil sur votre invitation`, text: `${campaign.title} : il ou elle pourra vous envoyer un devis dès la validation de son profil.`, href: `/campaigns/${campaign._id}` }).catch(() => {});
+  return campaign;
 }
 
 /**

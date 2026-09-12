@@ -41,6 +41,9 @@ function RegisterForm() {
   const [language, setLanguage] = useState('fr');
   const referralCode = searchParams.get('ref') || '';
   const teamToken = searchParams.get('team') || '';
+  const campaignInviteToken = searchParams.get('campaignInvite') || '';
+  const targetCampaign = searchParams.get('campaign') || '';
+  const [campaignInvite, setCampaignInvite] = useState<{ email: string; name?: string; campaignId: string; campaignTitle: string; companyName: string } | null>(null);
   const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -77,6 +80,15 @@ function RegisterForm() {
     }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
   }, [teamToken]);
 
+  // Invitation d'une marque sur une campagne (créateur pas encore inscrit) : email pré-rempli, campagne ouverte à l'inscription
+  useEffect(() => {
+    if (!campaignInviteToken) return;
+    api.get(`/campaigns/invitation/${campaignInviteToken}`).then(({ data }) => {
+      setCampaignInvite(data); setRole('creator'); setStep(2); setEmail(data.email); setName(data.name || '');
+    }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
+  }, [campaignInviteToken]);
+  useEffect(() => { if (targetCampaign) { setRole('creator'); setStep(2); } }, [targetCampaign]);
+
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
       prev.includes(niche)
@@ -100,10 +112,10 @@ function RegisterForm() {
 
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
-        ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language }
+        ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language, ...(campaignInviteToken ? { campaignInviteToken } : {}) }
         : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}) };
 
-      await api.post(endpoint, data, {
+      const res = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
       });
 
@@ -114,7 +126,8 @@ function RegisterForm() {
           ? 'Compte créé ! Votre profil sera validé par notre équipe sous 24h.'
           : 'Compte créé ! Vous pouvez lancer votre première campagne.'
       );
-      router.push('/dashboard');
+      const invited = (res as any)?.data?.invitedCampaignId || campaignInvite?.campaignId || targetCampaign;
+      router.push(invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
 
@@ -207,6 +220,11 @@ function RegisterForm() {
               ← Changer de type de compte ({role === 'creator' ? 'Créateur' : 'Marque'})
             </button>
 
+            {campaignInvite && (
+              <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
+                🎬 <strong>{campaignInvite.companyName}</strong> vous invite sur sa campagne « {campaignInvite.campaignTitle} ». Créez votre profil avec l&apos;adresse invitée : la campagne vous sera ouverte tout de suite.
+              </div>
+            )}
             {teamInfo && (
               <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
                 👥 Vous rejoignez l&apos;équipe <strong>{teamInfo.companyName}</strong>. Créez votre accès avec l&apos;adresse invitée : vous agirez au nom de l&apos;entreprise.

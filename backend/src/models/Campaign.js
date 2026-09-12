@@ -139,6 +139,15 @@ const campaignSchema = new mongoose.Schema({
     invitedAt: { type: Date, default: Date.now },
     message: String,
   }],
+  // Créateurs extérieurs invités par email par la marque : à l'inscription avec le jeton, ils sont rattachés à la campagne
+  externalInvitations: [{
+    email: String,
+    name: String,
+    token: String,
+    invitedAt: { type: Date, default: Date.now },
+    acceptedAt: Date,
+    creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  }],
 
   notifications: {
     ambassadorsNotifiedAt: Date,

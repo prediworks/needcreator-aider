@@ -212,6 +212,40 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
 }
 
 /**
+ * Invitation d'un créateur extérieur (non inscrit) par une marque : lien d'inscription avec jeton
+ */
+export async function sendExternalCampaignInvitation(email, name, brandName, campaignTitle, link) {
+  const subject = `${brandName} vous propose une mission vidéo sur NeedCreator`;
+  const html = `
+    <h1>Bonjour${name ? ' ' + name : ''} !</h1>
+    <p><strong>${brandName}</strong> aimerait travailler avec vous et vous invite à envoyer un devis pour sa campagne « ${campaignTitle} » sur NeedCreator.</p>
+    ${summary([['Marque', brandName], ['Campagne', campaignTitle]])}
+    <p>NeedCreator est une plateforme de vidéos UGC : vous fixez votre prix, le paiement est bloqué par la marque avant que vous tourniez, un contrat protège vos droits. L'inscription est gratuite et prend cinq minutes.</p>
+    ${button(link, 'Créer mon profil et répondre')}
+    <p style="font-size:12px;color:#666">Si vous avez déjà un compte, connectez-vous avec cette adresse : la campagne vous sera ouverte.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
+ * Après une mission validée : texte de publication prêt à partager + lien de parrainage
+ */
+export async function sendShareAfterMission(email, name, campaignTitle, referralLink, mediaKitUrl, referralBonus) {
+  const subject = `Mission validée : partagez-la, gagnez ${referralBonus} € par créateur parrainé`;
+  const post = `Je viens de livrer une nouvelle vidéo UGC via NeedCreator 🎬 Je fixe mon prix, le paiement est bloqué avant que je tourne, et un contrat protège mes droits. Si vous créez du contenu, inscrivez-vous avec mon lien : ${referralLink}`;
+  const html = `
+    <h1>Bravo ${name} !</h1>
+    <p>Votre mission « ${campaignTitle} » est validée et votre paiement est en route. C'est le bon moment pour le dire autour de vous : chaque créateur inscrit avec votre lien et qui livre sa première mission vous rapporte <strong>${referralBonus} €</strong>.</p>
+    <p>Un texte prêt à copier pour votre story, TikTok, Instagram ou LinkedIn :</p>
+    <blockquote style="border-left:3px solid #10b981;margin:12px 0;padding:8px 12px;background:#f4f4f5;color:#111">${post}</blockquote>
+    ${summary([['Votre lien de parrainage', referralLink], ['Votre kit média', mediaKitUrl]])}
+    ${button(mediaKitUrl, 'Voir mon kit média')}
+    <p style="font-size:12px;color:#666">Ne citez pas le nom de la marque sans son accord : le texte ci-dessus n'en a pas besoin.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
  * Contre-proposition de la marque sur un devis (au créateur)
  */
 export async function sendCounterOffer(email, name, companyName, campaignTitle, campaignId, offer, current) {

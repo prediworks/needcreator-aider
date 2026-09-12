@@ -91,7 +91,7 @@ async function applyReferral(user, referralCode) {
  */
 export async function registerCreator(req, res) {
   try {
-    const { email, name, bio, niches, referralCode, country = 'FR', language = 'fr' } = req.body;
+    const { email, name, bio, niches, referralCode, campaignInviteToken, country = 'FR', language = 'fr' } = req.body;
     const minPrice = req.body.minPrice || Math.max(100, config.business.minQuotePrice);
     const { uid } = req.firebaseUser;
 
@@ -132,6 +132,12 @@ export async function registerCreator(req, res) {
     user.ensureReferralCode();
     await applyReferral(user, referralCode);
     await user.save();
+    // Invité par une marque sur une campagne : rattachement (la campagne lui est ouverte malgré l'avant-première)
+    let invitedCampaign = null;
+    if (campaignInviteToken) {
+      const { attachCampaignInvitation } = await import('./campaigns.js');
+      invitedCampaign = await attachCampaignInvitation(user, campaignInviteToken).catch(err => { logger.warn(`Campaign invitation not attached: ${err.message}`); return null; });
+    }
 
     // Send welcome email (non bloquant)
     if (!req.firebaseUser.email_verified) sendVerificationAfterRegistration(user);
@@ -145,6 +151,7 @@ export async function registerCreator(req, res) {
     res.status(201).json({
       message: 'Creator account created successfully',
       user: await serializeUser(user),
+      invitedCampaignId: invitedCampaign ? invitedCampaign._id : null,
     });
   } catch (error) {
     logger.error('Creator registration failed:', error);

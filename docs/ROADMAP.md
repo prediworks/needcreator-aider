@@ -150,6 +150,14 @@ Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'
 5. **Plus tard**, avec des missions terminées : avis de marques, vidéos livrées avec accord des deux parties, compteurs réels (voir « preuves sociales réelles »).
 6. **Option code** : un lot de dix textes de publication prêts à copier, par réseau.
 
+**Viralité automatique** (décidé le 12/09/2026 ; 1, 2 et 5 livrés le 12/09/2026 avec la commission réduite Ambassadeurs, réglage admin « Ambassadeurs », 8 % par défaut) :
+- ~~1. Campagnes publiques indexées par Google~~ (pages `/campagnes` et `/campagnes/<id>`, sitemap).
+- ~~2. Email après mission validée~~ avec texte de publication prêt et lien de parrainage.
+- **3. Badges « Formé » et « Ambassadeur » partageables** : image générée automatiquement au format story et LinkedIn, avec le lien du kit média. Rien à fournir. Une demi-journée.
+- **4. Publication automatique de chaque nouvelle campagne** sur LinkedIn et Instagram NeedCreator (sans nom de marque si privée). À fournir : application développeur LinkedIn rattachée à la page entreprise (validation LinkedIn, quelques jours) ; application Meta reliée à un compte Instagram professionnel lui-même relié à une page Facebook. TikTok : pas d'API de publication. Un jour.
+- ~~5. Invitation d'un créateur extérieur par une marque~~ depuis sa campagne (email, lien d'inscription, rattachement automatique).
+- **6. Widget « Créateur vérifié NeedCreator »** à mettre dans les bios et sites des créateurs, lien vers le kit média (liens entrants). À fournir : rien. Une demi-journée.
+
 ## 5. Questions pour l'expert-comptable
 
 1. **Mandat de facturation** : NeedCreator émet les factures des créateurs en leur nom (mandat accepté dans les informations administratives). Formulation et mentions à valider.
