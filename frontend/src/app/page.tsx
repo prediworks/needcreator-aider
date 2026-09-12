@@ -96,7 +96,7 @@ export default async function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Vous payez le prix du devis, rien de plus</span>
+                <span>Gratuit et complet, vous payez le prix du devis, rien de plus</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
@@ -128,7 +128,7 @@ export default async function HomePage() {
               [UserX, 'Garantie de remplacement', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à un autre devis en un clic, sans frais.`],
               [ShieldCheck, 'Conformité vérifiée', 'À la livraison, durée, format, son et mention du produit sont contrôlés automatiquement avant votre validation.'],
               [Video, 'Portfolio vidéo interactif', 'Regardez les vidéos des créateurs directement dans la plateforme, sans téléchargement.'],
-              [TrendingUp, 'Prix transparents', 'Le prix affiché est le prix payé. Aucun frais ajouté pour la marque, aucun abonnement obligatoire.'],
+              [TrendingUp, 'Gratuit et complet', 'Le prix affiché est le prix payé, aucun frais ajouté. L\'offre gratuite comprend tout ; Pro n\'est utile qu\'aux marques qui font du volume.'],
               [CheckCircle, 'Créateurs vérifiés et formés', 'Chaque profil est validé manuellement par notre équipe, avec 3 vidéos minimum et identité administrative renseignée. Une académie gratuite et un badge Formé distinguent les créateurs qui l\'ont suivie.'],
               [FileText, 'Factures automatiques', 'Une facture PDF par mission, émise au nom du créateur, un avoir en cas de remboursement, un relevé mensuel. TVA gérée selon le statut de chacun.'],
               [Users, 'Modèles, campagnes privées, équipe', 'Six modèles de brief par secteur, duplication d\'une campagne passée, campagnes visibles uniquement des créateurs invités, et des collaborateurs qui travaillent sur le même compte marque.'],

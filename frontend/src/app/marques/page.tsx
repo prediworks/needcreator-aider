@@ -42,7 +42,7 @@ export default async function BrandsPage() {
     ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
     ['Comment fonctionnent les avis ?', 'En double aveugle, comme sur Airbnb : vous notez le créateur, il vous note, et les deux avis sont publiés en même temps. Personne n\'ajuste son avis en fonction de l\'autre. Vous pouvez répondre publiquement, une fois.'],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
-    ['Faut-il un abonnement ?', 'Non. L\'inscription et les campagnes sont gratuites. Les factures sont générées automatiquement à chaque mission validée. L\'offre Pro, facultative, ajoute le brief IA illimité, les campagnes multi-créateurs et le gifting.'],
+    ['Faut-il un abonnement ?', 'Non, et vous ne perdez rien : l\'offre gratuite comprend tout, campagnes illimitées, contrat de droits, garantie de remplacement, factures, équipe, modèles, sans limite de durée. L\'offre Pro n\'est utile qu\'à partir de plusieurs campagnes par mois : plusieurs créateurs par campagne, gifting, brief IA illimité.'],
   ];
 
   const jsonLd = {
@@ -70,7 +70,7 @@ export default async function BrandsPage() {
             <Link href="/nos-createurs"><Button variant="outline" size="lg" className="w-full sm:w-auto">Voir des créateurs</Button></Link>
           </div>
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-neutral-600 flex-wrap">
-            {['Inscription gratuite', 'Aucun frais ajouté au devis', 'Débit à la validation seulement'].map((t) => (
+            {['Gratuit et complet, Pro seulement pour le volume', 'Aucun frais ajouté au devis', 'Débit à la validation seulement'].map((t) => (
               <span key={t} className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-primary-500" />{t}</span>
             ))}
           </div>

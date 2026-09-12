@@ -6,34 +6,42 @@ import { Check, X, ArrowRight } from 'lucide-react';
 
 export const metadata = {
   title: 'Tarifs',
-  description: 'Tarifs NeedCreator : la marque paie le prix du devis HT (TVA en sus si le créateur y est assujetti), sans frais ajoutés. Le créateur reçoit 90 % de son devis. Offre Pro à 79 €/mois pour les marques.',
+  description: 'Tarifs NeedCreator : offre gratuite complète pour les marques, le prix du devis HT est le prix payé, sans frais ajoutés. Le créateur reçoit 90 % de son devis. Pro à 79 €/mois seulement pour le volume.',
   alternates: { canonical: '/pricing' },
 };
 
 type Cell = { text: string; ok?: boolean };
 
-const rows = (cfg: { autoApprovalDays: number }): { label: string; free: Cell; pro: Cell }[] => [
-  { label: 'Prix des vidéos', free: { text: 'Le devis du créateur' }, pro: { text: 'Le devis du créateur' } },
-  { label: 'Frais ajoutés au paiement', free: { text: 'Aucun', ok: true }, pro: { text: 'Aucun', ok: true } },
-  { label: 'Devis reçus par campagne', free: { text: 'Illimités', ok: true }, pro: { text: 'Illimités', ok: true } },
-  { label: 'Campagne multicréateur', free: { text: 'Non : 1 créateur sélectionné par campagne', ok: false }, pro: { text: 'Oui : plusieurs créateurs, un seul paiement groupé', ok: true } },
-  { label: 'Rédaction de brief par l\'IA', free: { text: '3 par mois' }, pro: { text: 'Illimitée', ok: true } },
-  { label: 'Campagnes ouvertes en même temps', free: { text: '2, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimitées', ok: true } },
-  { label: 'Invitations et messages', free: { text: '5 invitations et 20 messages par jour, jusqu\'à votre première campagne terminée' }, pro: { text: 'Illimités', ok: true } },
-  { label: 'Campagnes gifting (produit offert)', free: { text: 'Non', ok: false }, pro: { text: 'Oui : 5 € de frais de service par vidéo livrée', ok: true } },
-  { label: 'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: 'Garantie de remplacement si le créateur ne livre pas', free: { text: 'Incluse, sans frais', ok: true }, pro: { text: 'Incluse, sans frais', ok: true } },
-  { label: 'Score de conformité au brief à la livraison', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: `Révisions incluses (précisées dans chaque devis), validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`, free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
-  { label: 'Modèles de campagne par secteur, duplication d\'une campagne passée', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: 'Campagnes privées, visibles des seuls créateurs invités', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: 'Équipe : collaborateurs sur le même compte marque', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: 'Factures PDF par mission, avoirs, relevé mensuel', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
-  { label: 'Litige arbitré par notre équipe, avis en double aveugle', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+/** Inclus dans les deux offres : le cœur du service, sans limite de durée */
+const included = (cfg: { autoApprovalDays: number }): string[] => [
+  'Campagnes et devis reçus illimités',
+  'Le prix du devis est le prix payé : aucun frais ajouté',
+  'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration',
+  'Garantie de remplacement si le créateur ne livre pas, sans frais',
+  'Score de conformité au brief à la livraison',
+  `Révisions précisées dans chaque devis, validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`,
+  'Contre-proposition de devis et comparateur de candidats',
+  'Modèles de campagne par secteur, duplication d\'une campagne passée',
+  'Campagnes privées, visibles des seuls créateurs invités',
+  'Équipe : collaborateurs sur le même compte marque',
+  'Factures PDF par mission, avoirs, relevé mensuel',
+  'Litige arbitré par notre équipe, avis en double aveugle',
+  'Publication Shopify en un clic, vidéos prêtes à diffuser en option',
+  'Rédaction de brief par l\'IA (3 par mois)',
 ];
 
+/** Ce que Pro ajoute : du volume, pas des fonctions de base */
+const rows = (): { label: string; free: Cell; pro: Cell }[] => [
+  { label: 'Plusieurs créateurs sur une même campagne', free: { text: '1 créateur sélectionné par campagne' }, pro: { text: 'Plusieurs créateurs, un seul paiement groupé', ok: true } },
+  { label: 'Campagnes gifting (produit offert à la place d\'une rémunération)', free: { text: 'Non proposé' }, pro: { text: 'Oui : 5 € de frais de service par vidéo livrée', ok: true } },
+  { label: 'Rédaction de brief par l\'IA', free: { text: '3 par mois' }, pro: { text: 'Illimitée', ok: true } },
+  { label: 'Limites de départ (voir note)', free: { text: 'Levées dès votre première campagne terminée' }, pro: { text: 'Aucune dès le premier jour', ok: true } },
+];
+
+const STARTING_LIMITS_NOTE = 'Note : pour protéger les créateurs des faux comptes, une nouvelle marque gratuite est limitée à 2 campagnes ouvertes en même temps, 5 invitations et 20 messages par jour. Ces limites disparaissent définitivement dès qu\'une première campagne est terminée. Elles ne concernent pas les marques Pro.';
+
 const faq = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => [
-  ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté, hors taxes, plus la TVA lorsque le créateur y est assujetti (indiqué sur chaque devis). La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
+  ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté, hors taxes, plus la TVA lorsque le créateur y est assujetti (indiqué sur chaque devis). La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif et n\'est utile qu\'à partir de plusieurs campagnes par mois.'],
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement ' + plural(cfg.autoApprovalDays, 'jour') + ' après la livraison si vous ne répondez pas.'],
   ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander des modifications, dans la limite du nombre de révisions prévu par le devis que vous avez accepté. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
   ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
@@ -54,7 +62,8 @@ function CellView({ cell, strong }: { cell: Cell; strong?: boolean }) {
 
 export default async function PricingPage() {
   const cfg = await fetchPublicConfig();
-  const ROWS = rows(cfg);
+  const ROWS = rows();
+  const INCLUDED = included(cfg);
   const FAQ = faq(cfg);
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -73,8 +82,23 @@ export default async function PricingPage() {
         <section>
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-neutral-900 mb-2">Pour les marques</h2>
-            <p className="text-neutral-600">Dans les deux cas, vous payez le devis du créateur et rien d&apos;autre. Pro ajoute des fonctionnalités, pas des frais.</p>
+            <p className="text-neutral-600"><strong className="text-neutral-900">L&apos;offre gratuite est complète</strong> : vous publiez, sélectionnez, payez et récupérez vos droits sans limite de durée. Pro ajoute du volume, pas des fonctions de base, et jamais de frais sur les devis.</p>
           </div>
+
+          {/* Inclus dans les deux offres */}
+          <Card className="p-6 md:p-8 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Check className="w-5 h-5 text-primary-600" />
+              <h3 className="text-lg font-semibold text-neutral-900">Inclus dans les deux offres, gratuit pour toujours</h3>
+            </div>
+            <ul className="grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm text-neutral-700">
+              {INCLUDED.map((t) => (
+                <li key={t} className="flex items-start gap-2"><Check className="w-4 h-4 text-primary-600 mt-0.5 flex-shrink-0" aria-hidden />{t}</li>
+              ))}
+            </ul>
+          </Card>
+
+          <h3 className="text-lg font-semibold text-neutral-900 text-center mb-4">Ce que Pro ajoute</h3>
 
           {/* Tableau (desktop) */}
           <div className="hidden md:block">
@@ -82,16 +106,16 @@ export default async function PricingPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-neutral-200">
-                    <th className="text-left p-5 w-1/3 align-bottom text-neutral-500 font-medium">Ce que vous obtenez</th>
+                    <th className="text-left p-5 w-1/3 align-bottom text-neutral-500 font-medium">Seules différences</th>
                     <th className="text-left p-5 w-1/3 align-bottom">
-                      <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Gratuit</div>
+                      <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Gratuit, tout compris</div>
                       <div className="text-3xl font-bold text-neutral-900">0 €</div>
-                      <div className="text-neutral-500 font-normal">Pour toujours</div>
+                      <div className="text-neutral-500 font-normal">Pour toujours. Tout ce qu&apos;il faut pour vos campagnes.</div>
                     </th>
                     <th className="text-left p-5 w-1/3 align-bottom bg-primary-50">
-                      <div className="text-xs uppercase tracking-wide text-primary-700 mb-1">Pro</div>
+                      <div className="text-xs uppercase tracking-wide text-primary-700 mb-1">Pro, pour le volume</div>
                       <div className="text-3xl font-bold text-neutral-900">79 € <span className="text-base font-normal text-neutral-500">HT / mois</span></div>
-                      <div className="text-neutral-600 font-normal">14 jours offerts à l&apos;inscription, sans carte, sans engagement</div>
+                      <div className="text-neutral-600 font-normal">Utile à partir de plusieurs campagnes par mois. 14 jours offerts, sans carte, sans engagement.</div>
                     </th>
                   </tr>
                 </thead>
@@ -115,15 +139,16 @@ export default async function PricingPage() {
                 </tbody>
               </table>
             </Card>
+            <p className="text-xs text-neutral-500 mt-3">{STARTING_LIMITS_NOTE}</p>
           </div>
 
           {/* Cartes empilées (mobile) */}
           <div className="md:hidden space-y-6">
             {(['free', 'pro'] as const).map((plan) => (
               <Card key={plan} className={`p-6 ${plan === 'pro' ? 'border-primary-300 bg-primary-50/40' : ''}`}>
-                <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">{plan === 'free' ? 'Gratuit' : 'Pro'}</div>
+                <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">{plan === 'free' ? 'Gratuit, tout compris' : 'Pro, pour le volume'}</div>
                 <div className="text-3xl font-bold text-neutral-900 mb-1">{plan === 'free' ? '0 €' : '79 € HT / mois'}</div>
-                <div className="text-sm text-neutral-600 mb-5">{plan === 'free' ? 'Pour toujours' : '14 jours offerts à l\'inscription, sans carte, sans engagement'}</div>
+                <div className="text-sm text-neutral-600 mb-5">{plan === 'free' ? 'Pour toujours. Tout ce qu\'il faut pour vos campagnes.' : 'Utile à partir de plusieurs campagnes par mois. 14 jours offerts, sans carte, sans engagement.'}</div>
                 <ul className="space-y-3 text-sm">
                   {ROWS.map((r) => (
                     <li key={r.label}>
@@ -137,6 +162,7 @@ export default async function PricingPage() {
                 </Link>
               </Card>
             ))}
+            <p className="text-xs text-neutral-500">{STARTING_LIMITS_NOTE}</p>
           </div>
         </section>
 
