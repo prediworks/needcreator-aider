@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight } from 'lucide-react';
+import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText } from 'lucide-react';
 import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 
@@ -23,19 +23,24 @@ export default async function BrandsPage() {
     [UserX, 'Garantie de remplacement, sans frais', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à l'un des autres devis reçus, en un clic. Le montant bloqué est libéré.`],
     [Clapperboard, 'Des vidéos prêtes à diffuser', 'En option, recevez chaque vidéo déclinée aux formats de chaque réseau (vertical, carré, horizontal), avec vignette et sous-titres automatiques. Publication Shopify en un clic.'],
     [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). Le nombre de révisions est écrit dans le devis que vous acceptez : pas de surprise après la livraison.`],
+    [LayoutTemplate, 'Partez d\'un modèle, ou d\'une campagne passée', 'Six modèles de brief par secteur (beauté, e-commerce, food, tech, mode, services) pré-remplissent votre campagne. Dupliquez une campagne réussie en un clic. Campagnes privées, sur invitation, pour retravailler avec vos créateurs habituels.'],
+    [Users, 'Toute votre équipe sur un seul compte', 'Invitez vos collaborateurs : chacun a son accès et agit au nom de l\'entreprise. Campagnes, missions et factures sont partagées. Seul le propriétaire gère l\'équipe, les informations administratives et l\'abonnement.'],
+    [FileText, 'Factures automatiques, TVA gérée', 'Une facture PDF par mission, un avoir en cas de remboursement, un relevé mensuel pour votre comptable. Les devis sont hors taxes ; la TVA n\'est ajoutée que si le créateur y est assujetti, et c\'est indiqué avant d\'accepter.'],
   ];
 
   const steps: [string, string, string][] = [
     ['1', 'Publiez votre brief', 'Cinq minutes suffisent. Les créateurs de vos niches sont prévenus.'],
     ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat.'],
     ['3', 'Sélectionnez et bloquez le montant', 'Votre carte est autorisée, pas débitée. Le contrat est généré.'],
-    ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Vous gardez les droits convenus.'],
+    ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Vous gardez les droits convenus, la facture arrive toute seule.'],
   ];
 
   const faq: [string, string][] = [
     ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix hors taxes, généralement à partir de 80 €. Vous payez exactement le devis accepté, plus la TVA si le créateur y est assujetti (indiqué sur le devis). La commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement. Vous recevez une facture pour chaque mission.`],
     ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
-    ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. En cas de désaccord persistant, notre équipe intervient.`],
+    ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. Si, révisions épuisées, les vidéos ne correspondent toujours pas au brief, vous ouvrez un litige : le créateur répond, notre équipe tranche, et le montant bloqué est réparti ou remboursé en conséquence.`],
+    ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
+    ['Comment fonctionnent les avis ?', 'En double aveugle, comme sur Airbnb : vous notez le créateur, il vous note, et les deux avis sont publiés en même temps. Personne n\'ajuste son avis en fonction de l\'autre. Vous pouvez répondre publiquement, une fois.'],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
     ['Faut-il un abonnement ?', 'Non. L\'inscription et les campagnes sont gratuites. Les factures sont générées automatiquement à chaque mission validée. L\'offre Pro, facultative, ajoute le brief IA illimité, les campagnes multi-créateurs et le gifting.'],
   ];

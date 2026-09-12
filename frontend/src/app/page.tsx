@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck } from 'lucide-react';
+import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell } from 'lucide-react';
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/' },
 };
 
-const jsonLd = (cfg: { autoApprovalDays: number }) => ({
+const jsonLd = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => ({
   '@context': 'https://schema.org',
   '@graph': [
     {
@@ -43,7 +43,7 @@ const jsonLd = (cfg: { autoApprovalDays: number }) => ({
         { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. La marque paie exactement ce prix hors taxes, plus la TVA si le créateur y est assujetti, sans frais ajoutés. NeedCreator retient une commission de 10 % sur le versement au créateur.' } },
         { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après ' + plural(cfg.autoApprovalDays, 'jour') + ' sans réponse.' } },
         { '@type': 'Question', name: 'Qui détient les droits sur les vidéos UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Les droits cédés (durée, supports, territoire, exclusivité) sont définis dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. La marque est prévenue 30 jours avant l\'expiration et peut prolonger les droits.' } },
-        { '@type': 'Question', name: 'Que se passe-t-il si le créateur ne livre pas ?', acceptedAnswer: { '@type': 'Answer', text: 'Après 48 heures de retard, la marque peut confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic. Le montant bloqué est libéré et la nouvelle mission démarre immédiatement.' } },
+        { '@type': 'Question', name: 'Que se passe-t-il si le créateur ne livre pas ?', acceptedAnswer: { '@type': 'Answer', text: 'Après ' + cfg.replacementGraceHours + ' heures de retard, la marque peut confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic. Le montant bloqué est libéré et la nouvelle mission démarre immédiatement.' } },
       ],
     },
   ],
@@ -125,11 +125,14 @@ export default async function HomePage() {
               [Shield, 'Paiement sécurisé', 'Le montant est bloqué via Stripe à la sélection et versé au créateur seulement après votre validation.'],
               [Clock, 'Validation automatique', `Sans réponse de la marque sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée. Personne ne reste bloqué.`],
               [FileSignature, 'Contrat et droits clairs', 'Chaque devis accepté génère un contrat de cession de droits en PDF. Durée, supports et territoire sont écrits, avec rappel avant expiration.'],
-              [UserX, 'Garantie de remplacement', 'Un créateur qui ne livre pas ? Après 48 h de retard, confiez la mission à un autre devis en un clic, sans frais.'],
+              [UserX, 'Garantie de remplacement', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à un autre devis en un clic, sans frais.`],
               [ShieldCheck, 'Conformité vérifiée', 'À la livraison, durée, format, son et mention du produit sont contrôlés automatiquement avant votre validation.'],
               [Video, 'Portfolio vidéo interactif', 'Regardez les vidéos des créateurs directement dans la plateforme, sans téléchargement.'],
               [TrendingUp, 'Prix transparents', 'Le prix affiché est le prix payé. Aucun frais ajouté pour la marque, aucun abonnement obligatoire.'],
-              [CheckCircle, 'Créateurs vérifiés', 'Chaque profil est validé manuellement par notre équipe, avec 3 vidéos minimum et identité administrative renseignée.'],
+              [CheckCircle, 'Créateurs vérifiés et formés', 'Chaque profil est validé manuellement par notre équipe, avec 3 vidéos minimum et identité administrative renseignée. Une académie gratuite et un badge Formé distinguent les créateurs qui l\'ont suivie.'],
+              [FileText, 'Factures automatiques', 'Une facture PDF par mission, émise au nom du créateur, un avoir en cas de remboursement, un relevé mensuel. TVA gérée selon le statut de chacun.'],
+              [Users, 'Modèles, campagnes privées, équipe', 'Six modèles de brief par secteur, duplication d\'une campagne passée, campagnes visibles uniquement des créateurs invités, et des collaborateurs qui travaillent sur le même compte marque.'],
+              [Bell, 'Rien ne s\'enlise', 'Relances automatiques à chaque étape, notifications dans l\'application, avis en double aveugle publiés ensemble, litiges arbitrés par notre équipe.'],
             ].map(([Icon, title, text]: any) => (
               <div key={title} className="text-center p-6">
                 <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">

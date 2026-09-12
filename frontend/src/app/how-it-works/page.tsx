@@ -9,19 +9,19 @@ export const metadata = {
   alternates: { canonical: '/how-it-works' },
 };
 
-const brandSteps = (cfg: { maxRevisions: number; autoApprovalDays: number }) => [
-  ['1', 'Créez votre campagne', 'Titre, brief guidé, budget suggéré selon le marché. 5 minutes suffisent.'],
+const brandSteps = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => [
+  ['1', 'Créez votre campagne', 'Partez d\'un modèle par secteur ou d\'une campagne passée. Brief guidé, budget suggéré selon le marché. 5 minutes suffisent. Campagne publique, ou privée sur invitation.'],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
   ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation. Un contrat de mission et de cession de droits en PDF est généré automatiquement.'],
-  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez des modifications dans la limite prévue par le devis. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic.'],
-  ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger.'],
+  ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez des modifications dans la limite prévue par le devis. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic. Révisions épuisées et vidéos toujours hors brief ? Ouvrez un litige, notre équipe tranche.'],
+  ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. La facture PDF est générée automatiquement. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger. Notez le créateur : les avis sont publiés en double aveugle.'],
 ];
 
 const creatorSteps = (cfg: { autoApprovalDays: number }) => [
-  ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio. Validation par notre équipe sous 24h.'],
+  ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio, protégées par un filigrane. Validation par notre équipe sous 24h. Vous obtenez une page publique avec QR code : votre kit média.'],
   ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire).'],
-  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom.'],
-  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
+  ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom. Votre page « Mes missions » suit chaque échéance.'],
+  ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe, à une date affichée dans votre calendrier de paiements. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'Avis en double aveugle : chacun note sans voir l\'avis de l\'autre, les deux sont publiés ensemble. La réactivité des marques est visible par tous les créateurs, et chacun peut répondre publiquement à un avis.'],
 ];
 
@@ -90,7 +90,7 @@ export default async function HowItWorksPage() {
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Garantie de remplacement</div>
-              <p className="text-neutral-600">Un créateur en retard de plus de 48 h ? La marque confie la mission à un autre devis, le montant bloqué est libéré, sans frais.</p>
+              <p className="text-neutral-600">Un créateur en retard de plus de {cfg.replacementGraceHours} h ? La marque confie la mission à un autre devis, le montant bloqué est libéré, sans frais.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Score de conformité</div>
@@ -111,6 +111,22 @@ export default async function HowItWorksPage() {
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Paiement sécurisé Stripe</div>
               <p className="text-neutral-600">Montant bloqué à la sélection, versé à la validation. Ni séquestre, ni facture à relancer.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Factures, avoirs et relevés automatiques</div>
+              <p className="text-neutral-600">Une facture PDF par mission, émise au nom du créateur grâce au mandat de facturation, un avoir en cas de remboursement, un relevé mensuel pour chaque comptable. TVA appliquée selon le statut du créateur.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Avis en double aveugle</div>
+              <p className="text-neutral-600">Marque et créateur se notent sans voir l&apos;avis de l&apos;autre ; les deux sont publiés ensemble. Un désaccord sur une livraison devient un litige arbitré par notre équipe, après réponse du créateur.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Académie et kit média pour les créateurs</div>
+              <p className="text-neutral-600">Cinq guides gratuits avec quiz, un badge Formé qui compte dans le classement des candidatures, une page publique avec QR code, un calendrier de paiements et le suivi des seuils micro-entreprise.</p>
+            </div>
+            <div>
+              <div className="font-semibold text-neutral-900 mb-1">Modèles, campagnes privées et équipe</div>
+              <p className="text-neutral-600">Six modèles de brief par secteur, duplication d&apos;une campagne passée, campagnes visibles des seuls créateurs invités, et plusieurs collaborateurs sur le même compte marque.</p>
             </div>
           </div>
         </Card>

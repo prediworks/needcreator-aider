@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock } from 'lucide-react';
+import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText } from 'lucide-react';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
@@ -20,15 +20,18 @@ export default async function CreatorsPage() {
     [Euro, 'Vous fixez votre prix', 'Chaque campagne, vous envoyez un devis : prix, délai, droits cédés. La marque accepte ou non. Pas de grille imposée, pas d\'enchères à la baisse.'],
     [Lock, 'Payé, c\'est garanti', `Le montant est bloqué par la marque avant que vous tourniez. Vous recevez ${cfg.creatorSharePercent} % de votre devis dès la validation, ou automatiquement sous ${days} si la marque ne répond pas. Virement Stripe direct.`],
     [FileSignature, 'Un contrat qui protège vos droits', 'Durée, supports et territoire d\'utilisation de vos vidéos sont écrits dans un contrat généré à chaque mission. Quand les droits expirent, la marque vous achète une prolongation, au prix que vous fixez.'],
-    [CalendarCheck, 'Des missions claires', `Brief détaillé, date limite affichée, nombre de vidéos attendu. Vous fixez le nombre de révisions dans votre devis (${cfg.maxRevisions} au plus). Vous savez exactement quoi livrer et quand vous serez payé.`],
+    [CalendarCheck, 'Des missions claires', 'Brief détaillé, date limite affichée, nombre de vidéos attendu. Le nombre de révisions, c\'est vous qui l\'écrivez dans votre devis. Vous savez exactement quoi livrer et quand vous serez payé.'],
     [Star, 'Devenez Ambassadeur', `Publiez une vidéo sur NeedCreator sur vos réseaux : vous voyez chaque campagne ${cfg.earlyAccessHours} h avant tout le monde, vos devis remontent en tête chez les marques et votre profil en tête de notre annuaire.`],
     [Gift, 'Parrainez, gagnez', `${cfg.referralCreatorBonus} € pour chaque créateur que vous parrainez et qui livre sa première mission. Et si vous aimez tester des produits, les campagnes gifting sont à vous, sans commission.`],
+    [FileText, 'Zéro paperasse', 'Vos factures sont émises en votre nom à chaque mission, avec un relevé mensuel pour votre comptable. Un calendrier vous dit quand chaque virement arrive et où vous en êtes par rapport aux seuils de la micro-entreprise.'],
+    [GraduationCap, 'Une académie gratuite, un badge qui compte', 'Cinq guides courts : lire un brief, lumière, son, les trois premières secondes, rédiger un devis. Un quiz par guide. Trois guides réussis vous donnent le badge Formé, et un coup de pouce dans le classement des candidatures.'],
+    [QrCode, 'Votre kit média', 'Une page publique à votre nom, avec portfolio, niches, tarifs et QR code, à mettre dans votre bio ou à envoyer aux marques. Vos vidéos de portfolio y sont protégées par un filigrane ; l\'original reste chez vous.'],
   ];
 
   const steps: [string, string, string][] = [
     ['1', 'Créez votre profil', `Nom, niches, ${cfg.minCreatorVideos} vidéos de portfolio. Validation sous 24 h.`],
     ['2', 'Envoyez vos devis', 'Un fil de campagnes selon vos niches. Votre prix, votre délai, vos conditions.'],
-    ['3', 'Tournez sereinement', 'Sélectionné ? Le paiement est déjà bloqué et le contrat signé.'],
+    ['3', 'Tournez sereinement', 'Sélectionné ? Le paiement est déjà bloqué et le contrat signé. Votre page « Mes missions » affiche l\'échéance et le montant de chacune.'],
     ['4', 'Livrez, encaissez', `Envoyez vos vidéos. Validation par la marque ou automatique sous ${days}, puis virement Stripe.`],
   ];
 
@@ -36,7 +39,9 @@ export default async function CreatorsPage() {
     ['Faut-il beaucoup d\'abonnés ?', 'Non. L\'UGC est publié sur les comptes des marques, pas sur le vôtre. Les marques regardent votre portfolio, pas votre audience. Trois vidéos suffisent pour commencer.'],
     ['Combien je gagne par vidéo ?', `Le prix HT que vous demandez, moins la commission de ${cfg.platformFeePercent} % (si vous êtes assujetti à la TVA, la marque la paie en plus et vous la reversez). Les devis acceptés démarrent en général autour de 80 € par vidéo et montent avec l'expérience et les droits cédés.`],
     ['Et si la marque ne répond pas ?', `Elle a ${days} pour valider ou demander une révision. Passé ce délai, la livraison est validée et le paiement part automatiquement. Personne ne reste bloqué.`],
-    ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission, et NeedCreator émet vos factures en votre nom (mandat de facturation) : rien à rédiger. Le compte Stripe se connecte en deux minutes.'],
+    ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission, et NeedCreator émet vos factures en votre nom (mandat de facturation) : rien à rédiger. Si vous êtes assujetti à la TVA, indiquez-le dans votre profil : vos devis restent HT et la marque paie la TVA en plus. Le compte Stripe se connecte en deux minutes.'],
+    ['Et si la marque refuse mes vidéos ?', 'Elle ne peut refuser définitivement qu\'une fois les révisions du devis épuisées, et elle doit le justifier. Vous répondez une fois, notre équipe tranche : validation, partage du montant ou remboursement. Vous n\'êtes jamais jugé sans être entendu.'],
+    ['Mes vidéos de portfolio sont-elles protégées ?', 'Oui. Les marques et les visiteurs voient une version marquée d\'un filigrane NeedCreator ; l\'original n\'est jamais téléchargeable. Vous pouvez aussi indiquer que vous n\'êtes pas disponible : votre profil reste visible, mais les marques sont prévenues.'],
     ['C\'est gratuit ?', 'Oui. Aucun abonnement, aucun frais d\'inscription. La commission n\'est retenue que sur une mission payée.'],
   ];
 

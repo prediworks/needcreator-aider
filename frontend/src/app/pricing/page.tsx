@@ -12,7 +12,7 @@ export const metadata = {
 
 type Cell = { text: string; ok?: boolean };
 
-const rows = (cfg: { maxRevisions: number; autoApprovalDays: number }): { label: string; free: Cell; pro: Cell }[] => [
+const rows = (cfg: { autoApprovalDays: number }): { label: string; free: Cell; pro: Cell }[] => [
   { label: 'Prix des vidéos', free: { text: 'Le devis du créateur' }, pro: { text: 'Le devis du créateur' } },
   { label: 'Frais ajoutés au paiement', free: { text: 'Aucun', ok: true }, pro: { text: 'Aucun', ok: true } },
   { label: 'Devis reçus par campagne', free: { text: 'Illimités', ok: true }, pro: { text: 'Illimités', ok: true } },
@@ -25,15 +25,20 @@ const rows = (cfg: { maxRevisions: number; autoApprovalDays: number }): { label:
   { label: 'Garantie de remplacement si le créateur ne livre pas', free: { text: 'Incluse, sans frais', ok: true }, pro: { text: 'Incluse, sans frais', ok: true } },
   { label: 'Score de conformité au brief à la livraison', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
   { label: `Révisions incluses (précisées dans chaque devis), validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`, free: { text: 'Oui', ok: true }, pro: { text: 'Oui', ok: true } },
+  { label: 'Modèles de campagne par secteur, duplication d\'une campagne passée', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: 'Campagnes privées, visibles des seuls créateurs invités', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: 'Équipe : collaborateurs sur le même compte marque', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: 'Factures PDF par mission, avoirs, relevé mensuel', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
+  { label: 'Litige arbitré par notre équipe, avis en double aveugle', free: { text: 'Inclus', ok: true }, pro: { text: 'Inclus', ok: true } },
 ];
 
-const faq = (cfg: { maxRevisions: number; autoApprovalDays: number }) => [
+const faq = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => [
   ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté, hors taxes, plus la TVA lorsque le créateur y est assujetti (indiqué sur chaque devis). La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif.'],
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement ' + plural(cfg.autoApprovalDays, 'jour') + ' après la livraison si vous ne répondez pas.'],
   ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander des modifications, dans la limite du nombre de révisions prévu par le devis que vous avez accepté. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
   ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
   ['Qui détient les droits sur les vidéos ?', 'Les droits cédés (durée, supports, territoire, exclusivité éventuelle) sont fixés dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. Vous êtes prévenu 30 jours avant l\'expiration et pouvez demander une prolongation, dont le créateur fixe le prix.'],
-  ['Que se passe-t-il si le créateur ne livre pas ?', 'Il est relancé à la date prévue. Après 48 heures de retard, vous pouvez confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic : le montant bloqué est libéré et la nouvelle mission démarre immédiatement. Sans frais.'],
+  ['Que se passe-t-il si le créateur ne livre pas ?', 'Il est relancé à la date prévue. Après ' + cfg.replacementGraceHours + ' heures de retard, vous pouvez confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic : le montant bloqué est libéré et la nouvelle mission démarre immédiatement. Sans frais.'],
   ['Comment le créateur est-il payé ?', 'Par virement automatique sur son compte Stripe, dès la validation de la livraison. Il reçoit 90 % du devis. Sur une campagne gifting, aucune commission n\'est retenue.'],
 ];
 
@@ -151,6 +156,8 @@ export default async function PricingPage() {
                   'Paiement garanti : le montant est bloqué avant que vous ne commenciez',
                   `Validation automatique si la marque ne répond pas sous ${plural(cfg.autoApprovalDays, 'jour')}`,
                   'Gifting : produit offert, aucune commission',
+                  'Factures émises en votre nom, relevé mensuel, calendrier de paiements',
+                  'Académie gratuite, badge Formé, kit média avec QR code',
                 ].map((t) => (
                   <li key={t} className="flex gap-2"><Check className="w-4 h-4 text-secondary-500 mt-0.5 flex-shrink-0" />{t}</li>
                 ))}
