@@ -117,6 +117,15 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 3. **Quand le volume arrive** : litiges et remboursements, facturation, tableau de bord ROI, connexion aux réseaux sociaux, PWA créateurs.
 4. **Croissance** : multi-langues, WooCommerce et PrestaShop, équipe marque, API publique, application mobile.
 
+## 4 bis. Réseaux sociaux NeedCreator (comptes créés le 12/09/2026)
+
+1. **Relier au site** (code, 1 h) : icônes dans le pied de page, adresses des comptes dans les données structurées de l'accueil. En attente des adresses exactes des comptes.
+2. **Remplir avant le mailing aux créateurs** (vous) : logo, bannière, bio en une phrase avec le lien du site, 5 à 10 publications. Matière existante : guides de l'académie (carrousels, vidéos courtes), modèles de campagne (exemples de briefs), FAQ des pages marques et créateurs.
+3. **Un rôle par réseau** : TikTok et Instagram pour recruter des créateurs (conseils de tournage, coulisses, republication des vidéos des Ambassadeurs qui ont donné leur accord) ; LinkedIn pour convaincre les marques (prix constatés, contrat de droits, garantie de remplacement, premier cas client). Les autres comptes : réservation du nom + lien vers le site.
+4. **Lien d'inscription** dans chaque publication destinée aux créateurs ; les Ambassadeurs publient avec leur propre lien de parrainage.
+5. **Plus tard**, avec des missions terminées : avis de marques, vidéos livrées avec accord des deux parties, compteurs réels (voir « preuves sociales réelles »).
+6. **Option code** : un lot de dix textes de publication prêts à copier, par réseau.
+
 ## 5. Questions pour l'expert-comptable
 
 1. **Mandat de facturation** : NeedCreator émet les factures des créateurs en leur nom (mandat accepté dans les informations administratives). Formulation et mentions à valider.
