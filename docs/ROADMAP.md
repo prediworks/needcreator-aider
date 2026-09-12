@@ -85,6 +85,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 
 | Idée | Ce que ça apporte | Effort |
 |---|---|---|
+| **Déclaration DAC7** (obligation légale, échéance 31 janvier 2027 pour les revenus 2026) | NeedCreator est un opérateur de plateforme déclarant : prestations de service payées par son intermédiaire, sans seuil d'exemption. À faire : collecter le numéro fiscal et la date de naissance des créateurs particuliers, produire chaque année le fichier XML DGFiP (identité, adresse, SIREN ou numéro fiscal, compte de versement, montants par trimestre, commissions), envoyer le récapitulatif annuel à chaque créateur, s'inscrire comme opérateur auprès de la DGFiP (démarche à confirmer avec l'expert-comptable). Amende jusqu'à 50 000 € en cas d'oubli. | M (2 à 3 jours), avant fin 2026 |
 | **Matching enrichi** : similarité entre le brief et les vidéos du portfolio (transcription + IA), style, rythme | Le score actuel n'utilise pas le contenu des vidéos | M |
 | **Détection de fraude** : vidéo de portfolio déjà vue ailleurs, comptes multiples, liens de livraison invalides | Protège les marques | M |
 | ~~**Relances automatiques**~~ | Livré le 11 septembre 2026 : devis sans réponse (marque, 3 j), mission sans vidéo (créateur, 5 j), produit expédié non confirmé (créateur, 5 j), révision sans nouvelle version (créateur, 3 j). Délais réglables dans Administration → Réglages, 0 = désactivé, une relance par élément | — |
@@ -115,3 +116,12 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 2. **Premières semaines d'usage** : signalement et modération, relances automatiques, contrat PDF, comparateur de candidats, modèles de campagne.
 3. **Quand le volume arrive** : litiges et remboursements, facturation, tableau de bord ROI, connexion aux réseaux sociaux, PWA créateurs.
 4. **Croissance** : multi-langues, WooCommerce et PrestaShop, équipe marque, API publique, application mobile.
+
+## 5. Questions pour l'expert-comptable
+
+1. **Mandat de facturation** : NeedCreator émet les factures des créateurs en leur nom (mandat accepté dans les informations administratives). Formulation et mentions à valider.
+2. **Numérotation** : une séquence par créateur (`CR-XXXXXX-AAAA-0001`), une séquence NeedCreator (`NC-F-AAAA-000001`), avoirs `AV-…` et `NC-A-…`. Conforme ?
+3. **Compte de tiers** : le prix du devis va de la marque au créateur via Stripe Connect ; seule la commission est un produit de NeedCreator. Traitement comptable de ces flux.
+4. **CGU** : clause de mandat de facturation et de TVA à relire.
+5. **PayPal** (si un jour proposé) : les versements partiraient de la trésorerie de NeedCreator au lieu d'un flux direct marque → créateur. Conséquences comptables.
+6. **DAC7** : confirmer que NeedCreator est opérateur de plateforme déclarant, la démarche d'inscription auprès de la DGFiP, la liste exacte des informations à collecter (numéro fiscal, date de naissance des particuliers) et le calendrier (première déclaration en janvier 2027 pour 2026).
