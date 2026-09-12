@@ -251,6 +251,17 @@ export const schemas = {
     terms: Joi.string().max(2000).allow(''),
   }),
 
+  // Contre-proposition de la marque sur un devis
+  counterOffer: Joi.object({
+    price: Joi.number().min(0).max(10000).required(),
+    estimatedDeliveryDays: Joi.number().integer().min(1).max(60),
+    revisions: Joi.number().integer().min(0).max(10),
+    message: Joi.string().max(1000).allow(''),
+  }),
+  counterOfferResponse: Joi.object({
+    accept: Joi.boolean().required(),
+  }),
+
   // Liens de livraison
   deliveryLinks: Joi.object({
     links: Joi.array().items(Joi.object({

@@ -201,6 +201,16 @@ const campaignSchema = new mongoose.Schema({
         savedAt: Date,
       }],
     },
+    // Contre-proposition de la marque (prix / délai / révisions) : le créateur accepte, refuse ou renvoie un devis
+    counterOffer: {
+      price: Number,
+      estimatedDeliveryDays: Number,
+      revisions: Number,
+      message: String,
+      proposedAt: Date,
+      status: { type: String, enum: ['pending', 'accepted', 'declined', 'superseded'] },
+      respondedAt: Date,
+    },
   }],
   
   // Premier créateur sélectionné (compatibilité) + liste complète (campagne multi-créateurs)

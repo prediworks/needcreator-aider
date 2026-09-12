@@ -212,6 +212,37 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
 }
 
 /**
+ * Contre-proposition de la marque sur un devis (au créateur)
+ */
+export async function sendCounterOffer(email, name, companyName, campaignTitle, campaignId, offer, current) {
+  const subject = `${companyName} vous fait une contre-proposition pour "${campaignTitle}"`;
+  const rows = [['Campagne', campaignTitle], ['Votre devis', `${current.price} € HT · ${current.estimatedDeliveryDays} j · ${current.revisions} révision(s)`], ['Proposition', `${offer.price} € HT · ${offer.estimatedDeliveryDays} j · ${offer.revisions} révision(s)`]];
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>${companyName} souhaite travailler avec vous, à des conditions un peu différentes de votre devis.</p>
+    ${summary(rows)}
+    ${offer.message ? `<p><em>« ${offer.message} »</em></p>` : ''}
+    <p>Vous pouvez accepter en un clic, refuser, ou renvoyer un devis modifié. Tant que vous n'avez pas répondu, votre devis d'origine reste valable.</p>
+    ${button(`${config.cors.origin}/campaigns/${campaignId}`, 'Répondre à la proposition')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
+ * Réponse du créateur à une contre-proposition (à la marque)
+ */
+export async function sendCounterOfferResponse(email, companyName, creatorName, campaignTitle, campaignId, accepted, offer) {
+  const subject = accepted ? `${creatorName} accepte votre contre-proposition` : `${creatorName} décline votre contre-proposition`;
+  const html = `
+    <h1>Bonjour ${companyName},</h1>
+    <p>${creatorName} ${accepted ? 'a accepté' : 'a décliné'} votre contre-proposition pour "${campaignTitle}"${accepted ? ` : ${offer.price} € HT, livraison sous ${offer.estimatedDeliveryDays} j, ${offer.revisions} révision(s).` : '. Son devis d\'origine reste valable, et vous pouvez continuer à échanger par messagerie.'}</p>
+    ${accepted ? '<p>Le devis a été mis à jour. Vous pouvez maintenant l\'accepter et bloquer le paiement pour lancer la production.</p>' : ''}
+    ${button(`${config.cors.origin}/campaigns/${campaignId}`, accepted ? 'Accepter le devis' : 'Voir la candidature')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
  * Application accepted notification for creator
  */
 export async function sendApplicationAccepted(email, name, campaignTitle, campaignId) {

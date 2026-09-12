@@ -447,6 +447,43 @@ await step('Messagerie : négociation du devis entre la marque et le créateur',
   return '2 messages échangés, compteurs non lus corrects';
 });
 
+await step('Contre-proposition : marque → créateur (refus, puis acceptation = devis mis à jour)', async () => {
+  const same = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 260, estimatedDeliveryDays: 6, revisions: 2 });
+  expect(same.status === 400, 'Une contre-proposition identique au devis doit être refusée', same);
+  const tooMany = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 240, revisions: 9 });
+  expect(tooMany.status === 400 && tooMany.data.code === 'REVISIONS_ABOVE_CAP', 'Révisions au-dessus du plafond refusées', tooMany);
+  const c1 = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 230, estimatedDeliveryDays: 5, message: 'Budget serré ce mois-ci' });
+  expect(c1.status === 200 && c1.data.application.counterOffer.status === 'pending' && c1.data.application.price === 260, 'Contre-proposition non enregistrée ou devis modifié trop tôt', c1);
+  const seen = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  expect(seen.data.campaign.myApplication?.counterOffer?.price === 230, 'Le créateur devrait voir la contre-proposition', seen);
+  const bell = await creatorApi('GET', '/notifications');
+  expect(bell.status === 200 && bell.data.notifications.some(n => /Contre-proposition/.test(n.title)), 'Notification de contre-proposition absente', bell);
+  const no = await creatorApi('POST', `/campaigns/${campaign._id}/counter/respond`, { accept: false });
+  expect(no.status === 200 && no.data.application.counterOffer.status === 'declined' && no.data.application.price === 260, 'Le refus doit laisser le devis intact', no);
+  const again = await creatorApi('POST', `/campaigns/${campaign._id}/counter/respond`, { accept: true });
+  expect(again.status === 400, 'Pas de réponse possible sans contre-proposition en attente', again);
+  const c2 = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 250, estimatedDeliveryDays: 5, revisions: 1 });
+  expect(c2.status === 200, 'Seconde contre-proposition échouée', c2);
+  const yes = await creatorApi('POST', `/campaigns/${campaign._id}/counter/respond`, { accept: true });
+  expect(yes.status === 200 && yes.data.application.price === 250 && yes.data.application.estimatedDeliveryDays === 5 && yes.data.application.quote.revisions === 1, 'L\'acceptation doit mettre le devis à jour', yes);
+  expect(yes.data.application.quote.version === 3 && yes.data.application.quote.history.length === 2, 'Le devis accepté doit être versionné', yes);
+  expect(yes.data.application.quote.rights.duration === '2y', 'Les droits du devis ne doivent pas changer', yes);
+  const brandView = await brandApi('GET', `/campaigns/${campaign._id}`);
+  expect(brandView.data.campaign.applications[0].counterOffer.status === 'accepted', 'Statut accepté invisible côté marque', brandView);
+  const unknown = await brandApi('POST', `/campaigns/${campaign._id}/applications/000000000000000000000000/counter`, { price: 100 });
+  expect(unknown.status === 404, 'Candidature inconnue → 404', unknown);
+  // Nouvelle contre-proposition, puis le créateur renvoie un devis : la contre-proposition est remplacée (et le devis revient à 260 € pour la suite du test)
+  const c3 = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 240 });
+  expect(c3.status === 200, 'Troisième contre-proposition échouée', c3);
+  const back = await creatorApi('PATCH', `/campaigns/${campaign._id}/quote`, {
+    proposal: 'Je suis motivé !', price: 260, estimatedDeliveryDays: 6,
+    rights: { duration: '2y', supports: ['social_organic', 'paid_ads'], territories: 'Europe', exclusivity: true, exclusivityMonths: 3 },
+    deliveryTypes: ['file', 'link'], platforms: ['tiktok'], revisions: 2, terms: 'Produit à fournir par la marque.',
+  });
+  expect(back.status === 200 && back.data.application.price === 260 && back.data.application.counterOffer.status === 'superseded', 'Un nouveau devis doit remplacer la contre-proposition en attente', back);
+  return 'refus, acceptation (260€ → 250€, 1 révision, v3), puis nouveau devis 260€ qui remplace une 3e contre-proposition';
+});
+
 await step('Marque : voit la candidature (score de matching)', async () => {
   const res = await brandApi('GET', `/campaigns/${campaign._id}`);
   expect(res.status === 200 && res.data.campaign.applications?.length === 1, 'Candidature invisible côté marque', res);

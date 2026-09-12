@@ -3,14 +3,16 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
-import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote } from '@/hooks/useCampaigns';
+import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote, useCounterOffer, useRespondCounterOffer } from '@/hooks/useCampaigns';
+import { CounterOfferForm, CounterOfferStatus, CounterOfferPrompt } from '@/components/CounterOfferForm';
+import CandidatesCompare from '@/components/CandidatesCompare';
 import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import LevelBadges from '@/components/LevelBadges';
 import GroupPaymentCard from '@/components/GroupPaymentCard';
 import Conversation from '@/components/Conversation';
 import ReportButton from '@/components/ReportButton';
 import { CAMPAIGN_TYPES } from '@/lib/labels';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Sparkles, GitCompare } from 'lucide-react';
 import Badge2 from '@/components/ui/Badge';
 import { DELIVERY_STATUS } from '@/lib/labels';
 import Card from '@/components/ui/Card';
@@ -47,10 +49,15 @@ export default function CampaignDetailPage() {
   const cancelMutation = useCancelCampaign();
   const selectMutation = useSelectCreator();
   const updateQuoteMutation = useUpdateQuote();
+  const counterMutation = useCounterOffer();
+  const respondCounterMutation = useRespondCounterOffer();
 
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [editingQuote, setEditingQuote] = useState(false);
   const [openChat, setOpenChat] = useState<string | null>(null);
+  const [openCounter, setOpenCounter] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'match' | 'price' | 'days' | 'rating'>('match');
+  const [compareIds, setCompareIds] = useState<string[]>([]);
 
   if (!ready || isLoading) return <Spinner />;
 
@@ -97,6 +104,20 @@ export default function CampaignDetailPage() {
     if (!confirm('Annuler définitivement cette campagne ?')) return;
     await cancelMutation.mutateAsync(campaignId);
   };
+
+  const handleCounter = async (creatorId: string, data: any) => {
+    await counterMutation.mutateAsync({ campaignId, creatorId, data });
+    setOpenCounter(null);
+  };
+
+  // Candidatures triées selon le critère choisi (le serveur les envoie par score de matching)
+  const sortedApplications: any[] = [...(campaign.applications || [])].sort((a: any, b: any) => {
+    if (sortBy === 'price') return (a.price || 0) - (b.price || 0);
+    if (sortBy === 'days') return (a.estimatedDeliveryDays || 0) - (b.estimatedDeliveryDays || 0);
+    if (sortBy === 'rating') return (b.creatorId?.profile?.stats?.rating || 0) - (a.creatorId?.profile?.stats?.rating || 0);
+    return (b.matchScore || 0) - (a.matchScore || 0);
+  });
+  const toggleCompare = (id: string) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= 4 ? ids : [...ids, id]));
 
 
   return (
@@ -333,10 +354,35 @@ export default function CampaignDetailPage() {
                 <h2 className="text-xl font-semibold text-neutral-900 mb-1">
                   Candidatures ({campaign.applications?.length || 0})
                 </h2>
-                <p className="text-sm text-neutral-500 mb-4">Triées par score de matching (niches, budget, note, réactivité).</p>
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                  <p className="text-sm text-neutral-500">Le score de matching combine niches, budget, note et réactivité.</p>
+                  {campaign.applications?.length > 1 && (
+                    <label className="text-sm text-neutral-600 flex items-center gap-2">Trier par
+                      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="border border-neutral-300 rounded-lg px-2 py-1 text-sm">
+                        <option value="match">score de matching</option>
+                        <option value="price">prix croissant</option>
+                        <option value="days">délai le plus court</option>
+                        <option value="rating">meilleure note</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+                {campaign.applications?.length > 1 && (
+                  <p className="text-xs text-neutral-500 mb-3 flex items-center gap-1"><GitCompare className="w-3.5 h-3.5" /> Cochez jusqu&apos;à 4 candidats pour les comparer côte à côte.{compareIds.length > 0 ? ` (${compareIds.length} sélectionné${compareIds.length > 1 ? 's' : ''})` : ''}</p>
+                )}
+                {compareIds.length >= 2 && (
+                  <CandidatesCompare
+                    applications={sortedApplications.filter((a: any) => compareIds.includes(a.creatorId?._id || a.creatorId))}
+                    deliverables={campaign.brief?.deliverables || 1}
+                    onRemove={(id) => setCompareIds((ids) => ids.filter((x) => x !== id))}
+                    onSelect={handleSelect}
+                    canSelect={campaign.status === 'active' && (campaign.remainingSlots ?? 1) > 0}
+                    isGifting={campaign.type === 'gifting'}
+                  />
+                )}
                 {campaign.applications?.length > 0 ? (
                   <div className="space-y-4">
-                    {campaign.applications.map((app: any) => {
+                    {sortedApplications.map((app: any) => {
                       const c = app.creatorId || {};
                       const cid = c._id || app.creatorId;
                       const rating = c.profile?.stats?.rating || 0;
@@ -345,6 +391,9 @@ export default function CampaignDetailPage() {
                         <div key={app._id} className="border border-neutral-200 rounded-lg p-4">
                           <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
+                              {campaign.applications.length > 1 && (
+                                <input type="checkbox" aria-label={`Comparer ${c.profile?.name || ''}`} checked={compareIds.includes(cid)} onChange={() => toggleCompare(cid)} disabled={!compareIds.includes(cid) && compareIds.length >= 4} className="w-4 h-4 accent-primary-600" />
+                              )}
                               <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center overflow-hidden">
                                 {c.profile?.avatar ? (
                                   <img src={c.profile.avatar} alt="" className="w-full h-full object-cover" />
@@ -381,6 +430,12 @@ export default function CampaignDetailPage() {
                             <div className="text-xs font-semibold text-neutral-500 uppercase mb-1">Devis</div>
                             <QuoteSummary application={app} />
                           </div>
+                          <CounterOfferStatus offer={app.counterOffer} />
+                          {openCounter === cid && (
+                            <div className="mb-3">
+                              <CounterOfferForm application={app} isLoading={counterMutation.isPending} onSubmit={(d) => handleCounter(cid, d)} onCancel={() => setOpenCounter(null)} />
+                            </div>
+                          )}
                           {openChat === cid && (
                             <div className="mb-3">
                               <Conversation campaignId={campaignId} creatorId={cid} compact />
@@ -394,6 +449,11 @@ export default function CampaignDetailPage() {
                             <Button size="sm" variant="ghost" onClick={() => setOpenChat(openChat === cid ? null : cid)}>
                               <MessageCircle className="w-4 h-4 mr-1" /> {openChat === cid ? 'Fermer' : 'Discuter'}
                             </Button>
+                            {app.status === 'pending' && campaign.status === 'active' && campaign.type !== 'gifting' && app.counterOffer?.status !== 'pending' && (
+                              <Button size="sm" variant="outline" onClick={() => setOpenCounter(openCounter === cid ? null : cid)}>
+                                <Sparkles className="w-4 h-4 mr-1" /> Contre-proposer
+                              </Button>
+                            )}
                             {app.status === 'pending' && campaign.status === 'active' && (campaign.remainingSlots ?? 1) > 0 && (
                               <Button
                                 size="sm"
@@ -527,6 +587,17 @@ export default function CampaignDetailPage() {
                       <Badge map={APPLICATION_STATUS} value={campaign.myApplication?.status} />
                     </div>
                     {campaign.myApplication && <QuoteSummary application={campaign.myApplication} compact />}
+                    {campaign.myApplication?.counterOffer?.status === 'pending' && campaign.myApplication?.status === 'pending' && campaign.status === 'active' && (
+                      <CounterOfferPrompt
+                        offer={campaign.myApplication.counterOffer}
+                        application={campaign.myApplication}
+                        companyName={campaign.brandId?.profile?.companyName}
+                        isLoading={respondCounterMutation.isPending}
+                        onAccept={() => respondCounterMutation.mutate({ campaignId, accept: true })}
+                        onDecline={() => { if (confirm('Refuser la contre-proposition ? Votre devis d\'origine reste valable.')) respondCounterMutation.mutate({ campaignId, accept: false }); }}
+                        onEdit={() => setEditingQuote(true)}
+                      />
+                    )}
                     {campaign.myApplication?.status === 'pending' && campaign.status === 'active' && (
                       <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => setEditingQuote(true)}>
                         Modifier mon devis

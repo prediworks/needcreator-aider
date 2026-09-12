@@ -15,6 +15,8 @@ import {
   createPaymentSetup,
   payAllPending,
   listTemplates,
+  counterOffer,
+  respondCounterOffer,
 } from '../controllers/campaigns.js';
 
 import { aiBrief, aiStatus } from '../controllers/ai.js';
@@ -40,6 +42,8 @@ router.post('/:campaignId/publish', authenticate, authorize('brand'), requireVer
 router.post('/:campaignId/apply', authenticate, authorize('creator'), requireVerifiedEmail, validate(schemas.quote), applyToCampaign);
 router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
 router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
+router.post('/:campaignId/applications/:creatorId/counter', authenticate, authorize('brand'), validate(schemas.counterOffer), counterOffer); // contre-proposition
+router.post('/:campaignId/counter/respond', authenticate, authorize('creator'), validate(schemas.counterOfferResponse), respondCounterOffer);
 router.post('/:campaignId/payment-setup', authenticate, authorize('brand'), createPaymentSetup);
 router.post('/:campaignId/pay-all', authenticate, authorize('brand'), payAllPending);
 router.post('/:campaignId/select/:creatorId', authenticate, authorize('brand'), selectCreator);

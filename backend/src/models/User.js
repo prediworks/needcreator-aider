@@ -139,8 +139,8 @@ const userSchema = new mongoose.Schema({
     slug: { type: String, index: true, sparse: true }, // adresse publique courte /c/<slug> (kit média)
     academy: [{ slug: String, score: Number, passed: Boolean, completedAt: Date, _id: false }],
     publicConsent: {
-      site: { type: Boolean, default: false },      // fiche et portfolio visibles sur le site public (hors application)
-      marketing: { type: Boolean, default: false }, // vidéos réutilisables sur la page d'accueil et les réseaux NeedCreator
+      site: { type: Boolean, default: true },       // fiche et portfolio visibles sur le site public (hors application) ; activé par défaut, le créateur peut retirer
+      marketing: { type: Boolean, default: true },  // vidéos réutilisables sur la page d'accueil et les réseaux NeedCreator ; activé par défaut, retirable
       updatedAt: Date,
     },
     ambassador: {

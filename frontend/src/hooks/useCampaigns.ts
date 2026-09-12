@@ -162,3 +162,40 @@ export function useUpdateCampaign() {
     },
   });
 }
+
+/** Contre-proposition de la marque sur un devis */
+export function useCounterOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, creatorId, data }: { campaignId: string; creatorId: string; data: any }) => {
+      const response = await api.post(`/campaigns/${campaignId}/applications/${creatorId}/counter`, data);
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['campaign', variables.campaignId] });
+      toast.success(data.message || 'Contre-proposition envoyée');
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Contre-proposition impossible'), { duration: 8000 });
+    },
+  });
+}
+
+/** Réponse du créateur à une contre-proposition */
+export function useRespondCounterOffer() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, accept }: { campaignId: string; accept: boolean }) => {
+      const response = await api.post(`/campaigns/${campaignId}/counter/respond`, { accept });
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', variables.campaignId] });
+      toast.success(data.message);
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Réponse impossible'));
+    },
+  });
+}

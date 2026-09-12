@@ -478,7 +478,7 @@ function ProfileContent() {
                 Les marques regardent ces vidéos avant d&apos;accepter un devis. 3 vidéos minimum pour envoyer un devis, montrez votre meilleur travail.
               </p>
               <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-3 mb-6 space-y-2 text-sm">
-                <div className="font-medium text-neutral-900">Où vos vidéos peuvent apparaître</div>
+                <div className="font-medium text-neutral-900">Où vos vidéos peuvent apparaître (activé par défaut, décochez pour retirer votre accord)</div>
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input type="checkbox" className="mt-0.5" checked={!!profile.profile.publicConsent?.site} onChange={(e) => updateMutation.mutate({ profile: { publicConsent: { site: e.target.checked, marketing: !!profile.profile.publicConsent?.marketing } } })} />
                   <span><strong>Sur le site public NeedCreator</strong> (page « Nos créateurs », visible par tous, bon pour votre référencement). Sans cet accord, seules les marques connectées voient votre portfolio.</span>
