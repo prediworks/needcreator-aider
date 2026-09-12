@@ -186,7 +186,17 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   const formal = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
   expect(formal.status === 200 && formal.data.business.status === 'verified' && formal.data.registryChecked === false, 'Registre désactivé : contrôle formel seulement', formal);
   await settings.updateOne({ key: 'businessRegistryCheck' }, { $set: { value: true } });
-  return `registre : ${ok.data.registry?.legalName || 'injoignable, contrôle formel'} ; désactivation admin OK`;
+  // Entreprise hors France : numéro au registre local → contrôle manuel systématique, visible dans la file admin
+  const noId = await brandApi('POST', '/auth/business-verification', { country: 'CH', website: 'https://exemple.ch' });
+  expect(noId.status === 400, 'Sans aucun identifiant la demande doit être refusée', noId);
+  const swiss = await brandApi('POST', '/auth/business-verification', { country: 'CH', registrationNumber: 'CHE-123.456.789', website: 'https://exemple.ch' });
+  expect(swiss.status === 200 && swiss.data.business.status === 'pending' && /hors France \(CH\)/.test(swiss.data.business.note), 'Une entreprise suisse doit passer en contrôle manuel', swiss);
+  const stored = await users.findOne({ email: brandEmail }, { projection: { 'profile.company': 1, 'verification.business': 1 } });
+  expect(stored?.profile?.company?.country === 'CH' && stored.profile.company.registrationNumber === 'CHE-123.456.789' && stored.verification.business.status === 'pending', 'Pays et numéro d\'immatriculation doivent être enregistrés pour la file de contrôle manuel (admin)', stored);
+  // Retour à une entreprise française vérifiée pour la suite du test
+  const backFr = await brandApi('POST', '/auth/business-verification', { siret: '356 000 000 00048', website: 'https://exemple.fr' });
+  expect(backFr.status === 200 && backFr.data.business.status === 'verified', 'Retour à la vérification française échoué', backFr);
+  return `registre : ${ok.data.registry?.legalName || 'injoignable, contrôle formel'} ; désactivation admin OK ; entreprise suisse → contrôle manuel`;
 });
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
@@ -1687,6 +1697,11 @@ await step('Suggestion de prix : médiane des devis acceptés (grille de secours
 });
 
 await step('Site public : créateurs inscrits avec accord (fiche + vidéo), Ambassadeurs mis en avant', async () => {
+  // Accord activé par défaut (12/09/2026) : le créateur peut le retirer, il disparaît alors du site
+  const byDefault = await fetch(`${API}/creators/public`).then(r => r.json());
+  expect(byDefault.creators.some(c => String(c.id) === creatorUser.id), 'Par défaut, le créateur validé avec portfolio doit apparaître sur le site', { status: 200, data: byDefault });
+  const optOut = await creatorApi('PATCH', '/auth/profile', { profile: { publicConsent: { site: false, marketing: false } } });
+  expect(optOut.status === 200 && optOut.data.user.profile.publicConsent?.site === false, 'Retrait de l\'accord non enregistré', optOut);
   const none = await fetch(`${API}/creators/public`).then(r => r.json());
   expect(!none.creators.some(c => String(c.id) === creatorUser.id), 'Sans accord, le créateur ne doit pas apparaître sur le site', { status: 200, data: none });
   const consent = await creatorApi('PATCH', '/auth/profile', { profile: { publicConsent: { site: true, marketing: true } } });

@@ -221,14 +221,14 @@ export default function AdminPage() {
         {tab === 'businesses' && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-1">Marques en attente de vérification</h2>
-            <p className="text-sm text-neutral-500 mb-4">Contrôle manuel (email grand public ou identifiant douteux). Vérifiez le SIRET sur annuaire-entreprises.data.gouv.fr et le site web.</p>
+            <p className="text-sm text-neutral-500 mb-4">Contrôle manuel (email grand public, identifiant douteux ou entreprise hors France). Vérifiez le SIRET sur annuaire-entreprises.data.gouv.fr, un numéro de TVA européen sur ec.europa.eu/taxation_customs/vies, une entreprise étrangère sur son registre national, et le site web.</p>
             {businesses?.brands?.length ? (
               <div className="space-y-3">
                 {businesses.brands.map((b: any) => (
                   <div key={b._id} className="border border-neutral-200 rounded-lg p-4 flex items-center justify-between gap-4 flex-wrap">
                     <div className="text-sm">
                       <div className="font-medium">{b.profile?.companyName} <span className="text-neutral-500 font-normal">· {b.email}</span> <Badge map={{ pending: { label: 'En attente', className: 'bg-orange-100 text-orange-800' }, rejected: { label: 'Refusée', className: 'bg-red-100 text-red-800' } }} value={b.verification?.business?.status} /></div>
-                      <div className="text-neutral-600">SIRET : {b.profile?.company?.siret || '—'} · TVA : {b.profile?.company?.vatNumber || '—'}{b.profile?.company?.legalName ? ` · registre : ${b.profile.company.legalName}` : ''} · <a href={b.profile?.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">{b.profile?.website}</a></div>
+                      <div className="text-neutral-600">{b.profile?.company?.country && b.profile.company.country !== 'FR' ? `Pays : ${b.profile.company.country} · immatriculation : ${b.profile.company.registrationNumber || '—'} · ` : ''}SIRET : {b.profile?.company?.siret || '—'} · TVA : {b.profile?.company?.vatNumber || '—'}{b.profile?.company?.legalName ? ` · registre : ${b.profile.company.legalName}` : ''} · <a href={b.profile?.website} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">{b.profile?.website}</a></div>
                       <div className="text-xs text-neutral-500">{b.verification?.business?.note}</div>
                     </div>
                     <div className="flex gap-2">

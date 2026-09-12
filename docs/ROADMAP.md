@@ -67,6 +67,7 @@ Ces points sont commencés ou dépendent d'une action extérieure.
 | ~~**Campagnes privées**~~ | Livré le 11 septembre 2026 : case « Campagne privée » à la création ; invisible dans le fil et inaccessible sans invitation (403), aucune notification de masse à la publication ; les invités la voient, candidatent et sont sélectionnés normalement | — |
 | ~~**Équipe marque**~~ | Livré le 11 septembre 2026 : le propriétaire invite des collaborateurs par email (profil → Équipe) ; chacun crée son accès et agit au nom de l'entreprise (campagnes, missions, factures, paiement partagés) ; réservé au propriétaire : équipe, informations administratives, vérification, abonnement, suppression du compte ; retrait d'un membre en un clic | — |
 | **Intégrations e-commerce supplémentaires** : WooCommerce, PrestaShop (très présent en France) | Même mécanique que Shopify | M chacune |
+| **Vérification des entreprises étrangères** : VIES (TVA UE, gratuit, sans clé), Companies House (Royaume-Uni, clé gratuite immédiate), Zefix (Suisse, identifiants gratuits demandés par email à zefix@bj.admin.ch, quelques jours) | Aujourd'hui (12/09/2026) : TVA UE contrôlée sur le format seulement ; hors UE, numéro d'immatriculation local et contrôle manuel systématique. À brancher à la première marque étrangère. | S chacune |
 
 ### Pour les créateurs
 

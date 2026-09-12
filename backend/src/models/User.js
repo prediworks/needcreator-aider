@@ -187,6 +187,8 @@ const userSchema = new mongoose.Schema({
     company: {
       siret: String,
       vatNumber: String,
+      country: String,            // pays de l'entreprise (code ISO 2 lettres), FR par défaut
+      registrationNumber: String, // numéro d'immatriculation hors France (UID CHE, Companies House, EIN…) : contrôle manuel
       legalName: String,      // raison sociale trouvée au registre
       registryAddress: String,
       registryChecked: Boolean,

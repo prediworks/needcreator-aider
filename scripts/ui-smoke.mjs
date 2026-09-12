@@ -77,11 +77,20 @@ await step('Marque : inscription via le formulaire', async () => {
 await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', async () => {
   await bp.goto(`${FRONT}/profile`);
   await bp.getByText('Vérification de l\'entreprise').waitFor({ timeout: 20000 });
+  // Entreprise hors UE : code pays + numéro d'immatriculation → contrôle manuel
+  await bp.getByLabel('Où votre entreprise est-elle immatriculée ?').selectOption('OTHER');
+  await bp.getByLabel('Pays (code)').fill('CH');
+  await bp.getByLabel('Numéro d\'immatriculation').fill('CHE-123.456.789');
+  await bp.screenshot({ path: path.join(SHOTS, 'business-foreign.png'), fullPage: false });
+  await bp.getByRole('button', { name: 'Envoyer pour contrôle manuel' }).click();
+  await bp.getByText('Vérification manuelle en cours').first().waitFor({ timeout: 20000 });
+  // Puis entreprise française : vérification immédiate
+  await bp.getByLabel('Où votre entreprise est-elle immatriculée ?').selectOption('FR');
   await bp.getByLabel(/SIRET/).fill('356 000 000 00048');
   await bp.getByRole('button', { name: 'Vérifier mon entreprise' }).click();
   await bp.getByText('Entreprise vérifiée').first().waitFor({ timeout: 20000 });
   await bp.getByText('NeedCreator Pro').first().waitFor({ timeout: 20000 });
-  return 'vérifiée automatiquement, essai Pro affiché';
+  return 'hors UE → contrôle manuel, puis SIRET vérifié automatiquement, essai Pro affiché';
 });
 
 await step('Marque : création + publication d\'une campagne', async () => {

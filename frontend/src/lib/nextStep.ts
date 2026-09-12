@@ -26,7 +26,7 @@ export function creatorNextStep(user: any): { step: NextStep | null; remaining: 
 export function brandNextStep(user: any, campaignsCount: number): { step: NextStep | null; remaining: NextItem[] } {
   const items: any[] = user.profileChecklist || [];
   const rest = () => toItems(missing(items));
-  if (!user.businessVerified) return { step: { title: 'Vérifiez votre entreprise', text: 'SIRET ou numéro de TVA : indispensable pour publier une campagne. La vérification est immédiate.', href: profileHref('verified'), cta: 'Vérifier' }, remaining: rest().filter((l) => l.key !== 'verified') };
+  if (!user.businessVerified) return { step: { title: 'Vérifiez votre entreprise', text: 'SIRET ou numéro de TVA : indispensable pour publier une campagne. La vérification est immédiate (contrôle manuel sous 24 h pour une entreprise hors Union européenne).', href: profileHref('verified'), cta: 'Vérifier' }, remaining: rest().filter((l) => l.key !== 'verified') };
   if (campaignsCount === 0) return { step: { title: 'Créez votre première campagne', text: 'Brief guidé, budget facultatif, rédaction assistée par l\'IA. Cinq minutes suffisent.', href: '/campaigns/new', cta: 'Créer une campagne' }, remaining: rest() };
   if (!user.hasLegalInfo) return { step: { title: 'Indiquez le signataire des contrats', text: 'Nécessaire pour accepter un devis : le nom figure sur le contrat de mission.', href: profileHref('legal'), cta: 'Compléter' }, remaining: rest().filter((l) => l.key !== 'legal') };
   const next = missing(items)[0];

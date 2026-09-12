@@ -52,11 +52,17 @@ export function isValidVat(vat = '') {
 /**
  * Décide du statut de vérification : 'verified' si tout est cohérent, sinon 'pending' (contrôle admin)
  */
-export function evaluateBusiness({ siret, vatNumber, website, email }) {
+export function evaluateBusiness({ siret, vatNumber, website, email, country = 'FR', registrationNumber }) {
   const reasons = [];
   const siretOk = siret ? isValidSiret(siret) : false;
   const vatOk = vatNumber ? isValidVat(vatNumber) : false;
   const freeEmail = isFreeEmail(email);
+  // Entreprise hors France sans identifiant vérifiable automatiquement : numéro au registre local → contrôle manuel systématique
+  const foreign = String(country || 'FR').toUpperCase() !== 'FR';
+  if (!siretOk && !vatOk && foreign && registrationNumber) {
+    reasons.push(`Entreprise immatriculée hors France (${String(country).toUpperCase()}) : contrôle manuel sous 24 h à partir du numéro ${registrationNumber}${website ? '' : ' (ajoutez votre site web pour faciliter le contrôle)'}`);
+    return { status: 'pending', reasons, identifierValid: false, freeEmail, foreign: true };
+  }
   if (siret && !siretOk) reasons.push('SIRET invalide');
   if (vatNumber && !vatOk) reasons.push('Numéro de TVA invalide');
   if (!siretOk && !vatOk) reasons.push('Aucun identifiant d\'entreprise valide');

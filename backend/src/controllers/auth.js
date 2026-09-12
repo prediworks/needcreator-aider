@@ -583,10 +583,15 @@ export async function verifyBusiness(req, res) {
   try {
     const user = req.user;
     if (user.role !== 'brand') return res.status(403).json({ error: 'Réservé aux marques' });
-    const { siret, vatNumber, website } = req.body;
+    const { siret, vatNumber, website, country, registrationNumber } = req.body;
     if (website) user.set('profile.website', website);
-    user.set('profile.company', { siret: siret ? String(siret).replace(/\s/g, '') : undefined, vatNumber: vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : undefined });
-    const result = evaluateBusiness({ siret, vatNumber, website: user.profile.website, email: user.email });
+    user.set('profile.company', {
+      siret: siret ? String(siret).replace(/\s/g, '') : undefined,
+      vatNumber: vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : undefined,
+      country: (country || 'FR').toUpperCase(),
+      registrationNumber: registrationNumber ? String(registrationNumber).trim() : undefined,
+    });
+    const result = evaluateBusiness({ siret, vatNumber, website: user.profile.website, email: user.email, country, registrationNumber });
     let status = result.status === 'rejected' ? 'rejected' : result.status;
     let registry = null;
 
@@ -618,7 +623,7 @@ export async function verifyBusiness(req, res) {
     await user.save();
     logger.info(`Business verification for ${user._id}: ${status} (${result.reasons.join(', ') || 'ok'})`);
     res.json({
-      message: status === 'verified' ? 'Entreprise vérifiée' : status === 'pending' ? 'Informations reçues : vérification manuelle sous 24 h' : 'Identifiant d\'entreprise invalide',
+      message: status === 'verified' ? 'Entreprise vérifiée' : status === 'pending' ? (result.foreign ? 'Informations reçues : entreprise hors France, contrôle manuel sous 24 h' : 'Informations reçues : vérification manuelle sous 24 h') : 'Identifiant d\'entreprise invalide',
       business: user.verification.business,
       reasons: result.reasons,
       freeEmail: isFreeEmail(user.email),

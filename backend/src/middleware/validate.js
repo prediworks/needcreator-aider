@@ -126,8 +126,10 @@ export const schemas = {
   businessVerification: Joi.object({
     siret: Joi.string().pattern(/^[0-9 ]{14,17}$/).allow(''),
     vatNumber: Joi.string().pattern(/^[A-Za-z]{2}[A-Za-z0-9 ]{2,13}$/).allow(''),
+    country: Joi.string().trim().length(2).uppercase().default('FR'),
+    registrationNumber: Joi.string().trim().min(4).max(40).allow(''), // hors France : numéro au registre local, contrôle manuel
     website: Joi.string().uri().allow(''),
-  }).or('siret', 'vatNumber'),
+  }).or('siret', 'vatNumber', 'registrationNumber'),
 
   // Signalement
   report: Joi.object({
