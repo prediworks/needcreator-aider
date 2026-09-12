@@ -13,7 +13,7 @@ import {
 import crypto from 'crypto';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
-import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
+import { getMaxRevisions, getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
 import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
@@ -100,7 +100,8 @@ export async function createCampaign(req, res) {
     }
 
     // Commission (Pro ou standard) ; parrainage → réduction sur le prix payé par la marque, une campagne
-    const platformFeePercent = brand.isPro() ? config.plans.proFeePercent : config.stripe.platformFeePercent;
+    const fees = await getFeePercents();
+    const platformFeePercent = brand.isPro() ? fees.pro : fees.standard;
     let brandDiscountPercent = 0;
     if ((brand.referral?.discountedCampaignsLeft || 0) > 0) {
       const own = brand.referral.rewards?.find(r => r.type === 'brand_discount');

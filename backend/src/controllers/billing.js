@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import logger from '../utils/logger.js';
+import { getFeePercents } from '../models/Setting.js';
 
 const LOOKUP_KEY = 'needcreator_pro_monthly';
 
@@ -39,7 +40,8 @@ export async function applyStripeSubscription(user, sub) {
   await user.save();
 }
 
-export function planInfo(user) {
+export async function planInfo(user) {
+  const fees = await getFeePercents();
   const sub = user.subscription || {};
   return {
     plan: user.isPro() ? 'pro' : 'free',
@@ -50,9 +52,9 @@ export function planInfo(user) {
     hasStripeSubscription: !!sub.stripeSubscriptionId,
     price: config.plans.proPriceEur,
     trialDays: config.plans.proTrialDays,
-    feePercent: user.isPro() ? config.plans.proFeePercent : config.stripe.platformFeePercent,
-    proFeePercent: config.plans.proFeePercent,
-    standardFeePercent: config.stripe.platformFeePercent,
+    feePercent: user.isPro() ? fees.pro : fees.standard,
+    proFeePercent: fees.pro,
+    standardFeePercent: fees.standard,
     aiBriefQuota: user.isPro() ? null : config.plans.aiBriefFreeQuota,
   };
 }
@@ -61,7 +63,7 @@ export async function billingStatus(req, res) {
   const user = req.user;
   user.rollUsage();
   res.json({
-    ...planInfo(user),
+    ...(await planInfo(user)),
     aiBriefsUsed: user.usage?.aiBriefCount || 0,
     limits: config.limits,
     gifting: config.gifting,
@@ -118,11 +120,11 @@ export async function createPortal(req, res) {
 export async function syncSubscription(req, res) {
   try {
     const user = req.user;
-    if (!user.stripeCustomerId) return res.json(planInfo(user));
+    if (!user.stripeCustomerId) return res.json(await planInfo(user));
     const subs = await stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'all', limit: 5 });
     const live = subs.data.find(s => ['trialing', 'active', 'past_due'].includes(s.status)) || subs.data[0];
     if (live) await applyStripeSubscription(user, live);
-    res.json(planInfo(user));
+    res.json(await planInfo(user));
   } catch (error) {
     logger.error('Subscription sync failed:', error);
     res.status(500).json({ error: 'Synchronisation impossible' });

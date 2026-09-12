@@ -46,7 +46,9 @@ export const SETTINGS = {
 
   // Révisions et refus définitif automatique
   maxRevisions: { key: 'maxRevisions', type: 'number', unit: 'révisions', min: 0, max: 10, group: 'Révisions et refus', default: config.business.maxRevisions, label: 'Nombre maximum de révisions par mission', description: 'Au-delà, la marque ne peut plus demander de révision : elle valide (ou la validation automatique s\'applique).' },
-  ambassadorFeePercent: { key: 'ambassadorFeePercent', type: 'number', unit: '%', min: 0, max: 100, group: 'Ambassadeurs', default: 8, label: 'Commission réduite pour les créateurs Ambassadeurs', description: 'Commission NeedCreator retenue sur les missions d\'un créateur Ambassadeur, à la place de la commission standard (appliquée si elle est plus basse). Fixée à la sélection du créateur, affichée sur le site.' },
+  platformFeePercent: { key: 'platformFeePercent', type: 'number', unit: '%', min: 0, max: 50, group: 'Commission', default: config.stripe.platformFeePercent, label: 'Commission standard NeedCreator', description: 'Retenue sur le devis versé au créateur (jamais ajoutée au paiement de la marque). Figée sur chaque campagne à sa création : un changement ne concerne que les campagnes suivantes. Affichée sur le site et dans les CGU. Repli : STRIPE_PLATFORM_FEE_PERCENT du .env.' },
+  proFeePercent: { key: 'proFeePercent', type: 'number', unit: '%', min: 0, max: 50, group: 'Commission', default: config.plans.proFeePercent, label: 'Commission sur les campagnes des marques Pro', description: 'Identique à la commission standard par défaut : l\'abonnement Pro ajoute des fonctionnalités, pas une remise. Figée à la création de la campagne.' },
+  ambassadorFeePercent: { key: 'ambassadorFeePercent', type: 'number', unit: '%', min: 0, max: 100, group: 'Commission', default: 8, label: 'Commission réduite pour les créateurs Ambassadeurs', description: 'Commission NeedCreator retenue sur les missions d\'un créateur Ambassadeur, à la place de la commission standard (appliquée si elle est plus basse). Fixée à la sélection du créateur, affichée sur le site.' },
   reviewPublishDays: { key: 'reviewPublishDays', type: 'number', unit: 'jours', min: 1, max: 60, group: 'Avis', default: 14, label: 'Avis : délai de publication automatique', description: 'Les avis sont cachés jusqu\'à ce que les deux parties aient noté (double aveugle). Sans avis de l\'autre partie au bout de ce délai, l\'avis est publié seul.' },
   maxLateWithdrawals: { key: 'maxLateWithdrawals', type: 'number', unit: 'retraits', min: 0, max: 20, group: 'Révisions et refus', default: 3, label: 'Créateur : missions retirées pour retard avant blocage des candidatures', description: 'Au-delà de ce nombre de missions retirées pour retard (garantie de remplacement ou refus automatique), le créateur ne peut plus envoyer de devis tant que l\'admin n\'a pas remis son compteur à zéro (fiche utilisateur). 0 = jamais bloqué.' },
   disputeCreatorSharePercent: { key: 'disputeCreatorSharePercent', type: 'number', unit: '%', min: 0, max: 100, group: 'Révisions et refus', default: 50, label: 'Litige : part du prix proposée au créateur en cas de partage', description: 'Valeur proposée par défaut à l\'admin qui tranche un litige avec l\'issue « partage » (le reste est remboursé à la marque). Modifiable au cas par cas.' },
@@ -71,6 +73,16 @@ export function coerceSettingValue(def, value) {
 /** Raccourci : nombre de révisions maximum (réglage admin, repli sur la valeur par défaut) */
 export async function getMaxRevisions() {
   return getSetting(SETTINGS.maxRevisions.key, SETTINGS.maxRevisions.default);
+}
+
+/** Commissions en vigueur (réglages admin, repli sur le .env) */
+export async function getFeePercents() {
+  const [standard, pro, ambassador] = await Promise.all([
+    getSetting(SETTINGS.platformFeePercent.key, SETTINGS.platformFeePercent.default),
+    getSetting(SETTINGS.proFeePercent.key, SETTINGS.proFeePercent.default),
+    getSetting(SETTINGS.ambassadorFeePercent.key, SETTINGS.ambassadorFeePercent.default),
+  ]);
+  return { standard, pro, ambassador };
 }
 
 export default Setting;

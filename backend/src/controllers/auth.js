@@ -10,7 +10,7 @@ import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
 import { evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
-import { getSetting, SETTINGS } from '../models/Setting.js';
+import { getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import { sendVerificationAfterRegistration } from './authEmails.js';
@@ -34,7 +34,7 @@ async function serializeUser(userDoc, { actor = null } = {}) {
   if (out.integrations?.shopify) out.integrations = { shopify: { shop: out.integrations.shopify.shop, installedAt: out.integrations.shopify.installedAt, connected: !!user.integrations?.shopify?.accessToken } };
   if (user.role === 'brand') {
     userDoc.rollUsage?.();
-    out.plan = planInfo(userDoc);
+    out.plan = await planInfo(userDoc);
     out.aiBriefsUsed = userDoc.usage?.aiBriefCount || 0;
     out.businessVerified = userDoc.isBusinessVerified?.() || false;
     out.isPro = userDoc.isPro?.() || false;
@@ -507,7 +507,7 @@ export async function getReferral(req, res) {
         brandDiscountPercent: config.referral.brandDiscountPercent,
         referrerDiscountPercent: config.referral.referrerDiscountPercent,
         creatorBonus: config.referral.creatorBonus,
-        standardFeePercent: config.stripe.platformFeePercent,
+        standardFeePercent: (await getFeePercents()).standard,
       },
     });
   } catch (error) {
@@ -530,6 +530,7 @@ export async function getEarnings(req, res) {
       .sort({ approvedAt: -1 })
       .lean();
 
+    const standardFee = (await getFeePercents()).standard;
     const rows = deliveries.map(d => ({
       deliveryId: d._id,
       date: d.approvedAt,
@@ -537,7 +538,7 @@ export async function getEarnings(req, res) {
       brand: d.brandId?.profile?.companyName,
       amount: d.payment.amount,
       platformFee: d.payment.platformFee,
-      platformFeePercent: d.payment.platformFeePercent ?? config.stripe.platformFeePercent,
+      platformFeePercent: d.payment.platformFeePercent ?? standardFee,
       net: d.payment.creatorAmount,
       status: d.payment.status, // released = viré, captured = en attente du compte Stripe
       releasedAt: d.payment.releasedAt,

@@ -1,7 +1,7 @@
 import Delivery from '../models/Delivery.js';
 import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
-import { getSetting, SETTINGS, getMaxRevisions } from '../models/Setting.js';
+import { getSetting, SETTINGS, getMaxRevisions, getFeePercents } from '../models/Setting.js';
 import { capturePartial, cancelOrRefundPaymentIntent, transferToCreator, chargeIdOf } from '../services/stripe.js';
 import { finalizeApproval } from './deliveries.js';
 import { sendDisputeOpened, sendDisputeResponse, sendDisputeResolved } from '../services/email.js';
@@ -126,7 +126,7 @@ export async function resolveDispute(req, res) {
       const pct = Math.max(0, Math.min(100, Number(creatorPercent)));
       paidAmount = Math.round(price * pct) / 100;
       refundedAmount = Math.round((price - paidAmount) * 100) / 100;
-      const feePercent = delivery.payment?.platformFeePercent ?? config.stripe.platformFeePercent;
+      const feePercent = delivery.payment?.platformFeePercent ?? (await getFeePercents()).standard;
       const platformFee = Math.round(paidAmount * feePercent) / 100;
       const creatorAmount = Math.round((paidAmount - platformFee) * 100) / 100;
       let transferred = false;

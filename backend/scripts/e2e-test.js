@@ -180,6 +180,7 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const list = await brandApi('GET', '/admin/settings');
   expect(list.status === 200 && list.data.settings.some(x => x.key === 'businessRegistryCheck'), 'Réglage registre absent', list);
+  expect(list.data.settings.some(x => x.key === 'platformFeePercent' && x.group === 'Commission') && list.data.settings.some(x => x.key === 'proFeePercent'), 'Commissions standard et Pro attendues dans les réglages admin (groupe Commission)', list);
   const off = await brandApi('PUT', '/admin/settings/businessRegistryCheck', { value: false });
   expect(off.status === 200, 'Désactivation du registre échouée', off);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
@@ -1893,6 +1894,7 @@ await step('Marque : invite un créateur extérieur par email, rattaché à la c
 if (CLEAN) {
   await step('Nettoyage des données de test', async () => {
     const db = mongoose.connection.db;
+    await db.collection('settings').deleteOne({ key: 'ambassadorFeePercent' }); // retour à la valeur par défaut (neutralisée à 10 pendant le test)
     const ids = [brandUser?.id, creatorUser?.id].filter(Boolean).map(id => new mongoose.Types.ObjectId(id));
     const camps = await db.collection('campaigns').find({ brandId: ids[0] }).project({ _id: 1 }).toArray();
     const campIds = camps.map(c => c._id);

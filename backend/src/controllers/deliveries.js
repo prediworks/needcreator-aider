@@ -3,7 +3,7 @@ import Campaign from '../models/Campaign.js';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { getMaxRevisions, getSetting, SETTINGS } from '../models/Setting.js';
+import { getMaxRevisions, getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
 import { issueMissionInvoices, issuePlatformInvoice, issueCreatorInvoices } from '../services/invoices.js';
 import { createPaymentIntent, confirmWithTestCard, captureAndTransfer, retrievePaymentIntent, transferToCreator, cancelOrRefundPaymentIntent } from '../services/stripe.js';
@@ -114,11 +114,9 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     delivery.payment.creatorAmount = 0;
   } else {
     // Ambassadeur : commission réduite (réglage admin) si elle est plus basse que celle de la campagne
-    let feePercent = campaign.platformFeePercent ?? config.stripe.platformFeePercent;
-    if (creatorDoc?.profile?.ambassador?.status === 'approved') {
-      const ambassadorFee = await getSetting(SETTINGS.ambassadorFeePercent.key, SETTINGS.ambassadorFeePercent.default);
-      feePercent = Math.min(feePercent, ambassadorFee);
-    }
+    const fees = await getFeePercents();
+    let feePercent = campaign.platformFeePercent ?? fees.standard;
+    if (creatorDoc?.profile?.ambassador?.status === 'approved') feePercent = Math.min(feePercent, fees.ambassador);
     delivery.calculatePaymentAmounts(feePercent, campaign.brandDiscountPercent || 0, vatRate);
   }
 
@@ -736,7 +734,7 @@ export async function proposeRightsExtension(req, res) {
     const { price, duration, note } = req.body;
     // Même commission que la mission (Ambassadeur inclus) ; gifting (100 % = frais de service) → commission de la campagne
     const missionFee = delivery.payment?.platformFeePercent;
-    const feePercent = missionFee != null && missionFee < 100 ? missionFee : (delivery.campaignId?.platformFeePercent ?? config.stripe.platformFeePercent);
+    const feePercent = missionFee != null && missionFee < 100 ? missionFee : (delivery.campaignId?.platformFeePercent ?? (await getFeePercents()).standard);
     const r2 = (n) => Math.round(n * 100) / 100;
     const vatRate = delivery.payment?.vatRate || 0; // même régime que la mission (prix HT + TVA si créateur assujetti)
     const amount = r2(price * (1 + vatRate / 100)); // payé par la marque (TTC)
