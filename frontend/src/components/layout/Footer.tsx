@@ -22,6 +22,7 @@ export default function Footer() {
             <li><Link href="/marques" className="hover:text-primary-600">Je suis une marque</Link></li>
             <li><Link href="/createurs" className="hover:text-primary-600">Je suis créateur</Link></li>
             <li><Link href="/academie" className="hover:text-primary-600">Académie créateurs</Link></li>
+            <li><Link href="/contenus-et-droits" className="hover:text-primary-600">Contenus &amp; droits</Link></li>
           </ul>
         </div>
         <div>

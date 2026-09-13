@@ -212,6 +212,37 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
 }
 
 /**
+ * Registre « Contenus & droits » : demande de renouvellement à un créateur extérieur (contenu acheté hors NeedCreator)
+ */
+export async function sendContentRenewalRequest(email, creatorName, brandName, brandEmail, title, endAt, message) {
+  const date = endAt ? new Date(endAt).toLocaleDateString('fr-FR') : null;
+  const subject = `${brandName} souhaite prolonger les droits sur « ${title} »`;
+  const html = `
+    <h1>Bonjour${creatorName ? ' ' + creatorName : ''},</h1>
+    <p><strong>${brandName}</strong> utilise votre contenu « ${title} »${date ? ` dont les droits prennent fin le <strong>${date}</strong>` : ''} et souhaite en prolonger l'utilisation.</p>
+    ${message ? `<p><em>« ${message} »</em></p>` : ''}
+    <p>Vous pouvez répondre directement à cette adresse : <a href="mailto:${brandEmail}">${brandEmail}</a>.</p>
+    <p style="font-size:12px;color:#666">Cet email est envoyé via NeedCreator, la plateforme où ${brandName} suit ses contenus et leurs droits. Si vous créez des vidéos, vous pouvez y vendre vos contenus à des marques : <a href="${config.cors.origin}/createurs">${config.cors.origin}/createurs</a>.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
+ * Registre : rappel à la marque, un contenu extérieur arrive à expiration
+ */
+export async function sendContentExpiring(email, brandName, title, creatorName, endAt, days) {
+  const date = new Date(endAt).toLocaleDateString('fr-FR');
+  const subject = `Droits de « ${title} » : fin dans ${days} jour${days > 1 ? 's' : ''}`;
+  const html = `
+    <h1>Bonjour ${brandName},</h1>
+    <p>Les droits d'utilisation de « ${title} »${creatorName ? ` (créateur : ${creatorName})` : ''} prennent fin le <strong>${date}</strong>.</p>
+    <p>Passé cette date, retirez le contenu de vos supports ou obtenez un renouvellement auprès du créateur.</p>
+    ${button(`${config.cors.origin}/contents`, 'Ouvrir Contenus & droits')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
  * Invitation d'un créateur extérieur (non inscrit) par une marque : lien d'inscription avec jeton
  */
 export async function sendExternalCampaignInvitation(email, name, brandName, campaignTitle, link) {

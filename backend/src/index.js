@@ -26,6 +26,7 @@ import externalCreatorRoutes from './routes/externalCreators.js';
 import configRoutes from './routes/config.js';
 import notificationRoutes from './routes/notifications.js';
 import invoiceRoutes from './routes/invoices.js';
+import contentsRoutes from './routes/contents.js';
 import academyRoutes from './routes/academy.js';
 
 const app = express();
@@ -87,6 +88,7 @@ app.use('/api/external-creators', externalCreatorRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/invoices', invoiceRoutes);
+app.use('/api/contents', contentsRoutes); // registre « Contenus & droits »
 app.use('/api/academy', academyRoutes);
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText } from 'lucide-react';
+import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText, FolderOpen } from 'lucide-react';
 import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 
@@ -25,6 +25,7 @@ export default async function BrandsPage() {
     [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). Le nombre de révisions est écrit dans le devis que vous acceptez : pas de surprise après la livraison.`],
     [LayoutTemplate, 'Partez d\'un modèle, ou d\'une campagne passée', 'Six modèles de brief par secteur (beauté, e-commerce, food, tech, mode, services) pré-remplissent votre campagne. Dupliquez une campagne réussie en un clic. Campagnes privées, sur invitation, pour retravailler avec vos créateurs habituels.'],
     [Users, 'Toute votre équipe sur un seul compte', 'Invitez vos collaborateurs : chacun a son accès et agit au nom de l\'entreprise. Campagnes, missions et factures sont partagées. Seul le propriétaire gère l\'équipe, les informations administratives et l\'abonnement.'],
+    [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],
     [FileText, 'Factures automatiques, TVA gérée', 'Une facture PDF par mission, un avoir en cas de remboursement, un relevé mensuel pour votre comptable. Les devis sont hors taxes ; la TVA n\'est ajoutée que si le créateur y est assujetti, et c\'est indiqué avant d\'accepter.'],
   ];
 
@@ -41,6 +42,7 @@ export default async function BrandsPage() {
     ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. Si, révisions épuisées, les vidéos ne correspondent toujours pas au brief, vous ouvrez un litige : le créateur répond, notre équipe tranche, et le montant bloqué est réparti ou remboursé en conséquence.`],
     ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
     ['Puis-je retravailler avec le même créateur ?', `Oui, en un clic : « Reconduire avec ce créateur » depuis une mission validée crée une campagne privée avec le même brief et son dernier devis pré-rempli. NeedCreator vous offre une remise fidélité de ${cfg.repeatDiscountPercent} % sur le prix, sans rien retirer au créateur.`],
+    ['Puis-je suivre les contenus achetés en dehors de NeedCreator ?', 'Oui. Le registre « Contenus & droits » accepte tout contenu et tout contrat artistique, d\'où qu\'il vienne : vous saisissez ou importez depuis Excel le créateur, le type de contrat, les dates, les supports, le territoire, le prix, les liens vers le contrat et la facture. Vous êtes prévenu avant chaque expiration et vous relancez le créateur en un clic.'],
     ['Comment fonctionnent les avis ?', 'En double aveugle, comme sur Airbnb : vous notez le créateur, il vous note, et les deux avis sont publiés en même temps. Personne n\'ajuste son avis en fonction de l\'autre. Vous pouvez répondre publiquement, une fois.'],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
     ['Faut-il un abonnement ?', 'Non, et vous ne perdez rien : l\'offre gratuite comprend tout, campagnes illimitées, contrat de droits, garantie de remplacement, factures, équipe, modèles, sans limite de durée. L\'offre Pro n\'est utile qu\'à partir de plusieurs campagnes par mois : plusieurs créateurs par campagne, gifting sans frais de service, brief IA illimité.'],

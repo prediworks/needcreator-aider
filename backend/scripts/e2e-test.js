@@ -795,6 +795,54 @@ await step('Reconduire avec ce créateur : campagne privée pré-remplie, remise
   return 'brouillon privé → publié → devis pré-rempli → sélection : marque 252,20 € au lieu de 260, créateur 234 €';
 });
 
+await step('Contenus & droits : missions synchronisées, contenu extérieur, utilisations, relance, import, export, rappels', async () => {
+  const list = await brandApi('GET', '/contents');
+  expect(list.status === 200 && list.data.summary.total >= 1, 'Le registre doit contenir les contenus de la mission validée', list);
+  const fromMission = list.data.contents.find(c => c.source === 'needcreator');
+  expect(fromMission && fromMission.creator?.name && fromMission.rights?.supports?.includes('paid_ads') && fromMission.rights?.territories === 'Europe' && fromMission.documents?.some(d => /Contrat/.test(d.label)), 'Contenu NeedCreator : droits du contrat et contrat en document attendus', list);
+  const locked = await brandApi('PATCH', `/contents/${fromMission._id}`, { title: 'Titre modifié', price: 1 });
+  expect(locked.status === 200 && locked.data.content.title === 'Titre modifié' && locked.data.content.price !== 1, 'Sur un contenu NeedCreator, le titre est modifiable mais pas le prix', locked);
+  const noDel = await brandApi('DELETE', `/contents/${fromMission._id}`);
+  expect(noDel.status === 400, 'Un contenu NeedCreator ne se retire pas du registre', noDel);
+  const endAt = new Date(Date.now() + 20 * 86400000).toISOString();
+  const ext = await brandApi('POST', '/contents', { title: 'Vidéo agence printemps', kind: 'video', url: 'https://drive.example.com/v1', creator: { name: 'Léa Externe', email: `e2e-ext-creator-${RUN}@needcreator-test.com`, platform: 'Agence Soleil' }, contractType: 'licence', rights: { startAt: new Date().toISOString(), endAt, supports: ['social_organic', 'paid_ads'], territories: 'France', exclusivity: false }, price: 400, documents: [{ label: 'Contrat', url: 'https://drive.example.com/contrat.pdf' }] });
+  expect(ext.status === 201 && ext.data.content.status === 'expiring' && ext.data.content.daysLeft <= 20, 'Contenu extérieur : statut « expire sous 30 j » attendu', ext);
+  const noTitle = await brandApi('POST', '/contents', { kind: 'video' });
+  expect(noTitle.status === 400, 'Le titre est obligatoire', noTitle);
+  const use = await brandApi('POST', `/contents/${ext.data.content._id}/usages`, { channel: 'product_page', url: 'https://boutique.example.com/p/1' });
+  expect(use.status === 200 && use.data.content.usages.length === 1, 'Utilisation non ajoutée', use);
+  const badUse = await brandApi('POST', `/contents/${ext.data.content._id}/usages`, { channel: 'metaverse' });
+  expect(badUse.status === 400, 'Canal inconnu refusé', badUse);
+  const renew = await brandApi('POST', `/contents/${ext.data.content._id}/renew`, { message: 'Un an de plus ?' });
+  expect(renew.status === 200 && renew.data.content.renewal?.requestedAt, 'Relance du créateur extérieur : date de demande attendue', renew);
+  const renewNc = await brandApi('POST', `/contents/${fromMission._id}/renew`);
+  expect(renewNc.status === 200 && /deliveries\//.test(renewNc.data.href), 'Contenu NeedCreator : renvoi vers la prolongation de la mission', renewNc);
+  const csv = ['Titre;Créateur;Email;Type de contrat;Début;Fin;Supports;Territoire;Prix;Lien;Produit', 'Photo packshot;Marc Photo;marc@example.com;cession;2026-01-10;2027-01-10;site web, publicité;Europe;250;https://drive.example.com/p;Gamme été', ';sans titre;;;;;;;;;'].join('\n');
+  const fd = new FormData(); fd.append('file', new File([csv], 'contenus.csv', { type: 'text/csv' }));
+  const imp = await brandApi('POST', '/contents/import', fd, { form: true });
+  expect(imp.status === 200 && imp.data.created === 1 && imp.data.skipped === 1, 'Import CSV : 1 créé, 1 ignoré', imp);
+  const after = await brandApi('GET', '/contents');
+  const imported = after.data.contents.find(c => c.title === 'Photo packshot');
+  expect(imported && imported.rights.supports.includes('website') && imported.rights.supports.includes('paid_ads') && imported.price === 250 && imported.status === 'active', 'Contenu importé incomplet : ' + JSON.stringify({ rights: imported?.rights, price: imported?.price, status: imported?.status }), { status: 200, data: {} });
+  const exp = await fetch(`${API}/contents/export`, { headers: { Authorization: `Bearer ${brand.idToken}` } });
+  const body = await exp.text();
+  expect(exp.status === 200 && /Vidéo agence printemps/.test(body) && /Photo packshot/.test(body), 'Export CSV incomplet', { status: exp.status, data: body.slice(0, 200) });
+  // Rappel d'expiration (30 jours) par les tâches planifiées, puis pas de doublon
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await brandApi('POST', '/admin/jobs/run');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(jobs.status === 200 && jobs.data.contentReminders >= 1, 'Le rappel d\'expiration du contenu extérieur devrait partir', jobs);
+  const reminded = await brandApi('GET', '/contents');
+  expect(reminded.data.contents.find(c => c._id === ext.data.content._id)?.renewal?.reminded30At, 'reminded30At attendu', reminded);
+  const filtered = await brandApi('GET', '/contents?status=expiring');
+  expect(filtered.data.contents.every(c => c.status === 'expiring') && filtered.data.contents.length >= 1, 'Filtre par statut', filtered);
+  const del = await brandApi('DELETE', `/contents/${ext.data.content._id}`);
+  expect(del.status === 200, 'Suppression d\'un contenu extérieur', del);
+  await mongoose.connection.db.collection('contents').deleteMany({ brandId: new mongoose.Types.ObjectId(brandUser.id) });
+  return `${list.data.summary.total} contenu(s) synchronisé(s), extérieur + usages + relance + import + export + rappel OK`;
+});
+
 await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {
   // Disponibilité déclarée → visible sur le profil public, pénalise le matching
   const until = new Date(Date.now() + 10 * 86400000).toISOString();
@@ -1982,6 +2030,7 @@ if (CLEAN) {
     await db.collection('invoices').deleteMany({ $or: [{ brandId: { $in: ids } }, { creatorId: { $in: ids } }] });
     await db.collection('deliveries').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('campaigns').deleteMany({ _id: { $in: campIds } });
+    await db.collection('contents').deleteMany({ brandId: { $in: ids } });
     const extraIds = extraCleanup.map(e => new mongoose.Types.ObjectId(e.userId));
     await db.collection('reviews').deleteMany({ $or: [{ revieweeId: { $in: extraIds } }, { reviewerId: { $in: extraIds } }] });
     await db.collection('deliveries').deleteMany({ creatorId: { $in: extraIds } });

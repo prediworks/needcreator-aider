@@ -26,6 +26,7 @@ const included = (cfg: { autoApprovalDays: number; giftingMinProductValue: numbe
   'Campagnes privées, visibles des seuls créateurs invités',
   'Équipe : collaborateurs sur le même compte marque',
   'Factures PDF par mission, avoirs, relevé mensuel',
+  'Contenus & droits : registre de tous vos contenus et contrats, y compris achetés ailleurs, rappels avant expiration',
   'Litige arbitré par notre équipe, avis en double aveugle',
   'Publication Shopify en un clic, vidéos prêtes à diffuser en option',
   'Rédaction de brief par l\'IA (3 par mois)',

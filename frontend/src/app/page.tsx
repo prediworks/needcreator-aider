@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell } from 'lucide-react';
+import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell, FolderOpen } from 'lucide-react';
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
@@ -143,6 +143,18 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Contenus & droits */}
+      <section className="py-16 bg-primary-50">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-[auto_1fr_auto] gap-6 items-center">
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center"><FolderOpen className="w-8 h-8 text-primary-600" /></div>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 mb-2">Contenus &amp; droits : le CRM de votre contenu créatif</h2>
+            <p className="text-neutral-700">Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs : qui a créé quoi, avec quels droits, jusqu&apos;à quand, où c&apos;est utilisé. Rappels avant expiration, renouvellement en un clic. Inclus, gratuit.</p>
+          </div>
+          <Link href="/contenus-et-droits"><Button variant="outline">Découvrir</Button></Link>
         </div>
       </section>
 

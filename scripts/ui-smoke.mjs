@@ -129,6 +129,27 @@ await step('Site public : la campagne publiée est visible sans connexion (page 
   return 'liste et fiche publiques OK';
 });
 
+await step('Marque : registre « Contenus & droits » (page vide, tuiles) et page publique', async () => {
+  await bp.goto(`${FRONT}/contents`, { waitUntil: 'commit' });
+  await bp.getByRole('heading', { name: /Contenus & droits/ }).waitFor({ timeout: 60000 });
+  await bp.getByText('Contenus suivis').waitFor({ timeout: 20000 });
+  await bp.getByRole('button', { name: /Ajouter un contenu extérieur/ }).click();
+  await bp.getByLabel('Titre du contenu').fill('Vidéo agence printemps');
+  await bp.getByLabel('Fin des droits').fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
+  await bp.getByRole('button', { name: 'Enregistrer' }).click();
+  await bp.getByText('Contenu ajouté au registre').waitFor({ timeout: 20000 });
+  await bp.getByText('Expire sous 30 j').first().waitFor({ timeout: 20000 });
+  await bp.screenshot({ path: `${SHOTS}/03d-contents.png`, fullPage: true });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.goto(`${FRONT}/contenus-et-droits`, { waitUntil: 'commit' });
+  await p.getByRole('heading', { name: /au même endroit/ }).waitFor({ timeout: 60000 });
+  await p.screenshot({ path: `${SHOTS}/03e-contents-public.png`, fullPage: true });
+  await ctx.close();
+  await bp.goto(campaignUrl, { waitUntil: 'commit' });
+  return 'contenu extérieur ajouté, statut « expire sous 30 j », page publique OK';
+});
+
 await step('Marque : rechargement de page = session conservée', async () => {
   await bp.reload();
   await bp.getByText('Ouverte aux candidatures').first().waitFor({ timeout: 20000 });

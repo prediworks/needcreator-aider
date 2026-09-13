@@ -50,6 +50,7 @@ export default function Header() {
         { href: '/deliveries', label: user?.role === 'creator' ? 'Missions' : 'Livraisons' },
         ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
+        ...(user?.role === 'brand' ? [{ href: '/contents', label: 'Contenus' }] : []),
         ...(user?.role === 'creator' ? [{ href: '/earnings', label: 'Mes revenus' }, { href: '/profile#portfolio', label: 'Mon portfolio' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]
@@ -57,9 +58,9 @@ export default function Header() {
         { href: '/marques', label: 'Marques' },
         { href: '/createurs', label: 'Créateurs' },
         { href: '/campagnes', label: 'Campagnes' },
+        { href: '/contenus-et-droits', label: 'Contenus & droits' },
         { href: '/how-it-works', label: 'Comment ça marche' },
         { href: '/nos-createurs', label: 'Nos créateurs' },
-        { href: '/annuaire-createurs', label: 'Annuaire' },
         { href: '/pricing', label: 'Tarifs' },
       ];
 
@@ -82,18 +83,18 @@ export default function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0 mr-6 lg:mr-10">
+          <Link href="/" className="flex items-center gap-2 shrink-0 mr-6 xl:mr-10">
             <img src="/icon.svg" alt="" width={32} height={32} className="w-8 h-8 rounded-lg" />
             <span className="text-xl font-bold text-neutral-900 whitespace-nowrap">NeedCreator</span>
           </Link>
 
           {/* Navigation desktop (à partir de lg : en dessous, le menu hamburger évite tout chevauchement) */}
-          <nav className="hidden lg:flex items-center gap-x-4 xl:gap-x-7 flex-1 min-w-0 text-[15px] xl:text-base">
+          <nav className="hidden xl:flex items-center gap-x-3 xl:gap-x-6 flex-1 min-w-0 text-sm xl:text-[15px] whitespace-nowrap">
             {links.map(navLink)}
           </nav>
 
           {/* Actions */}
-          <div className="hidden lg:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
+          <div className="hidden xl:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
             {loading && knownUser ? null : connected ? (
               <>
                 <NotificationBell enabled={isAuthenticated} />
@@ -121,13 +122,13 @@ export default function Header() {
           </div>
 
           {/* Menu mobile */}
-          <button className="lg:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
+          <button className="xl:hidden p-2" onClick={() => setOpen(!open)} aria-label="Menu">
             {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
         {open && (
-          <div className="lg:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
+          <div className="xl:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
             {links.map(navLink)}
             {isAuthenticated ? (
               <>

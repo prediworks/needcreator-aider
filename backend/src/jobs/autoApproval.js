@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendNewCampaignNotification } from '../services/email.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
+import { sendContentExpiryReminders } from '../controllers/contents.js';
 import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
@@ -247,10 +248,11 @@ export async function runScheduledJobs() {
     const followUps = await runFollowUps();
     const reviewsPublished = await publishExpiredReviews().catch(err => { logger.error('publishExpiredReviews:', err); return 0; });
     const watermarked = await watermarkBacklog(3).catch(err => { logger.error('watermarkBacklog:', err); return 0; });
+    const contentReminders = await sendContentExpiryReminders().catch(err => { logger.error('sendContentExpiryReminders:', err); return 0; });
     const adminDigest = await sendAdminDigest().catch(err => ({ sent: false, error: err.message }));
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, adminDigest };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };
