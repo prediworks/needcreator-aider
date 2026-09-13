@@ -381,6 +381,8 @@ await step('Ambassadeur : vidéo soumise puis validée par l\'admin', async () =
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const pending = await brandApi('GET', '/admin/ambassadors/pending');
   expect(pending.status === 200 && pending.data.creators.some(c => c._id === creatorUser.id), 'Vidéo absente de la liste admin', pending);
+  const todo = await brandApi('GET', '/admin/stats');
+  expect(todo.status === 200 && todo.data.todo?.pendingAmbassadors >= 1 && typeof todo.data.todo.openDisputes === 'number', 'Compteurs « à traiter » (vidéos Ambassadeur en attente) attendus dans les stats admin', todo);
   // Commission Ambassadeur neutralisée (= standard) pour garder les montants du flux principal ; la réduction (8 %) est testée sur la campagne par lien
   const neutral = await brandApi('PUT', '/admin/settings/ambassadorFeePercent', { value: 10 });
   expect(neutral.status === 200, 'Réglage commission Ambassadeur (neutralisation) échoué', neutral);
@@ -874,7 +876,7 @@ await step('Créateur : disponibilité, kit média, académie, virements, missio
   // Badges partageables et widget « créateur vérifié » dans le kit média ; fiche publique par slug enrichie
   const kit2 = await creatorApi('GET', '/auth/media-kit');
   expect(kit2.data.badges.some(b => b.kind === 'trained' && /badge\/trained\?format=story/.test(b.images.story) && b.text.includes(kit2.data.url)) && kit2.data.badges.some(b => b.kind === 'ambassador'), 'Badges partageables Formé et Ambassadeur attendus dans le kit média', kit2);
-  expect(kit2.data.widget.available === true && /widget\.svg$/.test(kit2.data.widget.imageUrl) && /<img /.test(kit2.data.widget.html), 'Widget créateur vérifié attendu', kit2);
+  expect(kit2.data.widget.available === true && /\/widget$/.test(kit2.data.widget.imageUrl) && /<img /.test(kit2.data.widget.html), 'Widget créateur vérifié attendu', kit2);
   const pubSlug = await fetch(`${API}/creators/slug/${kit2.data.slug}`).then(r => r.json());
   expect(pubSlug.verified === true && pubSlug.badges.includes('trained') && pubSlug.badges.includes('ambassador') && pubSlug.level && pubSlug.slug === kit2.data.slug, 'La fiche publique par slug doit exposer badges, niveau et vérification', { status: 200, data: pubSlug });
   // Calendrier des virements + seuils micro

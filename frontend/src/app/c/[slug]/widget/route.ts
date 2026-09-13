@@ -7,7 +7,7 @@ const esc = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'
 export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
   let c: any = null;
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/creators/slug/${encodeURIComponent(params.slug)}`, { next: { revalidate: 300 } });
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/creators/slug/${encodeURIComponent(params.slug)}`, { cache: 'no-store', headers: { 'User-Agent': 'NeedCreator-Site/1.0' } });
     if (res.ok) c = await res.json();
   } catch {}
   if (!c || !c.verified) return new Response('Créateur non vérifié', { status: 404 });

@@ -52,7 +52,7 @@ export async function getMediaKit(req, res) {
         : `Je suis Ambassadeur NeedCreator 🌟 Je fixe mon prix, le paiement est bloqué avant que je tourne, un contrat protège mes droits. Mon portfolio : ${url}`,
     }));
     const widgetAvailable = !!user.verification?.portfolio;
-    const widgetUrl = `${url}/widget.svg`;
+    const widgetUrl = `${url}/widget`; // sans extension : ni Nginx ni Cloudflare ne le traitent comme un fichier statique
     res.json({
       slug, url, qr, shareText: `Découvrez mon portfolio vidéo UGC et proposez-moi une mission : ${url}`,
       badges: shareable,

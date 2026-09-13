@@ -65,10 +65,10 @@ export default function AdminPage() {
 
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: 'pending', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
-    { key: 'ambassadors', label: 'Vidéos Ambassadeur' },
-    { key: 'businesses', label: 'Marques à vérifier' },
-    { key: 'reports', label: 'Signalements' },
-    { key: 'disputes', label: 'Litiges', count: disputes?.disputes?.length || undefined },
+    { key: 'ambassadors', label: 'Vidéos Ambassadeur', count: stats?.todo?.pendingAmbassadors },
+    { key: 'businesses', label: 'Marques à vérifier', count: stats?.todo?.pendingBusinesses },
+    { key: 'reports', label: 'Signalements', count: stats?.todo?.openReports },
+    { key: 'disputes', label: 'Litiges', count: disputes?.disputes?.length || stats?.todo?.openDisputes || undefined },
     { key: 'invoices', label: 'Factures' },
     { key: 'users', label: 'Utilisateurs' },
     { key: 'campaigns', label: 'Campagnes' },

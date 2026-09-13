@@ -19,6 +19,8 @@ export function creatorNextStep(user: any): { step: NextStep | null; remaining: 
   }
   const next = missing(items)[0];
   if (next) return { step: { title: next.label, text: 'Un profil complet augmente vos chances d\'être sélectionné.', href: profileHref(next.key), cta: 'Compléter' }, remaining: rest().slice(1), showAmbassador: false };
+  // Tout est complet : dernière suggestion, facultative, le badge Formé (bonus de matching)
+  if (!(user.badges || []).includes('trained')) return { step: { title: 'Facultatif : obtenez le badge Formé', text: 'Cinq guides courts avec quiz (brief, lumière, son, devis). Trois réussis suffisent : le badge est visible par les marques et remonte vos devis.', href: '/academie', cta: 'Ouvrir l\'académie' }, remaining: [], showAmbassador: false };
   return { step: null, remaining: [], showAmbassador: false };
 }
 

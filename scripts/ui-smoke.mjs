@@ -119,10 +119,12 @@ await step('Site public : la campagne publiée est visible sans connexion (page 
   const id = campaignUrl.split('/').pop();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
+  // La liste publique est mise en cache 5 minutes (ISR) : on vérifie la page, puis la fiche de la campagne (adresse neuve, donc fraîche)
   await p.goto(`${FRONT}/campagnes`, { waitUntil: 'commit' });
-  await p.getByText('Campagne test interface utilisateur').first().waitFor({ timeout: 60000 });
+  await p.getByRole('heading', { name: /Campagnes UGC ouvertes/ }).waitFor({ timeout: 60000 });
   await p.screenshot({ path: `${SHOTS}/03b-public-campaigns.png`, fullPage: true });
   await p.goto(`${FRONT}/campagnes/${id}`, { waitUntil: 'commit' });
+  await p.getByText('Campagne test interface utilisateur').first().waitFor({ timeout: 60000 });
   await p.getByRole('button', { name: 'Créer mon profil et envoyer un devis' }).waitFor({ timeout: 60000 });
   await p.screenshot({ path: `${SHOTS}/03c-public-campaign.png`, fullPage: true });
   await ctx.close();
