@@ -134,6 +134,19 @@ export default function CampaignDetailPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Reconduction : bandeau marque (brouillon privé) et créateur (devis pré-rempli) */}
+            {isOwnCampaign && campaign.renewal && (
+              <Card className="p-4 border-primary-200 bg-primary-50 text-sm text-neutral-800">
+                <strong>Reconduction.</strong> Campagne privée réservée au créateur de votre mission précédente, brief copié{campaign.brandDiscountPercent > 0 ? `, remise fidélité de ${campaign.brandDiscountPercent} % déduite du prix payé` : ''}.
+                {campaign.status === 'draft' ? ' Vérifiez le brief et la date limite, puis publiez : le créateur recevra votre proposition avec son dernier devis pré-rempli.' : ' Le créateur a été prévenu.'}
+              </Card>
+            )}
+            {isCreator && campaign.renewalQuote && !campaign.userHasApplied && (
+              <Card className="p-4 border-primary-200 bg-primary-50 text-sm text-neutral-800">
+                <strong>{campaign.brandId?.profile?.companyName} souhaite retravailler avec vous.</strong> Votre dernier devis est pré-rempli ci-contre : envoyez-le tel quel ou ajustez-le.
+              </Card>
+            )}
+
             {/* Header */}
             <Card className="p-6">
               <div className="flex items-start gap-4 mb-4">
@@ -630,6 +643,7 @@ export default function CampaignDetailPage() {
                       <h3 className="font-semibold text-neutral-900 mb-3">Mon devis</h3>
                       <QuoteForm
                         campaign={campaign}
+                        initial={campaign.renewalQuote || undefined}
                         submitLabel="Envoyer le devis"
                         isLoading={applyMutation.isPending}
                         onSubmit={handleApply}

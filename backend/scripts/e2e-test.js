@@ -728,6 +728,28 @@ await step('Marque : approbation (encaissement Stripe)', async () => {
   return `paiement ${res.data.delivery.payment.status}${res.data.warning ? ' — ' + res.data.warning : ''}`;
 });
 
+await step('Reconduire avec ce créateur : campagne privée pré-remplie, remise fidélité financée par NeedCreator', async () => {
+  const notYet = await brandApi('POST', `/campaigns/${campaign._id}/renew/000000000000000000000000`);
+  expect(notYet.status === 400, 'Reconduction refusée sans mission validée avec ce créateur', notYet);
+  const r = await brandApi('POST', `/campaigns/${campaign._id}/renew/${creatorUser.id}`);
+  expect(r.status === 201 && r.data.campaign.status === 'draft' && r.data.campaign.visibility === 'private' && r.data.campaign.renewal?.lastQuote?.price === 260, 'Reconduction : brouillon privé avec dernier devis attendu', r);
+  expect(r.data.discountPercent === 3 && r.data.campaign.brandDiscountPercent === 3 && r.data.campaign.invitations?.length === 1, 'Remise fidélité (3 %) et invitation du créateur attendues', r);
+  const rid = r.data.campaign._id;
+  const hidden = await creatorApi('GET', `/campaigns/${rid}`);
+  expect(hidden.status === 403, 'Un brouillon de reconduction reste invisible au créateur', hidden);
+  const pub = await brandApi('POST', `/campaigns/${rid}/publish`);
+  expect(pub.status === 200 && pub.data.notifiedCreators === 0, 'Publication privée : aucune notification de masse', pub);
+  const bell = await creatorApi('GET', '/notifications');
+  expect(bell.data.notifications.some(n => /nouvelle mission/.test(n.title)), 'Le créateur doit être prévenu de la reconduction à la publication', bell);
+  const seen = await creatorApi('GET', `/campaigns/${rid}`);
+  expect(seen.status === 200 && seen.data.campaign.invited === true && seen.data.campaign.renewalQuote?.price === 260 && seen.data.campaign.renewalQuote.rights?.duration === '2y', 'Le créateur doit voir son dernier devis pré-rempli', seen);
+  const ap = await creatorApi('POST', `/campaigns/${rid}/apply`, { proposal: 'Avec plaisir', price: 260, estimatedDeliveryDays: 6, rights: seen.data.campaign.renewalQuote.rights, deliveryTypes: ['file'], revisions: 2 });
+  expect(ap.status === 201, 'Candidature sur la reconduction échouée', ap);
+  const sel = await brandApi('POST', `/campaigns/${rid}/select/${creatorUser.id}`);
+  expect(sel.status === 200 && sel.data.delivery.payment.discountPercent === 3 && sel.data.delivery.payment.amount === 252.2 && sel.data.delivery.payment.creatorAmount === 234, 'Remise fidélité : marque 252,20 €, créateur 234 € (inchangé)', sel);
+  return 'brouillon privé → publié → devis pré-rempli → sélection : marque 252,20 € au lieu de 260, créateur 234 €';
+});
+
 await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {
   // Disponibilité déclarée → visible sur le profil public, pénalise le matching
   const until = new Date(Date.now() + 10 * 86400000).toISOString();

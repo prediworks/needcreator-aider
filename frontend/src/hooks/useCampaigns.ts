@@ -199,3 +199,21 @@ export function useRespondCounterOffer() {
     },
   });
 }
+
+/** Reconduire avec ce créateur : campagne privée (brouillon) pré-remplie depuis une mission validée */
+export function useRenewCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, creatorId }: { campaignId: string; creatorId: string }) => {
+      const response = await api.post(`/campaigns/${campaignId}/renew/${creatorId}`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success(data.message, { duration: 8000 });
+    },
+    onError: (error: any) => {
+      toast.error(getErrorMessage(error, 'Reconduction impossible'), { duration: 8000 });
+    },
+  });
+}

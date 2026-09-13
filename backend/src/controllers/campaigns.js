@@ -223,6 +223,19 @@ export async function publishCampaign(req, res) {
       )
     );
 
+    // Invités non encore prévenus (reconduction) : email + notification à la publication
+    const pendingInvites = (campaign.invitations || []).filter(i => !i.notifiedAt);
+    if (pendingInvites.length) {
+      const invitees = await User.find({ _id: { $in: pendingInvites.map(i => i.creatorId) } }).select('email profile.name');
+      const brandName = brand.profile?.companyName || brand.profile?.name;
+      for (const u of invitees) {
+        const msg = campaign.renewal?.creatorId && idOf(campaign.renewal.creatorId) === u._id.toString() ? `${brandName} souhaite retravailler avec vous : votre dernier devis est pré-rempli, vous pouvez l'envoyer tel quel ou l'ajuster.` : '';
+        sendCampaignInvitation(u.email, u.profile?.name, brandName, campaign.title, campaign._id, msg).catch(() => {});
+        notify(u._id, { type: 'invitation', title: campaign.renewal ? `${brandName} vous propose une nouvelle mission` : `${brandName} vous invite sur une campagne`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      }
+      pendingInvites.forEach(i => { i.notifiedAt = new Date(); });
+      await campaign.save();
+    }
     logger.info(`Campaign published: ${campaign._id}, notifying ${matchingCreators.length} creators`);
 
     res.json({
@@ -435,6 +448,8 @@ export async function getCampaign(req, res) {
       const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
       campaign.canApply = Campaign.prototype.canApply.call(campaign, user._id) && user.canApplyToCampaign(maxLate);
       campaign.applyBlockers = user.applyBlockers(maxLate);
+      if (campaign.renewal?.creatorId && idOf(campaign.renewal.creatorId) === user._id.toString()) campaign.renewalQuote = campaign.renewal.lastQuote || null;
+      delete campaign.renewal;
       // Ne pas exposer les autres candidatures aux créateurs
       delete campaign.applications;
       delete campaign.invitations;
@@ -656,6 +671,56 @@ export async function updateQuote(req, res) {
 }
 
 /**
+ * Reconduire avec ce créateur : depuis une mission validée, crée une campagne privée (brouillon) pour le même créateur,
+ * brief copié, dernier devis en modèle, remise fidélité (réglage admin) déduite du prix payé par la marque et financée sur la commission.
+ * La marque vérifie puis publie : le créateur est alors prévenu.
+ */
+export async function renewWithCreator(req, res) {
+  try {
+    const { campaignId, creatorId } = req.params;
+    const brand = req.user;
+    const source = await Campaign.findOne({ _id: campaignId, brandId: brand._id });
+    if (!source) return res.status(404).json({ error: 'Campaign not found' });
+    const done = await Delivery.findOne({ campaignId: source._id, creatorId, status: { $in: ['approved', 'auto_approved'] } }).select('_id');
+    if (!done) return res.status(400).json({ error: 'La reconduction n\'est possible qu\'après une mission validée avec ce créateur' });
+    const creator = await User.findById(creatorId).select('profile.name status');
+    if (!creator || creator.status !== 'active') return res.status(400).json({ error: 'Ce créateur n\'est plus disponible' });
+    const app = (source.applications || []).find(a => idOf(a.creatorId) === creatorId);
+    const q = app?.quote?.toObject?.() || app?.quote || {};
+    const lastQuote = app ? { price: app.price, estimatedDeliveryDays: app.estimatedDeliveryDays, proposal: app.proposal, rights: q.rights, deliveryTypes: q.deliveryTypes, platforms: q.platforms, revisions: q.revisions, terms: q.terms } : null;
+
+    const fees = await getFeePercents();
+    const platformFeePercent = brand.isPro() ? fees.pro : fees.standard;
+    const repeat = await getSetting(SETTINGS.repeatDiscountPercent.key, SETTINGS.repeatDiscountPercent.default);
+    const brandDiscountPercent = Math.min(repeat, platformFeePercent);
+    const src = source.toObject();
+    const campaign = new Campaign({
+      brandId: brand._id,
+      platformFeePercent,
+      brandDiscountPercent,
+      type: src.type,
+      gifting: src.type === 'gifting' ? { productName: src.gifting?.productName, productValue: src.gifting?.productValue, feePerVideo: brand.isPro() ? 0 : config.gifting.feePerVideo } : undefined,
+      title: /reconduction/i.test(src.title) ? src.title : `${src.title} · reconduction`,
+      description: src.description,
+      brief: src.brief,
+      matching: { ...src.matching, creatorsWanted: 1 },
+      budget: src.budget,
+      visibility: 'private',
+      status: 'draft',
+      invitations: [{ creatorId, message: 'Reconduction' }],
+      timeline: { applicationDeadline: new Date(Date.now() + 14 * 86400000) },
+      renewal: { fromCampaignId: source._id, creatorId, lastQuote },
+    });
+    await campaign.save();
+    logger.info(`Campaign ${source._id} renewed with creator ${creatorId} → ${campaign._id} (discount ${brandDiscountPercent}%)`);
+    res.status(201).json({ message: `Campagne créée en privé pour ${creator.profile?.name} : vérifiez le brief puis publiez, il ou elle recevra votre proposition.`, campaign, discountPercent: brandDiscountPercent });
+  } catch (error) {
+    logger.error('renewWithCreator failed:', error);
+    res.status(500).json({ error: 'Reconduction impossible' });
+  }
+}
+
+/**
  * Campagnes publiques (sans authentification) : pages indexables par les moteurs de recherche.
  * Seules les campagnes publiées, visibles de tous et encore ouvertes aux candidatures sont listées.
  */
@@ -720,7 +785,7 @@ export async function inviteExternalCreator(req, res) {
     if (existing) {
       if (existing.role !== 'creator') return res.status(400).json({ error: 'Cette adresse correspond à un compte qui n\'est pas un compte créateur' });
       if (!(campaign.invitations || []).some(i => idOf(i.creatorId) === existing._id.toString())) {
-        campaign.invitations.push({ creatorId: existing._id, message: '' });
+        campaign.invitations.push({ creatorId: existing._id, message: '', notifiedAt: new Date() });
         await campaign.save();
       }
       sendCampaignInvitation(email, existing.profile?.name, brandName, campaign.title, campaign._id).catch(() => {});
@@ -1092,7 +1157,7 @@ export async function inviteCreator(req, res) {
       return res.status(400).json({ error: 'Ce créateur a déjà candidaté' });
     }
 
-    campaign.invitations.push({ creatorId, message });
+    campaign.invitations.push({ creatorId, message, notifiedAt: new Date() });
     await campaign.save();
 
     sendCampaignInvitation(creator.email, creator.profile.name, brand.profile.companyName || brand.profile.name, campaign.title, campaign._id, message)

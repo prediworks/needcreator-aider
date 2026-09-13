@@ -139,7 +139,14 @@ const campaignSchema = new mongoose.Schema({
     creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     invitedAt: { type: Date, default: Date.now },
     message: String,
+    notifiedAt: Date, // email + notification envoyés (à l'invitation, ou à la publication pour une campagne créée avec des invités)
   }],
+  // Reconduction : campagne privée créée depuis une mission validée, pour le même créateur, avec son dernier devis en modèle
+  renewal: {
+    fromCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+    creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    lastQuote: Object, // { price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms }
+  },
   // Créateurs extérieurs invités par email par la marque : à l'inscription avec le jeton, ils sont rattachés à la campagne
   externalInvitations: [{
     email: String,

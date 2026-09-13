@@ -21,6 +21,7 @@ import {
   getPublicCampaign,
   inviteExternalCreator,
   externalInvitationInfo,
+  renewWithCreator,
 } from '../controllers/campaigns.js';
 
 import { aiBrief, aiStatus } from '../controllers/ai.js';
@@ -57,5 +58,6 @@ router.post('/:campaignId/counter/respond', authenticate, authorize('creator'), 
 router.post('/:campaignId/payment-setup', authenticate, authorize('brand'), createPaymentSetup);
 router.post('/:campaignId/pay-all', authenticate, authorize('brand'), payAllPending);
 router.post('/:campaignId/select/:creatorId', authenticate, authorize('brand'), selectCreator);
+router.post('/:campaignId/renew/:creatorId', authenticate, authorize('brand'), renewWithCreator); // reconduire avec ce créateur
 
 export default router;

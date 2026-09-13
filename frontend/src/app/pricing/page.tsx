@@ -13,7 +13,7 @@ export const metadata = {
 type Cell = { text: string; ok?: boolean };
 
 /** Inclus dans les deux offres : le cœur du service, sans limite de durée */
-const included = (cfg: { autoApprovalDays: number; giftingMinProductValue: number }): string[] => [
+const included = (cfg: { autoApprovalDays: number; giftingMinProductValue: number; repeatDiscountPercent: number }): string[] => [
   'Campagnes et devis reçus illimités',
   'Le prix du devis est le prix payé : aucun frais ajouté',
   'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration',
@@ -21,6 +21,7 @@ const included = (cfg: { autoApprovalDays: number; giftingMinProductValue: numbe
   'Score de conformité au brief à la livraison',
   `Révisions précisées dans chaque devis, validation automatique à ${plural(cfg.autoApprovalDays, 'jour')}`,
   'Contre-proposition de devis et comparateur de candidats',
+  `Reconduction en un clic avec le même créateur, remise fidélité de ${cfg.repeatDiscountPercent} % offerte`,
   'Modèles de campagne par secteur, duplication d\'une campagne passée',
   'Campagnes privées, visibles des seuls créateurs invités',
   'Équipe : collaborateurs sur le même compte marque',

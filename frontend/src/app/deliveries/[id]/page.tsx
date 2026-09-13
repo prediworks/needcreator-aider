@@ -28,6 +28,7 @@ import ReadyPackCard from '@/components/ReadyPackCard';
 import ContractCard from '@/components/ContractCard';
 import ComplianceCard from '@/components/ComplianceCard';
 import ReplacementCard from '@/components/ReplacementCard';
+import RenewCard from '@/components/RenewCard';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -537,6 +538,9 @@ export default function DeliveryDetailPage() {
                 <p className="text-xs text-neutral-500 mt-3">Toutes vos factures : <Link href="/invoices" className="text-primary-600 underline">page Factures</Link>.</p>
               </Card>
             )}
+
+            {/* Reconduire avec ce créateur (marque, après validation) */}
+            {isDone && isBrand && delivery.status !== 'rejected' && <RenewCard delivery={delivery} />}
 
             {/* Pack prêt à diffuser (marque, après validation) */}
             {isDone && isBrand && <ReadyPackCard delivery={delivery} />}

@@ -1,6 +1,6 @@
 import express from 'express';
 import { config } from '../config/index.js';
-import { getMaxRevisions, getFeePercents } from '../models/Setting.js';
+import { getMaxRevisions, getFeePercents, getSetting, SETTINGS } from '../models/Setting.js';
 
 const router = express.Router();
 
@@ -19,6 +19,7 @@ router.get('/public', async (req, res) => {
     platformFeePercent: fees.standard,
     creatorSharePercent: 100 - fees.standard,
     ambassadorFeePercent: fees.ambassador,
+    repeatDiscountPercent: await getSetting(SETTINGS.repeatDiscountPercent.key, SETTINGS.repeatDiscountPercent.default),
     referralCreatorBonus: config.referral.creatorBonus,
     referralBrandDiscountPercent: config.referral.brandDiscountPercent,
     earlyAccessHours: config.badges.earlyAccessHours,
