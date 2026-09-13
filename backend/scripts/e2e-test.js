@@ -1050,6 +1050,38 @@ await step('Campagne multi-créateurs (2 postes) + paiement groupé', async () =
   return '2 créateurs sélectionnés, 190€ payés en une fois, campagne terminée après les 2 approbations';
 });
 
+await step('Créateurs non retenus : notification à la sélection, réglable dans l\'admin', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const mk = async (title) => {
+    const c = await brandApi('POST', '/campaigns', { title, description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'demo', duration: 30, deliverables: 1, budget: 120, niches: ['beauty'], applicationDeadline: deadline });
+    await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
+    await creatorApi('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+    await c2Api('POST', `/campaigns/${c.data.campaign._id}/apply`, { price: 90, estimatedDeliveryDays: 4 });
+    return c.data.campaign._id;
+  };
+  const cid = await mk('Un seul poste, deux devis');
+  const sel = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+  expect(sel.status === 200, 'Sélection échouée', sel);
+  const bell = await c2Api('GET', '/notifications');
+  expect(bell.data.notifications.some(n => /Devis non retenu/.test(n.title)), 'Le créateur non retenu doit être prévenu', bell);
+  // Réglage désactivé : plus de notification
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const off = await brandApi('PUT', '/admin/settings/notifyNotSelected', { value: false });
+  expect(off.status === 200, 'Désactivation du réglage échouée', off);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const cid2 = await mk('Un seul poste, deux devis, silencieux');
+  await brandApi('POST', `/campaigns/${cid2}/select/${creatorUser.id}`);
+  const bell2 = await c2Api('GET', '/notifications');
+  expect(bell2.data.notifications.filter(n => /Devis non retenu/.test(n.title)).length === 1, 'Réglage désactivé : aucune nouvelle notification', bell2);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  await brandApi('PUT', '/admin/settings/notifyNotSelected', { value: true });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const deliveries = mongoose.connection.db.collection('deliveries');
+  for (const id of [cid, cid2]) { await deliveries.deleteMany({ campaignId: new mongoose.Types.ObjectId(id) }); await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(id) }); }
+  return 'notification envoyée au non retenu, désactivable dans l\'admin';
+});
+
 await step('Envoi de produit : adresse, expédition, réception, délai de production', async () => {
   const addr = await creatorApi('PATCH', '/auth/profile', { profile: { address: { name: 'Créateur Test', line1: '12 rue des Lilas', postalCode: '75011', city: 'Paris', country: 'France', phone: '0600000000' } } });
   expect(addr.status === 200 && addr.data.user.profile.address.city === 'Paris', 'Adresse non enregistrée', addr);

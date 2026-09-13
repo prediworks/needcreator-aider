@@ -9,6 +9,7 @@ import {
   sendCounterOffer,
   sendCounterOfferResponse,
   sendExternalCampaignInvitation,
+  sendApplicationNotSelected,
 } from '../services/email.js';
 import crypto from 'crypto';
 import { serviceByKey, DEFAULT_SERVICE } from '../../config/services.js';
@@ -685,6 +686,32 @@ export async function updateQuote(req, res) {
 }
 
 /**
+ * Créateurs non retenus : notification + email (si activé), avec un bloc « Augmentez vos chances »
+ * qui ne propose que ce que le créateur n'a pas encore (portfolio, académie, programme Ambassadeur si activé).
+ */
+async function notifyNotSelected(campaign, creatorIds) {
+  const enabled = await getSetting(SETTINGS.notifyNotSelected.key, SETTINGS.notifyNotSelected.default);
+  if (!enabled) return 0;
+  const ambassadorTip = await getSetting(SETTINGS.notSelectedAmbassadorTip.key, SETTINGS.notSelectedAmbassadorTip.default);
+  const users = await User.find({ _id: { $in: creatorIds }, status: { $ne: 'deleted' } }).select('email profile.name profile.portfolio profile.academy profile.ambassador.status profile.niches');
+  const origin = config.cors.origin;
+  let n = 0;
+  for (const u of users) {
+    const tips = [];
+    if ((u.profile?.portfolio?.length || 0) < 5) tips.push({ title: 'Étoffez votre portfolio', text: `Les marques choisissent d'abord sur les vidéos : vous en avez ${u.profile?.portfolio?.length || 0}, visez au moins 5, dans les niches de vos campagnes.`, href: `${origin}/profile#portfolio`, cta: 'Ajouter des vidéos' });
+    if (!isTrained(u)) tips.push({ title: 'Obtenez le badge Formé', text: 'Cinq guides courts avec quiz. Trois réussis : le badge est visible par les marques et remonte vos devis dans leur liste.', href: `${origin}/academie`, cta: 'Ouvrir l\'académie' });
+    if (ambassadorTip && !isAmbassador(u)) tips.push({ title: 'Devenez Ambassadeur', text: 'Une vidéo sur vos réseaux qui parle de NeedCreator : campagnes en avant-première, devis remontés en tête, commission réduite.', href: `${origin}/profile#ambassador`, cta: 'Voir le programme' });
+    tips.push({ title: 'Ajustez votre devis', text: 'Un prix proche du budget indiqué, un délai court et des droits clairs pèsent dans le score que voit la marque.', href: `${origin}/campaigns`, cta: 'Voir les campagnes' });
+    const campaignsUrl = `${origin}/campaigns${u.profile?.niches?.[0] ? `?niche=${encodeURIComponent(u.profile.niches[0])}` : ''}`;
+    sendApplicationNotSelected(u.email, u.profile?.name, campaign.title, tips.slice(0, 3), campaignsUrl).catch(err => logger.warn(`Not-selected email not sent: ${err.message}`));
+    notify(u._id, { type: 'application', title: `Devis non retenu : ${campaign.title}`, text: 'La marque a choisi un autre créateur. D\'autres campagnes sont ouvertes dans vos niches.', href: '/campaigns' }).catch(() => {});
+    n++;
+  }
+  if (n) logger.info(`Not-selected notifications sent for campaign ${campaign._id}: ${n}`);
+  return n;
+}
+
+/**
  * Reconduire avec ce créateur : depuis une mission validée, crée une campagne privée (brouillon) pour le même créateur,
  * brief copié, dernier devis en modèle, remise fidélité (réglage admin) déduite du prix payé par la marque et financée sur la commission.
  * La marque vérifie puis publie : le créateur est alors prévenu.
@@ -982,10 +1009,14 @@ export async function selectCreator(req, res) {
       return res.status(404).json({ error: 'Creator not found' });
     }
 
+    const pendingBefore = campaign.applications.filter(a => a.status === 'pending').map(a => idOf(a.creatorId));
     campaign.selectCreator(creatorId);
     if (application.quote) application.quote.acceptedAt = new Date();
     await campaign.save();
     updateBrandStats(brand._id);
+    // Tous les postes pourvus : prévenir les créateurs non retenus (réglage admin), avec des pistes adaptées
+    const nowRejected = campaign.applications.filter(a => a.status === 'rejected' && pendingBefore.includes(idOf(a.creatorId)) && idOf(a.creatorId) !== creatorId).map(a => idOf(a.creatorId));
+    if (nowRejected.length) notifyNotSelected(campaign, nowRejected).catch(err => logger.warn(`notifyNotSelected: ${err.message}`));
 
     // Crée la livraison + autorisation de paiement
     let delivery = null;

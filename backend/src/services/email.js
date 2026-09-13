@@ -426,6 +426,21 @@ export async function sendAmbassadorApproved(email, name) {
 }
 
 /**
+ * Devis non retenu : email court, sans motif, avec des pistes concrètes pour la prochaine fois
+ * tips : [{ title, text, href }]
+ */
+export async function sendApplicationNotSelected(email, name, campaignTitle, tips = [], campaignsUrl) {
+  const subject = `Votre devis pour "${campaignTitle}" n'a pas été retenu`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>La marque a choisi un autre créateur pour « ${campaignTitle} ». Merci pour votre devis : cela arrive à tout le monde, et d'autres campagnes sont ouvertes dans vos niches.</p>
+    ${button(campaignsUrl, 'Voir les campagnes ouvertes')}
+    ${tips.length ? `<h2 style="font-size:16px;margin-top:24px">Augmentez vos chances</h2>${tips.map(t => `<p><strong>${t.title}</strong><br>${t.text} <a href="${t.href}">${t.cta || 'En savoir plus'}</a></p>`).join('')}` : ''}
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/**
  * Invitation d'une marque à candidater
  */
 export async function sendCampaignInvitation(email, name, brandName, campaignTitle, campaignId, message = '') {
