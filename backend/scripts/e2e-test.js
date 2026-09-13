@@ -871,6 +871,12 @@ await step('Créateur : disponibilité, kit média, académie, virements, missio
   expect(last.data.trained === true && last.data.badges.includes('trained'), 'Le badge Formé devrait être attribué', last);
   const prof = await creatorApi('GET', '/auth/profile');
   expect(prof.data.user.badges.includes('trained') && prof.data.user.profile.academy.filter(a => a.passed).length === ac.required, 'Le profil devrait porter le badge Formé', prof);
+  // Badges partageables et widget « créateur vérifié » dans le kit média ; fiche publique par slug enrichie
+  const kit2 = await creatorApi('GET', '/auth/media-kit');
+  expect(kit2.data.badges.some(b => b.kind === 'trained' && /badge\/trained\?format=story/.test(b.images.story) && b.text.includes(kit2.data.url)) && kit2.data.badges.some(b => b.kind === 'ambassador'), 'Badges partageables Formé et Ambassadeur attendus dans le kit média', kit2);
+  expect(kit2.data.widget.available === true && /widget\.svg$/.test(kit2.data.widget.imageUrl) && /<img /.test(kit2.data.widget.html), 'Widget créateur vérifié attendu', kit2);
+  const pubSlug = await fetch(`${API}/creators/slug/${kit2.data.slug}`).then(r => r.json());
+  expect(pubSlug.verified === true && pubSlug.badges.includes('trained') && pubSlug.badges.includes('ambassador') && pubSlug.level && pubSlug.slug === kit2.data.slug, 'La fiche publique par slug doit exposer badges, niveau et vérification', { status: 200, data: pubSlug });
   // Calendrier des virements + seuils micro
   const po = await creatorApi('GET', '/auth/payouts');
   expect(po.status === 200 && typeof po.data.connected === 'boolean' && po.data.thresholds && po.data.thresholds.vat > 0 && typeof po.data.ytd === 'number', 'Calendrier des virements / seuils attendus', po);

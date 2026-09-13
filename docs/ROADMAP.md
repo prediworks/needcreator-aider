@@ -153,10 +153,10 @@ Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'
 **Viralité automatique** (décidé le 12/09/2026 ; 1, 2 et 5 livrés le 12/09/2026 avec la commission réduite Ambassadeurs, réglage admin « Ambassadeurs », 8 % par défaut) :
 - ~~1. Campagnes publiques indexées par Google~~ (pages `/campagnes` et `/campagnes/<id>`, sitemap).
 - ~~2. Email après mission validée~~ avec texte de publication prêt et lien de parrainage.
-- **3. Badges « Formé » et « Ambassadeur » partageables** : image générée automatiquement au format story et LinkedIn, avec le lien du kit média. Rien à fournir. Une demi-journée.
+- ~~3. Badges « Formé » et « Ambassadeur » partageables~~ Livré le 13/09/2026 (images story, carré, LinkedIn générées par le site, texte de post, depuis le kit média).
 - **4. Publication automatique de chaque nouvelle campagne** sur LinkedIn et Instagram NeedCreator (sans nom de marque si privée). À fournir : application développeur LinkedIn rattachée à la page entreprise (validation LinkedIn, quelques jours) ; application Meta reliée à un compte Instagram professionnel lui-même relié à une page Facebook. TikTok : pas d'API de publication. Un jour.
 - ~~5. Invitation d'un créateur extérieur par une marque~~ depuis sa campagne (email, lien d'inscription, rattachement automatique).
-- **6. Widget « Créateur vérifié NeedCreator »** à mettre dans les bios et sites des créateurs, lien vers le kit média (liens entrants). À fournir : rien. Une demi-journée.
+- ~~6. Widget « Créateur vérifié NeedCreator »~~ Livré le 13/09/2026 (SVG `/c/<slug>/widget.svg` + code HTML dans le kit média).
 
 ## 5. Questions pour l'expert-comptable
 

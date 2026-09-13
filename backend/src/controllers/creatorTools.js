@@ -4,7 +4,7 @@ import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { Invoice } from '../services/invoices.js';
 import { GUIDES, publicGuides } from '../../config/academy.js';
-import { badgesFor } from '../utils/badges.js';
+import { badgesFor, levelFor } from '../utils/badges.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -29,9 +29,9 @@ export async function ensureSlug(user) {
 
 /** Public : identifiant d'un créateur à partir de son slug */
 export async function creatorBySlug(req, res) {
-  const u = await User.findOne({ 'profile.slug': String(req.params.slug).toLowerCase(), role: 'creator', status: 'active' }).select('_id profile.name profile.bio profile.niches profile.stats profile.avatar').lean();
+  const u = await User.findOne({ 'profile.slug': String(req.params.slug).toLowerCase(), role: 'creator', status: 'active' }).select('_id profile.name profile.bio profile.niches profile.stats profile.avatar profile.slug profile.ambassador.status profile.academy verification.portfolio profile.services').lean();
   if (!u) return res.status(404).json({ error: 'Créateur introuvable' });
-  res.json({ id: u._id, name: u.profile.name, bio: u.profile.bio || '', niches: u.profile.niches || [], stats: u.profile.stats || {}, avatar: u.profile.avatar || null });
+  res.json({ id: u._id, slug: u.profile.slug, name: u.profile.name, bio: u.profile.bio || '', niches: u.profile.niches || [], stats: u.profile.stats || {}, avatar: u.profile.avatar || null, badges: badgesFor(u), level: levelFor(u.profile.stats), verified: !!u.verification?.portfolio, services: u.profile.services?.length ? u.profile.services : ['ugc'] });
 }
 
 /** Créateur : son kit média (lien court, QR code) */
@@ -41,7 +41,23 @@ export async function getMediaKit(req, res) {
     const slug = await ensureSlug(user);
     const url = `${config.cors.origin}/c/${slug}`;
     const qr = await QRCode.toDataURL(url, { width: 512, margin: 1, color: { dark: '#111827', light: '#ffffff' } });
-    res.json({ slug, url, qr, shareText: `Découvrez mon portfolio vidéo UGC et proposez-moi une mission : ${url}` });
+    // Badges partageables (images générées par le site) et widget « Créateur vérifié » à intégrer dans une bio ou un site
+    const badges = badgesFor(user);
+    const shareable = ['trained', 'ambassador'].filter(b => badges.includes(b)).map(kind => ({
+      kind,
+      label: kind === 'trained' ? 'Formé NeedCreator' : 'Ambassadeur NeedCreator',
+      images: { story: `${url}/badge/${kind}?format=story`, square: `${url}/badge/${kind}?format=square`, linkedin: `${url}/badge/${kind}?format=linkedin` },
+      text: kind === 'trained'
+        ? `J'ai suivi l'académie NeedCreator : brief, lumière, son, devis. Badge Formé obtenu 🎓 Mon portfolio et mes tarifs : ${url}`
+        : `Je suis Ambassadeur NeedCreator 🌟 Je fixe mon prix, le paiement est bloqué avant que je tourne, un contrat protège mes droits. Mon portfolio : ${url}`,
+    }));
+    const widgetAvailable = !!user.verification?.portfolio;
+    const widgetUrl = `${url}/widget.svg`;
+    res.json({
+      slug, url, qr, shareText: `Découvrez mon portfolio vidéo UGC et proposez-moi une mission : ${url}`,
+      badges: shareable,
+      widget: { available: widgetAvailable, imageUrl: widgetUrl, html: `<a href="${url}" target="_blank" rel="noopener"><img src="${widgetUrl}" alt="Créateur vérifié NeedCreator" width="240" height="72"></a>` },
+    });
   } catch (error) {
     logger.error('getMediaKit failed:', error);
     res.status(500).json({ error: 'Kit média indisponible' });

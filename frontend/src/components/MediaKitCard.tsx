@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { Share2, Copy, Download, ExternalLink } from 'lucide-react';
+import { Share2, Copy, Download, ExternalLink, Award, Code2 } from 'lucide-react';
 
 /**
  * Kit média : lien court public, QR code, texte de partage. Chaque créateur devient apporteur de marques.
@@ -35,6 +35,49 @@ export default function MediaKitCard() {
             <img src={data.qr} alt="QR code vers ma page" width={144} height={144} className="rounded-lg border border-neutral-200 mx-auto" />
             <a href={data.qr} download={`qr-needcreator-${data.slug}.png`} className="inline-flex items-center gap-1 text-xs text-primary-600 underline mt-2"><Download className="w-3.5 h-3.5" /> Télécharger le QR code</a>
           </div>
+        </div>
+      )}
+
+      {/* Badges partageables : images prêtes pour story, carré, LinkedIn */}
+      {data?.badges?.length > 0 && (
+        <div className="mt-6 border-t border-neutral-100 pt-5">
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><Award className="w-4 h-4 text-primary-500" /> Mes badges à partager</h3>
+          <p className="text-sm text-neutral-600 mb-3">Une image par badge, aux bons formats, avec votre nom et le lien de votre page. Publiez-la en story, en post ou sur LinkedIn : chaque partage ramène des marques vers vous.</p>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {data.badges.map((b: any) => (
+              <div key={b.kind} className="border border-neutral-200 rounded-lg p-3">
+                <img src={b.images.square} alt={b.label} className="w-full rounded-lg border border-neutral-100 mb-2" loading="lazy" />
+                <div className="font-medium text-neutral-900 text-sm mb-1">{b.label}</div>
+                <div className="flex gap-2 flex-wrap text-xs">
+                  {[['story', 'Story 9:16'], ['square', 'Carré'], ['linkedin', 'LinkedIn']].map(([k, l]) => (
+                    <a key={k} href={b.images[k]} download={`badge-${b.kind}-${k}-needcreator.png`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50"><Download className="w-3 h-3" /> {l}</a>
+                  ))}
+                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 rounded border border-neutral-300 hover:bg-neutral-50" onClick={() => copy(b.text, 'Texte')}><Copy className="w-3 h-3" /> Texte du post</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Widget créateur vérifié : à coller dans une bio de site ou un blog */}
+      {data?.widget && (
+        <div className="mt-6 border-t border-neutral-100 pt-5">
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><Code2 className="w-4 h-4 text-primary-500" /> Widget « Créateur vérifié NeedCreator »</h3>
+          {data.widget.available ? (
+            <>
+              <p className="text-sm text-neutral-600 mb-3">Un petit badge à afficher sur votre site, votre blog ou votre page de liens. Il renvoie vers votre kit média et se met à jour tout seul (niveau, missions, note).</p>
+              <div className="grid sm:grid-cols-[auto_1fr] gap-4 items-start">
+                <img src={data.widget.imageUrl} alt="Créateur vérifié NeedCreator" width={240} height={72} />
+                <div>
+                  <code className="block text-xs bg-neutral-100 px-3 py-2 rounded-lg break-all">{data.widget.html}</code>
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => copy(data.widget.html, 'Code du widget')}><Copy className="w-4 h-4 mr-1" /> Copier le code</Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-neutral-500">Disponible dès que votre portfolio est validé par notre équipe.</p>
+          )}
         </div>
       )}
     </Card>
