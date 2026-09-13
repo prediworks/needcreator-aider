@@ -21,6 +21,19 @@ export const NICHES: Record<string, string> = {
 
 export const NICHE_OPTIONS = Object.keys(NICHES);
 
+/** Services (métiers) proposés par les créateurs : « ugc » par défaut. Même liste que backend/config/services.js */
+export const SERVICES: Record<string, { label: string; kind: 'video' | 'image' | 'audio'; description: string }> = {
+  ugc: { label: 'Vidéo UGC', kind: 'video', description: 'Vidéos authentiques tournées pour la marque.' },
+  social_video: { label: 'Vidéo sociale (TikTok, Reels, Shorts)', kind: 'video', description: 'Formats courts verticaux pensés pour les réseaux.' },
+  product_photo: { label: 'Photographie produit', kind: 'image', description: 'Photos de produit, packshot ou en situation.' },
+  voice_over: { label: 'Voix off', kind: 'audio', description: 'Voix pour vidéos, publicités, tutoriels.' },
+  video_editing: { label: 'Montage vidéo', kind: 'video', description: 'Montage et habillage de rushs fournis.' },
+  acting: { label: 'Acteur / figurant', kind: 'video', description: 'Présence à l\'image dans les contenus de la marque.' },
+  influence: { label: 'Influence / contenu sponsorisé', kind: 'video', description: 'Publication sur vos propres comptes.' },
+};
+export const SERVICE_OPTIONS = Object.keys(SERVICES);
+export const PORTFOLIO_KINDS: Record<string, string> = { video: 'Vidéo', image: 'Image', audio: 'Audio' };
+
 export const VIDEO_TYPES: Record<string, string> = {
   testimonial: 'Témoignage',
   unboxing: 'Unboxing',

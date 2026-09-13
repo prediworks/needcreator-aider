@@ -1,5 +1,6 @@
 import express from 'express';
 import { config } from '../config/index.js';
+import { SERVICES } from '../../config/services.js';
 import { getMaxRevisions, getFeePercents, getSetting, SETTINGS } from '../models/Setting.js';
 
 const router = express.Router();
@@ -29,6 +30,7 @@ router.get('/public', async (req, res) => {
     giftingMinProductValue: config.gifting.minProductValue,
     giftingMaxDeliverables: config.gifting.maxDeliverables,
     giftingMaxPerMonth: config.gifting.maxPerMonth,
+    services: SERVICES.map(s => ({ key: s.key, label: s.label, kind: s.kind, minPortfolio: s.key === 'ugc' ? config.business.minCreatorVideos : s.minPortfolio, description: s.description })),
   });
 });
 

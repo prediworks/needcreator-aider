@@ -39,7 +39,14 @@ function scoreOf(items) {
 export async function runComplianceCheck(deliveryId) {
   const delivery = await Delivery.findById(deliveryId);
   if (!delivery) return;
-  const campaign = await Campaign.findById(delivery.campaignId).select('brief gifting title');
+  const campaign = await Campaign.findById(delivery.campaignId).select('brief gifting title lots');
+  // Le contrôle automatique (durée, format, son, transcription) n'a de sens que pour une vidéo
+  const lot = (campaign?.lots || []).find(l => l.key === (delivery.lotKey || 'main'));
+  if (lot && lot.kind && lot.kind !== 'video') {
+    delivery.compliance = { status: 'unavailable', checkedAt: new Date(), items: [], summary: 'Contrôle automatique réservé aux livrables vidéo' };
+    await delivery.save();
+    return;
+  }
   const brand = await User.findById(delivery.brandId).select('profile.companyName');
   const items = [];
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nccheck-'));

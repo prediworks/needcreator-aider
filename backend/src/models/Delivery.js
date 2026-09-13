@@ -16,6 +16,7 @@ const deliverySchema = new mongoose.Schema({
     index: true,
   },
   
+  lotKey: { type: String, default: 'main' }, // lot de la campagne livré (préparation multi-métiers)
   brandId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

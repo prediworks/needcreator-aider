@@ -11,6 +11,7 @@ import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
 import { evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
 import { getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
+import { SERVICE_KEYS } from '../../config/services.js';
 import { planInfo } from './billing.js';
 import { sendCreatorWelcome, sendBrandWelcome } from '../services/email.js';
 import { sendVerificationAfterRegistration } from './authEmails.js';
@@ -308,6 +309,7 @@ export async function updateProfile(req, res) {
           'profile.country',
           'profile.avatar',
           'profile.niches',
+          'profile.services',
           'profile.pricing.minPrice',
           'profile.pricing.avgPrice',
           'profile.address.name', 'profile.address.line1', 'profile.address.line2', 'profile.address.postalCode',
@@ -330,6 +332,11 @@ export async function updateProfile(req, res) {
           'preferences.language',
         ];
     if (user.role === 'creator') allowedFields.push('preferences.acceptGifting');
+    if (updates['profile.services'] !== undefined) {
+      const list = Array.isArray(updates['profile.services']) ? updates['profile.services'].filter(k => SERVICE_KEYS.includes(k)) : [];
+      if (!list.length) return res.status(400).json({ error: 'Choisissez au moins un service proposé' });
+      updates['profile.services'] = [...new Set(list)];
+    }
 
     // Tableaux remplacés en bloc (réseaux sociaux, réalisations externes)
     if (user.role === 'creator' && Array.isArray(req.body.socials)) {

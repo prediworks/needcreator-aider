@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { SERVICE_KEYS, PORTFOLIO_KINDS, DEFAULT_SERVICE } from '../../config/services.js';
 
 const campaignSchema = new mongoose.Schema({
   brandId: {
@@ -69,6 +70,16 @@ const campaignSchema = new mongoose.Schema({
   },
   
   // Type : rémunérée (paid) ou produit offert (gifting)
+  // Lots : un besoin peut réunir plusieurs métiers (créateur, monteur, voix off…). Par défaut un seul lot « main » = vidéo UGC du brief.
+  lots: [{
+    key: { type: String, default: 'main' },
+    service: { type: String, enum: SERVICE_KEYS, default: DEFAULT_SERVICE },
+    kind: { type: String, enum: PORTFOLIO_KINDS, default: 'video' }, // type de livrable
+    title: String,
+    deliverables: Number,
+    description: String,
+    _id: false,
+  }],
   type: { type: String, enum: ['paid', 'gifting'], default: 'paid', index: true },
   gifting: {
     productName: String,
@@ -185,6 +196,7 @@ const campaignSchema = new mongoose.Schema({
       default: 'pending',
     },
     proposal: String,
+    lotKey: { type: String, default: 'main' }, // lot visé par la candidature
     reminderSentAt: Date, // relance « devis sans réponse » envoyée à la marque
     price: {
       type: Number,
@@ -277,6 +289,17 @@ campaignSchema.virtual('daysUntilDeadline').get(function() {
 });
 
 // Methods
+// Lot par défaut dérivé du brief : toute campagne existante est une campagne « vidéo UGC » à un lot
+campaignSchema.pre('validate', function(next) {
+  if (!this.lots || this.lots.length === 0) {
+    this.lots = [{ key: 'main', service: DEFAULT_SERVICE, kind: 'video', title: 'Vidéo UGC', deliverables: this.brief?.deliverables || 1 }];
+  }
+  next();
+});
+campaignSchema.methods.lotByKey = function(key = 'main') {
+  return (this.lots || []).find(l => l.key === key) || this.lots?.[0] || { key: 'main', service: DEFAULT_SERVICE, kind: 'video', deliverables: this.brief?.deliverables || 1 };
+};
+
 campaignSchema.methods.canApply = function(creatorId) {
   // Check if already applied (creatorId peut être peuplé ou non)
   const idOf = (c) => (c && c._id ? c._id : c)?.toString();

@@ -26,7 +26,8 @@ import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
-import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS, COUNTRIES } from '@/lib/labels';
+import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS, COUNTRIES, SERVICES, SERVICE_OPTIONS } from '@/lib/labels';
+import PortfolioMedia from '@/components/PortfolioMedia';
 import { formatDate } from '@/lib/utils';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { useScrollToHash } from '@/hooks/useScrollToHash';
@@ -51,6 +52,7 @@ function ProfileContent() {
   const [name, setName] = useState('');
   const [bio, setBio] = useState('');
   const [niches, setNiches] = useState<string[]>([]);
+  const [services, setServices] = useState<string[]>(['ugc']);
   const [minPrice, setMinPrice] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [website, setWebsite] = useState('');
@@ -65,7 +67,7 @@ function ProfileContent() {
 
   // Défilement ciblé (#portfolio, #legal…) ; #edit ouvre le formulaire. Hook avant le return anticipé.
   useScrollToHash(!!profile && !isLoading, (hash) => {
-    if (hash === 'edit' && profile) { setName(profile.profile.name || ''); setBio(profile.profile.bio || ''); setNiches(profile.profile.niches || []); setMinPrice(profile.profile.pricing?.minPrice?.toString() || ''); setCompanyName(profile.profile.companyName || ''); setWebsite(profile.profile.website || ''); setIndustry(profile.profile.industry || ''); setCountry(profile.profile.country || 'FR'); setIsEditing(true); }
+    if (hash === 'edit' && profile) { setName(profile.profile.name || ''); setBio(profile.profile.bio || ''); setNiches(profile.profile.niches || []); setServices(profile.profile.services?.length ? profile.profile.services : ['ugc']); setMinPrice(profile.profile.pricing?.minPrice?.toString() || ''); setCompanyName(profile.profile.companyName || ''); setWebsite(profile.profile.website || ''); setIndustry(profile.profile.industry || ''); setCountry(profile.profile.country || 'FR'); setIsEditing(true); }
     if (hash === 'portfolio') setShowVideoUpload(true);
   });
 
@@ -78,6 +80,7 @@ function ProfileContent() {
     setName(profile.profile.name || '');
     setBio(profile.profile.bio || '');
     setNiches(profile.profile.niches || []);
+    setServices(profile.profile.services?.length ? profile.profile.services : ['ugc']);
     setMinPrice(profile.profile.pricing?.minPrice?.toString() || '');
     setCompanyName(profile.profile.companyName || '');
     setWebsite(profile.profile.website || '');
@@ -95,6 +98,7 @@ function ProfileContent() {
         bio,
         country,
         niches,
+        services,
         pricing: { minPrice: parseInt(minPrice) },
       };
     } else {
@@ -232,6 +236,16 @@ function ProfileContent() {
                   </div>
                 )}
 
+                {isCreator && (
+                  <div>
+                    <h3 className="text-sm font-medium text-neutral-700 mb-2">Services proposés</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {(profile.profile.services?.length ? profile.profile.services : ['ugc']).map((s: string) => (
+                        <span key={s} className="px-3 py-1 bg-neutral-100 text-neutral-800 rounded-full text-sm">{SERVICES[s]?.label || s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {isCreator && profile.profile.niches?.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium text-neutral-700 mb-2">Niches</h3>
@@ -330,6 +344,18 @@ function ProfileContent() {
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-2">Services proposés</label>
+                      <div className="flex flex-wrap gap-2">
+                        {SERVICE_OPTIONS.map((s) => (
+                          <button key={s} type="button" title={SERVICES[s].description} onClick={() => setServices((prev) => prev.includes(s) ? (prev.length > 1 ? prev.filter((x) => x !== s) : prev) : [...prev, s])} className={`px-3 py-1 rounded-full text-sm transition ${services.includes(s) ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}>
+                            {SERVICES[s].label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-neutral-500 mt-1">Les campagnes qui vous sont proposées correspondent à ces services. Le portfolio attendu dépend du service : vidéos, images ou extraits audio.</p>
                     </div>
 
                     <Input
@@ -463,14 +489,14 @@ function ProfileContent() {
             <Card id="portfolio" className="p-6 scroll-mt-24">
               <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                 <h2 className="text-xl font-semibold text-neutral-900">
-                  Portfolio ({profile.profile.portfolio?.length || 0} vidéo{(profile.profile.portfolio?.length || 0) > 1 ? 's' : ''})
+                  Portfolio ({profile.profile.portfolio?.length || 0} élément{(profile.profile.portfolio?.length || 0) > 1 ? 's' : ''})
                 </h2>
                 <Button
                   size="sm"
                   onClick={() => setShowVideoUpload(!showVideoUpload)}
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  Ajouter une vidéo
+                  Ajouter au portfolio
                 </Button>
               </div>
               <p className="text-sm text-neutral-600 mb-3">
@@ -492,15 +518,15 @@ function ProfileContent() {
               {/* Video Upload Form */}
               {showVideoUpload && (
                 <div className="mb-6 p-4 bg-neutral-50 rounded-lg space-y-4">
-                  <h3 className="font-medium text-neutral-900">Nouvelle vidéo</h3>
+                  <h3 className="font-medium text-neutral-900">Nouvel élément</h3>
 
                   <div>
                     <label className="block text-sm font-medium text-neutral-700 mb-1">
-                      Fichier vidéo (MP4, MOV… jusqu&apos;à 500 Mo)
+                      Fichier : vidéo (MP4, MOV…), image (JPG, PNG) ou audio (MP3, WAV), jusqu&apos;à 500 Mo
                     </label>
                     <input
                       type="file"
-                      accept="video/*"
+                      accept="video/*,image/*,audio/*"
                       onChange={(e) => setSelectedVideo(e.target.files?.[0] || null)}
                       className="block w-full text-sm text-neutral-500
                         file:mr-4 file:py-2 file:px-4
@@ -585,7 +611,7 @@ function ProfileContent() {
                       key={video._id}
                       className="border border-neutral-200 rounded-lg overflow-hidden hover:border-primary-500 transition"
                     >
-                      <VideoPlayer src={video.videoUrl} title={video.title} className="rounded-none" />
+                      <PortfolioMedia item={video} className="rounded-none" />
                       <div className="p-4 flex items-start gap-3">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-neutral-900 mb-1">

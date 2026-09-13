@@ -19,10 +19,11 @@ const upload = multer({
     fileSize: 500 * 1024 * 1024, // 500MB
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) {
+    // Vidéo par défaut ; image et audio pour les autres services (photo produit, voix off…)
+    if (/^(video|image|audio)\//.test(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only video files are allowed'));
+      cb(new Error('Seuls les fichiers vidéo, image ou audio sont acceptés'));
     }
   },
 });

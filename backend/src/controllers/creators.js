@@ -126,7 +126,8 @@ export async function publicCreators(req, res) {
       User.countDocuments(query),
     ]);
     const out = await Promise.all(creators.map(async c => {
-      const [video] = c.profile.portfolio?.length ? await resolveUrlsIn([portfolioForViewer(c.profile.portfolio)[0]]) : [null];
+      const firstVideo = (c.profile.portfolio || []).find(v => !v.kind || v.kind === 'video');
+      const [video] = firstVideo ? await resolveUrlsIn([portfolioForViewer([firstVideo])[0]]) : [null];
       return {
         id: c._id,
         name: c.profile.name,

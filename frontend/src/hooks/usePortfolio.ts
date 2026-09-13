@@ -24,13 +24,14 @@ export function useUploadPortfolioVideo() {
     }) => {
       // Envoi direct vers le stockage, puis enregistrement de la vidéo
       const { key } = await directUpload('/portfolio/upload-url', file, onProgress);
-      const response = await api.post('/portfolio/videos', { key, title, description, videoType });
+      const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('audio/') ? 'audio' : 'video';
+      const response = await api.post('/portfolio/videos', { key, title, description, videoType, kind });
       return response.data;
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       await refreshUser();
-      toast.success('Vidéo ajoutée au portfolio');
+      toast.success('Ajouté au portfolio');
     },
     onError: (error: any) => {
       toast.error(error?.response ? getErrorMessage(error, 'Erreur lors de l\'upload') : (error?.message || 'Erreur lors de l\'upload'), { duration: 8000 });

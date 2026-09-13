@@ -120,6 +120,11 @@ function fakeVideo(name) {
   const bytes = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(2048, 1)]);
   return new File([bytes], name, { type: 'video/mp4' });
 }
+function fakeImage(name) {
+  // PNG 1×1 valide
+  const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  return new File([bytes], name, { type: 'image/png' });
+}
 
 const brandEmail = `e2e-brand-${RUN}@needcreator-test.com`;
 const creatorEmail = `e2e-creator-${RUN}@needcreator-test.com`;
@@ -406,10 +411,48 @@ await step('Portfolio : upload de 3 vidéos (R2)', async () => {
   return '3 vidéos, candidature autorisée';
 });
 
+await step('Services (métiers) et portfolio multi-formats : préparation de l\'élargissement', async () => {
+  const cfg = await fetch(`${API}/config/public`).then(r => r.json());
+  expect(Array.isArray(cfg.services) && cfg.services.some(s => s.key === 'product_photo' && s.kind === 'image'), 'La liste des services doit être publique', { status: 200, data: cfg });
+  const me = await creatorApi('GET', '/auth/profile');
+  expect(!me.data.user.profile.services?.length || me.data.user.profile.services.includes('ugc'), 'Sans réglage, un créateur propose la vidéo UGC', me);
+  const bad = await creatorApi('PATCH', '/auth/profile', { profile: { services: ['inconnu'] } });
+  expect(bad.status === 400, 'Un service inconnu doit être refusé', bad);
+  const photoOnly = await creatorApi('PATCH', '/auth/profile', { profile: { services: ['product_photo'] } });
+  expect(photoOnly.status === 200 && photoOnly.data.user.profile.services.join() === 'product_photo', 'Service photo non enregistré', photoOnly);
+  // Photographe sans image : le portfolio vidéo ne suffit pas ; la campagne vidéo UGC n'est plus proposée ni ouverte
+  const blocked = await creatorApi('GET', '/auth/profile');
+  expect(blocked.data.user.canApply === false && /image/.test(blocked.data.user.applyBlockers.join(' ')), 'Un photographe doit avoir des images en portfolio', blocked);
+  const feed = await creatorApi('GET', '/campaigns');
+  expect(!feed.data.campaigns.some(c => c._id === campaign._id), 'Une campagne vidéo UGC ne doit pas être proposée à un photographe', feed);
+  for (let i = 1; i <= 3; i++) {
+    const form = new FormData();
+    form.append('video', fakeImage(`photo-${i}.png`));
+    form.append('title', `Photo test ${i}`);
+    const up = await creatorApi('POST', '/portfolio/upload', form, { form: true });
+    expect(up.status === 201 && up.data.video.kind === 'image', `Upload image ${i} échoué`, up);
+  }
+  const withImages = await creatorApi('GET', '/auth/profile');
+  expect(withImages.data.user.canApply === true && withImages.data.user.profile.portfolio.filter(v => v.kind === 'image').length === 3, 'Trois images doivent débloquer la candidature du photographe', withImages);
+  const mismatch = await creatorApi('POST', `/campaigns/${campaign._id}/apply`, { proposal: 'Photo ?', price: 250, estimatedDeliveryDays: 5 });
+  expect(mismatch.status === 403 && mismatch.data.code === 'SERVICE_MISMATCH', 'Candidature refusée quand le service du lot n\'est pas proposé', mismatch);
+  // Retour au profil vidéo UGC (+ photo) pour la suite du test ; les images restent au portfolio
+  const back = await creatorApi('PATCH', '/auth/profile', { profile: { services: ['ugc', 'product_photo'] } });
+  expect(back.status === 200 && back.data.user.canApply === true, 'Retour au service UGC échoué', back);
+  // Campagne à deux lots (vidéo UGC + photo produit) : le photographe peut candidater sur le lot photo
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const two = await brandApi('POST', '/campaigns', { title: 'Lancement vidéo et photos', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'demo', duration: 30, deliverables: 1, budget: 300, niches: ['beauty'], applicationDeadline: deadline, lots: [{ key: 'main', service: 'ugc', title: 'Vidéo de lancement' }, { key: 'photo', service: 'product_photo', title: 'Packshots', deliverables: 5 }] });
+  expect(two.status === 201 && two.data.campaign.lots.length === 2 && two.data.campaign.lots[1].kind === 'image' && two.data.campaign.lots[1].deliverables === 5, 'Campagne à deux lots non créée', two);
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(two.data.campaign._id) });
+  const main = await brandApi('GET', `/campaigns/${campaign._id}`);
+  expect(main.data.campaign.lots?.length === 1 && main.data.campaign.lots[0].key === 'main' && main.data.campaign.lots[0].service === 'ugc', 'Une campagne existante doit avoir un lot « main » vidéo UGC', main);
+  return 'services publics, photographe bloqué puis débloqué par 3 images, lot vidéo refusé, campagne à 2 lots, lot main par défaut';
+});
+
 await step('Portfolio : lecture publique (GET /portfolio/creator/:id)', async () => {
   const res = await fetch(`${API}/portfolio/creator/${creatorUser.id}`);
   const data = await res.json();
-  expect(res.status === 200 && data.creator.profile.portfolio.length === 3, 'Portfolio public illisible', { status: res.status, data });
+  expect(res.status === 200 && data.creator.profile.portfolio.filter(v => (v.kind || 'video') === 'video').length === 3, 'Portfolio public illisible (3 vidéos attendues)', { status: res.status, data });
   const video = await fetch(data.creator.profile.portfolio[0].videoUrl, { headers: { Range: 'bytes=0-64' } });
   expect(video.ok, `La vidéo n'est pas lisible depuis le navigateur (HTTP ${video.status})`);
   return 'vidéos lisibles via lien signé';
@@ -513,6 +556,7 @@ await step('Marque : voit la candidature (score de matching)', async () => {
   const res = await brandApi('GET', `/campaigns/${campaign._id}`);
   expect(res.status === 200 && res.data.campaign.applications?.length === 1, 'Candidature invisible côté marque', res);
   const app = res.data.campaign.applications[0];
+  expect(app.lotKey === 'main', 'La candidature doit porter le lot « main »', res);
   expect(app.creatorId?.profile?.name, 'Profil du candidat non peuplé', res);
   expect(app.quote?.terms === 'Produit à fournir par la marque.', 'Le devis devrait être visible par la marque', res);
   return `${app.creatorId.profile.name} — ${app.price}€ — match ${app.matchScore}%`;
@@ -521,6 +565,7 @@ await step('Marque : voit la candidature (score de matching)', async () => {
 await step('Marque : sélection du créateur (+ livraison + paiement Stripe test)', async () => {
   const res = await brandApi('POST', `/campaigns/${campaign._id}/select/${creatorUser.id}`);
   expect(res.status === 200, 'Sélection échouée', res);
+  expect(res.data.delivery?.lotKey === 'main', 'La livraison doit porter le lot « main »', res);
   expect(res.data.campaign.status === 'in_progress', 'Statut attendu in_progress', res);
   expect(res.data.delivery, 'La livraison aurait dû être créée automatiquement', res);
   delivery = res.data.delivery;

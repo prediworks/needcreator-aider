@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { SERVICE_KEYS } from '../../config/services.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -109,6 +110,7 @@ export const schemas = {
     title: Joi.string().trim().min(1).max(120).required(),
     description: Joi.string().max(500).allow(''),
     videoType: Joi.string().max(50).allow(''),
+    kind: Joi.string().valid('video', 'image', 'audio'), // déduit de la clé sinon
   }),
   deliveryRegister: Joi.object({
     files: Joi.array().items(Joi.object({
@@ -169,6 +171,7 @@ export const schemas = {
     type: Joi.string().valid('paid', 'gifting').default('paid'),
     giftingProductName: Joi.string().max(200).allow(''),
     giftingProductValue: Joi.number().min(0).allow(null),
+    lots: Joi.array().items(Joi.object({ key: Joi.string().max(30).required(), service: Joi.string().valid(...SERVICE_KEYS).required(), title: Joi.string().max(120).allow(''), deliverables: Joi.number().integer().min(1).max(20), description: Joi.string().max(1000).allow('') })).max(6), // facultatif : un lot « main » vidéo UGC sinon
   }),
 
   // Pack prêt à diffuser
@@ -234,6 +237,7 @@ export const schemas = {
     type: Joi.string().valid('paid', 'gifting'),
     giftingProductName: Joi.string().max(200).allow(''),
     giftingProductValue: Joi.number().min(0).allow(null),
+    lots: Joi.array().items(Joi.object({ key: Joi.string().max(30).required(), service: Joi.string().valid(...SERVICE_KEYS).required(), title: Joi.string().max(120).allow(''), deliverables: Joi.number().integer().min(1).max(20), description: Joi.string().max(1000).allow('') })).max(6), // facultatif : un lot « main » vidéo UGC sinon
   }).min(1),
 
   // Application = devis
@@ -252,6 +256,7 @@ export const schemas = {
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).default([]),
     revisions: Joi.number().integer().min(0).max(10), // vide = réglage admin « Nombre maximum de révisions »
     terms: Joi.string().max(2000).allow(''),
+    lotKey: Joi.string().max(30).default('main'),
   }),
 
   // Invitation d'un créateur extérieur (pas encore inscrit) sur une campagne

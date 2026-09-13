@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { SERVICE_KEYS, PORTFOLIO_KINDS, DEFAULT_SERVICE, serviceByKey } from '../../config/services.js';
 import { config } from '../config/index.js';
 
 const userSchema = new mongoose.Schema({
@@ -36,8 +37,11 @@ const userSchema = new mongoose.Schema({
     country: { type: String, default: 'FR', uppercase: true, trim: true }, // ISO 3166-1 alpha-2 (préparation international : Stripe, contrats, TVA)
     
     // Creator-specific fields
+    // Services proposés (config/services.js) : « ugc » par défaut. Préparation de l'élargissement à d'autres métiers.
+    services: [{ type: String, enum: SERVICE_KEYS }],
     portfolio: [{
-      videoUrl: String,
+      kind: { type: String, enum: PORTFOLIO_KINDS, default: 'video' }, // vidéo (défaut), image, audio
+      videoUrl: String, // URL du média (nom historique, quel que soit le type)
       previewUrl: String,      // aperçu filigrané montré aux marques (l'original reste pour le créateur)
       watermarkedAt: Date,
       watermarkError: String,
@@ -369,7 +373,7 @@ userSchema.methods.profileChecklist = function() {
       { key: 'bio', label: 'Bio (présentez-vous aux marques)', done: !!(p.bio && p.bio.trim()) },
       { key: 'niches', label: 'Au moins une niche', done: (p.niches?.length || 0) > 0 },
       { key: 'price', label: 'Prix minimum par vidéo', done: !!p.pricing?.minPrice },
-      { key: 'portfolio', label: `${config.business.minCreatorVideos} vidéos de portfolio`, done: (p.portfolio?.length || 0) >= config.business.minCreatorVideos },
+      { key: 'portfolio', label: this.portfolioRequirement().label, done: this.portfolioRequirement().done },
       { key: 'socials', label: 'Au moins un réseau social', done: (p.socials?.length || 0) > 0 },
       { key: 'legal', label: 'Informations administratives (contrat)', done: this.hasLegalInfo() },
       { key: 'address', label: 'Adresse de réception des produits', done: !!(p.address?.line1 && p.address?.city) },
@@ -446,6 +450,31 @@ userSchema.methods.hasLegalInfo = function() {
 };
 
 // Methods
+/** Services proposés par le créateur (« ugc » si rien n'est renseigné) */
+userSchema.methods.servicesOf = function() {
+  const s = this.profile?.services;
+  return s && s.length ? s : [DEFAULT_SERVICE];
+};
+
+/**
+ * Exigence de portfolio : satisfaite dès qu'un des services du créateur a assez d'éléments du bon type
+ * (vidéo UGC : minCreatorVideos vidéos ; photo : images ; voix off : audios…)
+ */
+userSchema.methods.portfolioRequirement = function() {
+  const items = this.profile?.portfolio || [];
+  const count = (kind) => items.filter(v => (v.kind || 'video') === kind).length;
+  const reqs = this.servicesOf().map(key => {
+    const svc = serviceByKey(key);
+    const min = svc.key === DEFAULT_SERVICE ? config.business.minCreatorVideos : svc.minPortfolio;
+    return { service: svc, min, have: count(svc.kind) };
+  });
+  const done = reqs.some(r => r.have >= r.min);
+  const best = reqs.reduce((a, b) => ((b.min - b.have) < (a.min - a.have) ? b : a), reqs[0]);
+  const noun = { video: 'vidéo', image: 'image', audio: 'enregistrement audio' }[best.service.kind];
+  const missing = Math.max(0, best.min - best.have);
+  return { done, missing, kind: best.service.kind, min: best.min, label: `${best.min} ${noun}${best.min > 1 ? 's' : ''} de portfolio` + (best.service.key === DEFAULT_SERVICE ? '' : ` (${best.service.label})`) };
+};
+
 userSchema.methods.canApplyToCampaign = function(maxLateWithdrawals = 0) {
   // Le compte Stripe n'est pas requis pour candidater : il est demandé avant le paiement
   return (
@@ -453,7 +482,7 @@ userSchema.methods.canApplyToCampaign = function(maxLateWithdrawals = 0) {
     this.role === 'creator' &&
     this.status === 'active' &&
     this.verification.portfolio &&
-    (this.profile.portfolio?.length || 0) >= config.business.minCreatorVideos &&
+    this.portfolioRequirement().done &&
     this.hasLegalInfo()
   );
 };
@@ -467,8 +496,8 @@ userSchema.methods.applyBlockers = function(maxLateWithdrawals = 0) {
   if (this.status === 'pending') blockers.push('Votre profil est en attente de validation par notre équipe.');
   if (this.status === 'suspended' || this.status === 'banned') blockers.push('Votre compte est suspendu.');
   if (!this.verification.portfolio && this.status === 'active') blockers.push('Votre portfolio n\'a pas encore été validé.');
-  const missing = config.business.minCreatorVideos - (this.profile.portfolio?.length || 0);
-  if (missing > 0) blockers.push(`Ajoutez encore ${missing} vidéo(s) à votre portfolio (minimum ${config.business.minCreatorVideos}).`);
+  const req = this.portfolioRequirement();
+  if (!req.done) blockers.push(`Ajoutez encore ${req.missing} ${{ video: 'vidéo(s)', image: 'image(s)', audio: 'enregistrement(s) audio' }[req.kind]} à votre portfolio (minimum ${req.min}).`);
   if (!this.hasLegalInfo()) blockers.push('Renseignez vos informations administratives (identité, statut, adresse) dans votre profil : elles figurent sur le contrat de chaque mission.');
   return blockers;
 };

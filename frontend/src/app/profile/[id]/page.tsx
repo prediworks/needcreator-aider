@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
+import PortfolioMedia from '@/components/PortfolioMedia';
 import { Stars } from '@/components/ReviewForm';
 import LevelBadges from '@/components/LevelBadges';
 import SocialIcons, { PlatformIcon, formatFollowers } from '@/components/SocialIcons';
@@ -163,7 +164,7 @@ export default function PublicProfilePage() {
                   <div className="grid md:grid-cols-2 gap-4">
                     {shownPortfolio.map((video: any, index: number) => (
                       <div key={video._id || index} className="border border-neutral-200 rounded-lg overflow-hidden hover:border-primary-500 transition">
-                        <VideoPlayer src={video.videoUrl} poster={video.thumbnail} title={video.title} className="rounded-none" />
+                        <PortfolioMedia item={video} className="rounded-none" />
                         <div className="p-4">
                           <h4 className="font-medium text-neutral-900 mb-1">{video.title}</h4>
                           {video.description && <p className="text-sm text-neutral-600 mb-2 line-clamp-2">{video.description}</p>}

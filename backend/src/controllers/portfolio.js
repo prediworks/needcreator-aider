@@ -6,6 +6,7 @@ import { publicRealisations } from './deliveries.js';
 import { levelFor, badgesFor } from '../utils/badges.js';
 import logger from '../utils/logger.js';
 import { watermarkPortfolioVideo, portfolioForViewer } from '../services/watermark.js';
+import { kindFromFile } from '../../config/services.js';
 
 /**
  * Upload portfolio video
@@ -25,8 +26,9 @@ export async function uploadPortfolioVideo(req, res) {
     }
 
     if (!title || !String(title).trim()) {
-      return res.status(400).json({ error: 'Le titre de la vidéo est obligatoire' });
+      return res.status(400).json({ error: 'Le titre est obligatoire' });
     }
+    const kind = kindFromFile(file.mimetype, file.originalname);
 
     // Upload video
     const { url } = await uploadVideo(
@@ -42,6 +44,7 @@ export async function uploadPortfolioVideo(req, res) {
 
     // Add to portfolio
     creator.profile.portfolio.push({
+      kind,
       videoUrl: url,
       thumbnail: null, // TODO: Generate thumbnail
       title,
@@ -51,7 +54,7 @@ export async function uploadPortfolioVideo(req, res) {
     });
 
     await creator.save();
-    setImmediate(() => watermarkPortfolioVideo(creator._id, url).catch(() => {}));
+    if (kind === 'video') setImmediate(() => watermarkPortfolioVideo(creator._id, url).catch(() => {}));
 
     logger.info(`Portfolio video uploaded: ${creator._id}`);
 
@@ -75,7 +78,7 @@ export async function uploadPortfolioVideo(req, res) {
 export async function getPortfolioUploadUrl(req, res) {
   try {
     const { filename, contentType } = req.body;
-    if (!contentType.startsWith('video/')) return res.status(400).json({ error: 'Seuls les fichiers vidéo sont acceptés' });
+    if (!/^(video|image|audio)\//.test(contentType)) return res.status(400).json({ error: 'Seuls les fichiers vidéo, image ou audio sont acceptés' });
     const out = await createUploadUrl({ folder: `videos/${req.user._id}`, originalName: filename, contentType });
     res.json(out);
   } catch (error) {
@@ -91,12 +94,14 @@ export async function registerPortfolioVideo(req, res) {
   try {
     const creator = req.user;
     const { key, title, description, videoType } = req.body;
+    const kind = req.body.kind || kindFromFile('', key);
     if (!key.startsWith(`videos/${creator._id}/`)) return res.status(400).json({ error: 'Clé de fichier invalide' });
     const stat = await statObject(key);
     if (!stat) return res.status(400).json({ error: 'Fichier introuvable : l\'envoi n\'a pas abouti, réessayez' });
     if (creator.profile.portfolio.some(v => keyFromUrl(v.videoUrl) === key)) return res.status(409).json({ error: 'Vidéo déjà enregistrée' });
 
     creator.profile.portfolio.push({
+      kind,
       videoUrl: `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}`,
       thumbnail: null,
       title,
@@ -105,7 +110,7 @@ export async function registerPortfolioVideo(req, res) {
       uploadedAt: new Date(),
     });
     await creator.save();
-    setImmediate(() => watermarkPortfolioVideo(creator._id, `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}`).catch(() => {}));
+    if (kind === 'video') setImmediate(() => watermarkPortfolioVideo(creator._id, `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}`).catch(() => {}));
 
     const video = creator.profile.portfolio[creator.profile.portfolio.length - 1].toObject();
     const [resolved] = await resolveUrlsIn([video]);

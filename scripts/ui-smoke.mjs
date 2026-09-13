@@ -199,13 +199,13 @@ await step('Créateur : campagne fraîchement publiée = avant-première Ambassa
 await step('Créateur : profil, Stripe et upload portfolio', async () => {
   await cp.goto(`${FRONT}/profile`);
   await cp.getByText('Recevoir mes paiements').waitFor({ timeout: 20000 });
-  await cp.getByRole('button', { name: 'Ajouter une vidéo' }).click();
+  await cp.getByRole('button', { name: 'Ajouter au portfolio' }).click();
   const bytes = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(4096, 1)]);
   await cp.setInputFiles('input[type=file]', { name: 'portfolio.mp4', mimeType: 'video/mp4', buffer: bytes });
   await cp.getByLabel('Titre').fill('Ma vidéo test');
   await cp.getByRole('button', { name: /^Envoyer$/ }).click();
-  await cp.getByText('Vidéo ajoutée au portfolio').waitFor({ timeout: 60000 });
-  await cp.getByText('Portfolio (1 vidéo').waitFor({ timeout: 20000 });
+  await cp.getByText('Ajouté au portfolio').waitFor({ timeout: 60000 });
+  await cp.getByText('Portfolio (1 élément').waitFor({ timeout: 20000 });
   const video = await cp.locator('video').first().getAttribute('src');
   if (!video || !video.startsWith('http')) throw new Error('Lecteur vidéo sans source');
   await cp.screenshot({ path: `${SHOTS}/06-creator-profile.png`, fullPage: true });

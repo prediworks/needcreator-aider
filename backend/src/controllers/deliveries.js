@@ -93,6 +93,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   const delivery = new Delivery({
     campaignId: campaign._id,
     creatorId,
+    lotKey: application?.lotKey || 'main',
     brandId: brand._id,
     payment: { amount, currency: 'EUR' },
     status: 'pending',

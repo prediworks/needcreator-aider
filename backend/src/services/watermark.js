@@ -56,11 +56,11 @@ export async function watermarkPortfolioVideo(userId, videoUrl) {
 
 /** Tâche planifiée : filigrane les vidéos de portfolio qui n'en ont pas encore (anciennes ou après erreur transitoire) */
 export async function watermarkBacklog(limit = 3) {
-  const users = await User.find({ role: 'creator', 'profile.portfolio': { $elemMatch: { previewUrl: null, watermarkedAt: null } } }).select('profile.portfolio').limit(limit).lean();
+  const users = await User.find({ role: 'creator', 'profile.portfolio': { $elemMatch: { previewUrl: null, watermarkedAt: null, $or: [{ kind: 'video' }, { kind: { $exists: false } }] } } }).select('profile.portfolio').limit(limit).lean();
   let n = 0;
   for (const u of users) {
     for (const v of u.profile.portfolio || []) {
-      if (v.previewUrl || v.watermarkedAt) continue;
+      if (v.previewUrl || v.watermarkedAt || (v.kind && v.kind !== 'video')) continue;
       await watermarkPortfolioVideo(u._id, v.videoUrl);
       n++;
       if (n >= limit) return n;

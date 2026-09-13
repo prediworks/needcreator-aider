@@ -11,6 +11,7 @@ import {
   sendExternalCampaignInvitation,
 } from '../services/email.js';
 import crypto from 'crypto';
+import { serviceByKey, DEFAULT_SERVICE } from '../../config/services.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions, getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
@@ -88,6 +89,7 @@ export async function createCampaign(req, res) {
       type = 'paid',
       giftingProductName,
       giftingProductValue,
+      lots,
     } = req.body;
 
     const gate = await checkCampaignRules(brand, { type, creatorsWanted, deliverables, giftingProductValue });
@@ -136,6 +138,7 @@ export async function createCampaign(req, res) {
         niches,
         creatorsWanted: creatorsWanted || 1,
       },
+      lots: lots?.length ? lots.map(l => ({ ...l, kind: serviceByKey(l.service).kind, deliverables: l.deliverables || deliverables })) : undefined,
       timeline: {
         applicationDeadline: deadline,
       },
@@ -299,6 +302,11 @@ export async function getCampaigns(req, res) {
       }
       if (['available', 'recommended', 'all'].includes(mode)) {
         query.$and = [...(query.$and || []), { $or: [{ visibility: { $ne: 'private' } }, { 'invitations.creatorId': user._id }, { 'applications.creatorId': user._id }, { selectedCreators: user._id }, { selectedCreator: user._id }] }];
+      }
+      if (['available', 'recommended'].includes(mode)) {
+        // Services : une campagne n'est proposée que si l'un de ses lots correspond à un service du créateur (campagnes sans lot = vidéo UGC)
+        const services = user.servicesOf();
+        query.$and = [...(query.$and || []), { $or: [{ 'lots.service': { $in: services } }, ...(services.includes(DEFAULT_SERVICE) ? [{ lots: { $size: 0 } }, { lots: { $exists: false } }] : [])] }];
       }
     } else if (status) {
       query.status = status;
@@ -512,7 +520,7 @@ function computeMatchScore(campaign, creator, price, { activeMissions = 0 } = {}
 export async function applyToCampaign(req, res) {
   try {
     const { campaignId } = req.params;
-    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
+    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms, lotKey = 'main' } = req.body;
     const maxRevisions = await getMaxRevisions();
     if (revisions !== undefined && revisions > maxRevisions) {
       return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
@@ -537,6 +545,11 @@ export async function applyToCampaign(req, res) {
     if (campaign.visibility === 'private' && !(campaign.invitations || []).some(i => idOf(i.creatorId) === creator._id.toString())) {
       return res.status(403).json({ error: 'Cette campagne est privée : seuls les créateurs invités peuvent candidater.' });
     }
+    const lot = (campaign.lots || []).find(l => l.key === lotKey);
+    if (!lot) return res.status(400).json({ error: 'Lot introuvable sur cette campagne' });
+    if (!creator.servicesOf().includes(lot.service)) {
+      return res.status(403).json({ error: `Cette campagne demande le service « ${serviceByKey(lot.service).label} », que vous ne proposez pas. Ajoutez-le dans votre profil si vous le pratiquez.`, code: 'SERVICE_MISMATCH', service: lot.service });
+    }
     if (!campaign.canApply(creator._id)) {
       return res.status(400).json({ error: 'Vous ne pouvez pas (ou plus) candidater à cette campagne' });
     }
@@ -557,6 +570,7 @@ export async function applyToCampaign(req, res) {
     campaign.applications.push({
       creatorId: creator._id,
       proposal,
+      lotKey: lot.key,
       price: finalPrice,
       estimatedDeliveryDays,
       matchScore,
