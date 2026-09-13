@@ -19,6 +19,7 @@ import { profileHref, blockerHref } from '@/lib/profileAnchors';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { plural } from '@/lib/publicConfig';
 import ProgressCard from '@/components/ProgressCard';
+import ContentsSummaryCard from '@/components/ContentsSummaryCard';
 import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
@@ -315,6 +316,9 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
           const ns = brandNextStep(user, (campaignsData?.campaigns || []).length);
           return <NextStepCard step={ns.step} remaining={ns.remaining} />;
         })()}
+
+        {/* Registre Contenus & droits : échéances à venir */}
+        <ContentsSummaryCard />
 
         {toValidate.length > 0 && (
           <Card className="p-4 mb-6 bg-blue-50 border-blue-200">

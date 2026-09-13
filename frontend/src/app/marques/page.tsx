@@ -18,6 +18,7 @@ export default async function BrandsPage() {
 
   const reasons: [any, string, string][] = [
     [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
+    [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],
     [FileSignature, 'Un contrat de cession de droits à chaque mission', 'Généré automatiquement à l\'acceptation du devis, en PDF : durée, supports, territoire, exclusivité. Vous êtes prévenu 30 jours avant l\'expiration et pouvez prolonger les droits.'],
     [ShieldCheck, 'Chaque vidéo est contrôlée avant votre validation', 'Nombre de vidéos, durée, format, résolution, son, et présence du produit dans la bande-son : un score de conformité au brief vous est présenté avant de valider.'],
     [UserX, 'Garantie de remplacement, sans frais', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à l'un des autres devis reçus, en un clic. Le montant bloqué est libéré.`],
@@ -25,7 +26,6 @@ export default async function BrandsPage() {
     [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). Le nombre de révisions est écrit dans le devis que vous acceptez : pas de surprise après la livraison.`],
     [LayoutTemplate, 'Partez d\'un modèle, ou d\'une campagne passée', 'Six modèles de brief par secteur (beauté, e-commerce, food, tech, mode, services) pré-remplissent votre campagne. Dupliquez une campagne réussie en un clic. Campagnes privées, sur invitation, pour retravailler avec vos créateurs habituels.'],
     [Users, 'Toute votre équipe sur un seul compte', 'Invitez vos collaborateurs : chacun a son accès et agit au nom de l\'entreprise. Campagnes, missions et factures sont partagées. Seul le propriétaire gère l\'équipe, les informations administratives et l\'abonnement.'],
-    [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],
     [FileText, 'Factures automatiques, TVA gérée', 'Une facture PDF par mission, un avoir en cas de remboursement, un relevé mensuel pour votre comptable. Les devis sont hors taxes ; la TVA n\'est ajoutée que si le créateur y est assujetti, et c\'est indiqué avant d\'accepter.'],
   ];
 
@@ -33,7 +33,7 @@ export default async function BrandsPage() {
     ['1', 'Publiez votre brief', 'Cinq minutes suffisent. Les créateurs de vos niches sont prévenus.'],
     ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat.'],
     ['3', 'Sélectionnez et bloquez le montant', 'Votre carte est autorisée, pas débitée. Le contrat est généré.'],
-    ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Vous gardez les droits convenus, la facture arrive toute seule.'],
+    ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Chaque vidéo entre dans votre registre Contenus & droits, avec ses droits et sa date de fin ; la facture arrive toute seule.'],
   ];
 
   const faq: [string, string][] = [
@@ -66,7 +66,7 @@ export default async function BrandsPage() {
             Des vidéos UGC livrées, contrôlées, <span className="text-primary-500">au prix du devis</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Publiez un brief, choisissez un créateur vérifié sur son portfolio, payez uniquement quand les vidéos vous conviennent. Contrat de droits et garantie de remplacement inclus.
+            Publiez un brief, choisissez un créateur vérifié sur son portfolio, payez uniquement quand les vidéos vous conviennent. Contrat de droits, garantie de remplacement et registre de tous vos contenus, même achetés ailleurs, inclus.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
@@ -96,6 +96,27 @@ export default async function BrandsPage() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Contenus & droits */}
+      <section className="py-20 bg-primary-50">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-2 gap-10 items-center">
+          <div>
+            <div className="inline-flex items-center px-3 py-1 bg-white rounded-full mb-4 text-sm font-medium text-primary-700"><FolderOpen className="w-4 h-4 mr-2" /> Inclus, gratuit</div>
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">Combien de vos vidéos sont encore couvertes ?</h2>
+            <p className="text-lg text-neutral-700 mb-4">Une marque qui a des dizaines de contenus en circulation ne sait plus lesquels ont encore des droits valables. NeedCreator tient le registre de tous vos contenus créatifs et de leurs contrats, missions NeedCreator ajoutées automatiquement, contenus achetés ailleurs saisis ou importés depuis Excel.</p>
+            <Link href="/contenus-et-droits"><Button>Découvrir Contenus &amp; droits <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
+          </div>
+          <Card className="p-6">
+            <div className="text-sm font-medium text-neutral-500 mb-3">Pour chaque contenu, six réponses</div>
+            <ul className="space-y-2 text-neutral-800">
+              {['Qui a créé quoi ?', 'Pour combien ?', 'Avec quels droits, quel type de contrat ?', 'Jusqu\'à quand ?', 'Où est-ce utilisé ?', 'Qui peut le renouveler ?'].map((q) => (
+                <li key={q} className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-primary-500 flex-shrink-0" /> {q}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-neutral-500 mt-4">Rappel par email 30 jours puis 7 jours avant chaque échéance. Renouvellement en un clic.</p>
+          </Card>
         </div>
       </section>
 
