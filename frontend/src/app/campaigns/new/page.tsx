@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useCreateCampaign, usePublishCampaign, useUpdateCampaign, useCampaign } from '@/hooks/useCampaigns';
@@ -37,6 +38,7 @@ Terminer par un appel à l'action (ex : "lien en bio")
 Format vertical 9:16, lumière naturelle`;
 
 function NewCampaignForm() {
+  const cfg = usePublicConfig();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -334,14 +336,13 @@ function NewCampaignForm() {
                 <div className="grid sm:grid-cols-2 gap-3">
                   {[
                     { v: 'paid', t: 'Rémunérée', d: 'Vous payez le créateur (devis). Paiement bloqué à la sélection, versé à la validation.' },
-                    { v: 'gifting', t: '🎁 Gifting (produit offert)', d: `Vous envoyez un produit (valeur ≥ 30 €) à la place d'une rémunération. 2 vidéos max, 2 campagnes par mois, 5 € de frais par vidéo livrée.${isPro ? '' : ' Réservé au plan Pro.'}` },
+                    { v: 'gifting', t: '🎁 Gifting (produit offert)', d: `Vous envoyez un produit (valeur ≥ ${cfg.giftingMinProductValue} €) à la place d'une rémunération. ${cfg.giftingMaxDeliverables} vidéos max, ${cfg.giftingMaxPerMonth} campagnes par mois. ${isPro ? 'Sans frais de service avec votre abonnement Pro.' : `${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée (aucun frais en Pro).`}` },
                   ].map((o) => (
                     <button
                       key={o.v}
                       type="button"
-                      disabled={o.v === 'gifting' && !isPro}
                       onClick={() => setCampaignType(o.v as any)}
-                      className={`text-left p-4 rounded-lg border-2 transition ${campaignType === o.v ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'} ${o.v === 'gifting' && !isPro ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      className={`text-left p-4 rounded-lg border-2 transition ${campaignType === o.v ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
                     >
                       <div className="font-semibold text-neutral-900">{o.t}</div>
                       <div className="text-xs text-neutral-600 mt-1">{o.d}</div>
@@ -604,6 +605,7 @@ function NewCampaignForm() {
     </div>
   );
 }
+
 
 export default function NewCampaignPage() {
   return (

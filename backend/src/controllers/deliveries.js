@@ -81,8 +81,9 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   const isGifting = campaign.type === 'gifting';
   const creatorDoc = await User.findById(creatorId).select('email profile.address profile.name profile.ambassador.status legalInfo');
   const round2 = (n) => Math.round(n * 100) / 100;
-  // Gifting : la marque paie uniquement les frais de service (HT + TVA), le créateur reçoit le produit
-  const giftingFeeHT = isGifting ? round2(config.gifting.feePerVideo * (campaign.brief?.deliverables || 1)) : 0;
+  // Gifting : la marque paie uniquement les frais de service (HT + TVA), le créateur reçoit le produit ; 0 pour une marque Pro (figé à la création de la campagne)
+  const giftingFeePerVideo = campaign.gifting?.feePerVideo ?? config.gifting.feePerVideo;
+  const giftingFeeHT = isGifting ? round2(giftingFeePerVideo * (campaign.brief?.deliverables || 1)) : 0;
   const amount = isGifting
     ? round2(giftingFeeHT * (1 + config.vat.rate / 100))
     : (price ?? application?.price ?? campaign.budget?.total);
@@ -123,7 +124,10 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
   let warning = null;
   let clientSecret = null;
 
-  if (!brand.stripeCustomerId) {
+  if (isGifting && amount === 0) {
+    // Gifting sans frais de service (marque Pro) : rien à payer, rien à reverser
+    delivery.payment.status = 'released';
+  } else if (!brand.stripeCustomerId) {
     warning = 'La marque n\'a pas de moyen de paiement Stripe configuré.';
   } else {
     try {
@@ -1230,7 +1234,7 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
         ? `Paiement encaissé, virement au créateur en échec : ${result.transferError || 'erreur inconnue'}`
         : 'Paiement encaissé. Le virement sera effectué dès que le créateur aura connecté son compte Stripe.';
     }
-  } else if (!delivery.payment.stripePaymentIntentId) {
+  } else if (!delivery.payment.stripePaymentIntentId && delivery.payment.amount > 0) {
     warning = 'Aucun paiement Stripe associé à cette livraison (mode test sans paiement).';
     transferred = false;
   }

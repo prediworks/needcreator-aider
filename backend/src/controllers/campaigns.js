@@ -30,7 +30,7 @@ async function checkCampaignRules(brand, { type, creatorsWanted, deliverables, g
     return 'Les campagnes multi-créateurs sont réservées à l\'abonnement Pro.';
   }
   if (type === 'gifting') {
-    if (!pro) return 'Les campagnes gifting (produit offert) sont réservées à l\'abonnement Pro.';
+    // Ouvert à toutes les marques : sans frais de service pour Pro, avec frais de service (par vidéo livrée) sinon
     if (!giftingProductValue || giftingProductValue < config.gifting.minProductValue) {
       return `La valeur du produit offert doit être d'au moins ${config.gifting.minProductValue} €.`;
     }
@@ -115,7 +115,7 @@ export async function createCampaign(req, res) {
       platformFeePercent,
       brandDiscountPercent,
       type,
-      gifting: type === 'gifting' ? { productName: giftingProductName || productDescription, productValue: giftingProductValue } : undefined,
+      gifting: type === 'gifting' ? { productName: giftingProductName || productDescription, productValue: giftingProductValue, feePerVideo: brand.isPro() ? 0 : config.gifting.feePerVideo } : undefined,
       title,
       description,
       brief: {

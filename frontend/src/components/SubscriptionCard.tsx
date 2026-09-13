@@ -66,7 +66,7 @@ export default function SubscriptionCard() {
       </div>
       <ul className="mt-4 grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm text-neutral-700">
         <li>✓ Rédaction de brief par l&apos;IA illimitée</li>
-        <li>✓ Campagnes gifting (produit offert)</li>
+        <li>✓ Campagnes gifting sans frais de service</li>
         <li>✓ Campagnes multi-créateurs et paiement groupé</li>
         <li>✓ Aucune limite de campagnes, d&apos;invitations ou de messages</li>
         <li>✓ Support prioritaire</li>

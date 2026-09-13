@@ -16,6 +16,10 @@ export interface PublicConfig {
   aiBriefFreeQuota: number;
   vatRate: number;
   ambassadorFeePercent: number;
+  giftingFeePerVideo: number;
+  giftingMinProductValue: number;
+  giftingMaxDeliverables: number;
+  giftingMaxPerMonth: number;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -32,6 +36,10 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   aiBriefFreeQuota: 3,
   vatRate: 20,
   ambassadorFeePercent: 8,
+  giftingFeePerVideo: 5,
+  giftingMinProductValue: 30,
+  giftingMaxDeliverables: 2,
+  giftingMaxPerMonth: 2,
 };
 
 /** Côté serveur (pages marketing) : mis en cache 5 minutes, repli sur les valeurs par défaut si l'API ne répond pas */

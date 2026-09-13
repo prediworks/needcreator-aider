@@ -73,6 +73,7 @@ const campaignSchema = new mongoose.Schema({
   gifting: {
     productName: String,
     productValue: Number, // valeur du produit offert (€)
+    feePerVideo: Number,  // frais de service HT par vidéo livrée, figés à la création : 0 pour une marque Pro, sinon réglage GIFTING_FEE_PER_VIDEO
   },
 
   // Commission plateforme appliquée à cette campagne (peut être réduite par un parrainage ou l'abonnement Pro)

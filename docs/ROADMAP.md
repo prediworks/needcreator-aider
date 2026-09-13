@@ -166,3 +166,7 @@ Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'
 4. **CGU** : clause de mandat de facturation et de TVA à relire.
 5. **PayPal** (si un jour proposé) : les versements partiraient de la trésorerie de NeedCreator au lieu d'un flux direct marque → créateur. Conséquences comptables.
 6. **DAC7** : confirmer que NeedCreator est opérateur de plateforme déclarant, la démarche d'inscription auprès de la DGFiP, la liste exacte des informations à collecter (numéro fiscal, date de naissance des particuliers) et le calendrier (première déclaration en janvier 2027 pour 2026).
+
+## 6. Décisions produit récentes
+
+- **13/09/2026, gifting** : ouvert à toutes les marques. Sans frais de service pour les marques Pro ; frais de service par vidéo livrée (5 € HT par défaut) pour l'offre gratuite. Figé à la création de la campagne.

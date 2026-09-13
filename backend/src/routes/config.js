@@ -24,6 +24,10 @@ router.get('/public', async (req, res) => {
     earlyAccessHours: config.badges.earlyAccessHours,
     aiBriefFreeQuota: config.plans.aiBriefFreeQuota,
     vatRate: config.vat.rate,
+    giftingFeePerVideo: config.gifting.feePerVideo,
+    giftingMinProductValue: config.gifting.minProductValue,
+    giftingMaxDeliverables: config.gifting.maxDeliverables,
+    giftingMaxPerMonth: config.gifting.maxPerMonth,
   });
 });
 

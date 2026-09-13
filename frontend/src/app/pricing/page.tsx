@@ -13,7 +13,7 @@ export const metadata = {
 type Cell = { text: string; ok?: boolean };
 
 /** Inclus dans les deux offres : le cœur du service, sans limite de durée */
-const included = (cfg: { autoApprovalDays: number }): string[] => [
+const included = (cfg: { autoApprovalDays: number; giftingMinProductValue: number }): string[] => [
   'Campagnes et devis reçus illimités',
   'Le prix du devis est le prix payé : aucun frais ajouté',
   'Contrat de cession de droits (PDF) à chaque devis accepté, rappel avant expiration',
@@ -28,23 +28,24 @@ const included = (cfg: { autoApprovalDays: number }): string[] => [
   'Litige arbitré par notre équipe, avis en double aveugle',
   'Publication Shopify en un clic, vidéos prêtes à diffuser en option',
   'Rédaction de brief par l\'IA (3 par mois)',
+  `Campagnes gifting : produit offert (${cfg.giftingMinProductValue} € minimum) à la place d'une rémunération`,
 ];
 
 /** Ce que Pro ajoute : du volume, pas des fonctions de base */
-const rows = (): { label: string; free: Cell; pro: Cell }[] => [
+const rows = (cfg: { giftingFeePerVideo: number }): { label: string; free: Cell; pro: Cell }[] => [
   { label: 'Plusieurs créateurs sur une même campagne', free: { text: '1 créateur sélectionné par campagne' }, pro: { text: 'Plusieurs créateurs, un seul paiement groupé', ok: true } },
-  { label: 'Campagnes gifting (produit offert à la place d\'une rémunération)', free: { text: 'Non proposé' }, pro: { text: 'Oui : 5 € de frais de service par vidéo livrée', ok: true } },
+  { label: 'Frais de service sur les campagnes gifting', free: { text: `${cfg.giftingFeePerVideo} € HT par vidéo livrée` }, pro: { text: 'Aucun', ok: true } },
   { label: 'Rédaction de brief par l\'IA', free: { text: '3 par mois' }, pro: { text: 'Illimitée', ok: true } },
   { label: 'Limites de départ (voir note)', free: { text: 'Levées dès votre première campagne terminée' }, pro: { text: 'Aucune dès le premier jour', ok: true } },
 ];
 
 const STARTING_LIMITS_NOTE = 'Note : pour protéger les créateurs des faux comptes, une nouvelle marque gratuite est limitée à 2 campagnes ouvertes en même temps, 5 invitations et 20 messages par jour. Ces limites disparaissent définitivement dès qu\'une première campagne est terminée. Elles ne concernent pas les marques Pro.';
 
-const faq = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => [
+const faq = (cfg: { autoApprovalDays: number; replacementGraceHours: number; giftingFeePerVideo: number; giftingMinProductValue: number; giftingMaxDeliverables: number; giftingMaxPerMonth: number }) => [
   ['Y a-t-il des frais cachés pour la marque ?', 'Non. Vous payez exactement le montant du devis accepté, hors taxes, plus la TVA lorsque le créateur y est assujetti (indiqué sur chaque devis). La commission de NeedCreator est retenue sur la somme versée au créateur, jamais ajoutée à votre paiement. L\'abonnement Pro est facultatif et n\'est utile qu\'à partir de plusieurs campagnes par mois.'],
   ['Quand suis-je débité ?', 'À la sélection du créateur, le montant du devis est bloqué sur votre carte, sans être prélevé. Le débit a lieu uniquement quand vous validez la livraison, ou automatiquement ' + plural(cfg.autoApprovalDays, 'jour') + ' après la livraison si vous ne répondez pas.'],
   ['Que se passe-t-il si les vidéos ne conviennent pas ?', 'Vous pouvez demander des modifications, dans la limite du nombre de révisions prévu par le devis que vous avez accepté. En cas de désaccord persistant, notre équipe intervient pour trouver une solution.'],
-  ['Qu\'est-ce que le gifting ?', 'Une campagne où le créateur reçoit un produit (30 € minimum) à la place d\'une rémunération. Réservée aux marques Pro, limitée à 2 vidéos par campagne et 2 campagnes par mois. Seuls 5 € de frais de service par vidéo livrée sont facturés, annoncés avant paiement. Le créateur choisit s\'il accepte ce type de campagne.'],
+  ['Qu\'est-ce que le gifting ?', `Une campagne où le créateur reçoit un produit (${cfg.giftingMinProductValue} € minimum) à la place d'une rémunération, ouverte à toutes les marques, limitée à ${cfg.giftingMaxDeliverables} vidéos par campagne et ${cfg.giftingMaxPerMonth} campagnes par mois. En offre gratuite, ${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée, annoncés avant paiement ; aucun frais en Pro. Le créateur choisit s'il accepte ce type de campagne.`],
   ['Qui détient les droits sur les vidéos ?', 'Les droits cédés (durée, supports, territoire, exclusivité éventuelle) sont fixés dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. Vous êtes prévenu 30 jours avant l\'expiration et pouvez demander une prolongation, dont le créateur fixe le prix.'],
   ['Que se passe-t-il si le créateur ne livre pas ?', 'Il est relancé à la date prévue. Après ' + cfg.replacementGraceHours + ' heures de retard, vous pouvez confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic : le montant bloqué est libéré et la nouvelle mission démarre immédiatement. Sans frais.'],
   ['Comment le créateur est-il payé ?', 'Par virement automatique sur son compte Stripe, dès la validation de la livraison. Il reçoit 90 % du devis. Sur une campagne gifting, aucune commission n\'est retenue.'],
@@ -62,7 +63,7 @@ function CellView({ cell, strong }: { cell: Cell; strong?: boolean }) {
 
 export default async function PricingPage() {
   const cfg = await fetchPublicConfig();
-  const ROWS = rows();
+  const ROWS = rows(cfg);
   const INCLUDED = included(cfg);
   const FAQ = faq(cfg);
   return (

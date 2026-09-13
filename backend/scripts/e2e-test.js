@@ -1438,12 +1438,16 @@ await step('Shopify : statut, installation (non configurée → message clair), 
   return st.data.configured ? 'configurée, URL OAuth générée' : 'non configurée : message clair, signatures vérifiées';
 });
 
-await step('Gifting : campagne produit offert (Pro), candidature à 0 €, frais de plateforme, opt-in créateur', async () => {
+await step('Gifting : ouvert à toutes les marques, frais de service en gratuit, aucun en Pro, opt-in créateur', async () => {
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  // La marque est en essai Pro : on la passe en gratuit pour vérifier les frais de service, puis on la remet en Pro
+  const usersCol = mongoose.connection.db.collection('users');
+  const proSub = (await usersCol.findOne({ email: brandEmail }, { projection: { subscription: 1 } })).subscription;
+  await usersCol.updateOne({ email: brandEmail }, { $set: { 'subscription.plan': 'free', 'subscription.status': 'none' } });
   const tooCheap = await brandApi('POST', '/campaigns', { title: 'Gifting valeur trop faible', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Échantillon', giftingProductValue: 10 });
   expect(tooCheap.status === 403 && /30/.test(tooCheap.data.error), 'Un produit < 30 € doit être refusé', tooCheap);
   const c = await brandApi('POST', '/campaigns', { title: 'Campagne gifting sérum offert', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 2, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Coffret sérum', giftingProductValue: 45 });
-  expect(c.status === 201 && c.data.campaign.type === 'gifting' && !c.data.campaign.budget?.total, 'Création gifting échouée', c);
+  expect(c.status === 201 && c.data.campaign.type === 'gifting' && !c.data.campaign.budget?.total && c.data.campaign.gifting?.feePerVideo === 5, 'Création gifting (marque gratuite, frais 5 € HT/vidéo) échouée', c);
   await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`);
   // Le créateur (niveau Nouveau) accepte le gifting par défaut ; s'il refuse, la campagne disparaît de son feed
   const off = await creatorApi('PATCH', '/auth/profile', { preferences: { acceptGifting: false } });
@@ -1465,11 +1469,19 @@ await step('Gifting : campagne produit offert (Pro), candidature à 0 €, frais
   await creatorApi('POST', `/deliveries/${sel.data.delivery._id}/submit`, {});
   const ok = await brandApi('POST', `/deliveries/${sel.data.delivery._id}/approve`);
   expect(ok.status === 200 && ok.data.delivery.payment.status === 'released' && !ok.data.warning, 'Approbation gifting : frais encaissés, rien à reverser', ok);
+  // Marque Pro : gifting sans frais de service, rien à payer, sélection immédiate
+  await usersCol.updateOne({ email: brandEmail }, { $set: { subscription: proSub } });
+  const free = await brandApi('POST', '/campaigns', { title: 'Deuxième gifting du mois', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Crème', giftingProductValue: 40 });
+  expect(free.status === 201 && free.data.campaign.gifting?.feePerVideo === 0, 'Une marque Pro ne doit pas avoir de frais de service gifting', free);
+  await brandApi('POST', `/campaigns/${free.data.campaign._id}/publish`);
+  const ap2 = await creatorApi('POST', `/campaigns/${free.data.campaign._id}/apply`, { price: 0, estimatedDeliveryDays: 4 });
+  expect(ap2.status === 201, 'Candidature gifting Pro échouée', ap2);
+  const sel2 = await brandApi('POST', `/campaigns/${free.data.campaign._id}/select/${creatorUser.id}`);
+  expect(sel2.status === 200 && sel2.data.delivery.payment.amount === 0 && !sel2.data.delivery.payment.stripePaymentIntentId && sel2.data.delivery.payment.status === 'released' && !sel2.data.warning && sel2.data.paymentRequired === false, 'Gifting Pro : aucun paiement à effectuer', sel2);
   // Limite mensuelle : 2 campagnes gifting max
-  await brandApi('POST', '/campaigns', { title: 'Deuxième gifting du mois', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Crème', giftingProductValue: 40 });
   const third = await brandApi('POST', '/campaigns', { title: 'Troisième gifting du mois', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'unboxing', duration: 30, deliverables: 1, niches: ['beauty'], applicationDeadline: deadline, type: 'gifting', giftingProductName: 'Crème', giftingProductValue: 40 });
   expect(third.status === 403 && /limite/i.test(third.data.error), 'La 3e campagne gifting du mois doit être refusée', third);
-  return 'gifting : 10 € de frais encaissés, créateur 0 €, opt-in respecté, limite mensuelle active';
+  return 'gifting : marque gratuite 10 € de frais encaissés, marque Pro 0 € sans paiement, créateur 0 €, opt-in respecté, limite mensuelle active';
 });
 
 await step('Abonnement Pro : session Stripe Checkout, synchronisation, portail', async () => {

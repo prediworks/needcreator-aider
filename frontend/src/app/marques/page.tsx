@@ -42,7 +42,7 @@ export default async function BrandsPage() {
     ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
     ['Comment fonctionnent les avis ?', 'En double aveugle, comme sur Airbnb : vous notez le créateur, il vous note, et les deux avis sont publiés en même temps. Personne n\'ajuste son avis en fonction de l\'autre. Vous pouvez répondre publiquement, une fois.'],
     ['Ai-je le droit d\'utiliser les vidéos en publicité ?', 'Oui si le devis le prévoit : les supports (organique, publicité, site, e-mail…), la durée et le territoire sont écrits dans le contrat. Vous pouvez acheter une prolongation à l\'expiration.'],
-    ['Faut-il un abonnement ?', 'Non, et vous ne perdez rien : l\'offre gratuite comprend tout, campagnes illimitées, contrat de droits, garantie de remplacement, factures, équipe, modèles, sans limite de durée. L\'offre Pro n\'est utile qu\'à partir de plusieurs campagnes par mois : plusieurs créateurs par campagne, gifting, brief IA illimité.'],
+    ['Faut-il un abonnement ?', 'Non, et vous ne perdez rien : l\'offre gratuite comprend tout, campagnes illimitées, contrat de droits, garantie de remplacement, factures, équipe, modèles, sans limite de durée. L\'offre Pro n\'est utile qu\'à partir de plusieurs campagnes par mois : plusieurs créateurs par campagne, gifting sans frais de service, brief IA illimité.'],
   ];
 
   const jsonLd = {
