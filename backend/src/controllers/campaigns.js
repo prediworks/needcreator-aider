@@ -698,9 +698,10 @@ async function notifyNotSelected(campaign, creatorIds) {
   let n = 0;
   for (const u of users) {
     const tips = [];
+    // Le levier principal, en premier : le programme Ambassadeur (avant-première, devis en tête, commission réduite)
+    if (ambassadorTip && !isAmbassador(u)) tips.push({ title: 'Le plus efficace : devenez Ambassadeur', text: 'Une vidéo sur vos réseaux qui parle de NeedCreator, et vos devis remontent en tête chez les marques, vous voyez chaque campagne 24 h avant les autres, votre commission baisse. C\'est ce qui change le plus vos chances d\'être retenu.', href: `${origin}/profile#ambassador`, cta: 'Voir le programme Ambassadeur' });
     if ((u.profile?.portfolio?.length || 0) < 5) tips.push({ title: 'Étoffez votre portfolio', text: `Les marques choisissent d'abord sur les vidéos : vous en avez ${u.profile?.portfolio?.length || 0}, visez au moins 5, dans les niches de vos campagnes.`, href: `${origin}/profile#portfolio`, cta: 'Ajouter des vidéos' });
     if (!isTrained(u)) tips.push({ title: 'Obtenez le badge Formé', text: 'Cinq guides courts avec quiz. Trois réussis : le badge est visible par les marques et remonte vos devis dans leur liste.', href: `${origin}/academie`, cta: 'Ouvrir l\'académie' });
-    if (ambassadorTip && !isAmbassador(u)) tips.push({ title: 'Devenez Ambassadeur', text: 'Une vidéo sur vos réseaux qui parle de NeedCreator : campagnes en avant-première, devis remontés en tête, commission réduite.', href: `${origin}/profile#ambassador`, cta: 'Voir le programme' });
     tips.push({ title: 'Ajustez votre devis', text: 'Un prix proche du budget indiqué, un délai court et des droits clairs pèsent dans le score que voit la marque.', href: `${origin}/campaigns`, cta: 'Voir les campagnes' });
     const campaignsUrl = `${origin}/campaigns${u.profile?.niches?.[0] ? `?niche=${encodeURIComponent(u.profile.niches[0])}` : ''}`;
     sendApplicationNotSelected(u.email, u.profile?.name, campaign.title, tips.slice(0, 3), campaignsUrl).catch(err => logger.warn(`Not-selected email not sent: ${err.message}`));
