@@ -372,7 +372,7 @@ export default function CampaignDetailPage() {
 
             {/* Applications (for brand) */}
             {isOwnCampaign && (
-              <Card className="p-6">
+              <Card id="candidatures" className="p-6 scroll-mt-24">
                 <h2 className="text-xl font-semibold text-neutral-900 mb-1">
                   Candidatures ({campaign.applications?.length || 0})
                 </h2>

@@ -39,7 +39,7 @@ export async function remindBrandsOnPendingQuotes() {
     if (!due.length || !campaign.brandId?.email) continue;
     try {
       await sendQuotesAwaitingReminder(campaign.brandId.email, campaign.brandId.profile?.companyName || campaign.brandId.profile?.name, campaign.title, due.length, campaign._id, days).catch(safeSend('Relance devis', campaign._id));
-      notify(campaign.brandId._id, { type: 'reminder', title: `${due.length} devis attend${due.length > 1 ? 'ent' : ''} votre réponse`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      notify(campaign.brandId._id, { type: 'reminder', title: `${due.length} devis attend${due.length > 1 ? 'ent' : ''} votre réponse`, text: campaign.title, href: `/campaigns/${campaign._id}#candidatures` }).catch(() => {});
       const now = new Date();
       due.forEach(a => { a.reminderSentAt = now; });
       await campaign.save();
@@ -165,7 +165,7 @@ export async function processAutoRejections() {
       await sendAutoRejected(d.brandId?.email, d.creatorId?.email, d.brandId?.profile?.companyName || d.brandId?.profile?.name, d.creatorId?.profile?.name, d.campaignId?.title, days, d._id, idOf(d.campaignId), paymentNote)
         .catch(err => logger.error('Auto-rejection emails failed:', err.message));
       notify(d.brandId?._id, { type: 'dispute', title: 'Mission refusée définitivement (créateur silencieux)', text: d.campaignId?.title, href: `/campaigns/${idOf(d.campaignId)}` }).catch(() => {});
-      notify(d.creatorId?._id, { type: 'dispute', title: 'Mission refusée : aucune nouvelle version', text: d.campaignId?.title, href: `/deliveries/${d._id}` }).catch(() => {});
+      notify(d.creatorId?._id, { type: 'dispute', title: 'Mission refusée : aucune nouvelle version', text: d.campaignId?.title, href: `/deliveries/${d._id}#litige` }).catch(() => {});
       logger.info(`Auto-rejected delivery ${d._id} (${paymentNote})`);
       done++;
     } catch (err) {

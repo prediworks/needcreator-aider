@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import MissingHint from '@/components/ui/MissingHint';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
+import { useScrollToHash } from '@/hooks/useScrollToHash';
 import {
   useDelivery,
   useUploadDeliverables,
@@ -60,6 +61,8 @@ export default function DeliveryDetailPage() {
   const deliveryId = params.id as string;
 
   const { data: delivery, isLoading } = useDelivery(deliveryId, ready);
+  // Depuis une notification : #litige, #contrat, #remplacement, #expedition, #avis
+  useScrollToHash(ready && !isLoading && !!delivery);
   const uploadMutation = useUploadDeliverables();
   const submitMutation = useSubmitDelivery();
   const approveMutation = useApproveDelivery();
@@ -266,15 +269,15 @@ export default function DeliveryDetailPage() {
             )}
 
             {/* Litige : refus définitif (révisions épuisées), réponse du créateur, décision */}
-            {(isBrand || isCreator) && <DisputeCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
+            <div id="litige" className="scroll-mt-24">{(isBrand || isCreator) && <DisputeCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}</div>
 
             {/* Retard et garantie de remplacement (marque) */}
-            {isBrand && <ReplacementCard delivery={delivery} />}
+            <div id="remplacement" className="scroll-mt-24">{isBrand && <ReplacementCard delivery={delivery} />}</div>
 
             {/* Envoi du produit */}
-            {(delivery.shipping?.required || delivery.shipping?.status !== 'none' || isBrand) && !isDone && (
+            <div id="expedition" className="scroll-mt-24">{(delivery.shipping?.required || delivery.shipping?.status !== 'none' || isBrand) && !isDone && (
               <ShippingCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />
-            )}
+            )}</div>
 
             {/* Brief (rappel) */}
             {campaign.brief && (
@@ -531,7 +534,7 @@ export default function DeliveryDetailPage() {
             )}
 
             {/* Contrat de mission et droits (les deux parties) */}
-            {(isBrand || isCreator) && <ContractCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}
+            <div id="contrat" className="scroll-mt-24">{(isBrand || isCreator) && <ContractCard delivery={delivery} role={isBrand ? 'brand' : 'creator'} />}</div>
             {(isBrand || isCreator) && (delivery.invoices?.length > 0 || isDone) && (
               <Card className="p-6">
                 <h2 className="text-lg font-semibold text-neutral-900 mb-3">Factures</h2>
@@ -556,7 +559,7 @@ export default function DeliveryDetailPage() {
 
             {/* Avis */}
             {isDone && (
-              <Card className="p-6">
+              <Card id="avis" className="p-6 scroll-mt-24">
                 <h2 className="text-xl font-semibold text-neutral-900 mb-4 flex items-center gap-2">
                   <Star className="w-5 h-5 text-yellow-500" /> Avis
                 </h2>

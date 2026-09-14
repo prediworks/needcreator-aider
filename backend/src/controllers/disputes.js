@@ -48,7 +48,7 @@ export async function openDispute(req, res) {
     const title = delivery.campaignId?.title || 'la mission';
     const brandName = delivery.brandId?.profile?.companyName || delivery.brandId?.profile?.name;
     sendDisputeOpened(delivery.creatorId.email, delivery.creatorId.profile?.name, brandName, title, req.body.reason, delivery._id).catch(() => {});
-    notify(idOf(delivery.creatorId), { type: 'dispute', title: `Refus définitif demandé sur « ${title} »`, text: 'La marque a ouvert un litige. Vous pouvez répondre, notre équipe tranchera.', href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(idOf(delivery.creatorId), { type: 'dispute', title: `Refus définitif demandé sur « ${title} »`, text: 'La marque a ouvert un litige. Vous pouvez répondre, notre équipe tranchera.', href: `/deliveries/${delivery._id}#litige` }).catch(() => {});
     notifyAdmins(`Litige ouvert sur « ${title} »`, `<h1>Litige à trancher</h1><p>${brandName} refuse définitivement la livraison de ${delivery.creatorId.profile?.name} (${delivery.payment?.amount} €).</p><p>Motif : ${req.body.reason}</p><p><a href="${config.cors.origin}/admin?tab=disputes">Trancher le litige</a></p>`).catch(() => {});
     logger.info(`Dispute opened on delivery ${delivery._id} by brand ${req.user._id}`);
     res.json({ message: 'Litige ouvert : notre équipe va examiner la livraison et trancher.', delivery });
@@ -70,7 +70,7 @@ export async function respondDispute(req, res) {
     await delivery.save();
     const title = delivery.campaignId?.title || 'la mission';
     sendDisputeResponse(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, delivery.creatorId.profile?.name, title, req.body.response, delivery._id).catch(() => {});
-    notify(idOf(delivery.brandId), { type: 'dispute', title: `Réponse du créateur sur « ${title} »`, text: 'Le créateur a répondu au litige. Notre équipe tranchera.', href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(idOf(delivery.brandId), { type: 'dispute', title: `Réponse du créateur sur « ${title} »`, text: 'Le créateur a répondu au litige. Notre équipe tranchera.', href: `/deliveries/${delivery._id}#litige` }).catch(() => {});
     res.json({ message: 'Réponse enregistrée', delivery });
   } catch (error) {
     logger.error('respondDispute failed:', error);
@@ -176,8 +176,8 @@ export async function resolveDispute(req, res) {
     const brandName = delivery.brandId?.profile?.companyName || delivery.brandId?.profile?.name;
     sendDisputeResolved(delivery.brandId.email, delivery.creatorId.email, brandName, delivery.creatorId.profile?.name, title, delivery.dispute, delivery._id).catch(() => {});
     const summary = outcome === 'approve' ? 'paiement intégral au créateur' : outcome === 'refund_full' ? 'remboursement intégral de la marque' : `partage : ${creatorPercent} % au créateur`;
-    notify(idOf(delivery.brandId), { type: 'dispute', title: `Litige tranché sur « ${title} »`, text: summary, href: `/deliveries/${delivery._id}` }).catch(() => {});
-    notify(idOf(delivery.creatorId), { type: 'dispute', title: `Litige tranché sur « ${title} »`, text: summary, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(idOf(delivery.brandId), { type: 'dispute', title: `Litige tranché sur « ${title} »`, text: summary, href: `/deliveries/${delivery._id}#litige` }).catch(() => {});
+    notify(idOf(delivery.creatorId), { type: 'dispute', title: `Litige tranché sur « ${title} »`, text: summary, href: `/deliveries/${delivery._id}#litige` }).catch(() => {});
     logger.info(`Dispute resolved on ${delivery._id}: ${outcome} (${paidAmount} payé, ${refundedAmount} rendu)`);
     res.json({ message: `Litige tranché : ${summary}`, delivery, warning });
   } catch (error) {

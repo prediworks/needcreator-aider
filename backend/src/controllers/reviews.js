@@ -108,7 +108,8 @@ export async function createReview(req, res) {
       notify(idOf(revieweeId), { type: 'system', title: `Avis publiés : ${myName} vous a noté`, text: campaign.title, href: '/profile' }).catch(() => {});
     } else {
       if (other?.email) sendReviewNudge(other.email, otherName, myName, campaign.title, review.publishDeadline, campaignId).catch(() => {});
-      notify(idOf(revieweeId), { type: 'system', title: `${myName} a laissé un avis sur « ${campaign.title} »`, text: 'Laissez le vôtre pour le découvrir.', href: `/campaigns/${campaignId}` }).catch(() => {});
+      const missionForReview = await Delivery.findOne({ campaignId, $or: [{ creatorId: revieweeId }, { creatorId: reviewer._id }] }).select('_id').lean().catch(() => null);
+      notify(idOf(revieweeId), { type: 'system', title: `${myName} a laissé un avis sur « ${campaign.title} »`, text: 'Laissez le vôtre pour le découvrir.', href: missionForReview ? `/deliveries/${missionForReview._id}#avis` : `/campaigns/${campaignId}` }).catch(() => {});
     }
     
     logger.info(`Review created: ${review._id} for campaign ${campaignId} (${counterpart ? 'published' : 'hidden until ' + review.publishDeadline.toISOString()})`);

@@ -165,7 +165,7 @@ export async function flagLateDeliveries() {
       }
       if (now - new Date(d.productionDeadline) >= grace && !d.replacement.offeredAt) {
         if (d.brandId?.email) await sendReplacementAvailable(d.brandId.email, d.brandId.profile?.companyName || d.brandId.profile?.name, d.creatorId?.profile?.name || 'Le créateur', title, d._id).catch(err => logger.warn(`Email remplacement non envoyé ${d._id}: ${err?.message}`));
-        notify(d.brandId?._id, { type: 'replacement', title: 'Garantie de remplacement disponible', text: title, href: `/deliveries/${d._id}` }).catch(() => {});
+        notify(d.brandId?._id, { type: 'replacement', title: 'Garantie de remplacement disponible', text: title, href: `/deliveries/${d._id}#remplacement` }).catch(() => {});
         d.replacement.status = 'offered';
         d.replacement.offeredAt = now;
         await d.save(); flagged++;

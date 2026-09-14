@@ -175,8 +175,8 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     const title = campaign.title;
     sendContractGenerated(brand.email, brand.profile?.companyName || brand.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
     if (creatorDoc?.email) sendContractGenerated(creatorDoc.email, creatorDoc.profile?.name, title, delivery.contract.number, delivery._id).catch(() => {});
-    notify(brand._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
-    if (creatorDoc?._id) notify(creatorDoc._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(brand._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}#contrat` }).catch(() => {});
+    if (creatorDoc?._id) notify(creatorDoc._id, { type: 'contract', title: `Contrat ${delivery.contract.number} disponible`, text: title, href: `/deliveries/${delivery._id}#contrat` }).catch(() => {});
   }
 
   return { delivery, warning, clientSecret };
@@ -722,7 +722,7 @@ export async function requestRightsExtension(req, res) {
     delivery.rightsExtension = { status: 'requested', requestMessage: req.body.message || '', requestedAt: new Date() };
     await delivery.save();
     sendExtensionRequested(delivery.creatorId.email, delivery.creatorId.profile?.name, delivery.campaignId.title, req.body.message, delivery._id).catch(() => {});
-    notify(idOf(delivery.creatorId), { type: 'rights', title: 'Demande de prolongation des droits', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(idOf(delivery.creatorId), { type: 'rights', title: 'Demande de prolongation des droits', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}#contrat` }).catch(() => {});
     res.json({ message: 'Demande envoyée au créateur', rightsExtension: delivery.rightsExtension });
   } catch (error) {
     logger.error('requestRightsExtension failed:', error);
@@ -753,7 +753,7 @@ export async function proposeRightsExtension(req, res) {
     };
     await delivery.save();
     sendExtensionProposed(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, delivery.campaignId.title, price, EXT_DURATIONS[duration], delivery._id).catch(() => {});
-    notify(idOf(delivery.brandId), { type: 'rights', title: `Proposition de prolongation : ${price} €`, text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(idOf(delivery.brandId), { type: 'rights', title: `Proposition de prolongation : ${price} €`, text: delivery.campaignId.title, href: `/deliveries/${delivery._id}#contrat` }).catch(() => {});
     res.json({ message: 'Proposition envoyée à la marque', rightsExtension: delivery.rightsExtension });
   } catch (error) {
     logger.error('proposeRightsExtension failed:', error);
@@ -878,7 +878,7 @@ async function finalizeRightsExtension(delivery, res) {
   }
   sendExtensionPaid(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
   sendExtensionPaid(delivery.creatorId.email, delivery.creatorId.profile?.name, title, addendum.number, newEndAt, delivery._id).catch(() => {});
-  notify(idOf(delivery.creatorId), { type: 'rights', title: 'Prolongation des droits payée', text: title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+  notify(idOf(delivery.creatorId), { type: 'rights', title: 'Prolongation des droits payée', text: title, href: `/deliveries/${delivery._id}#contrat` }).catch(() => {});
   logger.info(`Droits prolongés sur ${delivery._id} : avenant ${addendum.number}, fin ${newEndAt ? newEndAt.toISOString() : 'illimitée'}`);
   return res.json({ message: 'Prolongation confirmée', addendum: { ...addendum, url }, rightsEndAt: newEndAt, warning });
 }
@@ -921,7 +921,7 @@ export async function withdrawLateDelivery(req, res) {
     await campaign.save();
 
     sendMissionWithdrawn(delivery.creatorId.email, delivery.creatorId.profile?.name, campaign.title).catch(() => {});
-    notify(oldCreatorId, { type: 'replacement', title: 'Mission retirée pour retard', text: campaign.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    notify(oldCreatorId, { type: 'replacement', title: 'Mission retirée pour retard', text: campaign.title, href: `/deliveries/${delivery._id}#remplacement` }).catch(() => {});
     logger.info(`Mission ${delivery._id} retirée à ${oldCreatorId}, campagne ${campaign._id} rouverte (${paymentNote})`);
     res.json({ message: `Mission retirée (${paymentNote}). Votre campagne est de nouveau ouverte aux candidatures.`, campaignId: campaign._id });
   } catch (error) {
@@ -1098,7 +1098,7 @@ export async function updateShipping(req, res) {
       await delivery.save();
       sendProductShipped(delivery.creatorId.email, delivery.creatorId.profile.name, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.campaignId.title, carrier, trackingNumber, trackingUrl, delivery._id)
         .catch(err => logger.error('Shipping email failed:', err.message));
-      notify(idOf(delivery.creatorId), { type: 'delivery', title: 'Produit expédié', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+      notify(idOf(delivery.creatorId), { type: 'delivery', title: 'Produit expédié', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}#expedition` }).catch(() => {});
     } else if (action === 'received') {
       if (!isCreator) return res.status(403).json({ error: 'Seul le créateur peut confirmer la réception' });
       if (delivery.shipping.status !== 'shipped') return res.status(400).json({ error: 'Le produit n\'est pas encore marqué comme expédié' });
@@ -1110,7 +1110,7 @@ export async function updateShipping(req, res) {
       await delivery.save();
       sendProductReceived(delivery.brandId.email, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.creatorId.profile.name, delivery.campaignId.title, delivery.productionDeadline, delivery._id)
         .catch(err => logger.error('Shipping email failed:', err.message));
-      notify(idOf(delivery.brandId), { type: 'delivery', title: 'Produit reçu par le créateur', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+      notify(idOf(delivery.brandId), { type: 'delivery', title: 'Produit reçu par le créateur', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}#expedition` }).catch(() => {});
     } else if (action === 'not_required') {
       if (!isBrand) return res.status(403).json({ error: 'Réservé à la marque' });
       delivery.shipping.required = false;
