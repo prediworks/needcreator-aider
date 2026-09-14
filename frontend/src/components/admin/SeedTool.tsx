@@ -19,11 +19,11 @@ marque2@votre-domaine.fr ; MotDePasse123! ; Maison Céréales ; ; ; food ; 2 ; 0
 export default function SeedTool() {
   const queryClient = useQueryClient();
   const [lines, setLines] = useState('');
-  const [opts, setOpts] = useState({ publishedWithinDays: '30', deadlineWithinDays: '30', budgetMin: '150', budgetMax: '600', closeAtDeadline: true });
+  const [opts, setOpts] = useState({ publishedWithinDays: '30', deadlineWithinDays: '30', budgetMin: '150', budgetMax: '600', freeQuoteShare: '30', closeAtDeadline: true });
   const { data: batches } = useQuery({ queryKey: ['seed-batches'], queryFn: async () => (await api.get('/admin/seed/batches')).data });
   const preview = useMutation({ mutationFn: async () => (await api.post('/admin/seed/preview', { lines })).data, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const run = useMutation({
-    mutationFn: async () => (await api.post('/admin/seed/run', { lines, publishedWithinDays: Number(opts.publishedWithinDays), deadlineWithinDays: Number(opts.deadlineWithinDays), budgetMin: Number(opts.budgetMin), budgetMax: Number(opts.budgetMax), closeAtDeadline: opts.closeAtDeadline })).data,
+    mutationFn: async () => (await api.post('/admin/seed/run', { lines, publishedWithinDays: Number(opts.publishedWithinDays), deadlineWithinDays: Number(opts.deadlineWithinDays), budgetMin: Number(opts.budgetMin), budgetMax: Number(opts.budgetMax), freeQuoteShare: Number(opts.freeQuoteShare), closeAtDeadline: opts.closeAtDeadline })).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setLines(''); preview.reset(); queryClient.invalidateQueries({ queryKey: ['seed-batches'] }); queryClient.invalidateQueries({ queryKey: ['admin-campaigns'] }); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 12000 }),
   });
@@ -41,12 +41,13 @@ export default function SeedTool() {
         <p className="text-sm text-neutral-600 mb-3">Pour que l&apos;application ne paraisse pas vide aux premiers créateurs. Les comptes sont créés s&apos;ils n&apos;existent pas (email confirmé, entreprise vérifiée, signataire renseigné), puis des campagnes réalistes sont publiées à partir des modèles par secteur, avec des dates étalées. Côté créateur, aucune différence. Utilisez des adresses d&apos;un domaine que vous contrôlez : les devis reçus et les relances y arrivent. Vous pouvez vous connecter avec ces comptes pour répondre aux devis.</p>
         <label className="block text-sm font-medium text-neutral-700 mb-1">Une marque par ligne : email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max ; commentaire</label>
         <textarea value={lines} onChange={(e) => { setLines(e.target.value); preview.reset(); }} rows={7} placeholder={EXAMPLE} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
-        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour la fourchette du lot ci-dessous. Commentaire facultatif : quelques mots sur l'entreprise ou ses attentes, repris dans la présentation de la marque et à la fin de chaque brief. Ligne commençant par # ignorée.</p>
-        <div className="grid sm:grid-cols-4 gap-3 mt-4">
+        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour un mélange réaliste : la part indiquée ci-dessous en devis libre, le reste dans la fourchette du lot. Commentaire facultatif : quelques mots sur l'entreprise ou ses attentes, repris dans la présentation de la marque et à la fin de chaque brief. Ligne commençant par # ignorée.</p>
+        <div className="grid sm:grid-cols-5 gap-3 mt-4">
           <Input label="Publiées dans les N derniers jours" type="number" min={0} max={90} value={opts.publishedWithinDays} onChange={(e) => setOpts({ ...opts, publishedWithinDays: e.target.value })} />
           <Input label="Dates limites dans les N prochains jours" type="number" min={3} max={120} value={opts.deadlineWithinDays} onChange={(e) => setOpts({ ...opts, deadlineWithinDays: e.target.value })} />
           <Input label="Budget minimum (€)" type="number" min={50} value={opts.budgetMin} onChange={(e) => setOpts({ ...opts, budgetMin: e.target.value })} />
           <Input label="Budget maximum (€)" type="number" min={50} value={opts.budgetMax} onChange={(e) => setOpts({ ...opts, budgetMax: e.target.value })} />
+          <Input label="Part en devis libre (%)" type="number" min={0} max={100} value={opts.freeQuoteShare} onChange={(e) => setOpts({ ...opts, freeQuoteShare: e.target.value })} />
         </div>
         <label className="flex items-start gap-2 text-sm text-neutral-700 mt-3 cursor-pointer">
           <input type="checkbox" className="mt-0.5" checked={opts.closeAtDeadline} onChange={(e) => setOpts({ ...opts, closeAtDeadline: e.target.checked })} />
@@ -62,7 +63,7 @@ export default function SeedTool() {
             {p.errors.length > 0 && <ul className="text-red-700 mb-2 list-disc list-inside">{p.errors.map((e: any) => <li key={e.line}>Ligne {e.line} : {e.errors.join(', ')} · <span className="font-mono text-xs">{e.raw}</span></li>)}</ul>}
             {p.rows.length > 0 && (
               <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Entreprise</th><th className="py-1 pr-3">SIRET</th><th className="py-1 pr-3">Modèle</th><th className="py-1 pr-3">Campagnes</th><th className="py-1 pr-3">Tarif max</th><th className="py-1 pr-3">Commentaire</th><th className="py-1">Compte</th></tr></thead>
-                <tbody>{p.rows.map((r: any) => <tr key={r.email} className="border-t border-neutral-100"><td className="py-1 pr-3">{r.email}</td><td className="py-1 pr-3">{r.companyName}</td><td className="py-1 pr-3">{r.siret || '—'}</td><td className="py-1 pr-3">{r.template}</td><td className="py-1 pr-3">{r.count}</td><td className="py-1 pr-3">{r.maxBudget === 0 ? 'devis libre' : r.maxBudget ? `${r.maxBudget} €` : 'fourchette du lot'}</td><td className="py-1 pr-3 max-w-[200px] truncate" title={r.comment}>{r.comment || '—'}</td><td className="py-1">{r.existing ? `existe (${r.existing})` : 'à créer'}</td></tr>)}</tbody></table>
+                <tbody>{p.rows.map((r: any) => <tr key={r.email} className="border-t border-neutral-100"><td className="py-1 pr-3">{r.email}</td><td className="py-1 pr-3">{r.companyName}</td><td className="py-1 pr-3">{r.siret || '—'}</td><td className="py-1 pr-3">{r.template}</td><td className="py-1 pr-3">{r.count}</td><td className="py-1 pr-3">{r.maxBudget === 0 ? 'devis libre' : r.maxBudget ? `${r.maxBudget} €` : 'mélange (fourchette + devis libres)'}</td><td className="py-1 pr-3 max-w-[200px] truncate" title={r.comment}>{r.comment || '—'}</td><td className="py-1">{r.existing ? `existe (${r.existing})` : 'à créer'}</td></tr>)}</tbody></table>
             )}
             <p className="text-neutral-600 mt-2">{p.rows.length} compte(s), {p.totalCampaigns} campagne(s) au total.</p>
           </div>
