@@ -61,18 +61,24 @@ export async function listExternalQuotes(req, res) {
   res.json({ quotes: await Promise.all(list.map(serialize)) });
 }
 
+/** Crée un devis (PDF générés) pour un créateur : utilisé par l'API et par le registre des droits (renouvellement) */
+export async function createQuoteInternal(creator, body) {
+  if (!creator.hasLegalInfo()) { const e = new Error('Renseignez vos informations administratives (profil) : elles figurent sur le devis et le contrat.'); e.code = 'LEGAL_INFO_REQUIRED'; e.status = 403; throw e; }
+  const data = pick(body, creator);
+  const missing = [!data.client.companyName && 'le nom du client', !data.mission.title && 'un titre de mission', !(data.quote.price >= config.business.minQuotePrice) && `un prix d'au moins ${config.business.minQuotePrice} €`].filter(Boolean);
+  if (missing.length) { const e = new Error(`Il manque : ${missing.join(', ')}`); e.status = 400; throw e; }
+  const q = new ExternalQuote({ ...data, creatorId: creator._id, token: crypto.randomBytes(16).toString('hex'), status: 'draft' });
+  await generatePdfs(q, creator);
+  await q.save();
+  return serialize(q);
+}
+
 export async function createExternalQuote(req, res) {
   try {
-    const creator = req.user;
-    if (!creator.hasLegalInfo()) return res.status(403).json({ code: 'LEGAL_INFO_REQUIRED', error: 'Renseignez vos informations administratives (profil) : elles figurent sur le devis et le contrat.' });
-    const data = pick(req.body, creator);
-    const missing = [!data.client.companyName && 'le nom du client', !data.mission.title && 'un titre de mission', !(data.quote.price >= config.business.minQuotePrice) && `un prix d'au moins ${config.business.minQuotePrice} €`].filter(Boolean);
-    if (missing.length) return res.status(400).json({ error: `Il manque : ${missing.join(', ')}` });
-    const q = new ExternalQuote({ ...data, creatorId: creator._id, token: crypto.randomBytes(16).toString('hex'), status: 'draft' });
-    await generatePdfs(q, creator);
-    await q.save();
-    res.status(201).json({ message: 'Devis et projet de contrat générés', quote: await serialize(q) });
+    const quote = await createQuoteInternal(req.user, req.body);
+    res.status(201).json({ message: 'Devis et projet de contrat générés', quote });
   } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
     logger.error('createExternalQuote failed:', error);
     res.status(500).json({ error: `Création impossible : ${error.message}` });
   }

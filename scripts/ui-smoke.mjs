@@ -264,6 +264,22 @@ await step('Créateur : informations administratives (mandat de facturation) dep
   return 'formulaire explicite, mandat accepté, franchise de TVA par défaut';
 });
 
+await step('Créateur : registre « Mes droits & exclusivités » (page vide, ajout d\'un contenu externe)', async () => {
+  await cp.goto(`${FRONT}/rights`, { waitUntil: 'commit' });
+  await cp.getByRole('heading', { name: /Mes droits & exclusivités/ }).waitFor({ timeout: 60000 });
+  await cp.getByText('Votre registre est vide').waitFor({ timeout: 20000 });
+  await cp.getByRole('button', { name: /Ajouter un contenu externe/ }).click();
+  await assertDisabledExplained(cp, 'registre créateur');
+  await cp.getByLabel('Titre du contenu').fill('Vidéo agence hors plateforme');
+  await cp.getByLabel('Client (marque, agence)').fill('Agence Lune');
+  await cp.getByLabel('Fin des droits').fill(new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10));
+  await cp.getByRole('button', { name: 'Ajouter au registre' }).click();
+  await cp.getByText('Contenu ajouté à votre registre').waitFor({ timeout: 20000 });
+  await cp.getByText('Expire bientôt').first().waitFor({ timeout: 20000 });
+  await cp.screenshot({ path: `${SHOTS}/07b-creator-rights.png`, fullPage: true });
+  return 'registre vide, contenu externe ajouté, statut « expire bientôt »';
+});
+
 await step('Créateur : navigation Campagnes / Missions', async () => {
   await cp.goto(`${FRONT}/campaigns?filter=applied`);
   await cp.getByText('Vous n\'avez pas encore candidaté').waitFor({ timeout: 20000 });

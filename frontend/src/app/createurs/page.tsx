@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText } from 'lucide-react';
+import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck } from 'lucide-react';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
@@ -26,6 +26,7 @@ export default async function CreatorsPage() {
     [FileText, 'Zéro paperasse', 'Vos factures sont émises en votre nom à chaque mission, avec un relevé mensuel pour votre comptable. Un calendrier vous dit quand chaque virement arrive et où vous en êtes par rapport aux seuils de la micro-entreprise.'],
     [GraduationCap, 'Une académie gratuite, un badge qui compte', 'Cinq guides courts : lire un brief, lumière, son, les trois premières secondes, rédiger un devis. Un quiz par guide. Trois guides réussis vous donnent le badge Formé, et un coup de pouce dans le classement des candidatures.'],
     [FileSignature, 'Vos clients hors NeedCreator aussi', 'Un client vous contacte en direct ? Faites-lui un devis et un contrat de cession de droits en un clic, depuis votre compte. Il peut payer via NeedCreator, montant bloqué puis versé à la validation, ou en direct : outils gratuits, sans commission.'],
+    [ShieldCheck, 'Vos droits et exclusivités, sous contrôle', 'Un registre de tout ce que vous avez cédé, sur NeedCreator ou ailleurs : durée, supports, exclusivité. Vous êtes prévenu 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.'],
     [QrCode, 'Votre kit média', 'Une page publique à votre nom, avec portfolio, niches, tarifs et QR code, à mettre dans votre bio ou à envoyer aux marques. Vos vidéos de portfolio y sont protégées par un filigrane ; l\'original reste chez vous.'],
   ];
 

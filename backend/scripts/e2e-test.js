@@ -112,7 +112,7 @@ function client(idToken) {
 }
 
 function expect(cond, message, res) {
-  if (!cond) throw new Error(`${message}${res ? ' → HTTP ' + res.status + ' ' + JSON.stringify(res.data).slice(0, 300) : ''}`);
+  if (!cond) throw new Error(`${message}${res ? (res.status ? ' → HTTP ' + res.status + ' ' : ' → ') + String(JSON.stringify(res.data !== undefined ? res.data : res)).slice(0, 400) : ''}`);
 }
 
 // Petit fichier vidéo factice (les vrais encodages ne sont pas nécessaires pour tester l'upload)
@@ -928,6 +928,57 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   await db.collection('campaigns').deleteMany({ externalQuoteId: { $exists: true }, brandId: new mongoose.Types.ObjectId(brandUser.id) });
   await db.collection('externalquotes').deleteMany({ creatorId: new mongoose.Types.ObjectId(creatorUser.id) });
   return 'devis PDF + contrat, envoi, page publique, refus, acceptation nouveau client (300 € bloqués, 10 %), marque existante, payé en direct';
+});
+
+await step('Créateur : registre des droits et exclusivités (sync mission, contenu externe, renouvellement, rappels)', async () => {
+  const db = mongoose.connection.db;
+  const creatorId = new mongoose.Types.ObjectId(creatorUser.id);
+  await db.collection('creatorcontents').deleteMany({ creatorId });
+  // Un devis extérieur payé en direct pour vérifier la synchro « quote »
+  const qd = await creatorApi('POST', '/external-quotes', { client: { companyName: 'Boutique Registre', email: `e2e-reg-${RUN}@needcreator-test.com` }, title: 'Vidéo payée en direct', price: 120, rights: { duration: '6m', supports: ['website'], exclusivity: true, exclusivityMonths: 2 } });
+  expect(qd.status === 201, 'Devis extérieur (registre) non créé', qd);
+  await creatorApi('POST', `/external-quotes/${qd.data.quote._id}/direct`);
+  const reg = await creatorApi('GET', '/creator-contents');
+  expect(reg.status === 200, 'Registre créateur indisponible', reg);
+  const main = reg.data.contents.find(c => c.source === 'needcreator' && String(c.deliveryId) === String(delivery._id));
+  expect(main, 'La mission validée doit être synchronisée dans le registre', reg.data);
+  expect(main.rights.exclusivity && main.rights.exclusivityMonths === 3 && main.rights.exclusivityEndAt && main.client.platform === 'NeedCreator', 'Droits du contrat (exclusivité 3 mois) attendus', main);
+  expect(main.status === 'active' && main.daysLeft > 600 && main.exclusivityStatus === 'active', `Statut attendu actif 2 ans, reçu ${main.status}/${main.daysLeft}/${main.exclusivityStatus}`, main);
+  const fromQuote = reg.data.contents.find(c => c.source === 'quote');
+  expect(fromQuote && fromQuote.rights.endAt && fromQuote.client.name === 'Boutique Registre', 'Le devis payé en direct doit être synchronisé (6 mois)', reg.data);
+  // Contenu externe qui expire dans 10 jours, exclusivité déjà terminée
+  const endAt = new Date(Date.now() + 10 * 86400000).toISOString();
+  const start = new Date(Date.now() - 200 * 86400000).toISOString();
+  const ext = await creatorApi('POST', '/creator-contents', { title: 'Vidéo agence hors plateforme', client: { name: 'Agence Lune', email: `e2e-reg-client-${RUN}@needcreator-test.com`, platform: 'Agence' }, contractType: 'licence', price: 250, rights: { startAt: start, endAt, supports: ['social_organic'], territories: 'France', exclusivity: true, exclusivityMonths: 3, exclusivityScope: 'cosmétiques' }, documents: [{ label: 'Contrat signé', url: 'https://drive.example.com/c.pdf' }] });
+  expect(ext.status === 201 && ext.data.content.status === 'expiring' && ext.data.content.exclusivityStatus === 'ended', 'Contenu externe : attendu expiring + exclusivité terminée', ext);
+  const noTitle = await creatorApi('POST', '/creator-contents', { title: '' });
+  expect(noTitle.status === 400, 'Le titre est obligatoire', noTitle);
+  const lockedEdit = await creatorApi('PATCH', `/creator-contents/${main._id}`, { notes: 'Note perso', rights: { endAt: null } });
+  expect(lockedEdit.status === 200 && lockedEdit.data.content.notes === 'Note perso' && lockedEdit.data.content.rights.endAt, 'Les droits d\'une mission NeedCreator ne se modifient pas, les notes oui', lockedEdit);
+  const noDel = await creatorApi('DELETE', `/creator-contents/${main._id}`);
+  expect(noDel.status === 400, 'Un contenu de mission ne se retire pas', noDel);
+  // Rappels : droits externes à 7 jours + fin d'exclusivité, une seule fois
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await adminApi('POST', '/admin/jobs/run');
+  expect(jobs.data.creatorRightsReminders >= 2, `2 rappels créateur attendus (droits + exclusivité), reçu ${jobs.data.creatorRightsReminders}`, jobs.data);
+  const jobs2 = await adminApi('POST', '/admin/jobs/run');
+  expect((jobs2.data.creatorRightsReminders || 0) === 0, 'Les rappels ne doivent pas être renvoyés', jobs2.data);
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const notifs = await creatorApi('GET', '/notifications');
+  expect(notifs.data.notifications.some(n => /Exclusivité terminée/.test(n.title)) && notifs.data.notifications.some(n => /fin dans 10 jours/.test(n.title)), 'Notifications de rappel attendues', notifs.data.notifications.map(n => n.title));
+  // Renouvellement : mission NeedCreator → renvoi vers la mission ; externe → devis NeedCreator pré-rempli
+  const rnMain = await creatorApi('POST', `/creator-contents/${main._id}/renew`);
+  expect(rnMain.status === 200 && /deliveries/.test(rnMain.data.href), 'Renouvellement mission : lien vers la mission', rnMain);
+  const rnExt = await creatorApi('POST', `/creator-contents/${ext.data.content._id}/renew`, { duration: '1y', price: 100 });
+  expect(rnExt.status === 201 && rnExt.data.quote?.link, 'Renouvellement externe : devis attendu', rnExt);
+  const quotes = await creatorApi('GET', '/external-quotes');
+  const rq = quotes.data.quotes.find(q => q._id === rnExt.data.quote.id);
+  expect(rq && /Renouvellement des droits/.test(rq.mission.title) && rq.client.companyName === 'Agence Lune' && rq.quote.price === 100 && rq.quote.rights.duration === '1y', 'Devis de renouvellement mal pré-rempli', rq);
+  const del = await creatorApi('DELETE', `/creator-contents/${ext.data.content._id}`);
+  expect(del.status === 200, 'Retrait du contenu externe échoué', del);
+  await db.collection('externalquotes').deleteMany({ creatorId });
+  await db.collection('creatorcontents').deleteMany({ creatorId });
+  return 'mission synchronisée (2 ans, exclusivité 3 mois), devis direct synchronisé, contenu externe, rappels 7 j + exclusivité (une fois), renouvellement → devis';
 });
 
 await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {

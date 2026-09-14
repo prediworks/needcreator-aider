@@ -235,6 +235,28 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
   return sendEmail(email, subject, html);
 }
 
+/** Registre créateur : droits d'un contenu extérieur bientôt expirés */
+export async function sendCreatorRightsExpiring(email, name, title, clientName, endAt, days) {
+  const subject = `Droits de « ${title} » : fin dans ${days} jour${days > 1 ? 's' : ''}`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Les droits que vous avez cédés${clientName ? ` à ${clientName}` : ''} sur « ${title} » prennent fin le <strong>${new Date(endAt).toLocaleDateString('fr-FR')}</strong>.</p>
+    <p>C'est le moment de proposer un renouvellement : depuis votre registre, un devis NeedCreator pré-rempli part au client, qui peut le régler via la plateforme.</p>
+    ${button(`${config.cors.origin}/rights`, 'Ouvrir mon registre des droits')}
+  `;
+  return sendEmail(email, subject, html);
+}
+/** Registre créateur : fin d'une exclusivité */
+export async function sendCreatorExclusivityEnded(email, name, title, clientName, endAt) {
+  const subject = `Exclusivité terminée : « ${title} »`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>L'exclusivité que vous aviez accordée${clientName ? ` à ${clientName}` : ''} sur « ${title} » a pris fin le <strong>${new Date(endAt).toLocaleDateString('fr-FR')}</strong>. Vous êtes libre de travailler pour d'autres marques de ce secteur.</p>
+    ${button(`${config.cors.origin}/campaigns`, 'Voir les campagnes ouvertes')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
 /** Devis extérieur : envoi au client, avec devis et projet de contrat en PDF et lien d'acceptation */
 export async function sendExternalQuoteToClient(email, clientName, creatorName, title, price, link, quoteUrl, contractUrl, message) {
   const subject = `Devis de ${creatorName} : ${title}`;
