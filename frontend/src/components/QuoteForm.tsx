@@ -1,11 +1,11 @@
 'use client';
 
 import { usePublicConfig } from '@/hooks/usePublicConfig';
+import MissingHint from '@/components/ui/MissingHint';
 import { useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { RIGHTS_DURATION, RIGHTS_SUPPORTS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
-import { MIN_QUOTE_PRICE } from '@/lib/config';
 import { formatCurrency } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -93,7 +93,7 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
-              min={MIN_QUOTE_PRICE}
+              min={cfg.minQuotePrice}
               max={10000}
               required
             />
@@ -187,13 +187,14 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
       </div>
 
       <div className="flex gap-2">
-        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < MIN_QUOTE_PRICE) || deliveryTypes.length === 0}>
+        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < cfg.minQuotePrice) || deliveryTypes.length === 0}>
           {submitLabel}
         </Button>
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel}>Annuler</Button>
         )}
       </div>
+      <MissingHint items={[!isGifting && priceNumber < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`, deliveryTypes.length === 0 && 'un mode de livraison (fichier ou lien)']} />
     </form>
   );
 }

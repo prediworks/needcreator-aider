@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -59,6 +60,7 @@ function GroupCheckout({ campaignId, clientSecret, total, count }: { campaignId:
       <div className="border border-neutral-300 rounded-lg px-3 py-3 bg-white focus-within:ring-2 focus-within:ring-primary-500">
         <CardElement options={CARD_STYLE} onChange={(e) => setComplete(e.complete)} />
       </div>
+      <MissingHint items={[!stripe && 'le chargement du module de paiement', stripe && !complete && 'les informations de carte complètes']} />
       <Button type="submit" className="w-full" isLoading={submitting} disabled={!stripe || !complete}>
         <Lock className="w-4 h-4 mr-2" /> Bloquer {formatCurrency(total)} pour {count} créateur(s)
       </Button>

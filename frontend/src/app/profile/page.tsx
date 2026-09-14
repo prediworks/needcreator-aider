@@ -588,6 +588,7 @@ function ProfileContent() {
                       <Upload className="w-4 h-4 mr-2" />
                       {uploadVideoMutation.isPending ? (uploadProgress !== null && uploadProgress < 100 ? `Envoi ${uploadProgress} %` : 'Enregistrement…') : 'Envoyer'}
                     </Button>
+                    <MissingHint className="self-center" items={[!selectedVideo && 'un fichier', !videoTitle && 'un titre']} />
                     <Button
                       variant="outline"
                       onClick={() => {

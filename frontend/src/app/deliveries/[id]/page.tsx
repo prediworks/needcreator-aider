@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import MissingHint from '@/components/ui/MissingHint';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
@@ -727,6 +728,7 @@ export default function DeliveryDetailPage() {
                             >
                               Envoyer
                             </Button>
+                            <MissingHint className="self-center" items={[revisionFeedback.trim().length < 20 && `un retour d'au moins 20 caractères (${revisionFeedback.trim().length}/20)`]} />
                             <Button
                               variant="outline"
                               onClick={() => { setShowRevisionForm(false); setRevisionFeedback(''); }}

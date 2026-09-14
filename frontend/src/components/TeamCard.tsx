@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -75,6 +76,7 @@ export default function TeamCard({ profile }: { profile: any }) {
             <Input label="Prénom (optionnel)" value={name} onChange={(e) => setName(e.target.value)} />
             <Button size="sm" onClick={() => invite.mutate()} isLoading={invite.isPending} disabled={!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)}><UserPlus className="w-4 h-4 mr-1" /> Inviter</Button>
           </div>
+          <MissingHint items={[!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && 'un email valide']} />
         </>
       )}
     </Card>

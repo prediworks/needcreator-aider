@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { plural } from '@/lib/publicConfig';
 import { loadStripe } from '@stripe/stripe-js';
@@ -74,6 +75,7 @@ function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLab
         <CardElement options={CARD_STYLE} onChange={(e) => setCardComplete(e.complete)} />
       </div>
       <p className="text-xs text-neutral-500">Numéro de carte, date d&apos;expiration et code de sécurité.</p>
+      <MissingHint items={[(!stripe || !elements) && 'le chargement du module de paiement', stripe && elements && !cardComplete && 'les informations de carte complètes']} />
       <Button type="submit" className="w-full" isLoading={submitting} disabled={!stripe || !elements || !cardComplete}>
         <Lock className="w-4 h-4 mr-2" />
         {buttonLabel || `Bloquer ${formatCurrency(amount)}`}

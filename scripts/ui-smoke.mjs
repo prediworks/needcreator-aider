@@ -28,6 +28,14 @@ const browser = await chromium.launch({ headless: true });
 
 const results = []; let failed = 0;
 let current = null;
+/** Règle d'interface : un bouton grisé (hors chargement) doit être expliqué par un texte « Il manque : … » sur la page */
+async function assertDisabledExplained(page, where) {
+  const disabled = await page.locator('button[disabled]:not([aria-busy="true"])').filter({ hasNotText: /^$/ }).count();
+  if (!disabled) return;
+  const hints = await page.getByText(/Il manque :/).count();
+  if (!hints) throw new Error(`${where} : ${disabled} bouton(s) grisé(s) sans texte « Il manque »`);
+}
+
 async function step(name, fn) {
   try { const d = await fn(); results.push([true, name, d]); console.log(`✅ ${name}${d ? ' — ' + d : ''}`); }
   catch (e) {
@@ -96,6 +104,7 @@ await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', a
 await step('Marque : création + publication d\'une campagne', async () => {
   await bp.goto(`${FRONT}/campaigns/new`);
   await bp.getByText(/Il manque : un titre de 10 caractères/).waitFor({ timeout: 20000 }); // bouton grisé expliqué
+  await assertDisabledExplained(bp, 'création de campagne');
   await bp.getByLabel(/Titre de la campagne/).fill('Campagne test interface utilisateur');
   await bp.getByPlaceholder(/Présentez votre marque/).fill('Nous cherchons une vidéo témoignage authentique pour notre nouvelle gamme de soins visage bio.');
   await bp.getByRole('button', { name: 'Beauté', exact: true }).click();
@@ -180,6 +189,7 @@ await step('Marque : page profil (édition)', async () => {
   await bp.getByText('Marque UI Test Modifiée').first().waitFor({ timeout: 20000 });
   await bp.reload();
   await bp.getByText('Marque de cosmétiques bio testée par le parcours interface.').waitFor({ timeout: 20000 }); // présentation sauvegardée et affichée hors édition
+  await assertDisabledExplained(bp, 'profil marque');
   return 'nom et présentation modifiés, visibles après rechargement';
 });
 
@@ -223,6 +233,8 @@ await step('Créateur : profil, Stripe et upload portfolio', async () => {
   await cp.goto(`${FRONT}/profile`);
   await cp.getByText('Recevoir mes paiements').waitFor({ timeout: 20000 });
   await cp.getByRole('button', { name: 'Ajouter au portfolio' }).click();
+  await cp.getByText('Il manque : un fichier, un titre').waitFor({ timeout: 20000 }); // règle : tout bouton grisé explique ce qui manque
+  await assertDisabledExplained(cp, 'profil créateur');
   const bytes = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(4096, 1)]);
   await cp.setInputFiles('input[type=file]', { name: 'portfolio.mp4', mimeType: 'video/mp4', buffer: bytes });
   await cp.getByLabel('Titre').fill('Ma vidéo test');

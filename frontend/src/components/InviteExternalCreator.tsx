@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -31,6 +32,7 @@ export default function InviteExternalCreator({ campaignId }: { campaignId: stri
         <Input label="Email du créateur" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@exemple.fr" />
         <Input label="Prénom (optionnel)" value={name} onChange={(e) => setName(e.target.value)} />
         <Button size="sm" className="w-full" onClick={() => invite.mutate()} isLoading={invite.isPending} disabled={!valid}>Envoyer l&apos;invitation</Button>
+        <MissingHint items={[!valid && 'un email valide']} />
       </div>
       {sent.length > 0 && <p className="text-xs text-neutral-500 mt-2">Invité(s) : {sent.join(', ')}</p>}
     </Card>
