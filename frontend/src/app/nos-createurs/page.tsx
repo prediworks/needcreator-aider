@@ -22,7 +22,7 @@ export default async function PublicCreatorsPage() {
           <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-2">Créateurs UGC</h1>
           <p className="text-neutral-600 max-w-3xl">
             {showRegistered
-              ? 'Les créateurs inscrits et vérifiés sur NeedCreator, et les créateurs référencés par niche, pas encore inscrits, que les marques peuvent inviter.'
+              ? 'Les créateurs vérifiés sur NeedCreator, et les créateurs référencés par niche que les marques invitent en un clic.'
               : 'Créateurs et influenceurs référencés par niche, que les marques peuvent inviter sur leurs campagnes depuis NeedCreator.'}
             {' '}Pour des créateurs vérifiés avec portfolio, devis et paiement sécurisé, <Link href="/register?role=brand" className="text-primary-600 underline">créez un compte marque</Link>, c&apos;est gratuit.
           </p>

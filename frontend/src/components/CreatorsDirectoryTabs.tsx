@@ -15,7 +15,7 @@ export default function CreatorsDirectoryTabs({ showRegistered, registeredCount 
     <div>
       {showRegistered && (
         <div className="flex gap-2 mb-6 border-b border-neutral-200">
-          {([['registered', `Inscrits sur NeedCreator (${registeredCount})`], ['referenced', 'Référencés, pas encore inscrits']] as const).map(([k, label]) => (
+          {([['registered', `Créateurs NeedCreator (${registeredCount})`], ['referenced', 'À inviter']] as const).map(([k, label]) => (
             <button key={k} type="button" onClick={() => setTab(k)} className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === k ? 'border-primary-500 text-primary-700' : 'border-transparent text-neutral-600 hover:text-neutral-900'}`}>{label}</button>
           ))}
         </div>
@@ -27,7 +27,7 @@ export default function CreatorsDirectoryTabs({ showRegistered, registeredCount 
         </div>
       ) : (
         <div>
-          <p className="text-sm text-neutral-600 mb-4">Créateurs et influenceurs référencés par niche à partir de leurs profils publics, en France et en Europe. Ils ne sont pas encore inscrits sur NeedCreator : les marques peuvent les inviter depuis l&apos;application, l&apos;invitation part de la plateforme.</p>
+          <p className="text-sm text-neutral-600 mb-4">Créateurs et influenceurs référencés par niche à partir de leurs profils publics, en France et en Europe. Les marques les invitent en un clic depuis NeedCreator.</p>
           <ExternalCreatorsList mode="public" />
           <p className="text-xs text-neutral-500 mt-8">Vous figurez dans cet annuaire et souhaitez en être retiré ? Ouvrez votre fiche et utilisez le lien « Retirer mon profil ». Voir aussi notre <Link href="/legal/confidentialite" className="underline">politique de confidentialité</Link>.</p>
         </div>

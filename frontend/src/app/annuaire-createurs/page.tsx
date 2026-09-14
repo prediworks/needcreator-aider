@@ -19,8 +19,8 @@ export default function ExternalCreatorsPage() {
         <div className="mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-2">Annuaire des créateurs</h1>
           <p className="text-neutral-600 max-w-3xl">
-            Créateurs et influenceurs référencés par niche à partir de leurs profils publics, en France et en Europe. Ils ne sont pas encore inscrits sur NeedCreator :
-            les marques peuvent les inviter depuis l&apos;application, l&apos;invitation part de la plateforme. Pour des créateurs vérifiés avec portfolio, devis et paiement sécurisé,{' '}
+            Créateurs et influenceurs référencés par niche à partir de leurs profils publics, en France et en Europe. Les marques les invitent en un clic depuis NeedCreator.
+            Pour des créateurs vérifiés avec portfolio, devis et paiement sécurisé,{' '}
             <Link href="/register?role=brand" className="text-primary-600 underline">créez un compte marque</Link>.
           </p>
           <div className="mt-4 flex gap-3 flex-wrap">

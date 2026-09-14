@@ -68,9 +68,9 @@ export default function CreatorsPage() {
 
         <div className="flex gap-2 mb-6">
           {[
-            { key: 'all', label: 'Tous les créateurs' },
+            { key: 'all', label: 'Créateurs NeedCreator' },
             { key: 'collaborated', label: `Mes collaborateurs${data?.collaboratorsCount ? ` (${data.collaboratorsCount})` : ''}` },
-            { key: 'external', label: 'Référencés (pas encore inscrits)' },
+            { key: 'external', label: 'À inviter' },
           ].map((t) => (
             <button
               key={t.key}

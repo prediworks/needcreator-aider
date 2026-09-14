@@ -67,7 +67,7 @@ export default function ExternalCreatorsList({ mode, campaigns = [] }: { mode: '
         <Card className="p-12 text-center"><Users className="w-12 h-12 text-neutral-300 mx-auto mb-3" /><p className="text-neutral-600">Aucun créateur référencé pour ces critères.</p></Card>
       ) : (
         <>
-          <p className="text-sm text-neutral-500 mb-3">{data.pagination.total} créateur(s) référencé(s){mode === 'brand' ? ' · pas encore inscrits : invitez-les, l\'email part de NeedCreator en votre nom' : ''}</p>
+          <p className="text-sm text-neutral-500 mb-3">{data.pagination.total} créateur(s) référencé(s){mode === 'brand' ? ' · invitez-les en un clic, l\'email part de NeedCreator en votre nom' : ''}</p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.creators.map((c: any) => (
               <Card key={c.id} className="p-4 flex flex-col gap-2">
