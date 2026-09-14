@@ -11,8 +11,8 @@ import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Sprout, Trash2, Eye } from 'lucide-react';
 
-const EXAMPLE = `# email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max (0 = devis libre)
-marque1@votre-domaine.fr ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; https://atelier-lumen.fr ; beauté ; 3 ; 400
+const EXAMPLE = `# email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max (0 = devis libre) ; commentaire
+marque1@votre-domaine.fr ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; https://atelier-lumen.fr ; beauté ; 3 ; 400 ; Marque lyonnaise de soins bio, ton chaleureux, produits envoyés sous 48 h
 marque2@votre-domaine.fr ; MotDePasse123! ; Maison Céréales ; ; ; food ; 2 ; 0`;
 
 /** Amorçage : marques et campagnes créées en masse, invisibles côté créateur, supprimables par lot */
@@ -39,9 +39,9 @@ export default function SeedTool() {
       <Card className="p-6">
         <h2 className="text-xl font-semibold text-neutral-900 flex items-center gap-2 mb-1"><Sprout className="w-5 h-5 text-primary-500" /> Amorçage : marques et campagnes en masse</h2>
         <p className="text-sm text-neutral-600 mb-3">Pour que l&apos;application ne paraisse pas vide aux premiers créateurs. Les comptes sont créés s&apos;ils n&apos;existent pas (email confirmé, entreprise vérifiée, signataire renseigné), puis des campagnes réalistes sont publiées à partir des modèles par secteur, avec des dates étalées. Côté créateur, aucune différence. Utilisez des adresses d&apos;un domaine que vous contrôlez : les devis reçus et les relances y arrivent. Vous pouvez vous connecter avec ces comptes pour répondre aux devis.</p>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">Une marque par ligne : email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max</label>
+        <label className="block text-sm font-medium text-neutral-700 mb-1">Une marque par ligne : email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max ; commentaire</label>
         <textarea value={lines} onChange={(e) => { setLines(e.target.value); preview.reset(); }} rows={7} placeholder={EXAMPLE} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
-        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour la fourchette du lot ci-dessous. Ligne commençant par # ignorée.</p>
+        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour la fourchette du lot ci-dessous. Commentaire facultatif : quelques mots sur l'entreprise ou ses attentes, repris dans la présentation de la marque et à la fin de chaque brief. Ligne commençant par # ignorée.</p>
         <div className="grid sm:grid-cols-4 gap-3 mt-4">
           <Input label="Publiées dans les N derniers jours" type="number" min={0} max={90} value={opts.publishedWithinDays} onChange={(e) => setOpts({ ...opts, publishedWithinDays: e.target.value })} />
           <Input label="Dates limites dans les N prochains jours" type="number" min={3} max={120} value={opts.deadlineWithinDays} onChange={(e) => setOpts({ ...opts, deadlineWithinDays: e.target.value })} />
@@ -61,8 +61,8 @@ export default function SeedTool() {
           <div className="mt-4 text-sm">
             {p.errors.length > 0 && <ul className="text-red-700 mb-2 list-disc list-inside">{p.errors.map((e: any) => <li key={e.line}>Ligne {e.line} : {e.errors.join(', ')} · <span className="font-mono text-xs">{e.raw}</span></li>)}</ul>}
             {p.rows.length > 0 && (
-              <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Entreprise</th><th className="py-1 pr-3">SIRET</th><th className="py-1 pr-3">Modèle</th><th className="py-1 pr-3">Campagnes</th><th className="py-1 pr-3">Tarif max</th><th className="py-1">Compte</th></tr></thead>
-                <tbody>{p.rows.map((r: any) => <tr key={r.email} className="border-t border-neutral-100"><td className="py-1 pr-3">{r.email}</td><td className="py-1 pr-3">{r.companyName}</td><td className="py-1 pr-3">{r.siret || '—'}</td><td className="py-1 pr-3">{r.template}</td><td className="py-1 pr-3">{r.count}</td><td className="py-1 pr-3">{r.maxBudget === 0 ? 'devis libre' : r.maxBudget ? `${r.maxBudget} €` : 'fourchette du lot'}</td><td className="py-1">{r.existing ? `existe (${r.existing})` : 'à créer'}</td></tr>)}</tbody></table>
+              <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Entreprise</th><th className="py-1 pr-3">SIRET</th><th className="py-1 pr-3">Modèle</th><th className="py-1 pr-3">Campagnes</th><th className="py-1 pr-3">Tarif max</th><th className="py-1 pr-3">Commentaire</th><th className="py-1">Compte</th></tr></thead>
+                <tbody>{p.rows.map((r: any) => <tr key={r.email} className="border-t border-neutral-100"><td className="py-1 pr-3">{r.email}</td><td className="py-1 pr-3">{r.companyName}</td><td className="py-1 pr-3">{r.siret || '—'}</td><td className="py-1 pr-3">{r.template}</td><td className="py-1 pr-3">{r.count}</td><td className="py-1 pr-3">{r.maxBudget === 0 ? 'devis libre' : r.maxBudget ? `${r.maxBudget} €` : 'fourchette du lot'}</td><td className="py-1 pr-3 max-w-[200px] truncate" title={r.comment}>{r.comment || '—'}</td><td className="py-1">{r.existing ? `existe (${r.existing})` : 'à créer'}</td></tr>)}</tbody></table>
             )}
             <p className="text-neutral-600 mt-2">{p.rows.length} compte(s), {p.totalCampaigns} campagne(s) au total.</p>
           </div>
