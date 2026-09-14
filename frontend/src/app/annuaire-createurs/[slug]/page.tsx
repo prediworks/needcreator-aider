@@ -48,7 +48,7 @@ function ExternalCreatorContent() {
             {c.tiktok && <a href={c.tiktok} target="_blank" rel="noopener noreferrer nofollow"><Button variant="outline" size="sm"><Music2 className="w-4 h-4 mr-1" /> TikTok</Button></a>}
           </div>
           <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 text-sm text-neutral-800 mb-6">
-            <strong>Vous êtes une marque ?</strong> Ce créateur n&apos;est pas encore inscrit. Depuis votre compte NeedCreator, invitez-le en un clic : l&apos;invitation part de la plateforme avec votre campagne.{' '}
+            <strong>Vous êtes une marque ?</strong> Depuis votre compte NeedCreator, invitez ce créateur en un clic : l&apos;invitation part de la plateforme avec votre campagne.{' '}
             <Link href="/register?role=brand" className="underline">Créer un compte marque</Link>
           </div>
           <div className="border-t border-neutral-100 pt-4 text-sm text-neutral-600">
