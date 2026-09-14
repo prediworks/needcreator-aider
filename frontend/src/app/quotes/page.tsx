@@ -82,6 +82,7 @@ function QuoteCreateForm({ onDone, prefill }: { onDone: () => void; prefill?: { 
 
 function QuotesPageInner() {
   const { user, ready } = useRequireAuth({ roles: ['creator'] });
+  const cfg = usePublicConfig();
   const queryClient = useQueryClient();
   const sp = useSearchParams();
   const prefill = sp.get('prospect') ? { prospectId: sp.get('prospect') || undefined, companyName: sp.get('company') || '', contactName: sp.get('contact') || '', email: sp.get('email') || '' } : undefined;
@@ -141,7 +142,7 @@ function QuotesPageInner() {
         ) : !adding && (
           <Card className="p-8 text-center text-neutral-600">Aucun devis pour l&apos;instant. Un client vous contacte en dehors de NeedCreator ? Faites-lui un devis ici : contrat de cession inclus, paiement sécurisé s&apos;il le souhaite, et la mission entre dans votre suivi.</Card>
         )}
-        <p className="text-xs text-neutral-500 mt-6">Client qui paie via NeedCreator : mission classique (montant bloqué, contrat, factures par mandat, virement à la validation), commission selon le réglage « missions extérieures ». Client qui paie en direct : outils gratuits, vous facturez vous-même.</p>
+        <p className="text-xs text-neutral-500 mt-6">Client qui paie via NeedCreator : montant bloqué avant de tourner, contrat, factures émises en votre nom, virement à la validation, commission de {cfg.externalQuoteFeePercent} % comme pour une mission classique. Client qui paie en direct : aucune commission, vous facturez vous-même.</p>
       </div>
     </div>
   );
