@@ -2094,9 +2094,12 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   expect(bell.data.notifications.some(n => /Devis non retenu/.test(n.title) && n.text), 'Le candidat doit recevoir la notification de non-sélection', bell);
   // Lots et suppression avec les comptes
   const list = await brandApi('GET', '/admin/seed/batches');
-  expect(list.status === 200 && list.data.batches.some(b => b.batch === batch && b.accounts === 1 && b.campaigns === 2), 'Le lot doit être listé', list);
-  const del = await brandApi('DELETE', `/admin/seed/batches/${batch}?users=1`);
-  expect(del.status === 200 && del.data.campaigns === 2 && del.data.accounts === 1, 'Suppression du lot échouée', del);
+  expect(list.status === 200 && list.data.batches.some(b => b.batch === batch && b.campaigns === 2) && list.data.batches.some(b => b.batch === free.data.batch && b.accounts === 1), 'Les deux lots doivent être listés (le compte réutilisé appartient au dernier lot)', list);
+  const delFree = await brandApi('DELETE', `/admin/seed/batches/${free.data.batch}?users=1`);
+  expect(delFree.status === 200 && delFree.data.accounts === 1, 'Suppression du lot devis libre avec le compte échouée', delFree);
+  // Le compte supprimé emporte toutes ses campagnes, y compris celles du premier lot
+  const del = await brandApi('DELETE', `/admin/seed/batches/${batch}`);
+  expect(del.status === 200 && del.data.campaigns === 0, 'Le premier lot ne doit plus contenir de campagne (compte supprimé avec toutes ses campagnes)', del);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   expect(!(await users.findOne({ email: seedEmail })) && (await mongoose.connection.db.collection('campaigns').countDocuments({ 'seed.batch': batch })) === 0, 'Le lot doit avoir disparu (compte + campagnes)', { status: 200, data: {} });
   return 'lot créé (1 compte vérifié, 2 campagnes), invisible côté créateur, clôture à échéance avec non-sélection, lot supprimé avec le compte';
@@ -2151,6 +2154,12 @@ if (CLEAN) {
     await db.collection('deliveries').deleteMany({ campaignId: { $in: campIds } });
     await db.collection('campaigns').deleteMany({ _id: { $in: campIds } });
     await db.collection('contents').deleteMany({ brandId: { $in: ids } });
+    // Campagnes d'amorçage restantes des comptes de test (ou orphelines après suppression d'un compte)
+    const testBrandIds = (await db.collection('users').find({ email: /needcreator-test\.com$/ }).project({ _id: 1 }).toArray()).map(u => u._id);
+    const seedCamps = await db.collection('campaigns').find({ 'seed.batch': { $exists: true } }).project({ _id: 1, brandId: 1 }).toArray();
+    const existingBrands = new Set((await db.collection('users').find({ _id: { $in: seedCamps.map(c => c.brandId) } }).project({ _id: 1 }).toArray()).map(u => String(u._id)));
+    const orphanSeed = seedCamps.filter(c => testBrandIds.some(id => String(id) === String(c.brandId)) || !existingBrands.has(String(c.brandId))).map(c => c._id);
+    if (orphanSeed.length) { await db.collection('deliveries').deleteMany({ campaignId: { $in: orphanSeed } }); await db.collection('campaigns').deleteMany({ _id: { $in: orphanSeed } }); }
     const extraIds = extraCleanup.map(e => new mongoose.Types.ObjectId(e.userId));
     await db.collection('reviews').deleteMany({ $or: [{ revieweeId: { $in: extraIds } }, { reviewerId: { $in: extraIds } }] });
     await db.collection('deliveries').deleteMany({ creatorId: { $in: extraIds } });
