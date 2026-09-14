@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -50,6 +51,7 @@ export default function DisputeCard({ delivery, role }: { delivery: any; role: '
                   <Button size="sm" onClick={() => { if (confirm('Ouvrir un litige ? La validation automatique sera suspendue et notre équipe tranchera.')) openDispute.mutate(); }} isLoading={openDispute.isPending} disabled={reason.trim().length < 20}>Ouvrir le litige</Button>
                   <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
                 </div>
+                <MissingHint items={[reason.trim().length < 20 && `un motif d'au moins 20 caractères (${reason.trim().length}/20)`]} />
               </div>
             )}
           </div>
@@ -83,6 +85,7 @@ export default function DisputeCard({ delivery, role }: { delivery: any; role: '
                 <label className="block text-xs text-neutral-600">Votre réponse (une seule, 10 caractères minimum) : expliquez en quoi vos vidéos respectent le brief.</label>
                 <textarea value={response} onChange={(e) => setResponse(e.target.value)} rows={4} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" />
                 <Button size="sm" onClick={() => respond.mutate()} isLoading={respond.isPending} disabled={response.trim().length < 10}>Envoyer ma réponse</Button>
+                <MissingHint items={[response.trim().length < 10 && `une réponse d'au moins 10 caractères (${response.trim().length}/10)`]} />
               </div>
             ) : (
               <p className="text-xs text-neutral-500 mt-2">Le créateur n&apos;a pas encore répondu.</p>

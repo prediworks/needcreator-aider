@@ -1,6 +1,7 @@
 'use client';
 
 import { useDisputes, useResolveDispute, useAdminInvoices, useCreditInvoice } from '@/hooks/useAdmin';
+import MissingHint from '@/components/ui/MissingHint';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
@@ -562,6 +563,7 @@ function DisputeResolver({ dispute: d, defaultPercent, onResolve, loading }: { d
           </div>
         )}
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Décision motivée (10 caractères minimum), envoyée aux deux parties" className="w-full px-3 py-2 border border-neutral-300 rounded-lg" />
+        <MissingHint items={[note.trim().length < 10 && `une décision motivée d'au moins 10 caractères (${note.trim().length}/10)`, outcome === 'split' && (percent === '' || Number(percent) < 0 || Number(percent) > 100) && 'une part créateur entre 0 et 100 %']} />
         <Button size="sm" isLoading={loading} disabled={note.trim().length < 10 || (outcome === 'split' && (percent === '' || Number(percent) < 0 || Number(percent) > 100))} onClick={() => { if (confirm(`Trancher ce litige : ${paid} € payés par la marque ? Cette décision est définitive.`)) onResolve({ outcome, creatorPercent: outcome === 'split' ? Number(percent) : undefined, note }); }}>Trancher</Button>
       </div>
     </div>

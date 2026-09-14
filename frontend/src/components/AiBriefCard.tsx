@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import MissingHint from '@/components/ui/MissingHint';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -58,6 +59,7 @@ export default function AiBriefCard({ videoType, platforms, niches, onGenerated 
       <Button onClick={() => generate.mutate()} isLoading={generate.isPending} disabled={product.trim().length < 10 || (status && !status.configured) || (status?.quota && !status.quota.pro && status.quota.remaining <= 0)}>
         <Wand2 className="w-4 h-4 mr-2" /> {generate.isPending ? 'Rédaction en cours (10-20 s)…' : 'Générer le brief'}
       </Button>
+      <MissingHint items={[product.trim().length < 10 && `une description du produit d'au moins 10 caractères (${product.trim().length}/10)`, status && !status.configured && 'la rédaction IA activée sur le serveur', status?.quota && !status.quota.pro && status.quota.remaining <= 0 && 'du quota : brief IA du mois épuisé (illimité en Pro)']} />
       {status?.quota && !status.quota.pro && status.quota.remaining <= 0 && (
         <p className="text-xs text-neutral-600 mt-2">Quota mensuel atteint. <a href="/profile#subscription" className="text-primary-600 underline">Passez en Pro</a> pour un accès illimité.</p>
       )}

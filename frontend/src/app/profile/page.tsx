@@ -741,6 +741,7 @@ function ReviewReply({ reviewId }: { reviewId: string }) {
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={500} placeholder="Votre réponse sera visible par tous, sous l'avis." className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
       <div className="flex gap-2">
         <Button size="sm" onClick={() => respond.mutate({ reviewId, comment: text.trim() }, { onSuccess: () => setOpen(false) })} isLoading={respond.isPending} disabled={text.trim().length < 5}>Publier ma réponse</Button>
+        <MissingHint items={[text.trim().length < 5 && `une réponse d'au moins 5 caractères (${text.trim().length}/5)`]} />
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Annuler</Button>
       </div>
     </div>
