@@ -170,7 +170,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken } = req.body;
+    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken, quoteToken } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -224,11 +224,19 @@ export async function registerBrand(req, res) {
       logger.error('Failed to send welcome email:', err.message)
     );
 
+    // Client venu d'un devis extérieur : la mission est créée et le paiement demandé tout de suite
+    let quoteDeliveryId = null;
+    if (quoteToken) {
+      const { attachExternalQuoteToNewBrand } = await import('./externalQuotes.js');
+      quoteDeliveryId = await attachExternalQuoteToNewBrand(user, quoteToken).catch(err => { logger.warn(`External quote not attached: ${err.message}`); return null; });
+    }
+
     logger.info(`Brand registered successfully: ${user._id}`);
 
     res.status(201).json({
       message: 'Brand account created successfully',
       user: await serializeUser(user),
+      quoteDeliveryId,
     });
   } catch (error) {
     logger.error('Brand registration failed:', error);

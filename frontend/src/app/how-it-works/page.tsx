@@ -121,6 +121,10 @@ export default async function HowItWorksPage() {
               <p className="text-neutral-600">Marque et créateur se notent sans voir l&apos;avis de l&apos;autre ; les deux sont publiés ensemble. Un désaccord sur une livraison devient un litige arbitré par notre équipe, après réponse du créateur.</p>
             </div>
             <div>
+              <div className="font-semibold text-neutral-900 mb-1">Devis et contrats pour vos clients hors plateforme</div>
+              <p className="text-neutral-600">Un créateur fait un devis et un contrat de cession en un clic pour un client rencontré ailleurs. Le client peut payer via NeedCreator, montant bloqué, contrat, facture, ou en direct : outils gratuits.</p>
+            </div>
+            <div>
               <div className="font-semibold text-neutral-900 mb-1">Académie et kit média pour les créateurs</div>
               <p className="text-neutral-600">Cinq guides gratuits avec quiz, un badge Formé qui compte dans le classement des candidatures, une page publique avec QR code, un calendrier de paiements et le suivi des seuils micro-entreprise.</p>
             </div>

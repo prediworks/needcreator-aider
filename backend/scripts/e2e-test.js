@@ -869,6 +869,67 @@ await step('Contenus & droits : missions synchronisées, contenu extérieur, uti
   return `${list.data.summary.total} contenu(s) synchronisé(s), extérieur + usages + relance + import + export + rappel OK`;
 });
 
+await step('Devis pour un client hors plateforme : PDF, envoi, page publique, refus, acceptation avec paiement via NeedCreator, payé en direct', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const base = { client: { companyName: 'Boutique Externe', contactName: 'Claire Externe', email: `e2e-client-${RUN}@needcreator-test.com` }, title: 'Deux vidéos témoignage sérum', description: 'Convenu par téléphone : deux vidéos verticales, produit envoyé.', videoType: 'testimonial', deliverables: 2, duration: 30, platforms: ['tiktok'], price: 300, estimatedDeliveryDays: 10, revisions: 1, rights: { duration: '1y', supports: ['social_organic', 'paid_ads'], territories: 'France', exclusivity: false }, terms: 'Produit à fournir.' };
+  const tooCheap = await creatorApi('POST', '/external-quotes', { ...base, price: 1 });
+  expect(tooCheap.status === 400 || tooCheap.status === 201, 'Prix sous le minimum refusé (ou accepté si minimum = 1 en dev)', tooCheap);
+  if (tooCheap.status === 201) await creatorApi('DELETE', `/external-quotes/${tooCheap.data.quote._id}`);
+  const q1 = await creatorApi('POST', '/external-quotes', base);
+  expect(q1.status === 201 && q1.data.quote.status === 'draft' && q1.data.quote.pdf?.quoteUrl && q1.data.quote.pdf?.contractUrl && /^DV-/.test(q1.data.quote.pdf.number) && /\/q\//.test(q1.data.quote.link), 'Devis et projet de contrat PDF attendus', q1);
+  const pdfHead = await fetch(q1.data.quote.pdf.quoteUrl, { headers: { Range: 'bytes=0-4' } });
+  expect(pdfHead.status === 200 || pdfHead.status === 206, 'Le PDF du devis doit être téléchargeable', { status: pdfHead.status });
+  const list = await creatorApi('GET', '/external-quotes');
+  expect(list.status === 200 && list.data.quotes.some(q => q._id === q1.data.quote._id), 'Le devis doit être listé', list);
+  const sent = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { message: 'Comme convenu.' });
+  expect(sent.status === 200 && sent.data.quote.status === 'sent', 'Envoi du devis échoué', sent);
+  const token = q1.data.quote.token;
+  const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
+  expect(pub.quote?.status === 'sent' && pub.quote.creator?.name && pub.quote.quote.price === 300 && !pub.quote.creatorId && !JSON.stringify(pub).includes('legalInfo'), 'Vue publique du devis sans données sensibles', { status: 200, data: pub });
+  // Refus par le client
+  const q2 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis à décliner' });
+  const dec = await fetch(`${API}/external-quotes/public/${q2.data.quote.token}/decline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Budget épuisé' }) });
+  expect(dec.status === 200, 'Refus public échoué', { status: dec.status });
+  const q2after = await creatorApi('GET', '/external-quotes');
+  expect(q2after.data.quotes.find(q => q._id === q2.data.quote._id)?.status === 'declined', 'Le devis décliné doit l\'être', q2after);
+  // Acceptation par un nouveau client : inscription marque avec le jeton → mission créée, paiement demandé
+  const clientEmail = base.client.email;
+  const fu = await firebaseUser(clientEmail);
+  const clientApi = client(fu.idToken);
+  const reg = await clientApi('POST', '/auth/register/brand', { acceptTerms: true, email: clientEmail, companyName: 'Boutique Externe', country: 'FR', language: 'fr', quoteToken: token });
+  expect(reg.status === 201 && reg.data.quoteDeliveryId, 'L\'inscription avec le jeton du devis doit créer la mission', reg);
+  extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
+  const d = await clientApi('GET', `/deliveries/${reg.data.quoteDeliveryId}`);
+  expect(d.status === 200 && d.data.delivery.payment.amount === 300 && d.data.delivery.payment.platformFeePercent === 10 && d.data.delivery.payment.creatorAmount === 270 && d.data.delivery.contract?.url, 'Mission issue du devis : 300 € bloqués, commission 10 %, contrat généré', d);
+  const camp = await clientApi('GET', `/campaigns/${d.data.delivery.campaignId._id || d.data.delivery.campaignId}`);
+  expect(camp.status === 200 && camp.data.campaign.visibility === 'private' && camp.data.campaign.externalQuoteId, 'Campagne privée liée au devis attendue', camp);
+  const q1after = await creatorApi('GET', '/external-quotes');
+  const acc = q1after.data.quotes.find(q => q._id === q1.data.quote._id);
+  expect(acc.status === 'accepted_needcreator' && String(acc.deliveryId) === String(reg.data.quoteDeliveryId), 'Le devis doit être marqué accepté via NeedCreator', q1after);
+  const again = await fetch(`${API}/external-quotes/public/${token}/decline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  expect(again.status === 400, 'Un devis accepté ne se décline plus', { status: again.status });
+  // Acceptation par une marque déjà inscrite (connectée)
+  const q3 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis pour une marque existante', price: 200 });
+  const accExisting = await brandApi('POST', `/external-quotes/public/${q3.data.quote.token}/accept`);
+  expect(accExisting.status === 200 && accExisting.data.deliveryId, 'Acceptation par une marque connectée échouée', accExisting);
+  // Payé en direct : pas de mission, pas de commission
+  const q4 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis payé en direct', price: 150 });
+  const direct = await creatorApi('POST', `/external-quotes/${q4.data.quote._id}/direct`);
+  expect(direct.status === 200 && direct.data.quote.status === 'accepted_direct' && !direct.data.quote.deliveryId, 'Marquage payé en direct échoué', direct);
+  const noDel = await creatorApi('DELETE', `/external-quotes/${q1.data.quote._id}`);
+  expect(noDel.status === 400, 'Un devis converti en mission ne se supprime pas', noDel);
+  // Nettoyage : mission et campagne du client, devis
+  const db = mongoose.connection.db;
+  const clientId = new mongoose.Types.ObjectId(reg.data.user.id);
+  const cc = await db.collection('campaigns').find({ brandId: clientId }).project({ _id: 1 }).toArray();
+  await db.collection('deliveries').deleteMany({ campaignId: { $in: cc.map(c => c._id) } });
+  await db.collection('campaigns').deleteMany({ brandId: clientId });
+  await db.collection('deliveries').deleteMany({ _id: new mongoose.Types.ObjectId(accExisting.data.deliveryId) });
+  await db.collection('campaigns').deleteMany({ externalQuoteId: { $exists: true }, brandId: new mongoose.Types.ObjectId(brandUser.id) });
+  await db.collection('externalquotes').deleteMany({ creatorId: new mongoose.Types.ObjectId(creatorUser.id) });
+  return 'devis PDF + contrat, envoi, page publique, refus, acceptation nouveau client (300 € bloqués, 10 %), marque existante, payé en direct';
+});
+
 await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {
   // Disponibilité déclarée → visible sur le profil public, pénalise le matching
   const until = new Date(Date.now() + 10 * 86400000).toISOString();

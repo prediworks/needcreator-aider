@@ -47,7 +47,7 @@ export default function EarningsPage() {
         <div className="mb-6 flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold text-neutral-900 mb-1">Mes revenus</h1>
-            <p className="text-neutral-600">Missions payées, virements Stripe et bonus de parrainage. Export CSV pour votre comptabilité.</p>
+            <p className="text-neutral-600">Missions payées, virements Stripe et bonus de parrainage. Export CSV pour votre comptabilité. <Link href="/quotes" className="text-primary-600 underline">Mes devis clients</Link> pour vos missions hors plateforme.</p>
           <p className="text-sm mt-1"><Link href="/invoices" className="text-primary-600 underline">Mes factures et commissions</Link> : émises automatiquement à chaque mission validée.</p>
           </div>
           <Button variant="outline" onClick={downloadCsv}><Download className="w-4 h-4 mr-2" /> Exporter en CSV</Button>

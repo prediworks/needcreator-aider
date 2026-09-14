@@ -73,6 +73,12 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
           );
         })()}
         {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
+        {user.status === 'active' && (
+          <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm text-neutral-700"><strong>Un client hors NeedCreator ?</strong> Faites-lui un devis et un contrat de cession en un clic ; il peut payer via NeedCreator, montant bloqué puis versé à la validation.</div>
+            <Link href="/quotes"><Button size="sm" variant="outline">Mes devis clients</Button></Link>
+          </Card>
+        )}
         {blockers.length > 0 && user.status !== 'pending' && (
           <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis :{' '}
             {blockers.map((b, i) => <span key={b}>{i > 0 && ' '}<Link href={blockerHref(b)} className="underline decoration-dotted hover:text-primary-600">{b}</Link></span>)}

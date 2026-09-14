@@ -152,6 +152,8 @@ const campaignSchema = new mongoose.Schema({
     message: String,
     notifiedAt: Date, // email + notification envoyés (à l'invitation, ou à la publication pour une campagne créée avec des invités)
   }],
+  // Mission issue d'un devis extérieur accepté et payé via NeedCreator
+  externalQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalQuote' },
   // Amorçage (admin) : campagne créée en masse ; jamais exposé aux créateurs. closeAtDeadline : clôture automatique + email de non-sélection
   seed: { batch: { type: String, index: true }, closeAtDeadline: Boolean, note: String, ai: Boolean }, // note : consigne interne de l'admin, jamais affichée
   // Reconduction : campagne privée créée depuis une mission validée, pour le même créateur, avec son dernier devis en modèle

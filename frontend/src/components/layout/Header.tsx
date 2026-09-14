@@ -51,7 +51,7 @@ export default function Header() {
         ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
         ...(user?.role === 'brand' ? [{ href: '/contents', label: 'Contenus' }] : []),
-        ...(user?.role === 'creator' ? [{ href: '/academie', label: 'Académie' }, { href: '/earnings', label: 'Mes revenus' }, { href: '/profile#portfolio', label: 'Mon portfolio' }] : []),
+        ...(user?.role === 'creator' ? [{ href: '/academie', label: 'Académie' }, { href: '/earnings', label: 'Revenus' }, { href: '/profile#portfolio', label: 'Portfolio' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]
     : [

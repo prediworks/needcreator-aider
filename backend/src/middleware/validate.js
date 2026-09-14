@@ -61,6 +61,7 @@ export const schemas = {
     industry: Joi.string().allow(''),
     referralCode: Joi.string().max(20).allow(''),
     teamToken: Joi.string().max(60).allow(''), // invitation à rejoindre l'équipe d'une marque
+    quoteToken: Joi.string().max(64).allow(''), // devis extérieur d'un créateur à accepter
   }),
   
   // Stripe Connect onboarding

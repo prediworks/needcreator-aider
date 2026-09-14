@@ -42,6 +42,7 @@ function RegisterForm() {
   const referralCode = searchParams.get('ref') || '';
   const teamToken = searchParams.get('team') || '';
   const campaignInviteToken = searchParams.get('campaignInvite') || '';
+  const quoteToken = searchParams.get('quote') || '';
   const targetCampaign = searchParams.get('campaign') || '';
   const [campaignInvite, setCampaignInvite] = useState<{ email: string; name?: string; campaignId: string; campaignTitle: string; companyName: string } | null>(null);
   const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
@@ -88,6 +89,13 @@ function RegisterForm() {
     }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
   }, [campaignInviteToken]);
   useEffect(() => { if (targetCampaign) { setRole('creator'); setStep(2); } }, [targetCampaign]);
+  // Client d'un créateur (devis extérieur) : compte marque pré-rempli, la mission démarre à l'inscription
+  useEffect(() => {
+    if (!quoteToken) return;
+    api.get(`/external-quotes/public/${quoteToken}`).then(({ data }) => {
+      const q = data.quote; setRole('brand'); setStep(2); if (q.client?.email) setEmail(q.client.email); if (q.client?.companyName) setCompanyName(q.client.companyName);
+    }).catch(() => toast.error('Devis introuvable ou expiré', { duration: 8000 }));
+  }, [quoteToken]);
 
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
@@ -113,7 +121,7 @@ function RegisterForm() {
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
         ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language, ...(campaignInviteToken ? { campaignInviteToken } : {}) }
-        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}) };
+        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}), ...(quoteToken ? { quoteToken } : {}) };
 
       const res = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -127,7 +135,8 @@ function RegisterForm() {
           : 'Compte créé ! Vous pouvez lancer votre première campagne.'
       );
       const invited = (res as any)?.data?.invitedCampaignId || campaignInvite?.campaignId || targetCampaign;
-      router.push(invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
+      const quoteDelivery = (res as any)?.data?.quoteDeliveryId;
+      router.push(quoteDelivery ? `/deliveries/${quoteDelivery}` : invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
 
@@ -220,6 +229,11 @@ function RegisterForm() {
               ← Changer de type de compte ({role === 'creator' ? 'Créateur' : 'Marque'})
             </button>
 
+            {quoteToken && role === 'brand' && (
+              <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
+                📄 Vous acceptez le devis d&apos;un créateur. Créez votre compte marque : la mission sera créée et vous réglerez ensuite par carte, montant bloqué puis versé après votre validation des vidéos.
+              </div>
+            )}
             {campaignInvite && (
               <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
                 🎬 <strong>{campaignInvite.companyName}</strong> vous invite sur sa campagne « {campaignInvite.campaignTitle} ». Créez votre profil avec l&apos;adresse invitée : la campagne vous sera ouverte tout de suite.

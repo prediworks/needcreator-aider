@@ -25,6 +25,7 @@ export default async function CreatorsPage() {
     [Gift, 'Parrainez, gagnez', `${cfg.referralCreatorBonus} € pour chaque créateur que vous parrainez et qui livre sa première mission. Et si vous aimez tester des produits, les campagnes gifting sont à vous, sans commission.`],
     [FileText, 'Zéro paperasse', 'Vos factures sont émises en votre nom à chaque mission, avec un relevé mensuel pour votre comptable. Un calendrier vous dit quand chaque virement arrive et où vous en êtes par rapport aux seuils de la micro-entreprise.'],
     [GraduationCap, 'Une académie gratuite, un badge qui compte', 'Cinq guides courts : lire un brief, lumière, son, les trois premières secondes, rédiger un devis. Un quiz par guide. Trois guides réussis vous donnent le badge Formé, et un coup de pouce dans le classement des candidatures.'],
+    [FileSignature, 'Vos clients hors NeedCreator aussi', 'Un client vous contacte en direct ? Faites-lui un devis et un contrat de cession de droits en un clic, depuis votre compte. Il peut payer via NeedCreator, montant bloqué puis versé à la validation, ou en direct : outils gratuits, sans commission.'],
     [QrCode, 'Votre kit média', 'Une page publique à votre nom, avec portfolio, niches, tarifs et QR code, à mettre dans votre bio ou à envoyer aux marques. Vos vidéos de portfolio y sont protégées par un filigrane ; l\'original reste chez vous.'],
   ];
 
@@ -42,7 +43,7 @@ export default async function CreatorsPage() {
     ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission, et NeedCreator émet vos factures en votre nom (mandat de facturation) : rien à rédiger. Si vous êtes assujetti à la TVA, indiquez-le dans votre profil : vos devis restent HT et la marque paie la TVA en plus. Le compte Stripe se connecte en deux minutes.'],
     ['Et si la marque refuse mes vidéos ?', 'Elle ne peut refuser définitivement qu\'une fois les révisions du devis épuisées, et elle doit le justifier. Vous répondez une fois, notre équipe tranche : validation, partage du montant ou remboursement. Vous n\'êtes jamais jugé sans être entendu.'],
     ['Mes vidéos de portfolio sont-elles protégées ?', 'Oui. Les marques et les visiteurs voient une version marquée d\'un filigrane NeedCreator ; l\'original n\'est jamais téléchargeable. Vous pouvez aussi indiquer que vous n\'êtes pas disponible : votre profil reste visible, mais les marques sont prévenues.'],
-    ['C\'est gratuit ?', 'Oui. Aucun abonnement, aucun frais d\'inscription. La commission n\'est retenue que sur une mission payée.'],
+    ['C\'est gratuit ?', 'Oui. Aucun abonnement, aucun frais d\'inscription. La commission n\'est retenue que sur une mission payée via NeedCreator, y compris pour vos propres clients qui choisissent de régler par la plateforme. Vos devis et contrats pour des clients qui paient en direct sont gratuits, sans commission.'],
   ];
 
   const jsonLd = {
