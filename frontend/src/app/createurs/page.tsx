@@ -8,7 +8,7 @@ import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
 export const metadata: Metadata = {
   title: 'Créateur UGC rémunéré : NeedCreator pour les créateurs',
-  description: 'Vendez vos vidéos UGC aux marques sans publier sur votre compte. Vous fixez votre prix, le paiement est bloqué avant de tourner, un contrat protège vos droits. Inscription gratuite.',
+  description: 'Vendez vos vidéos UGC aux marques sans avoir d\'audience. Vous fixez votre prix, le paiement est bloqué avant de tourner, un contrat protège vos droits. Inscription gratuite.',
   alternates: { canonical: '/createurs' },
 };
 
@@ -36,7 +36,7 @@ export default async function CreatorsPage() {
   ];
 
   const faq: [string, string][] = [
-    ['Faut-il beaucoup d\'abonnés ?', 'Non. L\'UGC est publié sur les comptes des marques, pas sur le vôtre. Les marques regardent votre portfolio, pas votre audience. Trois vidéos suffisent pour commencer.'],
+    ['Faut-il beaucoup d\'abonnés ?', 'Non. La plupart des campagnes ne demandent aucune publication sur votre compte : vous livrez la vidéo, la marque la diffuse sur ses réseaux, ses publicités ou son site. Quand une marque souhaite une publication sur votre compte, c\'est écrit dans le brief et dans votre devis. Les marques regardent votre portfolio, pas votre audience. Trois vidéos suffisent pour commencer.'],
     ['Combien je gagne par vidéo ?', `Le prix HT que vous demandez, moins la commission de ${cfg.platformFeePercent} % (si vous êtes assujetti à la TVA, la marque la paie en plus et vous la reversez). Les devis acceptés démarrent en général autour de 80 € par vidéo et montent avec l'expérience et les droits cédés.`],
     ['Et si la marque ne répond pas ?', `Elle a ${days} pour valider ou demander une révision. Passé ce délai, la livraison est validée et le paiement part automatiquement. Personne ne reste bloqué.`],
     ['Dois-je avoir un statut ?', 'Oui, pour être payé : micro-entreprise ou société. Ces informations figurent sur le contrat de chaque mission, et NeedCreator émet vos factures en votre nom (mandat de facturation) : rien à rédiger. Si vous êtes assujetti à la TVA, indiquez-le dans votre profil : vos devis restent HT et la marque paie la TVA en plus. Le compte Stripe se connecte en deux minutes.'],
@@ -60,7 +60,7 @@ export default async function CreatorsPage() {
         <div className="container mx-auto px-4 max-w-4xl text-center">
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-6 text-sm font-medium text-primary-700">Pour les créateurs de contenu</div>
           <h1 className="text-4xl md:text-6xl font-bold text-neutral-900 mb-6">
-            Vendez vos vidéos aux marques, <span className="text-primary-500">sans publier sur votre compte</span>
+            Vendez vos vidéos aux marques, <span className="text-primary-500">sans avoir d&apos;audience</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
             Une source de revenus en plus : vous fixez votre prix, le paiement est bloqué avant de tourner, un contrat protège vos droits. Quelle que soit la taille de votre audience.
