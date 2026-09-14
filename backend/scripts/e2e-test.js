@@ -981,6 +981,48 @@ await step('Créateur : registre des droits et exclusivités (sync mission, cont
   return 'mission synchronisée (2 ans, exclusivité 3 mois), devis direct synchronisé, contenu externe, rappels 7 j + exclusivité (une fois), renouvellement → devis';
 });
 
+await step('Créateur : suivi de prospection (relances, devis lié) et calculateur de tarif public', async () => {
+  const db = mongoose.connection.db;
+  const creatorId = new mongoose.Types.ObjectId(creatorUser.id);
+  const bad = await creatorApi('POST', '/prospects', { company: '' });
+  expect(bad.status === 400, 'Le nom de la marque est obligatoire', bad);
+  const p1 = await creatorApi('POST', '/prospects', { company: 'Marque Soleil', contactName: 'Anna', email: `e2e-prospect-${RUN}@needcreator-test.com`, source: 'Instagram', note: 'Vue en story, produit solaire', nextFollowUpAt: new Date(Date.now() - 3600000).toISOString() });
+  expect(p1.status === 201 && p1.data.prospect.status === 'to_contact' && p1.data.prospect.notes.length === 1, 'Prospect non créé', p1);
+  const p2 = await creatorApi('POST', '/prospects', { company: 'Marque Lune', status: 'contacted' });
+  const upd = await creatorApi('PATCH', `/prospects/${p2.data.prospect._id}`, { status: 'replied', note: 'Intéressée par 2 vidéos' });
+  expect(upd.status === 200 && upd.data.prospect.status === 'replied' && upd.data.prospect.lastContactAt && upd.data.prospect.notes.length === 1, 'Mise à jour du prospect échouée', upd);
+  // Relance à date → notification (une fois)
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await adminApi('POST', '/admin/jobs/run');
+  expect(jobs.data.prospectReminders >= 1, `Relance de prospection attendue, reçu ${jobs.data.prospectReminders}`, jobs.data);
+  const jobs2 = await adminApi('POST', '/admin/jobs/run');
+  expect((jobs2.data.prospectReminders || 0) === 0, 'La relance ne doit partir qu\'une fois', jobs2.data);
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const notifs = await creatorApi('GET', '/notifications');
+  expect(notifs.data.notifications.some(n => /Relance prévue aujourd'hui : Marque Soleil/.test(n.title)), 'Notification de relance attendue', notifs.data.notifications.map(n => n.title));
+  // Devis créé depuis le prospect → statut « devis envoyé », puis « gagné » quand il est payé en direct
+  const q = await creatorApi('POST', '/external-quotes', { prospectId: p1.data.prospect._id, client: { companyName: 'Marque Soleil', email: p1.data.prospect.email }, title: 'Vidéo solaire', price: 90, rights: { duration: '1y' } });
+  expect(q.status === 201, 'Devis depuis un prospect non créé', q);
+  let list = await creatorApi('GET', '/prospects');
+  let pr = list.data.prospects.find(p => p._id === p1.data.prospect._id);
+  expect(pr.status === 'quote_sent' && String(pr.externalQuoteId) === String(q.data.quote._id) && pr.notes.length === 2, 'Le prospect doit être en « devis envoyé » avec le devis lié', pr);
+  await creatorApi('POST', `/external-quotes/${q.data.quote._id}/direct`);
+  list = await creatorApi('GET', '/prospects');
+  pr = list.data.prospects.find(p => p._id === p1.data.prospect._id);
+  expect(pr.status === 'won' && list.data.summary.won === 1 && list.data.summary.total === 2, 'Le prospect doit passer en « gagné »', list.data.summary);
+  const del = await creatorApi('DELETE', `/prospects/${p2.data.prospect._id}`);
+  expect(del.status === 200, 'Suppression du prospect échouée', del);
+  // Calculateur public
+  const calc = await fetch(`${API}/campaigns/rate-calculator?videoType=demo&rights=2y&supports=social_organic,paid_ads&exclusivity=true&exclusivityMonths=6&deliverables=3&duration=45`).then(r => r.json());
+  expect(calc.perVideo && calc.perVideo.low <= calc.perVideo.mid && calc.perVideo.mid <= calc.perVideo.high && calc.total.mid === calc.perVideo.mid * 3 && calc.factors.length >= 4, 'Calculateur : fourchette et facteurs attendus', { status: 200, data: calc });
+  const plain = await fetch(`${API}/campaigns/rate-calculator?videoType=demo`).then(r => r.json());
+  expect(calc.perVideo.mid > plain.perVideo.mid, 'Droits étendus + publicité + exclusivité doivent augmenter le tarif', { status: 200, data: { calc: calc.perVideo, plain: plain.perVideo } });
+  await db.collection('prospects').deleteMany({ creatorId });
+  await db.collection('externalquotes').deleteMany({ creatorId });
+  await db.collection('externalincomes').deleteMany({ creatorId });
+  return `prospects : relance notifiée une fois, devis lié → devis envoyé → gagné ; calculateur : ${plain.perVideo.mid} € → ${calc.perVideo.mid} €/vidéo (${calc.base.source})`;
+});
+
 await step('Créateur : disponibilité, kit média, académie, virements, missions recommandées', async () => {
   // Disponibilité déclarée → visible sur le profil public, pénalise le matching
   const until = new Date(Date.now() + 10 * 86400000).toISOString();

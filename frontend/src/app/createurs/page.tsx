@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark } from 'lucide-react';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
@@ -25,9 +25,16 @@ export default async function CreatorsPage() {
     [Gift, 'Parrainez, gagnez', `${cfg.referralCreatorBonus} € pour chaque créateur que vous parrainez et qui livre sa première mission. Et si vous aimez tester des produits, les campagnes gifting sont à vous, sans commission.`],
     [FileText, 'Zéro paperasse', 'Vos factures sont émises en votre nom à chaque mission, avec un relevé mensuel pour votre comptable. Un calendrier vous dit quand chaque virement arrive et où vous en êtes par rapport aux seuils de la micro-entreprise.'],
     [GraduationCap, 'Une académie gratuite, un badge qui compte', 'Cinq guides courts : lire un brief, lumière, son, les trois premières secondes, rédiger un devis. Un quiz par guide. Trois guides réussis vous donnent le badge Formé, et un coup de pouce dans le classement des candidatures.'],
-    [FileSignature, 'Vos clients hors NeedCreator aussi', 'Un client vous contacte en direct ? Faites-lui un devis et un contrat de cession de droits en un clic, depuis votre compte. Il peut payer via NeedCreator, montant bloqué puis versé à la validation, ou en direct : outils gratuits, sans commission.'],
-    [ShieldCheck, 'Vos droits et exclusivités, sous contrôle', 'Un registre de tout ce que vous avez cédé, sur NeedCreator ou ailleurs : durée, supports, exclusivité. Vous êtes prévenu 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.'],
     [QrCode, 'Votre kit média', 'Une page publique à votre nom, avec portfolio, niches, tarifs et QR code, à mettre dans votre bio ou à envoyer aux marques. Vos vidéos de portfolio y sont protégées par un filigrane ; l\'original reste chez vous.'],
+  ];
+
+  const tools: [any, string, string][] = [
+    [Target, 'Suivi de prospection', 'Les marques que vous démarchez : statut, notes, relance à date. Vous êtes prévenu le jour même, et le devis part en un clic depuis la fiche.'],
+    [FileSignature, 'Devis et contrat en un clic', 'Devis PDF et contrat de cession de droits générés depuis votre compte. Le client accepte en ligne : il paie via NeedCreator, montant bloqué puis versé à la validation, ou en direct, sans commission.'],
+    [ShieldCheck, 'Registre de vos droits et exclusivités', 'Tout ce que vous avez cédé, ici ou ailleurs : durée, supports, exclusivité. Rappel 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.'],
+    [Landmark, 'Revenus et seuils micro-entreprise', 'Vos missions NeedCreator et vos autres revenus au même endroit : franchise de TVA et plafond micro calculés sur le total, calendrier de vos virements.'],
+    [Calculator, 'Calculateur de tarif', 'Une fourchette de prix selon le type de vidéo, les droits, les supports, l\'exclusivité et le volume, basée sur les devis réellement acceptés.'],
+    [Lock, 'Paiement sécurisé pour vos clients', 'Même pour un client qui ne connaît pas NeedCreator : il découvre la plateforme avec votre devis, paie en confiance, et vous êtes payé à la validation.'],
   ];
 
   const steps: [string, string, string][] = [
@@ -94,6 +101,29 @@ export default async function CreatorsPage() {
                 <p className="text-sm text-neutral-600">{text}</p>
               </Card>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Outils pour toute l'activité */}
+      <section className="py-20 bg-neutral-900 text-white">
+        <div className="container mx-auto px-4 max-w-6xl">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
+            <p className="text-lg text-neutral-300 max-w-3xl mx-auto">Un client vous contacte en direct, une agence vous propose une vidéo, vous démarchez vous-même des marques ? Gérez tout depuis votre compte. Gratuit : la commission ne s&apos;applique que si le client choisit de payer via NeedCreator.</p>
+          </div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tools.map(([Icon, title, text]) => (
+              <div key={title} className="bg-neutral-800 rounded-xl p-6">
+                <div className="w-11 h-11 bg-primary-500/20 rounded-lg flex items-center justify-center mb-4"><Icon className="w-6 h-6 text-primary-400" /></div>
+                <h3 className="text-lg font-semibold mb-2">{title}</h3>
+                <p className="text-sm text-neutral-300">{text}</p>
+              </div>
+            ))}
+          </div>
+          <div className="text-center mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/calculateur-tarif-ugc"><Button variant="outline" className="border-white text-white hover:bg-neutral-800 w-full sm:w-auto">Essayer le calculateur de tarif</Button></Link>
+            <Link href="/register?role=creator"><Button className="w-full sm:w-auto">Créer mon profil créateur</Button></Link>
           </div>
         </div>
       </section>

@@ -235,6 +235,18 @@ export async function sendApplicationReceived(email, companyName, creatorName, c
   return sendEmail(email, subject, html);
 }
 
+/** Prospection créateur : relance(s) prévue(s) aujourd'hui */
+export async function sendProspectFollowUpDue(email, name, companies) {
+  const subject = companies.length === 1 ? `Relance prévue aujourd'hui : ${companies[0]}` : `${companies.length} relances prévues aujourd'hui`;
+  const html = `
+    <h1>Bonjour ${name},</h1>
+    <p>Vous aviez prévu de relancer aujourd'hui : <strong>${companies.join(', ')}</strong>.</p>
+    <p>Un devis et un contrat prêts à envoyer se génèrent en un clic depuis votre suivi de prospection.</p>
+    ${button(`${config.cors.origin}/prospects`, 'Ouvrir mon suivi de prospection')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
 /** Registre créateur : droits d'un contenu extérieur bientôt expirés */
 export async function sendCreatorRightsExpiring(email, name, title, clientName, endAt, days) {
   const subject = `Droits de « ${title} » : fin dans ${days} jour${days > 1 ? 's' : ''}`;

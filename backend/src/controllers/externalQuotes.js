@@ -10,6 +10,7 @@ import { uploadFile, resolveUrl } from '../services/storage.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { sendExternalQuoteToClient, sendExternalQuoteAccepted, sendExternalQuoteDeclined } from '../services/email.js';
 import { notify } from '../services/notifications.js';
+import { attachQuoteToProspect } from './prospects.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -76,6 +77,7 @@ export async function createQuoteInternal(creator, body) {
 export async function createExternalQuote(req, res) {
   try {
     const quote = await createQuoteInternal(req.user, req.body);
+    if (req.body?.prospectId) await attachQuoteToProspect(req.user._id, req.body.prospectId, quote);
     res.status(201).json({ message: 'Devis et projet de contrat générés', quote });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });

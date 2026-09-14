@@ -280,6 +280,40 @@ await step('Créateur : registre « Mes droits & exclusivités » (page vide, aj
   return 'registre vide, contenu externe ajouté, statut « expire bientôt »';
 });
 
+await step('Créateur : suivi de prospection (ajout, relance) et devis pré-rempli depuis la fiche', async () => {
+  await cp.goto(`${FRONT}/prospects`, { waitUntil: 'commit' });
+  await cp.getByRole('heading', { name: /Suivi de prospection/ }).waitFor({ timeout: 60000 });
+  await cp.getByRole('button', { name: /Ajouter une marque/ }).click();
+  await assertDisabledExplained(cp, 'prospection');
+  await cp.getByLabel('Marque').fill('Marque Soleil');
+  await cp.getByLabel('Contact').fill('Anna');
+  await cp.getByLabel('Prochaine relance').fill(new Date().toISOString().slice(0, 10));
+  await cp.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await cp.getByText('Prospect ajouté').waitFor({ timeout: 20000 });
+  await cp.getByText('À relancer', { exact: true }).first().waitFor({ timeout: 20000 });
+  await cp.screenshot({ path: `${SHOTS}/07c-prospects.png`, fullPage: true });
+  await cp.getByRole('link', { name: /Faire un devis/ }).click();
+  await cp.waitForURL(/\/quotes\?prospect=/, { timeout: 30000 });
+  await cp.getByRole('heading', { name: /Nouveau devis pour un client hors NeedCreator/ }).waitFor({ timeout: 60000 });
+  const company = await cp.getByLabel('Entreprise').inputValue();
+  if (company !== 'Marque Soleil') throw new Error(`Devis non pré-rempli (${company})`);
+  return 'prospect ajouté avec relance du jour, devis pré-rempli depuis la fiche';
+});
+
+await step('Page publique : calculateur de tarif UGC', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.goto(`${FRONT}/calculateur-tarif-ugc`, { waitUntil: 'commit' });
+  await p.getByRole('heading', { name: /Combien facturer une vidéo UGC/ }).waitFor({ timeout: 60000 });
+  await p.getByTestId('rate-mid').waitFor({ timeout: 30000 });
+  const before = await p.getByTestId('rate-mid').innerText();
+  await p.getByRole('button', { name: /Publicité payante/ }).click();
+  await p.waitForFunction((b) => document.querySelector('[data-testid="rate-mid"]')?.textContent !== b, before, { timeout: 20000 });
+  await p.screenshot({ path: `${SHOTS}/10b-calculateur.png`, fullPage: true });
+  await ctx.close();
+  return `tarif recalculé (${before.split(' HT')[0]} → publicité payante)`;
+});
+
 await step('Créateur : navigation Campagnes / Missions', async () => {
   await cp.goto(`${FRONT}/campaigns?filter=applied`);
   await cp.getByText('Vous n\'avez pas encore candidaté').waitFor({ timeout: 20000 });

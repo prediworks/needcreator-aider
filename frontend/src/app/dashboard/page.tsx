@@ -75,8 +75,8 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
         {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
         {user.status === 'active' && (
           <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm text-neutral-700"><strong>Vos outils, même hors NeedCreator :</strong> devis et contrat en un clic pour un client direct ; registre de vos droits cédés et exclusivités, avec rappel avant chaque échéance.</div>
-            <div className="flex gap-2 flex-wrap"><Link href="/quotes"><Button size="sm" variant="outline">Mes devis clients</Button></Link><Link href="/rights"><Button size="sm" variant="outline">Mes droits &amp; exclusivités</Button></Link></div>
+            <div className="text-sm text-neutral-700"><strong>Vos outils, même hors NeedCreator :</strong> suivi des marques que vous démarchez, devis et contrat en un clic, registre de vos droits et exclusivités, calculateur de tarif.</div>
+            <div className="flex gap-2 flex-wrap"><Link href="/prospects"><Button size="sm" variant="outline">Prospection</Button></Link><Link href="/quotes"><Button size="sm" variant="outline">Devis clients</Button></Link><Link href="/rights"><Button size="sm" variant="outline">Droits &amp; exclusivités</Button></Link><Link href="/calculateur-tarif-ugc"><Button size="sm" variant="outline">Calculateur de tarif</Button></Link></div>
           </Card>
         )}
         {blockers.length > 0 && user.status !== 'pending' && (

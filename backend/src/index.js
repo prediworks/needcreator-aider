@@ -30,6 +30,7 @@ import contentsRoutes from './routes/contents.js';
 import externalQuotesRoutes from './routes/externalQuotes.js';
 import creatorContentsRoutes from './routes/creatorContents.js';
 import externalIncomesRoutes from './routes/externalIncomes.js';
+import prospectsRoutes from './routes/prospects.js';
 import academyRoutes from './routes/academy.js';
 
 const app = express();
@@ -95,6 +96,7 @@ app.use('/api/contents', contentsRoutes); // registre « Contenus & droits »
 app.use('/api/external-quotes', externalQuotesRoutes); // devis créateur pour clients hors plateforme
 app.use('/api/creator-contents', creatorContentsRoutes); // registre des droits côté créateur
 app.use('/api/external-incomes', externalIncomesRoutes); // revenus hors plateforme (seuils micro)
+app.use('/api/prospects', prospectsRoutes); // suivi de prospection du créateur
 app.use('/api/academy', academyRoutes);
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 

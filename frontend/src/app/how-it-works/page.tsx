@@ -23,6 +23,7 @@ const creatorSteps = (cfg: { autoApprovalDays: number }) => [
   ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom. Votre page « Mes missions » suit chaque échéance.'],
   ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe, à une date affichée dans votre calendrier de paiements. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'Avis en double aveugle : chacun note sans voir l\'avis de l\'autre, les deux sont publiés ensemble. La réactivité des marques est visible par tous les créateurs, et chacun peut répondre publiquement à un avis.'],
+  ['6', 'Gérez aussi vos clients hors plateforme', 'Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif : vos outils pour toute votre activité, gratuits. La commission ne s\'applique que si votre client choisit de payer via NeedCreator.'],
 ];
 
 export default async function HowItWorksPage() {

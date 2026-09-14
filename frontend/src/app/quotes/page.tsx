@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -25,15 +26,15 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   expired: { label: 'Expiré', cls: 'bg-neutral-100 text-neutral-500' },
 };
 
-function QuoteCreateForm({ onDone }: { onDone: () => void }) {
+function QuoteCreateForm({ onDone, prefill }: { onDone: () => void; prefill?: { prospectId?: string; companyName?: string; contactName?: string; email?: string } }) {
   const cfg = usePublicConfig();
-  const [f, setF] = useState<any>({ companyName: '', contactName: '', email: '', siret: '', address: '', title: '', description: '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
+  const [f, setF] = useState<any>({ companyName: prefill?.companyName || '', contactName: prefill?.contactName || '', email: prefill?.email || '', siret: '', address: '', title: '', description: '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const toggle = (k: string, v: string) => set(k, f[k].includes(v) ? f[k].filter((x: string) => x !== v) : [...f[k], v]);
   const price = parseFloat(f.price) || 0;
   const missing = [!f.companyName.trim() && 'le nom du client', !f.title.trim() && 'un titre de mission', price < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`].filter(Boolean) as string[];
   const create = useMutation({
-    mutationFn: async () => (await api.post('/external-quotes', { client: { companyName: f.companyName, contactName: f.contactName, email: f.email, siret: f.siret, address: f.address }, title: f.title, description: f.description, videoType: f.videoType, deliverables: Number(f.deliverables), duration: Number(f.duration), platforms: f.platforms, price, estimatedDeliveryDays: Number(f.estimatedDeliveryDays), revisions: Number(f.revisions), rights: { duration: f.duration_rights, supports: f.supports, territories: f.territories, exclusivity: f.exclusivity, exclusivityMonths: f.exclusivityMonths }, terms: f.terms })).data,
+    mutationFn: async () => (await api.post('/external-quotes', { prospectId: prefill?.prospectId || undefined, client: { companyName: f.companyName, contactName: f.contactName, email: f.email, siret: f.siret, address: f.address }, title: f.title, description: f.description, videoType: f.videoType, deliverables: Number(f.deliverables), duration: Number(f.duration), platforms: f.platforms, price, estimatedDeliveryDays: Number(f.estimatedDeliveryDays), revisions: Number(f.revisions), rights: { duration: f.duration_rights, supports: f.supports, territories: f.territories, exclusivity: f.exclusivity, exclusivityMonths: f.exclusivityMonths }, terms: f.terms })).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); onDone(); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
@@ -79,10 +80,12 @@ function QuoteCreateForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-export default function QuotesPage() {
+function QuotesPageInner() {
   const { user, ready } = useRequireAuth({ roles: ['creator'] });
   const queryClient = useQueryClient();
-  const [adding, setAdding] = useState(false);
+  const sp = useSearchParams();
+  const prefill = sp.get('prospect') ? { prospectId: sp.get('prospect') || undefined, companyName: sp.get('company') || '', contactName: sp.get('contact') || '', email: sp.get('email') || '' } : undefined;
+  const [adding, setAdding] = useState(!!prefill);
   const { data, isLoading } = useQuery({ queryKey: ['external-quotes'], queryFn: async () => (await api.get('/external-quotes')).data, enabled: ready });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['external-quotes'] });
   const send = useMutation({ mutationFn: async ({ id, email, message }: any) => (await api.post(`/external-quotes/${id}/send`, { email, message })).data, onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
@@ -96,12 +99,12 @@ export default function QuotesPage() {
         <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold text-neutral-900 mb-1 flex items-center gap-2"><FileSignature className="w-7 h-7 text-primary-500" /> Mes devis clients</h1>
-            <p className="text-neutral-600">Pour vos clients hors NeedCreator : devis et contrat de cession en un clic, paiement sécurisé si le client le souhaite. Aucune commission quand il paie en direct.</p>
+            <p className="text-neutral-600">Pour vos clients hors NeedCreator : devis et contrat de cession en un clic, paiement sécurisé si le client le souhaite. Aucune commission quand il paie en direct. Besoin d&apos;un repère de prix ? <Link href="/calculateur-tarif-ugc" className="text-primary-600 underline">Calculateur de tarif</Link> · <Link href="/prospects" className="text-primary-600 underline">Suivi de prospection</Link>.</p>
           </div>
           <Button onClick={() => setAdding(true)}><Plus className="w-4 h-4 mr-1" /> Nouveau devis</Button>
         </div>
         {!(user as any)?.hasLegalInfo && <Card className="p-4 mb-6 bg-orange-50 border-orange-200 text-sm text-orange-900">Renseignez d&apos;abord vos <Link href="/profile#legal" className="underline">informations administratives</Link> : elles figurent sur le devis et le contrat.</Card>}
-        {adding && <QuoteCreateForm onDone={() => { setAdding(false); refresh(); }} />}
+        {adding && <QuoteCreateForm prefill={prefill} onDone={() => { setAdding(false); refresh(); }} />}
         {isLoading ? <Spinner /> : data?.quotes?.length ? (
           <div className="space-y-3">
             {data.quotes.map((q: any) => {
@@ -142,4 +145,8 @@ export default function QuotesPage() {
       </div>
     </div>
   );
+}
+
+export default function QuotesPage() {
+  return <Suspense fallback={<Spinner />}><QuotesPageInner /></Suspense>;
 }
