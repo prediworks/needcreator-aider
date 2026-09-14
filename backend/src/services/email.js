@@ -169,6 +169,30 @@ export async function sendBrandWelcome(email, companyName) {
 /**
  * Creator profile approved
  */
+/** Compte suspendu par l'admin : la personne est prévenue, avec le motif et le contact */
+export async function sendAccountSuspended(email, name, reason) {
+  const subject = 'Votre compte NeedCreator est suspendu';
+  const html = `
+    <h1>Bonjour ${name || ''},</h1>
+    <p>Votre compte NeedCreator a été suspendu par notre équipe. Vous ne pouvez plus l'utiliser pour l'instant.</p>
+    ${reason ? summary([['Motif', reason]]) : ''}
+    <p>Vos campagnes en cours ne sont plus proposées aux créateurs et vos actions sont bloquées jusqu'à la réactivation. Vos données sont conservées.</p>
+    <p>Si vous pensez qu'il s'agit d'une erreur, écrivez-nous à <a href="mailto:contact@needcreator.com">contact@needcreator.com</a>.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/** Compte réactivé */
+export async function sendAccountReactivated(email, name) {
+  const subject = 'Votre compte NeedCreator est réactivé';
+  const html = `
+    <h1>Bonjour ${name || ''},</h1>
+    <p>Votre compte NeedCreator est de nouveau actif : vous pouvez vous reconnecter et reprendre là où vous en étiez.</p>
+    ${button(`${config.cors.origin}/dashboard`, 'Ouvrir mon tableau de bord')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
 export async function sendCreatorApproved(email, name) {
   const subject = 'Votre profil a été approuvé ! ✅';
   const html = `

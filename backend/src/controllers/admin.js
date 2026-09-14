@@ -472,7 +472,10 @@ export async function suspendUser(req, res) {
     }
     
     user.status = 'suspended';
+    user.set('suspension', { reason: String(reason || '').trim().slice(0, 500) || undefined, at: new Date(), by: req.user._id });
     await user.save();
+    const { sendAccountSuspended } = await import('../services/email.js');
+    sendAccountSuspended(user.email, user.profile?.companyName || user.profile?.name, user.suspension?.reason).catch(err => logger.warn(`Suspension email not sent: ${err.message}`));
     
     logger.info(`User suspended: ${user._id}, reason: ${reason}`);
     
@@ -661,7 +664,10 @@ export async function reactivateUser(req, res) {
     }
     
     user.status = 'active';
+    user.set('suspension', undefined);
     await user.save();
+    const { sendAccountReactivated } = await import('../services/email.js');
+    sendAccountReactivated(user.email, user.profile?.companyName || user.profile?.name).catch(err => logger.warn(`Reactivation email not sent: ${err.message}`));
     
     logger.info(`User reactivated: ${user._id}`);
     

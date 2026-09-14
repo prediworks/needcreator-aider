@@ -303,6 +303,8 @@ export async function getCampaigns(req, res) {
       }
       if (['available', 'recommended', 'all'].includes(mode)) {
         query.$and = [...(query.$and || []), { $or: [{ visibility: { $ne: 'private' } }, { 'invitations.creatorId': user._id }, { 'applications.creatorId': user._id }, { selectedCreators: user._id }, { selectedCreator: user._id }] }];
+        const suspended = await suspendedBrandIds();
+        if (suspended.length) query.brandId = { $nin: suspended };
       }
       if (['available', 'recommended'].includes(mode)) {
         // Services : une campagne n'est proposée que si l'un de ses lots correspond à un service du créateur (campagnes sans lot = vidéo UGC)
@@ -382,7 +384,7 @@ export async function getCampaign(req, res) {
     const user = req.user;
 
     const campaignDoc = await Campaign.findById(campaignId)
-      .populate('brandId', 'profile.companyName profile.avatar profile.website profile.industry profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
+      .populate('brandId', 'status profile.companyName profile.avatar profile.website profile.industry profile.stats.avgValidationDays profile.stats.avgResponseDays profile.stats.campaignsCompleted')
       .populate('applications.creatorId', 'profile.name profile.avatar profile.stats profile.niches profile.pricing profile.ambassador.status profile.availability profile.academy profile.slug status')
       .populate('selectedCreator', 'profile.name profile.avatar')
       .populate('selectedCreators', 'profile.name profile.avatar');
@@ -415,6 +417,10 @@ export async function getCampaign(req, res) {
       }
     }
 
+    // Marque suspendue : campagne retirée pour les créateurs, sauf mission déjà en cours avec eux
+    if (user.role === 'creator' && ['suspended', 'banned'].includes(campaign.brandId?.status) && !isSelectedCreator) {
+      return res.status(403).json({ error: 'Cette campagne n\'est plus disponible.' });
+    }
     if (user.role === 'brand' && !isOwner) {
       return res.status(403).json({ error: 'Access denied' });
     }
@@ -461,6 +467,7 @@ export async function getCampaign(req, res) {
       if (campaign.renewal?.creatorId && idOf(campaign.renewal.creatorId) === user._id.toString()) campaign.renewalQuote = campaign.renewal.lastQuote || null;
       delete campaign.renewal;
       delete campaign.seed;
+      if (campaign.brandId?.status !== undefined) delete campaign.brandId.status;
       // Ne pas exposer les autres candidatures aux créateurs
       delete campaign.applications;
       delete campaign.invitations;
@@ -765,6 +772,11 @@ export async function renewWithCreator(req, res) {
   }
 }
 
+/** Marques suspendues ou bannies : leurs campagnes ne sont plus proposées aux créateurs ni au public */
+async function suspendedBrandIds() {
+  return User.find({ role: 'brand', status: { $in: ['suspended', 'banned'] } }).distinct('_id');
+}
+
 /**
  * Campagnes publiques (sans authentification) : pages indexables par les moteurs de recherche.
  * Seules les campagnes publiées, visibles de tous et encore ouvertes aux candidatures sont listées.
@@ -786,6 +798,8 @@ export async function listPublicCampaigns(req, res) {
   try {
     const now = new Date();
     const query = { status: 'active', visibility: { $ne: 'private' }, $or: [{ 'timeline.applicationDeadline': null }, { 'timeline.applicationDeadline': { $gte: now } }] };
+    const suspended = await suspendedBrandIds();
+    if (suspended.length) query.brandId = { $nin: suspended };
     if (req.query.niche) query['matching.niches'] = req.query.niche;
     const campaigns = await Campaign.find(query).select(PUBLIC_FIELDS).populate('brandId', 'profile.companyName profile.industry profile.avatar profile.website').sort({ 'timeline.publishedAt': -1 }).limit(100).lean();
     res.set('Cache-Control', 'public, max-age=300');
@@ -798,8 +812,8 @@ export async function listPublicCampaigns(req, res) {
 export async function getPublicCampaign(req, res) {
   try {
     if (!/^[a-f0-9]{24}$/i.test(req.params.campaignId)) return res.status(404).json({ error: 'Campagne introuvable' });
-    const c = await Campaign.findOne({ _id: req.params.campaignId, visibility: { $ne: 'private' }, status: { $in: ['active', 'in_progress', 'completed'] } }).select(PUBLIC_FIELDS + ' status').populate('brandId', 'profile.companyName profile.industry profile.avatar profile.website').lean();
-    if (!c) return res.status(404).json({ error: 'Campagne introuvable' });
+    const c = await Campaign.findOne({ _id: req.params.campaignId, visibility: { $ne: 'private' }, status: { $in: ['active', 'in_progress', 'completed'] } }).select(PUBLIC_FIELDS + ' status').populate('brandId', 'status profile.companyName profile.industry profile.avatar profile.website').lean();
+    if (!c || ['suspended', 'banned'].includes(c.brandId?.status)) return res.status(404).json({ error: 'Campagne introuvable' });
     const view = publicCampaignView(c);
     view.open = c.status === 'active' && (!c.timeline?.applicationDeadline || new Date(c.timeline.applicationDeadline) >= new Date());
     res.set('Cache-Control', 'public, max-age=300');

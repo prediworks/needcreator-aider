@@ -435,7 +435,7 @@ export default function AdminPage() {
                           <Link href={`/admin/creators/${u._id}`}><Button size="sm" variant="ghost">Voir</Button></Link>
                         )}
                         {u.role !== 'admin' && (u.status === 'active' ? (
-                          <Button size="sm" variant="ghost" onClick={() => suspend.mutate({ userId: u._id })}>Suspendre</Button>
+                          <Button size="sm" variant="ghost" onClick={() => { const reason = prompt(`Suspendre ${u.email} ?\n\nSes actions seront bloquées et, pour une marque, ses campagnes retirées du fil des créateurs. Un email lui est envoyé avec le motif ci-dessous (facultatif) :`); if (reason !== null) suspend.mutate({ userId: u._id, reason: reason.trim() || undefined }); }}>Suspendre</Button>
                         ) : (
                           <Button size="sm" variant="ghost" onClick={() => reactivate.mutate({ userId: u._id })}>Activer</Button>
                         ))}

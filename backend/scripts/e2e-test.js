@@ -2078,6 +2078,19 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   const freeCamp = await mongoose.connection.db.collection('campaigns').findOne({ 'seed.batch': free.data.batch });
   expect(freeCamp && !freeCamp.budget?.total, 'Tarif max 0 doit donner une campagne sans budget (devis libre)', { status: 200, data: freeCamp?.budget });
   await mongoose.connection.db.collection('campaigns').deleteOne({ _id: freeCamp._id });
+  // Suspension d'une marque : ses campagnes disparaissent du fil, du détail et du site public ; réactivation = retour
+  const susp = await brandApi('POST', `/admin/users/${seeded._id}/suspend`, { reason: 'Test de suspension' });
+  expect(susp.status === 200, 'Suspension échouée', susp);
+  const feedS = await creatorApi('GET', '/campaigns?limit=100');
+  expect(!feedS.data.campaigns.some(c => seedCamps.some(s => String(s._id) === c._id)), 'Les campagnes d\'une marque suspendue ne doivent plus apparaître dans le fil', feedS);
+  const detailS = await creatorApi('GET', `/campaigns/${seedCamps[0]._id}`);
+  expect(detailS.status === 403, 'Le détail d\'une campagne de marque suspendue doit être refusé au créateur', detailS);
+  const pubS = await fetch(`${API}/campaigns/public/${seedCamps[0]._id}`);
+  expect(pubS.status === 404, 'La page publique d\'une campagne de marque suspendue doit renvoyer 404', { status: pubS.status });
+  const stored2 = await users.findOne({ email: seedEmail });
+  expect(stored2.status === 'suspended' && stored2.suspension?.reason === 'Test de suspension', 'Motif de suspension attendu en base', { status: 200, data: stored2.suspension });
+  const react = await brandApi('POST', `/admin/users/${seeded._id}/reactivate`);
+  expect(react.status === 200, 'Réactivation échouée', react);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   // Côté créateur : rien ne distingue ces campagnes
   const feed = await creatorApi('GET', '/campaigns?limit=100'); // la base de dev peut contenir d'autres campagnes ouvertes

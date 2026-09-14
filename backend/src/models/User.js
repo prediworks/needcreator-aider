@@ -266,6 +266,8 @@ const userSchema = new mongoose.Schema({
     updatedAt: Date,
   },
 
+  // Suspension par l'admin (motif communiqué par email)
+  suspension: { reason: String, at: Date, by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' } },
   // Amorçage (admin) : compte marque créé en masse
   seed: { batch: { type: String, index: true } },
   // Acceptation des CGU / confidentialité
