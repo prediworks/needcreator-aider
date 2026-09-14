@@ -266,6 +266,8 @@ const userSchema = new mongoose.Schema({
     updatedAt: Date,
   },
 
+  // Amorçage (admin) : compte marque créé en masse
+  seed: { batch: { type: String, index: true } },
   // Acceptation des CGU / confidentialité
   legal: {
     termsVersion: String,

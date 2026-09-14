@@ -344,6 +344,7 @@ export async function getCampaigns(req, res) {
       const myNiches = user.profile.niches || [];
       campaigns.forEach(c => {
         const mine = (c.applications || []).find(a => idOf(a.creatorId) === user._id.toString());
+        delete c.seed;
         c.myApplication = mine ? { status: mine.status, price: mine.price, appliedAt: mine.appliedAt } : null;
         c.isSelected = (c.selectedCreators || []).some(id => idOf(id) === user._id.toString()) || idOf(c.selectedCreator) === user._id.toString();
         c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
@@ -459,6 +460,7 @@ export async function getCampaign(req, res) {
       campaign.applyBlockers = user.applyBlockers(maxLate);
       if (campaign.renewal?.creatorId && idOf(campaign.renewal.creatorId) === user._id.toString()) campaign.renewalQuote = campaign.renewal.lastQuote || null;
       delete campaign.renewal;
+      delete campaign.seed;
       // Ne pas exposer les autres candidatures aux créateurs
       delete campaign.applications;
       delete campaign.invitations;
@@ -690,7 +692,7 @@ export async function updateQuote(req, res) {
  * Créateurs non retenus : notification + email (si activé), avec un bloc « Augmentez vos chances »
  * qui ne propose que ce que le créateur n'a pas encore (portfolio, académie, programme Ambassadeur si activé).
  */
-async function notifyNotSelected(campaign, creatorIds) {
+export async function notifyNotSelected(campaign, creatorIds) {
   const enabled = await getSetting(SETTINGS.notifyNotSelected.key, SETTINGS.notifyNotSelected.default);
   if (!enabled) return 0;
   const ambassadorTip = await getSetting(SETTINGS.notSelectedAmbassadorTip.key, SETTINGS.notSelectedAmbassadorTip.default);

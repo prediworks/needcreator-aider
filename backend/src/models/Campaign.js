@@ -152,6 +152,8 @@ const campaignSchema = new mongoose.Schema({
     message: String,
     notifiedAt: Date, // email + notification envoyés (à l'invitation, ou à la publication pour une campagne créée avec des invités)
   }],
+  // Amorçage (admin) : campagne créée en masse ; jamais exposé aux créateurs. closeAtDeadline : clôture automatique + email de non-sélection
+  seed: { batch: { type: String, index: true }, closeAtDeadline: Boolean },
   // Reconduction : campagne privée créée depuis une mission validée, pour le même créateur, avec son dernier devis en modèle
   renewal: {
     fromCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },

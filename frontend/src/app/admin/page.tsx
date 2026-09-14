@@ -18,12 +18,13 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import ExternalCreatorsImport from '@/components/admin/ExternalCreatorsImport';
+import SeedTool from '@/components/admin/SeedTool';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
@@ -79,6 +80,7 @@ export default function AdminPage() {
     { key: 'campaigns', label: 'Campagnes' },
     { key: 'deliveries', label: 'Livraisons' },
     { key: 'external', label: 'Créateurs référencés' },
+    { key: 'seed', label: 'Amorçage' },
     { key: 'settings', label: 'Réglages' },
   ];
 
@@ -324,6 +326,7 @@ export default function AdminPage() {
 
         {/* Settings */}
         {tab === 'external' && <ExternalCreatorsImport />}
+        {tab === 'seed' && <SeedTool />}
 
         {tab === 'settings' && (<>
           <Card className="p-6 mb-6">

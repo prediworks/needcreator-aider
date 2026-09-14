@@ -1,4 +1,5 @@
 import express from 'express';
+import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -95,6 +96,11 @@ router.get('/deliveries', getAdminDeliveries);
 // Lance manuellement les tâches planifiées (auto-approbation, rappels) — utile pour tester
 router.post('/jobs/run', runJobs);
 router.get('/backups', listBackupsAdmin);
+// Amorçage : marques et campagnes en masse
+router.post('/seed/preview', previewSeed);
+router.post('/seed/run', runSeed);
+router.get('/seed/batches', listSeedBatches);
+router.delete('/seed/batches/:batch', deleteSeedBatch);
 router.post('/backups/run', runBackupAdmin);
 router.post('/backups/:name/restore', restoreBackupAdmin); // confirmation « RESTAURER »
 

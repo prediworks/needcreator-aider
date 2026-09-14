@@ -174,12 +174,12 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   await settings.updateOne({ key: 'businessRegistryCheck' }, { $set: { value: true } }, { upsert: true });
   await new Promise(r => setTimeout(r, 100));
   const fake = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
-  if (fake.data.registryChecked && !/injoignable/.test(fake.data.business.note || '')) {
+  if (fake.data.registryChecked && !/injoignable|registre HTTP/.test(fake.data.business.note || '')) { // registre indisponible ou limité (429) : contrôle formel seulement
     expect(fake.status === 200 && fake.data.business.status === 'rejected' && /introuvable/.test(fake.data.business.note), 'Un SIRET bien formé mais inexistant au registre doit être refusé', fake);
   }
   const ok = await brandApi('POST', '/auth/business-verification', { siret: '356 000 000 00048', website: 'https://exemple.fr' });
   expect(ok.status === 200 && ok.data.business.status === 'verified' && ok.data.business.method === 'auto', 'La vérification automatique devrait réussir (SIRET réel, site, email pro)', ok);
-  const registryOk = ok.data.registry?.legalName === 'LA POSTE' || /injoignable/.test(ok.data.business.note || '');
+  const registryOk = ok.data.registry?.legalName === 'LA POSTE' || /injoignable|registre HTTP/.test(ok.data.business.note || '');
   expect(registryOk, 'Le registre devrait renvoyer la raison sociale', ok);
   // Désactivation depuis l'admin : le SIRET fictif passe alors le contrôle formel
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
@@ -2051,6 +2051,50 @@ await step('Admin : suppression complète d\'un compte (outil temporaire)', asyn
 });
 
 // Nettoyage
+await step('Amorçage admin : marques et campagnes en masse, invisibles côté créateur, clôture à échéance, suppression du lot', async () => {
+  const users = mongoose.connection.db.collection('users');
+  const seedEmail = `e2e-seed-${RUN}@needcreator-test.com`;
+  const lines = `# commentaire\n${seedEmail} ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; atelier-lumen.fr ; beauté ; 2\nmauvais ; x ; ; ; ; ; 1`;
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const bad = await brandApi('POST', '/admin/seed/preview', { lines });
+  expect(bad.status === 200 && bad.data.errors.length === 1 && bad.data.rows.length === 1 && bad.data.rows[0].template === 'beauty-testimonial' && bad.data.rows[0].existing === null, 'Aperçu : 1 ligne valide, 1 invalide', bad);
+  const refused = await brandApi('POST', '/admin/seed/run', { lines });
+  expect(refused.status === 400, 'Un lot avec une ligne invalide est refusé', refused);
+  const ok = await brandApi('POST', '/admin/seed/run', { lines: lines.split('\n').slice(0, 2).join('\n'), publishedWithinDays: 10, deadlineWithinDays: 20, budgetMin: 200, budgetMax: 300, closeAtDeadline: true });
+  expect(ok.status === 200 && ok.data.accounts === 1 && ok.data.campaigns === 2 && ok.data.batch, 'Lot non créé', ok);
+  const batch = ok.data.batch;
+  const seeded = await users.findOne({ email: seedEmail });
+  expect(seeded && seeded.role === 'brand' && seeded.verification?.business?.status === 'verified' && seeded.verification?.email === true && seeded.seed?.batch === batch && seeded.legalInfo?.signatoryName, 'Compte d\'amorçage incomplet', { status: 200, data: seeded });
+  const seedCamps = await mongoose.connection.db.collection('campaigns').find({ 'seed.batch': batch }).toArray();
+  expect(seedCamps.length === 2 && seedCamps.every(c => c.status === 'active' && c.budget?.total >= 200 && c.budget?.total <= 300 && c.timeline?.applicationDeadline > new Date()), 'Campagnes d\'amorçage incorrectes', { status: 200, data: seedCamps.map(c => ({ status: c.status, budget: c.budget })) });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  // Côté créateur : rien ne distingue ces campagnes
+  const feed = await creatorApi('GET', '/campaigns');
+  const inFeed = feed.data.campaigns.filter(c => seedCamps.some(s => String(s._id) === c._id));
+  expect(inFeed.length === 2 && inFeed.every(c => c.seed === undefined), 'Les campagnes d\'amorçage doivent apparaître sans marquage', feed);
+  const one = await creatorApi('GET', `/campaigns/${seedCamps[0]._id}`);
+  expect(one.status === 200 && one.data.campaign.seed === undefined, 'Le détail ne doit pas exposer le marquage', one);
+  // Clôture à échéance : le candidat est prévenu (non retenu)
+  const ap = await creatorApi('POST', `/campaigns/${seedCamps[0]._id}/apply`, { price: 220, estimatedDeliveryDays: 5 });
+  expect(ap.status === 201, 'Candidature sur une campagne d\'amorçage échouée', ap);
+  await mongoose.connection.db.collection('campaigns').updateOne({ _id: seedCamps[0]._id }, { $set: { 'timeline.applicationDeadline': new Date(Date.now() - 3600000) } });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const jobs = await brandApi('POST', '/admin/jobs/run');
+  expect(jobs.status === 200 && jobs.data.seedClosed >= 1, 'La campagne échue doit être clôturée par les tâches planifiées', jobs);
+  const closed = await mongoose.connection.db.collection('campaigns').findOne({ _id: seedCamps[0]._id });
+  expect(closed.status === 'completed' && closed.applications[0].status === 'rejected', 'Campagne clôturée et candidature non retenue attendues', { status: 200, data: { status: closed.status, app: closed.applications[0].status } });
+  const bell = await creatorApi('GET', '/notifications');
+  expect(bell.data.notifications.some(n => /Devis non retenu/.test(n.title) && n.text), 'Le candidat doit recevoir la notification de non-sélection', bell);
+  // Lots et suppression avec les comptes
+  const list = await brandApi('GET', '/admin/seed/batches');
+  expect(list.status === 200 && list.data.batches.some(b => b.batch === batch && b.accounts === 1 && b.campaigns === 2), 'Le lot doit être listé', list);
+  const del = await brandApi('DELETE', `/admin/seed/batches/${batch}?users=1`);
+  expect(del.status === 200 && del.data.campaigns === 2 && del.data.accounts === 1, 'Suppression du lot échouée', del);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(!(await users.findOne({ email: seedEmail })) && (await mongoose.connection.db.collection('campaigns').countDocuments({ 'seed.batch': batch })) === 0, 'Le lot doit avoir disparu (compte + campagnes)', { status: 200, data: {} });
+  return 'lot créé (1 compte vérifié, 2 campagnes), invisible côté créateur, clôture à échéance avec non-sélection, lot supprimé avec le compte';
+});
+
 await step('Marque : invite un créateur extérieur par email, rattaché à la campagne à son inscription', async () => {
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await brandApi('POST', '/campaigns', { title: 'Campagne avec invitation extérieure', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 120, niches: ['beauty'], applicationDeadline: deadline });
