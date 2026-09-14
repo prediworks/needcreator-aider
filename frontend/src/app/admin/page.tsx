@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs,
+  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -57,6 +57,7 @@ export default function AdminPage() {
   const reject = useRejectCreator();
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
+  const markVerified = useMarkEmailVerified();
   const purge = usePurgeUser();
   const hardDelete = useHardDeleteUser();
   const runJobs = useRunJobs();
@@ -394,6 +395,9 @@ export default function AdminPage() {
                         ) : (
                           <Button size="sm" variant="ghost" onClick={() => reactivate.mutate({ userId: u._id })}>Activer</Button>
                         ))}
+                        {u.role !== 'admin' && (
+                          <Button size="sm" variant="ghost" title="L'utilisateur ne reçoit pas l'email de confirmation : marquer son adresse comme confirmée" onClick={() => { if (confirm(`Marquer ${u.email} comme confirmée ?`)) markVerified.mutate({ userId: u._id }); }}>Confirmer l&apos;email</Button>
+                        )}
                         {u.role !== 'admin' && (
                           <Button
                             size="sm"

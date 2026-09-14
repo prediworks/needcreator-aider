@@ -71,6 +71,7 @@ export function useHardDeleteUser() {
   });
 }
 export const useReactivateUser = () => useAdminAction((id) => `/admin/users/${id}/reactivate`, 'Utilisateur réactivé');
+export const useMarkEmailVerified = () => useAdminAction((id) => `/admin/users/${id}/verify-email`, 'Adresse email marquée comme confirmée');
 
 export function usePendingAmbassadors(enabled = true) {
   return useQuery({

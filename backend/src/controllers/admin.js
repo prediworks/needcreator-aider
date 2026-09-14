@@ -586,6 +586,24 @@ export async function hardDeleteUser(req, res) {
 /**
  * Reactivate user
  */
+/** Marque l'adresse email comme confirmée (Firebase + base) : utilisateur qui ne reçoit jamais l'email, ou environnement de test */
+export async function markEmailVerified(req, res) {
+  try {
+    const user = await User.findById(req.params.userId).select('email firebaseUid verification');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const { default: admin } = await import('firebase-admin');
+    const rec = await admin.auth().getUser(user.firebaseUid);
+    if (!rec.emailVerified) await admin.auth().updateUser(user.firebaseUid, { emailVerified: true });
+    user.set('verification.email', true);
+    await user.save();
+    logger.info(`Email marked verified by admin ${req.user._id} for user ${user._id}`);
+    res.json({ message: `Adresse ${user.email} marquée comme confirmée`, emailVerified: true });
+  } catch (error) {
+    logger.error('markEmailVerified failed:', error);
+    res.status(500).json({ error: `Impossible : ${error.message}` });
+  }
+}
+
 export async function reactivateUser(req, res) {
   try {
     const { userId } = req.params;

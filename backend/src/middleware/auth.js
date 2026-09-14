@@ -164,6 +164,7 @@ export async function requireVerifiedEmail(req, res, next) {
   if (!config.auth.requireEmailVerification) return next();
   try {
     const record = await admin.auth().getUser(req.user.firebaseUid);
+    if (record.emailVerified && !req.user.verification?.email) User.updateOne({ _id: req.user._id }, { $set: { 'verification.email': true } }).catch(() => {}); // reflet en base, pour l'admin
     if (!record.emailVerified) {
       return res.status(403).json({
         code: 'EMAIL_NOT_VERIFIED',

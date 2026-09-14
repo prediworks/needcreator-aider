@@ -1774,6 +1774,9 @@ await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset 
   const users = mongoose.connection.db.collection('users');
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   try {
+    // 0. Admin : marquer une adresse comme confirmée (Firebase + base)
+    const mv = await brandApi('POST', `/admin/users/${creatorUser.id}/verify-email`);
+    expect(mv.status === 200 && mv.data.emailVerified === true, 'Marquage email confirmé échoué', mv);
     // 1. Créateur avec mission en cours : refus
     const blocked = await brandApi('POST', `/admin/users/${creatorUser.id}/stripe-connect/reset`);
     expect(blocked.status === 409, 'La suppression devrait être refusée tant qu\'une mission est en cours', blocked);

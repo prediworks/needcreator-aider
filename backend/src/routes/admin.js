@@ -8,6 +8,7 @@ import {
   getUsers,
   suspendUser,
   reactivateUser,
+  markEmailVerified,
   resetStripeConnect,
   purgeUserActivity,
   hardDeleteUser,
@@ -44,6 +45,7 @@ router.get('/users', getUsers);
 router.get('/users/:userId', getUserDetail);
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
+router.post('/users/:userId/verify-email', markEmailVerified); // adresse confirmée sans passer par l'email
 router.post('/users/:userId/stripe-connect/reset', resetStripeConnect);
 router.post('/users/:userId/purge', purgeUserActivity); // temporaire, voir ADMIN_PURGE_ENABLED
 router.delete('/users/:userId/hard', hardDeleteUser); // temporaire, voir ADMIN_PURGE_ENABLED
