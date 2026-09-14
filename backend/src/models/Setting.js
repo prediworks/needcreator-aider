@@ -36,6 +36,10 @@ const days = (n) => `${n} jour${n > 1 ? 's' : ''}`;
 
 export const SETTINGS = {
   // Interroge le registre national des entreprises (annuaire-entreprises.data.gouv.fr) pour valider le SIRET
+  backupEnabled: { key: 'backupEnabled', type: 'boolean', group: 'Sauvegardes', default: false, label: 'Sauvegarde automatique de la base sur le serveur', description: 'Copie complète de la base (toutes les collections) dans le répertoire ci-dessous, à la fréquence indiquée, par les tâches planifiées. Indépendante des sauvegardes Atlas. Restauration : npm run backup:restore -- <archive>.' },
+  backupIntervalHours: { key: 'backupIntervalHours', type: 'number', unit: 'heures', min: 1, max: 168, group: 'Sauvegardes', default: 24, label: 'Fréquence des sauvegardes', description: 'Une sauvegarde est faite si la dernière date de plus de ce nombre d\'heures (vérifié à chaque passage des tâches planifiées).' },
+  backupRetentionDays: { key: 'backupRetentionDays', type: 'number', unit: 'jours', min: 0, max: 365, group: 'Sauvegardes', default: 30, label: 'Délai de conservation', description: 'Les sauvegardes plus anciennes sont supprimées après chaque nouvelle sauvegarde. 0 = tout conserver.' },
+  backupDir: { key: 'backupDir', type: 'text', group: 'Sauvegardes', default: process.env.BACKUP_DIR || '', label: 'Répertoire des sauvegardes (sur le serveur)', description: 'Chemin absolu sur le VPS, accessible en écriture par l\'application. Vide = dossier needcreator-backups dans le répertoire personnel de l\'utilisateur qui lance le backend.' },
   verificationEmails: { key: 'verificationEmails', type: 'boolean', group: 'Vérifications', default: true, label: 'Envoyer les emails de confirmation d\'adresse', description: 'À l\'inscription et sur « Renvoyer l\'email ». Chaque envoi demande un lien à Firebase, qui bloque temporairement au-delà d\'un certain nombre de demandes (TOO_MANY_ATTEMPTS_TRY_LATER). À désactiver sur un environnement de développement où les tests créent des comptes en boucle ; à laisser activé en production.' },
   businessRegistryCheck: { key: 'businessRegistryCheck', type: 'boolean', group: 'Vérifications', default: process.env.BUSINESS_REGISTRY_CHECK !== 'false', label: 'Vérification des SIRET au registre national des entreprises', description: 'Si désactivé, seul le format du SIRET / TVA est contrôlé (moins de friction, moins de sécurité).' },
 
@@ -64,6 +68,7 @@ export const SETTINGS = {
  */
 export function coerceSettingValue(def, value) {
   if (def.type === 'boolean') return !!value;
+  if (def.type === 'text') { const t = String(value ?? '').trim(); if (t.length > 300) throw new Error('300 caractères maximum'); return t; }
   if (def.type === 'number') {
     const n = Number(value);
     if (!Number.isFinite(n)) throw new Error('Valeur numérique attendue');

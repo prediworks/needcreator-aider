@@ -13,6 +13,8 @@ import {
   purgeUserActivity,
   hardDeleteUser,
   runJobs,
+  listBackupsAdmin,
+  runBackupAdmin,
   getAdminCampaigns,
   getAdminDeliveries,
   getUserDetail,
@@ -91,5 +93,7 @@ router.get('/deliveries', getAdminDeliveries);
 
 // Lance manuellement les tâches planifiées (auto-approbation, rappels) — utile pour tester
 router.post('/jobs/run', runJobs);
+router.get('/backups', listBackupsAdmin);
+router.post('/backups/run', runBackupAdmin);
 
 export default router;

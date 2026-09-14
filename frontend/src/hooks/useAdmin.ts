@@ -135,6 +135,17 @@ export function useUpdateSetting() {
   });
 }
 
+export function useAdminBackups(enabled = true) {
+  return useQuery({ queryKey: ['admin-backups'], queryFn: async () => (await api.get('/admin/backups')).data, enabled });
+}
+export function useRunBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => (await api.post('/admin/backups/run')).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['admin-backups'] }); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+}
 export function useRunJobs() {
   const queryClient = useQueryClient();
   return useMutation({

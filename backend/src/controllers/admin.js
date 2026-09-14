@@ -128,6 +128,30 @@ export async function reviewBusiness(req, res) {
   }
 }
 
+/** Sauvegardes : liste et lancement manuel */
+export async function listBackupsAdmin(req, res) {
+  try {
+    const { listBackups, backupSettings } = await import('../services/backup.js');
+    const s = await backupSettings();
+    res.json({ dir: s.dir, enabled: s.enabled, intervalHours: s.intervalHours, retentionDays: s.retentionDays, backups: listBackups(s.dir).map(b => ({ name: b.name, size: b.size, createdAt: b.createdAt })) });
+  } catch (error) {
+    res.status(500).json({ error: `Liste impossible : ${error.message}` });
+  }
+}
+export async function runBackupAdmin(req, res) {
+  try {
+    const { runBackup, pruneBackups, backupSettings } = await import('../services/backup.js');
+    const s = await backupSettings();
+    const b = await runBackup(s.dir);
+    const pruned = pruneBackups(s.dir, s.retentionDays);
+    logger.info(`Manual backup by admin ${req.user._id}: ${b.file}`);
+    res.json({ message: `Sauvegarde créée : ${b.name} (${Math.round(b.size / 1024)} Ko)`, backup: { name: b.name, size: b.size, collections: b.collections }, pruned });
+  } catch (error) {
+    logger.error('Manual backup failed:', error);
+    res.status(500).json({ error: `Sauvegarde impossible : ${error.message}` });
+  }
+}
+
 /**
  * Lance les tâches planifiées à la demande
  */

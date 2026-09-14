@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs,
+  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -62,6 +62,8 @@ export default function AdminPage() {
   const purge = usePurgeUser();
   const hardDelete = useHardDeleteUser();
   const runJobs = useRunJobs();
+  const { data: backups } = useAdminBackups(ready && tab === 'settings');
+  const runBackup = useRunBackup();
 
   if (!ready) return <Spinner />;
 
@@ -322,7 +324,25 @@ export default function AdminPage() {
         {/* Settings */}
         {tab === 'external' && <ExternalCreatorsImport />}
 
-        {tab === 'settings' && (
+        {tab === 'settings' && (<>
+          <Card className="p-6 mb-6">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-2">
+              <div>
+                <h2 className="text-xl font-semibold mb-1">Sauvegardes de la base</h2>
+                <p className="text-sm text-neutral-500">Copies complètes sur le serveur, dans <code className="bg-neutral-100 px-1 rounded">{backups?.dir || '…'}</code>. {backups?.enabled ? `Automatique toutes les ${backups.intervalHours} h, conservation ${backups.retentionDays ? backups.retentionDays + ' jours' : 'illimitée'}.` : 'Automatique désactivée (réglages ci-dessous).'} Restauration : <code className="bg-neutral-100 px-1 rounded">npm run backup:restore -- &lt;archive&gt;</code> dans backend/ sur le serveur.</p>
+              </div>
+              <Button size="sm" onClick={() => runBackup.mutate()} isLoading={runBackup.isPending}>Sauvegarder maintenant</Button>
+            </div>
+            {backups?.backups?.length ? (
+              <ul className="text-sm divide-y divide-neutral-100">
+                {backups.backups.slice(0, 10).map((b: any) => (
+                  <li key={b.name} className="py-1.5 flex items-center justify-between gap-3"><span className="font-mono text-xs">{b.name}</span><span className="text-neutral-500">{formatDate(b.createdAt)} · {Math.round(b.size / 1024)} Ko</span></li>
+                ))}
+                {backups.backups.length > 10 && <li className="py-1.5 text-xs text-neutral-500">… et {backups.backups.length - 10} autre(s)</li>}
+              </ul>
+            ) : <p className="text-sm text-neutral-500">Aucune sauvegarde pour l&apos;instant.</p>}
+          </Card>
+
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-1">Réglages</h2>
             <p className="text-sm text-neutral-500 mb-4">Modifiables immédiatement, sans redémarrage. Les relances et le refus automatique sont appliqués par les tâches planifiées (toutes les heures par défaut).</p>
@@ -339,6 +359,14 @@ export default function AdminPage() {
                         </div>
                         <SettingNumber setting={s} onSave={(value) => updateSetting.mutate({ key: s.key, value })} />
                       </div>
+                    ) : s.type === 'text' ? (
+                      <div key={s.key} className="flex items-start gap-4 border border-neutral-200 rounded-lg p-4 flex-wrap">
+                        <div className="flex-1 min-w-[240px]">
+                          <div className="font-medium text-neutral-900">{s.label}</div>
+                          <div className="text-sm text-neutral-600">{s.description}</div>
+                        </div>
+                        <SettingText setting={s} onSave={(value) => updateSetting.mutate({ key: s.key, value })} />
+                      </div>
                     ) : (
                       <label key={s.key} className="flex items-start gap-3 border border-neutral-200 rounded-lg p-4 cursor-pointer">
                         <input type="checkbox" className="mt-1" checked={!!s.value} onChange={(e) => updateSetting.mutate({ key: s.key, value: e.target.checked })} />
@@ -353,7 +381,7 @@ export default function AdminPage() {
               </div>
             ))}
           </Card>
-        )}
+        </>)}
 
         {/* Users */}
         {tab === 'users' && (
@@ -507,6 +535,18 @@ export default function AdminPage() {
 }
 
 /** Champ numérique d'un réglage : enregistré au clic sur « Enregistrer » ou avec Entrée */
+function SettingText({ setting, onSave }: { setting: any; onSave: (value: string) => void }) {
+  const [value, setValue] = useState<string>(String(setting.value ?? setting.default ?? ''));
+  useEffect(() => { setValue(String(setting.value ?? setting.default ?? '')); }, [setting.value, setting.default]);
+  const changed = value.trim() !== String(setting.value ?? setting.default ?? '').trim();
+  return (
+    <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (changed) onSave(value.trim()); }}>
+      <input type="text" value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder="/home/needcreator/needcreator-backups" className="w-72 px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
+      <Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>
+    </form>
+  );
+}
+
 function SettingNumber({ setting, onSave }: { setting: any; onSave: (value: number) => void }) {
   const [value, setValue] = useState<string>(String(setting.value ?? setting.default ?? 0));
   useEffect(() => { setValue(String(setting.value ?? setting.default ?? 0)); }, [setting.value, setting.default]);

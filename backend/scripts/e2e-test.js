@@ -185,6 +185,18 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const list = await brandApi('GET', '/admin/settings');
   expect(list.status === 200 && list.data.settings.some(x => x.key === 'businessRegistryCheck'), 'Réglage registre absent', list);
+  // Sauvegardes : répertoire (réglage texte), sauvegarde manuelle, liste
+  const os = await import('os'); const fsm = await import('fs'); const pathm = await import('path');
+  const bdir = pathm.join(os.tmpdir(), `nc-e2e-backups-${RUN}`);
+  const setDir = await brandApi('PUT', '/admin/settings/backupDir', { value: bdir });
+  expect(setDir.status === 200 && setDir.data.value === bdir, 'Réglage texte (répertoire de sauvegarde) refusé', setDir);
+  const bk = await brandApi('POST', '/admin/backups/run');
+  expect(bk.status === 200 && bk.data.backup?.name && bk.data.backup.collections?.users >= 1, 'Sauvegarde manuelle échouée', bk);
+  const bl = await brandApi('GET', '/admin/backups');
+  expect(bl.status === 200 && bl.data.dir === bdir && bl.data.backups.some(x => x.name === `${bk.data.backup.name}.tar.gz`), 'La sauvegarde doit apparaître dans la liste', bl);
+  expect(fsm.existsSync(pathm.join(bdir, `${bk.data.backup.name}.tar.gz`)), 'Archive absente du disque', bl);
+  fsm.rmSync(bdir, { recursive: true, force: true });
+  await brandApi('PUT', '/admin/settings/backupDir', { value: '' });
   expect(list.data.settings.some(x => x.key === 'platformFeePercent' && x.group === 'Commission') && list.data.settings.some(x => x.key === 'proFeePercent'), 'Commissions standard et Pro attendues dans les réglages admin (groupe Commission)', list);
   const noMail = await brandApi('PUT', '/admin/settings/verificationEmails', { value: false });
   expect(noMail.status === 200, 'Réglage emails de confirmation échoué', noMail);
