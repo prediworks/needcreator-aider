@@ -7,6 +7,10 @@ import { getFeePercents } from '../models/Setting.js';
 import { config } from '../config/index.js';
 import { notifyNotSelected } from './campaigns.js';
 import logger from '../utils/logger.js';
+import { generateBrief, aiConfig } from '../services/ai.js';
+
+/** Avancement des lots en cours (génération en arrière-plan) */
+const progress = new Map();
 
 /**
  * Amorçage (admin) : marques et campagnes créées en masse pour que l'application ne paraisse pas vide.
@@ -42,7 +46,7 @@ const rand = (a) => a[Math.floor(Math.random() * a.length)];
 const between = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const templateFor = (sector) => { const k = String(sector || '').trim().toLowerCase(); return CAMPAIGN_TEMPLATES.find(t => t.key === (SECTORS[k] || Object.entries(SECTORS).find(([w]) => k.includes(w))?.[1])) || rand(CAMPAIGN_TEMPLATES); };
 
-/** Ligne : email ; mot de passe ; entreprise ; SIRET ; site ; secteur ; nombre de campagnes ; tarif max (0 = devis libre, vide = fourchette du lot) ; commentaire (facultatif : repris dans la présentation de la marque et dans chaque brief) */
+/** Ligne : email ; mot de passe ; entreprise ; SIRET ; site ; secteur ; nombre de campagnes ; tarif max (0 = devis libre, vide = fourchette du lot) ; commentaire (facultatif : consigne interne pour la génération, jamais affichée) */
 export function parseSeedLines(text) {
   const rows = []; const errors = [];
   String(text || '').split(/\r?\n/).forEach((line, i) => {
@@ -80,7 +84,7 @@ async function ensureBrand(row, batch) {
   if (!user) {
     user = new User({
       firebaseUid: fb.uid, email: row.email, role: 'brand', status: 'active',
-      profile: { companyName: row.companyName, name: row.companyName, website: row.website || undefined, industry: row.sector || undefined, bio: row.comment || `${row.companyName} : ${row.sector || 'marque'} qui cherche des vidéos authentiques pour ses réseaux et sa boutique.`, company: { siret: row.siret || undefined, country: 'FR' } },
+      profile: { companyName: row.companyName, name: row.companyName, website: row.website || undefined, industry: row.sector || undefined, bio: `${row.companyName} : ${row.sector || 'marque'} qui cherche des vidéos authentiques pour ses réseaux et sa boutique.`, company: { siret: row.siret || undefined, country: 'FR' } },
       legal: { termsVersion: config.legal.termsVersion, acceptedAt: new Date() },
       legalInfo: { signatoryName: `Direction ${row.companyName}`, signatoryTitle: 'Gérant(e)', updatedAt: new Date() },
     });
@@ -94,11 +98,28 @@ async function ensureBrand(row, batch) {
   return { user, created };
 }
 
+/** Brief rédigé par l'IA à partir du secteur et de la consigne interne (ex. « uniquement des applications et du service ») */
+async function aiCampaignContent(row, t, state) {
+  const already = (state.aiTitles || []).slice(-12);
+  const brief = await generateBrief({
+    productDescription: `Entreprise : ${row.companyName}${row.sector ? ` (secteur : ${row.sector})` : ''}. Consigne interne sur ce que vend l'entreprise et ce qu'elle attend : ${row.comment}. Invente un produit ou un service précis et crédible de cette entreprise, cohérent avec la consigne, et rédige la campagne pour lui.${already.length ? ` Sujets déjà utilisés, à éviter : ${already.join(' ; ')}.` : ''}`,
+    brandName: row.companyName, industry: row.sector || '', videoType: t.videoType, videoTypeLabel: t.title, platforms: t.platforms.join(', '), niches: t.niches.join(', '),
+    goal: 'notoriété et ventes', tone: 'authentique', duration: t.duration, deliverables: between(1, 3),
+  });
+  state.aiTitles = [...already, brief.title];
+  return { title: brief.title, description: brief.description, requirements: brief.requirements.slice(0, 6), duration: brief.suggestedDuration || t.duration, deliverables: Math.min(3, Math.max(1, brief.suggestedDeliverables || 1)) };
+}
+
 async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   const t = templateFor(row.sector);
+  let content = null;
+  if (opts.useAi && row.comment && aiConfig().configured) {
+    try { content = await aiCampaignContent(row, t, state); state.aiUsed = (state.aiUsed || 0) + 1; }
+    catch (err) { logger.warn(`Seed AI brief failed for ${row.companyName}: ${err.message} → modèle`); }
+  }
   const product = pickUnique(state, `product:${t.key}`, PRODUCTS[t.key] || PRODUCTS['ecommerce-unboxing']);
-  const title = pickUnique(state, `title:${t.key}`, TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
-  const deliverables = between(1, 3);
+  const title = content?.title || pickUnique(state, `title:${t.key}`, TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
+  const deliverables = content?.deliverables || between(1, 3);
   // Tarif max de la ligne : 0 = devis libre (pas de budget affiché), sinon plafond ; vide = fourchette du lot
   const freeQuote = row.maxBudget === 0;
   const max = row.maxBudget > 0 ? row.maxBudget : opts.budgetMax;
@@ -108,12 +129,12 @@ async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   const deadline = new Date(Date.now() + between(2, opts.deadlineWithinDays) * 86400000); deadline.setHours(23, 59, 59, 999);
   return Campaign.create({
     brandId: brand._id, platformFeePercent: brand.isPro?.() ? fees.pro : fees.standard, type: 'paid',
-    title, description: `${t.description}\n\nProduit concerné : ${product}.${row.comment ? `\n\nÀ propos de ${row.companyName} : ${row.comment}` : ''}`,
-    brief: { videoType: t.videoType, duration: t.duration, deliverables, requirements: t.requirements, deliveryTypes: ['file', 'link'], platforms: t.platforms, productShipping: t.productShipping, productDescription: t.productShipping ? `${product} envoyé au créateur sélectionné` : '' },
+    title, description: content?.description || `${t.description}\n\nProduit concerné : ${product}.`,
+    brief: { videoType: t.videoType, duration: content?.duration || t.duration, deliverables, requirements: content?.requirements || t.requirements, deliveryTypes: ['file', 'link'], platforms: t.platforms, productShipping: t.productShipping, productDescription: t.productShipping ? (content ? 'Produit envoyé au créateur sélectionné' : `${product} envoyé au créateur sélectionné`) : '' },
     visibility: 'public', budget: budget ? { total: budget, perVideo: Math.round(budget / deliverables) } : {},
     matching: { niches: t.niches, creatorsWanted: 1 },
     timeline: { publishedAt, applicationDeadline: deadline }, status: 'active',
-    seed: { batch, closeAtDeadline: !!opts.closeAtDeadline },
+    seed: { batch, closeAtDeadline: !!opts.closeAtDeadline, note: row.comment || undefined, ai: !!content },
   });
 }
 
@@ -122,22 +143,35 @@ export async function runSeed(req, res) {
     const { rows, errors } = parseSeedLines(req.body?.lines);
     if (errors.length) return res.status(400).json({ error: `${errors.length} ligne(s) invalide(s)`, errors });
     if (!rows.length) return res.status(400).json({ error: 'Aucune ligne' });
-    const opts = { publishedWithinDays: Math.min(90, Math.max(0, parseInt(req.body?.publishedWithinDays ?? 30, 10))), deadlineWithinDays: Math.min(120, Math.max(3, parseInt(req.body?.deadlineWithinDays ?? 30, 10))), budgetMin: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMin ?? 150, 10)), budgetMax: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMax ?? 600, 10)), closeAtDeadline: req.body?.closeAtDeadline !== false };
+    const opts = { publishedWithinDays: Math.min(90, Math.max(0, parseInt(req.body?.publishedWithinDays ?? 30, 10))), deadlineWithinDays: Math.min(120, Math.max(3, parseInt(req.body?.deadlineWithinDays ?? 30, 10))), budgetMin: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMin ?? 150, 10)), budgetMax: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMax ?? 600, 10)), closeAtDeadline: req.body?.closeAtDeadline !== false, useAi: req.body?.useAi !== false };
     if (opts.budgetMax < opts.budgetMin) opts.budgetMax = opts.budgetMin;
     const batch = `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
     const fees = await getFeePercents();
-    const out = { batch, accounts: 0, existing: 0, campaigns: 0, details: [] };
-    const state = {}; // sujets déjà utilisés dans ce lot, par modèle
+    const out = { batch, accounts: 0, existing: 0, planned: rows.reduce((a, r) => a + r.count, 0), details: [] };
+    const brands = [];
     for (const row of rows) {
       const { user, created } = await ensureBrand(row, batch);
       created ? out.accounts++ : out.existing++;
-      let n = 0;
-      for (let i = 0; i < row.count; i++) { await makeCampaign(user, row, opts, batch, fees, state); n++; }
-      out.campaigns += n;
-      out.details.push({ email: row.email, created, campaigns: n });
+      brands.push({ user, row });
+      out.details.push({ email: row.email, created, campaigns: row.count });
     }
-    logger.warn(`SEED batch ${batch} by admin ${req.user._id}: ${out.accounts} comptes créés, ${out.existing} existants, ${out.campaigns} campagnes`);
-    res.json({ message: `Lot ${batch} : ${out.accounts} compte(s) créé(s), ${out.existing} existant(s), ${out.campaigns} campagne(s) publiée(s)`, ...out });
+    const withAi = opts.useAi && aiConfig().configured && rows.some(r => r.comment);
+    // Campagnes en arrière-plan (l'IA prend 10 à 20 s par campagne) : avancement dans la liste des lots
+    const job = { planned: out.planned, done: 0, running: true, aiUsed: 0, errors: 0, startedAt: new Date() };
+    progress.set(batch, job);
+    setImmediate(async () => {
+      const state = {}; // sujets déjà utilisés dans ce lot
+      for (const { user, row } of brands) {
+        for (let i = 0; i < row.count; i++) {
+          try { await makeCampaign(user, row, opts, batch, fees, state); } catch (err) { job.errors++; logger.error(`Seed campaign failed (${row.email}): ${err.message}`); }
+          job.done++; job.aiUsed = state.aiUsed || 0;
+        }
+      }
+      job.running = false; job.finishedAt = new Date();
+      logger.warn(`SEED batch ${batch} done: ${job.done}/${job.planned} campagnes (${job.aiUsed} par l'IA, ${job.errors} erreur(s))`);
+    });
+    logger.warn(`SEED batch ${batch} by admin ${req.user._id}: ${out.accounts} comptes créés, ${out.existing} existants, ${out.planned} campagnes planifiées${withAi ? ' (IA)' : ''}`);
+    res.json({ message: `Lot ${batch} : ${out.accounts} compte(s) créé(s), ${out.existing} existant(s). ${out.planned} campagne(s) en cours de création${withAi ? ' avec l\'IA, comptez 10 à 20 s par campagne' : ''} : suivez l'avancement dans la liste des lots.`, ...out, ai: withAi });
   } catch (error) {
     logger.error('runSeed failed:', error);
     res.status(500).json({ error: `Amorçage impossible : ${error.message}` });
@@ -150,7 +184,8 @@ export async function listSeedBatches(req, res) {
   const byBatch = new Map(users.map(u => [u._id, u]));
   const batches = camps.map(c => ({ batch: c._id, campaigns: c.campaigns, active: c.active, applications: c.applications, createdAt: c.createdAt, accounts: byBatch.get(c._id)?.accounts || 0, emails: byBatch.get(c._id)?.emails || [] }));
   for (const u of users) if (!batches.some(b => b.batch === u._id)) batches.push({ batch: u._id, campaigns: 0, active: 0, applications: 0, createdAt: null, accounts: u.accounts, emails: u.emails });
-  res.json({ batches });
+  for (const b of batches) { const p = progress.get(b.batch); if (p) b.progress = { planned: p.planned, done: p.done, running: p.running, aiUsed: p.aiUsed, errors: p.errors }; }
+  res.json({ batches: batches.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)), aiConfigured: aiConfig().configured });
 }
 
 /** Supprime un lot : campagnes (et devis reçus, livraisons éventuelles), puis les comptes si demandé (base + Firebase) */

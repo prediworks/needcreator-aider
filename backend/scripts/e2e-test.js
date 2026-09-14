@@ -2061,16 +2061,19 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   expect(bad.status === 200 && bad.data.errors.length === 1 && bad.data.errors[0].errors.some(e => /tarif max/.test(e)) && bad.data.rows.length === 1 && bad.data.rows[0].template === 'beauty-testimonial' && bad.data.rows[0].maxBudget === 250 && bad.data.rows[0].comment === 'Marque lyonnaise de soins bio ; produits envoyés sous 48 h' && bad.data.rows[0].existing === null, 'Aperçu : 1 ligne valide (tarif max 250), 1 invalide (tarif max abc)', bad);
   const refused = await brandApi('POST', '/admin/seed/run', { lines });
   expect(refused.status === 400, 'Un lot avec une ligne invalide est refusé', refused);
-  const ok = await brandApi('POST', '/admin/seed/run', { lines: lines.split('\n').slice(0, 2).join('\n'), publishedWithinDays: 10, deadlineWithinDays: 20, budgetMin: 200, budgetMax: 300, closeAtDeadline: true });
-  expect(ok.status === 200 && ok.data.accounts === 1 && ok.data.campaigns === 2 && ok.data.batch, 'Lot non créé', ok);
+  const ok = await brandApi('POST', '/admin/seed/run', { lines: lines.split('\n').slice(0, 2).join('\n'), publishedWithinDays: 10, deadlineWithinDays: 20, budgetMin: 200, budgetMax: 300, closeAtDeadline: true, useAi: false });
+  expect(ok.status === 200 && ok.data.accounts === 1 && ok.data.planned === 2 && ok.data.batch, 'Lot non créé', ok);
   const batch = ok.data.batch;
+  // Campagnes générées en arrière-plan : on attend la fin (avancement dans la liste des lots)
+  for (let i = 0; i < 40; i++) { const st = await brandApi('GET', '/admin/seed/batches'); const b = st.data.batches.find(x => x.batch === batch); if (b?.progress && !b.progress.running) break; await new Promise(r => setTimeout(r, 500)); }
   const seeded = await users.findOne({ email: seedEmail });
-  expect(seeded && seeded.role === 'brand' && /lyonnaise/.test(seeded.profile?.bio || '') && seeded.verification?.business?.status === 'verified' && seeded.verification?.email === true && seeded.seed?.batch === batch && seeded.legalInfo?.signatoryName, 'Compte d\'amorçage incomplet', { status: 200, data: seeded });
+  expect(seeded && seeded.role === 'brand' && !/lyonnaise/.test(seeded.profile?.bio || '') && seeded.verification?.business?.status === 'verified' && seeded.verification?.email === true && seeded.seed?.batch === batch && seeded.legalInfo?.signatoryName, 'Compte d\'amorçage incomplet', { status: 200, data: seeded });
   const seedCamps = await mongoose.connection.db.collection('campaigns').find({ 'seed.batch': batch }).toArray();
-  expect(seedCamps.length === 2 && seedCamps.every(c => c.status === 'active' && c.budget?.total >= 200 && c.budget?.total <= 250 && c.timeline?.applicationDeadline > new Date() && /À propos de Atelier Lumen : Marque lyonnaise/.test(c.description)), 'Campagnes d\'amorçage : budget entre 200 et le tarif max 250, commentaire dans le brief', { status: 200, data: seedCamps.map(c => ({ status: c.status, budget: c.budget })) });
+  expect(seedCamps.length === 2 && seedCamps.every(c => c.status === 'active' && c.budget?.total >= 200 && c.budget?.total <= 250 && c.timeline?.applicationDeadline > new Date() && !/lyonnaise/.test(c.description) && c.seed?.note), 'Campagnes d\'amorçage : budget entre 200 et le tarif max 250, consigne conservée en interne mais jamais dans le brief', { status: 200, data: seedCamps.map(c => ({ status: c.status, budget: c.budget })) });
   // Devis libre : tarif max 0 → aucun budget affiché
-  const free = await brandApi('POST', '/admin/seed/run', { lines: `${seedEmail} ; MotDePasse123! ; Atelier Lumen ; ; ; beauté ; 1 ; 0`, closeAtDeadline: true });
-  expect(free.status === 200 && free.data.existing === 1 && free.data.campaigns === 1, 'Lot devis libre non créé', free);
+  const free = await brandApi('POST', '/admin/seed/run', { lines: `${seedEmail} ; MotDePasse123! ; Atelier Lumen ; ; ; beauté ; 1 ; 0`, closeAtDeadline: true, useAi: false });
+  expect(free.status === 200 && free.data.existing === 1 && free.data.planned === 1, 'Lot devis libre non créé', free);
+  for (let i = 0; i < 40; i++) { const st = await brandApi('GET', '/admin/seed/batches'); const b = st.data.batches.find(x => x.batch === free.data.batch); if (b?.progress && !b.progress.running) break; await new Promise(r => setTimeout(r, 500)); }
   const freeCamp = await mongoose.connection.db.collection('campaigns').findOne({ 'seed.batch': free.data.batch });
   expect(freeCamp && !freeCamp.budget?.total, 'Tarif max 0 doit donner une campagne sans budget (devis libre)', { status: 200, data: freeCamp?.budget });
   await mongoose.connection.db.collection('campaigns').deleteOne({ _id: freeCamp._id });

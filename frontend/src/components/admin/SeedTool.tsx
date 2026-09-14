@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { Sprout, Trash2, Eye } from 'lucide-react';
 
 const EXAMPLE = `# email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max (0 = devis libre) ; commentaire
-marque1@votre-domaine.fr ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; https://atelier-lumen.fr ; beauté ; 3 ; 400 ; Marque lyonnaise de soins bio, ton chaleureux, produits envoyés sous 48 h
+marque1@votre-domaine.fr ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; https://atelier-lumen.fr ; beauté ; 3 ; 400 ; uniquement des soins visage, pas de maquillage
 marque2@votre-domaine.fr ; MotDePasse123! ; Maison Céréales ; ; ; food ; 2 ; 0`;
 
 /** Amorçage : marques et campagnes créées en masse, invisibles côté créateur, supprimables par lot */
@@ -20,7 +20,7 @@ export default function SeedTool() {
   const queryClient = useQueryClient();
   const [lines, setLines] = useState('');
   const [opts, setOpts] = useState({ publishedWithinDays: '30', deadlineWithinDays: '30', budgetMin: '150', budgetMax: '600', closeAtDeadline: true });
-  const { data: batches } = useQuery({ queryKey: ['seed-batches'], queryFn: async () => (await api.get('/admin/seed/batches')).data });
+  const { data: batches } = useQuery({ queryKey: ['seed-batches'], queryFn: async () => (await api.get('/admin/seed/batches')).data, refetchInterval: (q) => ((q.state.data as any)?.batches?.some((b: any) => b.progress?.running) ? 3000 : false) });
   const preview = useMutation({ mutationFn: async () => (await api.post('/admin/seed/preview', { lines })).data, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const run = useMutation({
     mutationFn: async () => (await api.post('/admin/seed/run', { lines, publishedWithinDays: Number(opts.publishedWithinDays), deadlineWithinDays: Number(opts.deadlineWithinDays), budgetMin: Number(opts.budgetMin), budgetMax: Number(opts.budgetMax), closeAtDeadline: opts.closeAtDeadline })).data,
@@ -41,7 +41,7 @@ export default function SeedTool() {
         <p className="text-sm text-neutral-600 mb-3">Pour que l&apos;application ne paraisse pas vide aux premiers créateurs. Les comptes sont créés s&apos;ils n&apos;existent pas (email confirmé, entreprise vérifiée, signataire renseigné), puis des campagnes réalistes sont publiées à partir des modèles par secteur, avec des dates étalées. Côté créateur, aucune différence. Utilisez des adresses d&apos;un domaine que vous contrôlez : les devis reçus et les relances y arrivent. Vous pouvez vous connecter avec ces comptes pour répondre aux devis.</p>
         <label className="block text-sm font-medium text-neutral-700 mb-1">Une marque par ligne : email ; mot de passe ; entreprise ; SIRET ; site web ; secteur ; nombre de campagnes ; tarif max ; commentaire</label>
         <textarea value={lines} onChange={(e) => { setLines(e.target.value); preview.reset(); }} rows={7} placeholder={EXAMPLE} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
-        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour la fourchette du lot ci-dessous. Commentaire facultatif : quelques mots sur l'entreprise ou ses attentes, repris dans la présentation de la marque et à la fin de chaque brief. Ligne commençant par # ignorée.</p>
+        <p className="text-xs text-neutral-500 mt-1">Secteurs reconnus : beauté, e-commerce, food, tech, mode, services (autre mot = modèle au hasard). SIRET et site facultatifs. Tarif max : plafond du budget des campagnes de cette marque, 0 pour des campagnes « devis libre » sans budget affiché, vide pour la fourchette du lot ci-dessous. Commentaire facultatif : consigne interne pour la génération, jamais affichée (ex. « uniquement des applications et du service ») ; avec l'IA configurée, chaque brief est rédigé en la respectant, sinon les modèles du secteur sont utilisés. Ligne commençant par # ignorée.</p>
         <div className="grid sm:grid-cols-4 gap-3 mt-4">
           <Input label="Publiées dans les N derniers jours" type="number" min={0} max={90} value={opts.publishedWithinDays} onChange={(e) => setOpts({ ...opts, publishedWithinDays: e.target.value })} />
           <Input label="Dates limites dans les N prochains jours" type="number" min={3} max={120} value={opts.deadlineWithinDays} onChange={(e) => setOpts({ ...opts, deadlineWithinDays: e.target.value })} />
@@ -61,7 +61,7 @@ export default function SeedTool() {
           <div className="mt-4 text-sm">
             {p.errors.length > 0 && <ul className="text-red-700 mb-2 list-disc list-inside">{p.errors.map((e: any) => <li key={e.line}>Ligne {e.line} : {e.errors.join(', ')} · <span className="font-mono text-xs">{e.raw}</span></li>)}</ul>}
             {p.rows.length > 0 && (
-              <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Entreprise</th><th className="py-1 pr-3">SIRET</th><th className="py-1 pr-3">Modèle</th><th className="py-1 pr-3">Campagnes</th><th className="py-1 pr-3">Tarif max</th><th className="py-1 pr-3">Commentaire</th><th className="py-1">Compte</th></tr></thead>
+              <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3">Email</th><th className="py-1 pr-3">Entreprise</th><th className="py-1 pr-3">SIRET</th><th className="py-1 pr-3">Modèle</th><th className="py-1 pr-3">Campagnes</th><th className="py-1 pr-3">Tarif max</th><th className="py-1 pr-3">Consigne (interne)</th><th className="py-1">Compte</th></tr></thead>
                 <tbody>{p.rows.map((r: any) => <tr key={r.email} className="border-t border-neutral-100"><td className="py-1 pr-3">{r.email}</td><td className="py-1 pr-3">{r.companyName}</td><td className="py-1 pr-3">{r.siret || '—'}</td><td className="py-1 pr-3">{r.template}</td><td className="py-1 pr-3">{r.count}</td><td className="py-1 pr-3">{r.maxBudget === 0 ? 'devis libre' : r.maxBudget ? `${r.maxBudget} €` : 'fourchette du lot'}</td><td className="py-1 pr-3 max-w-[200px] truncate" title={r.comment}>{r.comment || '—'}</td><td className="py-1">{r.existing ? `existe (${r.existing})` : 'à créer'}</td></tr>)}</tbody></table>
             )}
             <p className="text-neutral-600 mt-2">{p.rows.length} compte(s), {p.totalCampaigns} campagne(s) au total.</p>
@@ -71,12 +71,12 @@ export default function SeedTool() {
 
       <Card className="p-6">
         <h3 className="font-semibold text-neutral-900 mb-1">Lots créés</h3>
-        <p className="text-sm text-neutral-600 mb-3">Supprimer un lot retire ses campagnes et les devis reçus. « Avec les comptes » supprime aussi les marques du lot, dans la base et dans Firebase.</p>
+        <p className="text-sm text-neutral-600 mb-3">Les campagnes se créent en arrière-plan après la validation, avec l&apos;IA quand une consigne est fournie{batches?.aiConfigured === false ? ' (IA non configurée sur ce serveur : modèles du secteur)' : ''}. Supprimer un lot retire ses campagnes et les devis reçus. « Avec les comptes » supprime aussi les marques du lot, dans la base et dans Firebase.</p>
         {batches?.batches?.length ? (
           <ul className="divide-y divide-neutral-100 text-sm">
             {batches.batches.map((b: any) => (
               <li key={b.batch} className="py-2 flex items-center justify-between gap-3 flex-wrap">
-                <div><span className="font-mono text-xs">{b.batch}</span> · {b.accounts} compte(s) · {b.campaigns} campagne(s) dont {b.active} ouverte(s) · {b.applications} devis reçu(s){b.createdAt ? ` · ${formatDate(b.createdAt)}` : ''}<div className="text-xs text-neutral-500">{b.emails.join(', ')}</div></div>
+                <div><span className="font-mono text-xs">{b.batch}</span> · {b.accounts} compte(s) · {b.campaigns} campagne(s) dont {b.active} ouverte(s) · {b.applications} devis reçu(s){b.createdAt ? ` · ${formatDate(b.createdAt)}` : ''}{b.progress && (b.progress.running ? <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 text-xs">en cours : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}</span> : <span className="ml-2 px-2 py-0.5 rounded-full bg-green-50 text-green-800 text-xs">terminé : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}{b.progress.errors ? ` · ${b.progress.errors} erreur(s)` : ''}</span>)}<div className="text-xs text-neutral-500">{b.emails.join(', ')}</div></div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" isLoading={del.isPending} onClick={() => { if (confirm(`Supprimer les ${b.campaigns} campagne(s) du lot ${b.batch} ? Les comptes sont conservés.`)) del.mutate({ batch: b.batch, users: false }); }}><Trash2 className="w-4 h-4 mr-1" /> Campagnes</Button>
                   <Button size="sm" variant="ghost" isLoading={del.isPending} onClick={() => { if (confirm(`Supprimer le lot ${b.batch} AVEC ses ${b.accounts} compte(s) marque (base + Firebase) ?`)) del.mutate({ batch: b.batch, users: true }); }}><Trash2 className="w-4 h-4 mr-1" /> Avec les comptes</Button>
