@@ -601,9 +601,10 @@ export async function applyToCampaign(req, res) {
       campaign.brandId.profile.companyName || campaign.brandId.profile.name,
       creator.profile.name,
       campaign.title,
-      creator.profile.ambassador?.status === 'approved'
+      creator.profile.ambassador?.status === 'approved',
+      `${config.cors.origin}/campaigns/${campaign._id}#candidature-${creator._id}`
     ).catch(err => logger.error('Failed to send notification:', err.message));
-    notify(campaign.brandId._id, { type: 'application', title: `Nouveau devis de ${creator.profile.name}`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+    notify(campaign.brandId._id, { type: 'application', title: `Nouveau devis de ${creator.profile.name}`, text: campaign.title, href: `/campaigns/${campaign._id}#candidature-${creator._id}` }).catch(() => {});
 
     logger.info(`Creator ${creator._id} applied to campaign ${campaign._id} (match ${matchScore}%)`);
 
@@ -671,7 +672,7 @@ export async function updateQuote(req, res) {
     if (application.counterOffer?.status === 'pending') {
       application.counterOffer.status = 'superseded';
       application.counterOffer.respondedAt = new Date();
-      notify(campaign.brandId, { type: 'application', title: `${creator.profile.name} a renvoyé un devis modifié`, text: `${campaign.title} · ${application.price} € HT · ${application.estimatedDeliveryDays} j`, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      notify(campaign.brandId, { type: 'application', title: `${creator.profile.name} a renvoyé un devis modifié`, text: `${campaign.title} · ${application.price} € HT · ${application.estimatedDeliveryDays} j`, href: `/campaigns/${campaign._id}#candidature-${creator._id}` }).catch(() => {});
     }
 
     await campaign.save();
@@ -903,9 +904,9 @@ export async function counterOffer(req, res) {
     const creator = await User.findById(creatorId).select('email profile.name');
     const companyName = brand.profile?.companyName || brand.profile?.name;
     if (creator) {
-      sendCounterOffer(creator.email, creator.profile?.name, companyName, campaign.title, campaign._id, application.counterOffer, { price: application.price, estimatedDeliveryDays: application.estimatedDeliveryDays, revisions: application.quote?.revisions ?? maxRevisions })
+      sendCounterOffer(creator.email, creator.profile?.name, companyName, campaign.title, `${campaign._id}#mon-devis`, application.counterOffer, { price: application.price, estimatedDeliveryDays: application.estimatedDeliveryDays, revisions: application.quote?.revisions ?? maxRevisions })
         .catch(err => logger.warn(`Counter-offer email not sent: ${err.message}`));
-      notify(creator._id, { type: 'application', title: `Contre-proposition de ${companyName}`, text: `${campaign.title} · ${price} € HT · ${days} j`, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      notify(creator._id, { type: 'application', title: `Contre-proposition de ${companyName}`, text: `${campaign.title} · ${price} € HT · ${days} j`, href: `/campaigns/${campaign._id}#mon-devis` }).catch(() => {});
     }
     logger.info(`Counter-offer ${price}€/${days}j by brand ${brand._id} to creator ${creatorId} on campaign ${campaign._id}`);
     res.json({ message: `Contre-proposition envoyée à ${creator?.profile?.name || 'le créateur'}`, application });
@@ -954,9 +955,9 @@ export async function respondCounterOffer(req, res) {
     await campaign.save();
 
     const companyName = campaign.brandId.profile?.companyName || campaign.brandId.profile?.name;
-    sendCounterOfferResponse(campaign.brandId.email, companyName, creator.profile?.name, campaign.title, campaign._id, !!accept, offer)
+    sendCounterOfferResponse(campaign.brandId.email, companyName, creator.profile?.name, campaign.title, `${campaign._id}#candidature-${creator._id}`, !!accept, offer)
       .catch(err => logger.warn(`Counter-offer response email not sent: ${err.message}`));
-    notify(campaign.brandId._id, { type: 'application', title: accept ? `${creator.profile?.name} accepte votre contre-proposition` : `${creator.profile?.name} décline votre contre-proposition`, text: accept ? `${campaign.title} · ${offer.price} € HT : vous pouvez accepter le devis` : `${campaign.title} · son devis d'origine reste valable`, href: `/campaigns/${campaign._id}` }).catch(() => {});
+    notify(campaign.brandId._id, { type: 'application', title: accept ? `${creator.profile?.name} accepte votre contre-proposition` : `${creator.profile?.name} décline votre contre-proposition`, text: accept ? `${campaign.title} · ${offer.price} € HT : vous pouvez accepter le devis` : `${campaign.title} · son devis d'origine reste valable`, href: `/campaigns/${campaign._id}#candidature-${creator._id}` }).catch(() => {});
     logger.info(`Counter-offer ${accept ? 'accepted' : 'declined'} by creator ${creator._id} on campaign ${campaign._id}`);
     res.json({ message: accept ? 'Contre-proposition acceptée : votre devis est mis à jour' : 'Contre-proposition refusée : votre devis reste inchangé', application });
   } catch (error) {

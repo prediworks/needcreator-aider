@@ -37,6 +37,7 @@ import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
 import { NICHES, VIDEO_TYPES, CAMPAIGN_STATUS, APPLICATION_STATUS, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
 import { blockerHref } from '@/lib/profileAnchors';
+import { useScrollToHash } from '@/hooks/useScrollToHash';
 
 export default function CampaignDetailPage() {
   const params = useParams();
@@ -59,6 +60,8 @@ export default function CampaignDetailPage() {
   const [openCounter, setOpenCounter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'match' | 'price' | 'days' | 'rating'>('match');
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  // Depuis une notification ou un email : défile jusqu'à la candidature (#candidature-<créateur>) ou au devis (#mon-devis)
+  useScrollToHash(ready && !isLoading && !!campaign);
 
   if (!ready || isLoading) return <Spinner />;
 
@@ -407,7 +410,7 @@ export default function CampaignDetailPage() {
                       const rating = c.profile?.stats?.rating || 0;
                       const reviews = c.profile?.stats?.totalReviews || 0;
                       return (
-                        <div key={app._id} className="border border-neutral-200 rounded-lg p-4">
+                        <div key={app._id} id={`candidature-${cid}`} className="border border-neutral-200 rounded-lg p-4 scroll-mt-24">
                           <div className="flex items-start justify-between mb-2 gap-3 flex-wrap">
                             <div className="flex items-center gap-3">
                               {campaign.applications.length > 1 && (
@@ -585,7 +588,7 @@ export default function CampaignDetailPage() {
             )}
 
             {isCreator && !campaign.isSelected && campaign.userHasApplied && (
-              <Card className={editingQuote ? 'p-6' : 'p-6 bg-green-50 border-green-200'}>
+              <Card id="mon-devis" className={editingQuote ? 'p-6 scroll-mt-24' : 'p-6 bg-green-50 border-green-200 scroll-mt-24'}>
                 {editingQuote ? (
                   <>
                     <h3 className="font-semibold text-neutral-900 mb-3">Modifier mon devis</h3>

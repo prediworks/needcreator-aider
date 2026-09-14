@@ -199,13 +199,13 @@ export async function sendNewCampaignNotification(email, name, campaignTitle, ca
 /**
  * Application received notification for brand
  */
-export async function sendApplicationReceived(email, companyName, creatorName, campaignTitle, isAmbassador = false) {
+export async function sendApplicationReceived(email, companyName, creatorName, campaignTitle, isAmbassador = false, link = null) {
   const subject = `Nouveau devis pour "${campaignTitle}"${isAmbassador ? ' (créateur Ambassadeur)' : ''}`;
   const html = `
     <h1>Bonjour ${companyName} !</h1>
     <p>${creatorName}${isAmbassador ? ', <strong>créateur Ambassadeur NeedCreator</strong> 🌟,' : ''} a envoyé un devis pour votre campagne.</p>
     ${summary([['Campagne', campaignTitle], ['Créateur', creatorName + (isAmbassador ? ' · Ambassadeur' : '')]])}
-    <p><a href="${config.cors.origin}/dashboard">Voir le devis</a></p>
+    ${button(link || `${config.cors.origin}/dashboard`, 'Voir le devis')}
   `;
   
   return sendEmail(email, subject, html);
