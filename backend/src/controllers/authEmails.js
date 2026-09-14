@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendVerificationLink, sendPasswordResetLink } from '../services/email.js';
 import logger from '../utils/logger.js';
+import { getSetting, SETTINGS } from '../models/Setting.js';
 import { rewriteActionLink } from '../utils/authLinks.js';
 
 /**
@@ -41,6 +42,7 @@ export async function sendVerificationEmail(req, res) {
   try {
     const record = await admin.auth().getUser(req.user.firebaseUid);
     if (record.emailVerified) return res.json({ message: 'Adresse déjà confirmée', verified: true });
+    if (!(await getSetting(SETTINGS.verificationEmails.key, SETTINGS.verificationEmails.default))) return res.json({ message: 'Envoi des emails de confirmation désactivé par l\'administrateur (environnement de test).', verified: false, disabled: true });
     if (throttled(`verify:${req.user._id}`)) return res.status(429).json({ error: 'Email déjà envoyé il y a moins d\'une minute. Vérifiez vos spams avant de réessayer.' });
     const link = await actionLink('verify', req.user.email, '/dashboard');
     await sendVerificationLink(req.user.email, req.user.profile?.companyName || req.user.profile?.name, link);
@@ -56,6 +58,7 @@ export async function sendVerificationEmail(req, res) {
  */
 export async function sendVerificationAfterRegistration(user) {
   try {
+    if (!(await getSetting(SETTINGS.verificationEmails.key, SETTINGS.verificationEmails.default))) { logger.info(`Verification email skipped for ${user._id} (setting verificationEmails off)`); return; }
     const link = await actionLink('verify', user.email, '/dashboard');
     await sendVerificationLink(user.email, user.profile?.companyName || user.profile?.name, link);
     lastSent.set(`verify:${user._id}`, Date.now());

@@ -186,6 +186,13 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   const list = await brandApi('GET', '/admin/settings');
   expect(list.status === 200 && list.data.settings.some(x => x.key === 'businessRegistryCheck'), 'Réglage registre absent', list);
   expect(list.data.settings.some(x => x.key === 'platformFeePercent' && x.group === 'Commission') && list.data.settings.some(x => x.key === 'proFeePercent'), 'Commissions standard et Pro attendues dans les réglages admin (groupe Commission)', list);
+  const noMail = await brandApi('PUT', '/admin/settings/verificationEmails', { value: false });
+  expect(noMail.status === 200, 'Réglage emails de confirmation échoué', noMail);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const resend = await brandApi('POST', '/auth/send-verification');
+  expect(resend.status === 200 && (resend.data.verified === true || resend.data.disabled === true), 'Réglage désactivé : aucun lien Firebase demandé', resend);
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  await brandApi('PUT', '/admin/settings/verificationEmails', { value: true });
   const off = await brandApi('PUT', '/admin/settings/businessRegistryCheck', { value: false });
   expect(off.status === 200, 'Désactivation du registre échouée', off);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });

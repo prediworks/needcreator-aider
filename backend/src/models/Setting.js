@@ -36,6 +36,7 @@ const days = (n) => `${n} jour${n > 1 ? 's' : ''}`;
 
 export const SETTINGS = {
   // Interroge le registre national des entreprises (annuaire-entreprises.data.gouv.fr) pour valider le SIRET
+  verificationEmails: { key: 'verificationEmails', type: 'boolean', group: 'Vérifications', default: true, label: 'Envoyer les emails de confirmation d\'adresse', description: 'À l\'inscription et sur « Renvoyer l\'email ». Chaque envoi demande un lien à Firebase, qui bloque temporairement au-delà d\'un certain nombre de demandes (TOO_MANY_ATTEMPTS_TRY_LATER). À désactiver sur un environnement de développement où les tests créent des comptes en boucle ; à laisser activé en production.' },
   businessRegistryCheck: { key: 'businessRegistryCheck', type: 'boolean', group: 'Vérifications', default: process.env.BUSINESS_REGISTRY_CHECK !== 'false', label: 'Vérification des SIRET au registre national des entreprises', description: 'Si désactivé, seul le format du SIRET / TVA est contrôlé (moins de friction, moins de sécurité).' },
 
   // Relances automatiques (tâches planifiées, JOBS_INTERVAL_MINUTES). 0 = désactivée. Une seule relance par élément.
