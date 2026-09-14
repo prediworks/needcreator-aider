@@ -276,7 +276,7 @@ export async function sendExternalQuoteToClient(email, clientName, creatorName, 
     <h1>Bonjour${clientName ? ' ' + clientName : ''},</h1>
     <p><strong>${creatorName}</strong> vous adresse un devis pour « ${title} » : <strong>${price} € HT</strong>.</p>
     ${message ? `<p><em>« ${message} »</em></p>` : ''}
-    ${summary([['Devis (PDF)', quoteUrl], ['Projet de contrat de cession de droits (PDF)', contractUrl]])}
+    ${summary([['Montant', `${price} € HT`], ['Devis (PDF)', quoteUrl && `<a href="${quoteUrl}" style="color:#0f766e">Télécharger</a>`], ['Projet de contrat de cession de droits (PDF)', contractUrl && `<a href="${contractUrl}" style="color:#0f766e">Télécharger</a>`]])}
     <p>Vous pouvez l'accepter et régler en ligne via NeedCreator : le montant est bloqué, versé au créateur seulement après votre validation des vidéos, et le contrat de cession de droits est généré automatiquement. Vous recevez une facture.</p>
     ${button(link, 'Voir le devis et accepter')}
     <p style="font-size:12px;color:#666">NeedCreator est la plateforme sur laquelle ${creatorName} gère ses missions. Le paiement sécurisé et le contrat sont inclus, sans frais ajoutés au devis.</p>
