@@ -56,11 +56,11 @@ export default function Header() {
       ]
     : [
         { href: '/marques', label: 'Marques' },
-        { href: '/createurs', label: 'Créateurs' },
+        { href: '/createurs', label: 'Devenir créateur' },
+        { href: '/nos-createurs', label: 'Créateurs' }, // annuaire : inscrits (à partir d'un seuil réglé dans l'admin) et référencés
         { href: '/campagnes', label: 'Campagnes' },
         { href: '/contenus-et-droits', label: 'Contenus & droits' },
         { href: '/how-it-works', label: 'Comment ça marche' },
-        { href: '/nos-createurs', label: 'Nos créateurs' },
         { href: '/pricing', label: 'Tarifs' },
       ];
 

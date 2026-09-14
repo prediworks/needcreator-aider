@@ -21,6 +21,8 @@ export interface PublicConfig {
   giftingMinProductValue: number;
   giftingMaxDeliverables: number;
   giftingMaxPerMonth: number;
+  publicCreatorsMinCount: number;
+  publicCreatorsCount: number;
 }
 
 export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
@@ -42,6 +44,8 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   giftingMinProductValue: 30,
   giftingMaxDeliverables: 2,
   giftingMaxPerMonth: 2,
+  publicCreatorsMinCount: 6,
+  publicCreatorsCount: 0,
 };
 
 /** Côté serveur (pages marketing) : mis en cache 5 minutes, repli sur les valeurs par défaut si l'API ne répond pas */

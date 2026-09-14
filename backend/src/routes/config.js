@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from '../config/index.js';
 import { SERVICES } from '../../config/services.js';
+import User from '../models/User.js';
 import { getMaxRevisions, getFeePercents, getSetting, SETTINGS } from '../models/Setting.js';
 
 const router = express.Router();
@@ -30,6 +31,8 @@ router.get('/public', async (req, res) => {
     giftingMinProductValue: config.gifting.minProductValue,
     giftingMaxDeliverables: config.gifting.maxDeliverables,
     giftingMaxPerMonth: config.gifting.maxPerMonth,
+    publicCreatorsMinCount: await getSetting(SETTINGS.publicCreatorsMinCount.key, SETTINGS.publicCreatorsMinCount.default),
+    publicCreatorsCount: await User.countDocuments({ role: 'creator', status: 'active', 'verification.portfolio': true, 'profile.publicConsent.site': true }),
     services: SERVICES.map(s => ({ key: s.key, label: s.label, kind: s.kind, minPortfolio: s.key === 'ugc' ? config.business.minCreatorVideos : s.minPortfolio, description: s.description })),
   });
 });

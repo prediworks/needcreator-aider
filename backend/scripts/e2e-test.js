@@ -439,6 +439,7 @@ await step('Portfolio : upload de 3 vidéos (R2)', async () => {
 await step('Services (métiers) et portfolio multi-formats : préparation de l\'élargissement', async () => {
   const cfg = await fetch(`${API}/config/public`).then(r => r.json());
   expect(Array.isArray(cfg.services) && cfg.services.some(s => s.key === 'product_photo' && s.kind === 'image'), 'La liste des services doit être publique', { status: 200, data: cfg });
+  expect(typeof cfg.publicCreatorsMinCount === 'number' && typeof cfg.publicCreatorsCount === 'number', 'Seuil et nombre de créateurs inscrits publics attendus dans la configuration publique', { status: 200, data: cfg });
   const me = await creatorApi('GET', '/auth/profile');
   expect(!me.data.user.profile.services?.length || me.data.user.profile.services.includes('ugc'), 'Sans réglage, un créateur propose la vidéo UGC', me);
   const bad = await creatorApi('PATCH', '/auth/profile', { profile: { services: ['inconnu'] } });
