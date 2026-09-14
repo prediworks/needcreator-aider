@@ -34,7 +34,7 @@ export default async function CreatorsPage() {
     [ShieldCheck, 'Registre de vos droits et exclusivités', 'Tout ce que vous avez cédé, ici ou ailleurs : durée, supports, exclusivité. Rappel 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.'],
     [Landmark, 'Revenus et seuils micro-entreprise', 'Vos missions NeedCreator et vos autres revenus au même endroit : franchise de TVA et plafond micro calculés sur le total, calendrier de vos virements.'],
     [Calculator, 'Calculateur de tarif', 'Une fourchette de prix selon le type de vidéo, les droits, les supports, l\'exclusivité et le volume, basée sur les devis réellement acceptés.'],
-    [Lock, 'Paiement sécurisé pour vos clients', 'Même pour un client qui ne connaît pas NeedCreator : il découvre la plateforme avec votre devis, paie en confiance, et vous êtes payé à la validation.'],
+    [Lock, 'Paiement sécurisé pour vos clients', 'Votre client paie via NeedCreator : le montant est bloqué avant que vous ne tourniez et vous est versé à la validation. Fini les factures impayées, même avec un client qui ne connaît pas la plateforme.'],
   ];
 
   const steps: [string, string, string][] = [
@@ -113,7 +113,7 @@ export default async function CreatorsPage() {
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
-            <p className="text-lg text-neutral-300 max-w-3xl mx-auto">Un client vous contacte en direct, une agence vous propose une vidéo, vous démarchez vous-même des marques ? Gérez tout depuis votre compte. Gratuit : la commission ne s&apos;applique que si le client choisit de payer via NeedCreator.</p>
+            <p className="text-lg text-neutral-300 max-w-3xl mx-auto">Un client vous contacte en direct, une agence vous propose une vidéo, vous démarchez vous-même des marques ? Gérez tout depuis votre compte. Gratuit. Si votre client paie via NeedCreator, la commission de {cfg.externalQuoteFeePercent} % s&apos;applique, comme pour une mission classique.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tools.map(([Icon, title, text]) => (

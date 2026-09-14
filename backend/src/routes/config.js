@@ -21,6 +21,7 @@ router.get('/public', async (req, res) => {
     platformFeePercent: fees.standard,
     creatorSharePercent: 100 - fees.standard,
     ambassadorFeePercent: fees.ambassador,
+    externalQuoteFeePercent: await getSetting(SETTINGS.externalQuoteFeePercent.key, SETTINGS.externalQuoteFeePercent.default),
     repeatDiscountPercent: await getSetting(SETTINGS.repeatDiscountPercent.key, SETTINGS.repeatDiscountPercent.default),
     referralCreatorBonus: config.referral.creatorBonus,
     referralBrandDiscountPercent: config.referral.brandDiscountPercent,

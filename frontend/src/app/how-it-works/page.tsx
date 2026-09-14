@@ -17,13 +17,13 @@ const brandSteps = (cfg: { autoApprovalDays: number; replacementGraceHours: numb
   ['5', 'Diffusez, puis prolongez si besoin', 'Pack vidéo prête à diffuser en option, publication Shopify en un clic. La facture PDF est générée automatiquement. Vous êtes prévenu 30 jours avant la fin des droits et pouvez les prolonger. Notez le créateur : les avis sont publiés en double aveugle.'],
 ];
 
-const creatorSteps = (cfg: { autoApprovalDays: number }) => [
+const creatorSteps = (cfg: { autoApprovalDays: number; externalQuoteFeePercent: number }) => [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio, protégées par un filigrane. Validation par notre équipe sous 24h. Vous obtenez une page publique avec QR code : votre kit média.'],
   ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire).'],
   ['3', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom. Votre page « Mes missions » suit chaque échéance.'],
   ['4', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe, à une date affichée dans votre calendrier de paiements. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['5', 'Notez la marque', 'Avis en double aveugle : chacun note sans voir l\'avis de l\'autre, les deux sont publiés ensemble. La réactivité des marques est visible par tous les créateurs, et chacun peut répondre publiquement à un avis.'],
-  ['6', 'Gérez aussi vos clients hors plateforme', 'Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif : vos outils pour toute votre activité, gratuits. La commission ne s\'applique que si votre client choisit de payer via NeedCreator.'],
+  ['6', 'Gérez aussi vos clients hors plateforme', 'Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif : vos outils pour toute votre activité, gratuits. Si votre client paie via NeedCreator, le montant est bloqué puis versé à la validation, et la commission de ' + cfg.externalQuoteFeePercent + ' % s\'applique, comme pour une mission classique.'],
 ];
 
 export default async function HowItWorksPage() {
