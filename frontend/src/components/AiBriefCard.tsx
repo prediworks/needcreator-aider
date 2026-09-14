@@ -41,7 +41,7 @@ export default function AiBriefCard({ videoType, platforms, niches, onGenerated 
         {status && !status.configured && <span className="text-xs text-orange-700 bg-orange-50 px-2 py-0.5 rounded-full">non configuré</span>}
         {status?.quota && (status.quota.pro
           ? <span className="text-xs text-yellow-800 bg-yellow-50 px-2 py-0.5 rounded-full">Pro · illimité</span>
-          : <span className={`text-xs px-2 py-0.5 rounded-full ${status.quota.remaining > 0 ? 'bg-primary-50 text-primary-800' : 'bg-red-50 text-red-700'}`}>{status.quota.remaining} / {status.quota.limit} rédaction(s) par l'IA gratuite(s) ce mois-ci</span>)}
+          : <span className={`text-xs px-2 py-0.5 rounded-full ${status.quota.remaining > 0 ? 'bg-primary-50 text-primary-800' : 'bg-red-50 text-red-700'}`} title="Compte gratuit : rédaction du brief par l'IA limitée par mois. Illimitée avec l'offre Pro.">Gratuit · {status.quota.remaining} brief{status.quota.remaining > 1 ? 's' : ''} IA restant{status.quota.remaining > 1 ? 's' : ''} ce mois sur {status.quota.limit} · Pro : illimité</span>)}
       </div>
       <p className="text-sm text-neutral-600 mb-3">Décrivez votre produit en deux phrases : l&apos;IA rédige le titre, la description et les consignes. Vous gardez la main pour tout modifier.</p>
       <textarea
@@ -59,7 +59,8 @@ export default function AiBriefCard({ videoType, platforms, niches, onGenerated 
       <Button onClick={() => generate.mutate()} isLoading={generate.isPending} disabled={product.trim().length < 10 || (status && !status.configured) || (status?.quota && !status.quota.pro && status.quota.remaining <= 0)}>
         <Wand2 className="w-4 h-4 mr-2" /> {generate.isPending ? 'Rédaction en cours (10-20 s)…' : 'Générer le brief'}
       </Button>
-      <MissingHint items={[product.trim().length < 10 && `une description du produit d'au moins 10 caractères (${product.trim().length}/10)`, status && !status.configured && 'la rédaction IA activée sur le serveur', status?.quota && !status.quota.pro && status.quota.remaining <= 0 && 'du quota : brief IA du mois épuisé (illimité en Pro)']} />
+      {/* Outil facultatif : le « Il manque » n'apparaît qu'une fois la saisie commencée */}
+      {product.trim().length > 0 && <MissingHint items={[product.trim().length < 10 && `une description du produit d'au moins 10 caractères (${product.trim().length}/10)`, status && !status.configured && 'la rédaction IA activée sur le serveur', status?.quota && !status.quota.pro && status.quota.remaining <= 0 && 'du quota : brief IA du mois épuisé (illimité en Pro)']} />}
       {status?.quota && !status.quota.pro && status.quota.remaining <= 0 && (
         <p className="text-xs text-neutral-600 mt-2">Quota mensuel atteint. <a href="/profile#subscription" className="text-primary-600 underline">Passez en Pro</a> pour un accès illimité.</p>
       )}
