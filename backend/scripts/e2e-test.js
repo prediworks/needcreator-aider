@@ -2076,7 +2076,7 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   await mongoose.connection.db.collection('campaigns').deleteOne({ _id: freeCamp._id });
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   // Côté créateur : rien ne distingue ces campagnes
-  const feed = await creatorApi('GET', '/campaigns');
+  const feed = await creatorApi('GET', '/campaigns?limit=100'); // la base de dev peut contenir d'autres campagnes ouvertes
   const inFeed = feed.data.campaigns.filter(c => seedCamps.some(s => String(s._id) === c._id));
   expect(inFeed.length === 2 && inFeed.every(c => c.seed === undefined), 'Les campagnes d\'amorçage doivent apparaître sans marquage', feed);
   const one = await creatorApi('GET', `/campaigns/${seedCamps[0]._id}`);
