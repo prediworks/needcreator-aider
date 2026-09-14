@@ -177,6 +177,18 @@ Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'
 5. **Site internet : élargissement aux autres types de création** (après la préparation du modèle et l'ouverture d'un second métier) : positionnement « décrivez votre besoin créatif, recevez des propositions de professionnels qualifiés avec prix, concept, délai et droits » ; pages par métier (UGC, vidéos sociales TikTok / Reels / Shorts, photographie produit, voix off, montage vidéo, acteurs et figurants, influence et contenu sponsorisé) ; saisie du besoin en plusieurs lots et « équipe proposée » (un créateur, un monteur, une voix…). À ne pas faire avant d'avoir des professionnels inscrits dans ces métiers : une page vide fait fuir.
 6. **Abonnement « créateur attitré »** (après plusieurs reconductions constatées) : N vidéos par mois avec le même créateur, prix dégressif, droits roulants, paiement mensuel Stripe. Une semaine. La reconduction en un clic (point 1) couvre le besoin en attendant.
 
+## 5 ter. Outils créateur pour l'activité extérieure (décidé le 14/09/2026, tous les points retenus)
+
+Objectif : fidéliser les créateurs en leur donnant des outils pour toute leur activité, y compris hors plateforme, et convertir leurs clients en marques NeedCreator. Modèle : mission extérieure **payée via NeedCreator** = mission classique (paiement bloqué, commission standard ou Ambassadeur, factures par mandat, contrat) ; **payée en direct** = outils gratuits (devis, contrat, registre, suivi), sans commission et sans facture par mandat (question expert-comptable : éditer aussi ces factures-là ?).
+
+1. **Devis et contrat pour mission extérieure** (M, 2 à 3 jours) : le créateur décrit un client hors plateforme et une mission, génère un devis PDF puis un contrat de cession ; lien de paiement via NeedCreator (montant bloqué, versé à la validation, commission) ou marquage « payé en direct ». La marque qui paie découvre la plateforme.
+2. **Registre des droits côté créateur** (M, 2 jours) : toutes ses vidéos vendues, ici ou ailleurs : client, droits, exclusivité, dates de fin ; rappels à l'échéance avec email de renouvellement prêt, payable via NeedCreator ; rappel de fin d'exclusivité.
+3. **Revenus extérieurs dans le suivi des seuils** (S, 1 jour) : saisie des autres revenus dans le calendrier de paiements et les seuils micro-entreprise ; DAC7 limité aux paiements passés par la plateforme.
+4. **Suivi de prospection** (S/M, 1 à 2 jours) : marques contactées, relance à date, statut, notes ; renvoie vers le point 1.
+5. **Calculateur de tarif** (S, ½ jour) : fourchettes observées sur les devis acceptés, par type de vidéo, droits et durée.
+6. **Site internet** (à livrer avec) : page Devenir créateur et Comment ça marche : « Vos outils pour toute votre activité, même hors NeedCreator » : devis et contrats en un clic, registre de vos droits et exclusivités, suivi de prospection, revenus et seuils, calculateur de tarif ; paiement sécurisé pour vos clients extérieurs. Tarifs : inclus, commission seulement quand le paiement passe par la plateforme.
+
 ## 6. Décisions produit récentes
 
 - **13/09/2026, gifting** : ouvert à toutes les marques. Sans frais de service pour les marques Pro ; frais de service par vidéo livrée (5 € HT par défaut) pour l'offre gratuite. Figé à la création de la campagne.
+7. **Factures des missions extérieures payées en direct** : NeedCreator peut-il émettre, par mandat, des factures pour des prestations dont il ne traite pas le paiement ? Sinon, simple modèle à remplir par le créateur.
