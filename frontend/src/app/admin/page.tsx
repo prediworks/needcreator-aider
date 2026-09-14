@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup,
+  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup, useRestoreBackup,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -64,6 +64,7 @@ export default function AdminPage() {
   const runJobs = useRunJobs();
   const { data: backups } = useAdminBackups(ready && tab === 'settings');
   const runBackup = useRunBackup();
+  const restoreBackup = useRestoreBackup();
 
   if (!ready) return <Spinner />;
 
@@ -336,7 +337,18 @@ export default function AdminPage() {
             {backups?.backups?.length ? (
               <ul className="text-sm divide-y divide-neutral-100">
                 {backups.backups.slice(0, 10).map((b: any) => (
-                  <li key={b.name} className="py-1.5 flex items-center justify-between gap-3"><span className="font-mono text-xs">{b.name}</span><span className="text-neutral-500">{formatDate(b.createdAt)} · {Math.round(b.size / 1024)} Ko</span></li>
+                  <li key={b.name} className="py-1.5 flex items-center justify-between gap-3 flex-wrap">
+                    <span className="font-mono text-xs">{b.name}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-neutral-500">{formatDate(b.createdAt)} · {Math.round(b.size / 1024)} Ko</span>
+                      <Button size="sm" variant="ghost" isLoading={restoreBackup.isPending} onClick={() => {
+                        const word = prompt(`Restaurer la base depuis ${b.name} ?\n\nLes documents de la sauvegarde remplacent ceux de la base (par identifiant). Les données créées depuis restent, sauf si vous choisissez de vider les collections.\n\nTapez RESTAURER pour confirmer :`);
+                        if (word !== 'RESTAURER') return;
+                        const drop = confirm('Vider chaque collection avant de restaurer ? (OK = oui, la base redevient exactement comme la sauvegarde ; Annuler = non, simple remise en place des documents)');
+                        restoreBackup.mutate({ name: b.name, drop });
+                      }}>Restaurer</Button>
+                    </span>
+                  </li>
                 ))}
                 {backups.backups.length > 10 && <li className="py-1.5 text-xs text-neutral-500">… et {backups.backups.length - 10} autre(s)</li>}
               </ul>

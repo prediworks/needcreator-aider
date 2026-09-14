@@ -152,6 +152,28 @@ export async function runBackupAdmin(req, res) {
   }
 }
 
+/** Restauration depuis l'admin : archive du répertoire de sauvegarde, confirmation « RESTAURER » obligatoire */
+export async function restoreBackupAdmin(req, res) {
+  try {
+    const { listBackups, restoreBackup, backupSettings } = await import('../services/backup.js');
+    const { setSetting } = await import('../models/Setting.js');
+    if (req.body?.confirm !== 'RESTAURER') return res.status(400).json({ error: 'Confirmation manquante : tapez RESTAURER' });
+    const s = await backupSettings();
+    const b = listBackups(s.dir).find(x => x.name === req.params.name);
+    if (!b) return res.status(404).json({ error: 'Sauvegarde introuvable dans le répertoire configuré' });
+    const drop = !!req.body?.drop;
+    logger.warn(`RESTORE requested by admin ${req.user._id}: ${b.name}${drop ? ' (drop)' : ''}`);
+    const r = await restoreBackup(b.file, { drop });
+    // Le réglage du répertoire doit survivre à une restauration d'une base qui ne le connaissait pas
+    await setSetting('backupDir', s.dir, req.user._id).catch(() => {});
+    const total = Object.values(r.restored).reduce((a, n) => a + n, 0);
+    res.json({ message: `Base restaurée depuis ${b.name} : ${total} document(s) dans ${Object.keys(r.restored).length} collection(s)${drop ? ', collections vidées avant' : ''}. Rechargez la page.`, restored: r.restored, manifest: r.manifest });
+  } catch (error) {
+    logger.error('Admin restore failed:', error);
+    res.status(500).json({ error: `Restauration impossible : ${error.message}` });
+  }
+}
+
 /**
  * Lance les tâches planifiées à la demande
  */

@@ -195,6 +195,10 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   const bl = await brandApi('GET', '/admin/backups');
   expect(bl.status === 200 && bl.data.dir === bdir && bl.data.backups.some(x => x.name === `${bk.data.backup.name}.tar.gz`), 'La sauvegarde doit apparaître dans la liste', bl);
   expect(fsm.existsSync(pathm.join(bdir, `${bk.data.backup.name}.tar.gz`)), 'Archive absente du disque', bl);
+  const noConfirm = await brandApi('POST', `/admin/backups/${bk.data.backup.name}.tar.gz/restore`, {});
+  expect(noConfirm.status === 400, 'La restauration exige la confirmation RESTAURER', noConfirm);
+  const rs = await brandApi('POST', `/admin/backups/${bk.data.backup.name}.tar.gz/restore`, { confirm: 'RESTAURER' });
+  expect(rs.status === 200 && rs.data.restored?.users >= 1, 'Restauration depuis l\'admin échouée', rs);
   fsm.rmSync(bdir, { recursive: true, force: true });
   await brandApi('PUT', '/admin/settings/backupDir', { value: '' });
   expect(list.data.settings.some(x => x.key === 'platformFeePercent' && x.group === 'Commission') && list.data.settings.some(x => x.key === 'proFeePercent'), 'Commissions standard et Pro attendues dans les réglages admin (groupe Commission)', list);

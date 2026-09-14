@@ -15,6 +15,7 @@ import {
   runJobs,
   listBackupsAdmin,
   runBackupAdmin,
+  restoreBackupAdmin,
   getAdminCampaigns,
   getAdminDeliveries,
   getUserDetail,
@@ -95,5 +96,6 @@ router.get('/deliveries', getAdminDeliveries);
 router.post('/jobs/run', runJobs);
 router.get('/backups', listBackupsAdmin);
 router.post('/backups/run', runBackupAdmin);
+router.post('/backups/:name/restore', restoreBackupAdmin); // confirmation « RESTAURER »
 
 export default router;

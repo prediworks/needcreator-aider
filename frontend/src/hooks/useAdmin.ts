@@ -146,6 +146,14 @@ export function useRunBackup() {
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
 }
+export function useRestoreBackup() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, drop }: { name: string; drop: boolean }) => (await api.post(`/admin/backups/${encodeURIComponent(name)}/restore`, { confirm: 'RESTAURER', drop })).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 12000 }); queryClient.invalidateQueries(); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 12000 }),
+  });
+}
 export function useRunJobs() {
   const queryClient = useQueryClient();
   return useMutation({

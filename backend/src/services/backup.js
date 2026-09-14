@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import zlib from 'zlib';
+import readline from 'readline';
 import { pipeline } from 'stream/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -48,6 +49,39 @@ export async function runBackup(dir = DEFAULT_BACKUP_DIR) {
   } catch (err) {
     fs.rmSync(work, { recursive: true, force: true });
     throw err;
+  }
+}
+
+/**
+ * Restaure une archive dans la base courante. Sans drop : documents remis en place par _id (upsert) ;
+ * avec drop : chaque collection présente dans l'archive est vidée avant. Retourne le nombre de documents par collection.
+ */
+export async function restoreBackup(archive, { drop = false } = {}) {
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('Base non connectée');
+  if (!fs.existsSync(archive)) throw new Error('Archive introuvable');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nc-restore-'));
+  try {
+    await run('tar', ['-xzf', archive, '-C', tmp]);
+    const folder = fs.readdirSync(tmp).map(f => path.join(tmp, f)).find(f => fs.statSync(f).isDirectory());
+    if (!folder || !fs.existsSync(path.join(folder, 'manifest.json'))) throw new Error('Archive invalide (manifest absent)');
+    const manifest = JSON.parse(fs.readFileSync(path.join(folder, 'manifest.json'), 'utf8'));
+    const restored = {};
+    for (const col of Object.keys(manifest.collections)) {
+      const file = path.join(folder, `${col}.ejson.gz`);
+      if (!fs.existsSync(file)) continue;
+      if (drop) await db.collection(col).deleteMany({});
+      const rl = readline.createInterface({ input: fs.createReadStream(file).pipe(zlib.createGunzip()) });
+      let batch = [], n = 0;
+      const flush = async () => { if (!batch.length) return; await db.collection(col).bulkWrite(batch.map(d => ({ replaceOne: { filter: { _id: d._id }, replacement: d, upsert: true } })), { ordered: false }); n += batch.length; batch = []; };
+      for await (const line of rl) { if (!line.trim()) continue; batch.push(EJSON.parse(line, { relaxed: false })); if (batch.length >= 500) await flush(); }
+      await flush();
+      restored[col] = n;
+    }
+    logger.warn(`Backup restored from ${path.basename(archive)}${drop ? ' (drop)' : ''}: ${JSON.stringify(restored)}`);
+    return { manifest: { name: manifest.name, createdAt: manifest.createdAt, db: manifest.db }, restored };
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
 
