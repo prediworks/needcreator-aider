@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell, FolderOpen } from 'lucide-react';
+import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell, FolderOpen, Target, Landmark, Calculator } from 'lucide-react';
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
@@ -174,6 +174,28 @@ export default async function HomePage() {
                 <div className="text-sm text-neutral-600">{sub}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Créateurs : outils pour toute leur activité, même hors plateforme */}
+      <section className="py-16 bg-neutral-900 text-white">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <div className="grid md:grid-cols-5 gap-8 items-center">
+            <div className="md:col-span-3">
+              <div className="inline-flex items-center px-3 py-1 bg-primary-500/20 rounded-full mb-4 text-xs font-medium text-primary-300">Pour les créateurs</div>
+              <h2 className="text-2xl md:text-3xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
+              <p className="text-neutral-300 mb-6">Un client en direct, une agence, une marque que vous démarchez vous-même ? Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif. Gratuit : la commission ne s&apos;applique que si votre client paie via NeedCreator.</p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link href="/createurs#outils"><Button className="w-full sm:w-auto">Découvrir les outils créateur</Button></Link>
+                <Link href="/calculateur-tarif-ugc"><Button variant="outline" className="w-full sm:w-auto border-white text-white hover:bg-neutral-800">Calculateur de tarif</Button></Link>
+              </div>
+            </div>
+            <ul className="md:col-span-2 space-y-2 text-sm">
+              {[[Target, 'Suivi de prospection, relances à date'], [FileSignature, 'Devis et contrat PDF en un clic'], [ShieldCheck, 'Registre des droits et exclusivités'], [Landmark, 'Revenus et seuils micro-entreprise'], [Calculator, 'Calculateur de tarif']].map(([Icon, t]: any) => (
+                <li key={t} className="flex items-center gap-3 bg-neutral-800 rounded-lg px-4 py-3"><Icon className="w-5 h-5 text-primary-400 shrink-0" />{t}</li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark } from 'lucide-react';
+import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark, Briefcase } from 'lucide-react';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
@@ -83,6 +83,9 @@ export default async function CreatorsPage() {
               <span key={t} className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-primary-500" />{t}</span>
             ))}
           </div>
+          <a href="#outils" className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-900 text-white text-sm hover:bg-neutral-800">
+            <Briefcase className="w-4 h-4 text-primary-400" /> Et pour vos clients hors NeedCreator : prospection, devis, contrats, droits, calculateur de tarif, gratuits <ArrowRight className="w-4 h-4" />
+          </a>
         </div>
       </section>
 
@@ -106,7 +109,7 @@ export default async function CreatorsPage() {
       </section>
 
       {/* Outils pour toute l'activité */}
-      <section className="py-20 bg-neutral-900 text-white">
+      <section id="outils" className="py-20 bg-neutral-900 text-white scroll-mt-20">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
