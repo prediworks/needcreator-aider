@@ -99,8 +99,8 @@ async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   const product = pickUnique(state, `product:${t.key}`, PRODUCTS[t.key] || PRODUCTS['ecommerce-unboxing']);
   const title = pickUnique(state, `title:${t.key}`, TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
   const deliverables = between(1, 3);
-  // Tarif max de la ligne : 0 = devis libre (pas de budget affiché), sinon plafond ; vide = fourchette du lot avec une part de devis libres (réglage du lot)
-  const freeQuote = row.maxBudget === 0 || (row.maxBudget === null && Math.random() * 100 < opts.freeQuoteShare);
+  // Tarif max de la ligne : 0 = devis libre (pas de budget affiché), sinon plafond ; vide = fourchette du lot
+  const freeQuote = row.maxBudget === 0;
   const max = row.maxBudget > 0 ? row.maxBudget : opts.budgetMax;
   const min = Math.min(opts.budgetMin, max);
   const budget = freeQuote ? null : Math.round(between(min, max) / 10) * 10;
@@ -122,7 +122,7 @@ export async function runSeed(req, res) {
     const { rows, errors } = parseSeedLines(req.body?.lines);
     if (errors.length) return res.status(400).json({ error: `${errors.length} ligne(s) invalide(s)`, errors });
     if (!rows.length) return res.status(400).json({ error: 'Aucune ligne' });
-    const opts = { publishedWithinDays: Math.min(90, Math.max(0, parseInt(req.body?.publishedWithinDays ?? 30, 10))), deadlineWithinDays: Math.min(120, Math.max(3, parseInt(req.body?.deadlineWithinDays ?? 30, 10))), budgetMin: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMin ?? 150, 10)), budgetMax: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMax ?? 600, 10)), closeAtDeadline: req.body?.closeAtDeadline !== false, freeQuoteShare: Math.min(100, Math.max(0, parseInt(req.body?.freeQuoteShare ?? 30, 10) || 0)) };
+    const opts = { publishedWithinDays: Math.min(90, Math.max(0, parseInt(req.body?.publishedWithinDays ?? 30, 10))), deadlineWithinDays: Math.min(120, Math.max(3, parseInt(req.body?.deadlineWithinDays ?? 30, 10))), budgetMin: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMin ?? 150, 10)), budgetMax: Math.max(config.business.minQuotePrice, parseInt(req.body?.budgetMax ?? 600, 10)), closeAtDeadline: req.body?.closeAtDeadline !== false };
     if (opts.budgetMax < opts.budgetMin) opts.budgetMax = opts.budgetMin;
     const batch = `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
     const fees = await getFeePercents();
