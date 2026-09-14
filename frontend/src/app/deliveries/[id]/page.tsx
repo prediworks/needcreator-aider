@@ -31,6 +31,7 @@ import ContractCard from '@/components/ContractCard';
 import ComplianceCard from '@/components/ComplianceCard';
 import ReplacementCard from '@/components/ReplacementCard';
 import RenewCard from '@/components/RenewCard';
+import MissionMessages from '@/components/MissionMessages';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -744,7 +745,17 @@ export default function DeliveryDetailPage() {
                     </>
                   )}
 
-                  {isDone && (
+                  {isDone && delivery.dispute?.status === 'resolved' ? (
+                    <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 text-neutral-800">
+                        <CheckCircle className="w-5 h-5 text-neutral-500" />
+                        <span className="font-medium">Mission close par arbitrage</span>
+                      </div>
+                      <p className="text-sm text-neutral-600 mt-2">
+                        {delivery.dispute.outcome === 'split' ? 'Partage du prix décidé par notre équipe' : delivery.dispute.outcome === 'refund_full' ? 'Remboursement intégral décidé par notre équipe' : 'Vidéos validées par notre équipe'}{delivery.dispute.resolvedAt ? ` le ${formatDate(delivery.dispute.resolvedAt)}` : ''}. <a href="#litige" className="text-primary-600 underline">Voir la décision</a>
+                      </p>
+                    </div>
+                  ) : isDone && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <div className="flex items-center gap-2 text-green-700">
                         <CheckCircle className="w-5 h-5" />
@@ -761,6 +772,11 @@ export default function DeliveryDetailPage() {
                   )}
                 </div>
               </Card>
+            )}
+
+            {/* Messages de la mission (repliés, dépliés s'il y a des non-lus) */}
+            {(isBrand || isCreator) && campaign?._id && (
+              <MissionMessages campaignId={campaign._id} creatorId={delivery.creatorId?._id || delivery.creatorId} otherName={otherPartyName} />
             )}
           </div>
         </div>
