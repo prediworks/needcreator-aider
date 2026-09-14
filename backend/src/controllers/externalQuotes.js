@@ -86,6 +86,25 @@ export async function createQuoteInternal(creator, body) {
   return serialize(q);
 }
 
+/** Modifie un devis brouillon (ou déjà envoyé mais pas encore accepté) : les PDF sont régénérés, le lien client reste le même */
+export async function updateExternalQuote(req, res) {
+  try {
+    const q = await ExternalQuote.findOne({ _id: req.params.id, creatorId: req.user._id });
+    if (!q) return res.status(404).json({ error: 'Devis introuvable' });
+    if (!['draft', 'sent'].includes(q.status)) return res.status(400).json({ error: 'Ce devis a été accepté ou décliné : il ne se modifie plus. Créez-en un nouveau.' });
+    const data = pick(req.body, req.user);
+    const missing = [!data.client.companyName && 'le nom du client', !data.mission.title && 'un titre de mission', !(data.quote.price >= config.business.minQuotePrice) && `un prix d'au moins ${config.business.minQuotePrice} €`].filter(Boolean);
+    if (missing.length) return res.status(400).json({ error: `Il manque : ${missing.join(', ')}` });
+    q.client = data.client; q.mission = data.mission; q.quote = data.quote;
+    await generatePdfs(q, req.user);
+    await q.save();
+    res.json({ message: q.status === 'sent' ? 'Devis modifié et PDF régénérés : pensez à le renvoyer au client' : 'Devis modifié, PDF régénérés', quote: await serialize(q) });
+  } catch (error) {
+    logger.error('updateExternalQuote failed:', error);
+    res.status(500).json({ error: `Modification impossible : ${error.message}` });
+  }
+}
+
 export async function createExternalQuote(req, res) {
   try {
     const quote = await createQuoteInternal(req.user, req.body);

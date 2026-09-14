@@ -15,7 +15,7 @@ import MissingHint from '@/components/ui/MissingHint';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { VIDEO_TYPES, PLATFORMS, RIGHTS_DURATION, RIGHTS_SUPPORTS } from '@/lib/labels';
-import { FileSignature, Plus, Send, Copy, ExternalLink, Trash2, CheckCircle, Link2 } from 'lucide-react';
+import { FileSignature, Plus, Send, Copy, ExternalLink, Trash2, CheckCircle, Link2, Pencil } from 'lucide-react';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Brouillon', cls: 'bg-neutral-100 text-neutral-700' },
@@ -26,21 +26,26 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   expired: { label: 'Expiré', cls: 'bg-neutral-100 text-neutral-500' },
 };
 
-function QuoteCreateForm({ onDone, prefill }: { onDone: () => void; prefill?: { prospectId?: string; companyName?: string; contactName?: string; email?: string } }) {
+function QuoteCreateForm({ onDone, prefill, initial }: { onDone: () => void; prefill?: { prospectId?: string; companyName?: string; contactName?: string; email?: string }; initial?: any }) {
   const cfg = usePublicConfig();
-  const [f, setF] = useState<any>({ companyName: prefill?.companyName || '', contactName: prefill?.contactName || '', email: prefill?.email || '', siret: '', address: '', title: '', description: '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
+  const [f, setF] = useState<any>(initial ? {
+    companyName: initial.client?.companyName || '', contactName: initial.client?.contactName || '', email: initial.client?.email || '', siret: initial.client?.siret || '', address: initial.client?.address || '',
+    title: initial.mission?.title || '', description: initial.mission?.description || '', videoType: initial.mission?.videoType || 'testimonial', deliverables: String(initial.mission?.deliverables || 1), duration: String(initial.mission?.duration || 30), platforms: initial.mission?.platforms || [],
+    price: String(initial.quote?.price ?? ''), estimatedDeliveryDays: String(initial.quote?.estimatedDeliveryDays || 7), revisions: String(initial.quote?.revisions ?? 1), duration_rights: initial.quote?.rights?.duration || '1y', supports: initial.quote?.rights?.supports || ['social_organic'], territories: initial.quote?.rights?.territories || 'France', exclusivity: !!initial.quote?.rights?.exclusivity, exclusivityMonths: String(initial.quote?.rights?.exclusivityMonths || ''), terms: initial.quote?.terms || '',
+  } : { companyName: prefill?.companyName || '', contactName: prefill?.contactName || '', email: prefill?.email || '', siret: '', address: '', title: '', description: '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const toggle = (k: string, v: string) => set(k, f[k].includes(v) ? f[k].filter((x: string) => x !== v) : [...f[k], v]);
   const price = parseFloat(f.price) || 0;
   const missing = [!f.companyName.trim() && 'le nom du client', !f.title.trim() && 'un titre de mission', price < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`].filter(Boolean) as string[];
   const create = useMutation({
-    mutationFn: async () => (await api.post('/external-quotes', { prospectId: prefill?.prospectId || undefined, client: { companyName: f.companyName, contactName: f.contactName, email: f.email, siret: f.siret, address: f.address }, title: f.title, description: f.description, videoType: f.videoType, deliverables: Number(f.deliverables), duration: Number(f.duration), platforms: f.platforms, price, estimatedDeliveryDays: Number(f.estimatedDeliveryDays), revisions: Number(f.revisions), rights: { duration: f.duration_rights, supports: f.supports, territories: f.territories, exclusivity: f.exclusivity, exclusivityMonths: f.exclusivityMonths }, terms: f.terms })).data,
+    mutationFn: async () => (await (initial ? api.patch : api.post)(initial ? `/external-quotes/${initial._id}` : '/external-quotes', { prospectId: prefill?.prospectId || undefined, client: { companyName: f.companyName, contactName: f.contactName, email: f.email, siret: f.siret, address: f.address }, title: f.title, description: f.description, videoType: f.videoType, deliverables: Number(f.deliverables), duration: Number(f.duration), platforms: f.platforms, price, estimatedDeliveryDays: Number(f.estimatedDeliveryDays), revisions: Number(f.revisions), rights: { duration: f.duration_rights, supports: f.supports, territories: f.territories, exclusivity: f.exclusivity, exclusivityMonths: f.exclusivityMonths }, terms: f.terms })).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); onDone(); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   return (
     <Card className="p-6 mb-6">
-      <h2 className="font-semibold text-neutral-900 mb-1">Nouveau devis pour un client hors NeedCreator</h2>
+      <h2 className="font-semibold text-neutral-900 mb-1">{initial ? `Modifier le devis ${initial.pdf?.number || ''}` : 'Nouveau devis pour un client hors NeedCreator'}</h2>
+      {initial && <p className="text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3">Les PDF seront régénérés avec le même numéro et le même lien client{initial.status === 'sent' ? '. Le client a déjà reçu la version précédente : pensez à lui renvoyer le devis' : ''}.</p>}
       <p className="text-sm text-neutral-600 mb-4">Le devis et un projet de contrat de cession de droits sont générés en PDF. Vous les envoyez au client avec un lien : il accepte et paie via NeedCreator, montant bloqué puis versé après validation, ou vous marquez le devis « payé en direct ».</p>
       <h3 className="text-sm font-semibold text-neutral-800 mb-2">1. Le client</h3>
       <div className="grid sm:grid-cols-2 gap-3 mb-4">
@@ -72,7 +77,7 @@ function QuoteCreateForm({ onDone, prefill }: { onDone: () => void; prefill?: { 
       <div className="flex flex-wrap gap-2 mb-3">{Object.keys(RIGHTS_SUPPORTS).map((s) => <button key={s} type="button" onClick={() => toggle('supports', s)} className={`px-3 py-1 rounded-full text-xs ${f.supports.includes(s) ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{RIGHTS_SUPPORTS[s]}</button>)}</div>
       <textarea value={f.terms} onChange={(e) => set('terms', e.target.value)} rows={2} maxLength={2000} placeholder="Conditions particulières (produit à fournir, acompte, crédits…)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm mb-3" />
       <div className="flex gap-2 items-center flex-wrap">
-        <Button onClick={() => create.mutate()} isLoading={create.isPending} disabled={missing.length > 0}><FileSignature className="w-4 h-4 mr-1" /> Générer le devis et le contrat</Button>
+        <Button onClick={() => create.mutate()} isLoading={create.isPending} disabled={missing.length > 0}><FileSignature className="w-4 h-4 mr-1" /> {initial ? 'Enregistrer et régénérer les PDF' : 'Générer le devis et le contrat'}</Button>
         <Button variant="outline" onClick={onDone}>Annuler</Button>
         <MissingHint items={missing} />
       </div>
@@ -87,6 +92,7 @@ function QuotesPageInner() {
   const sp = useSearchParams();
   const prefill = sp.get('prospect') ? { prospectId: sp.get('prospect') || undefined, companyName: sp.get('company') || '', contactName: sp.get('contact') || '', email: sp.get('email') || '' } : undefined;
   const [adding, setAdding] = useState(!!prefill);
+  const [editing, setEditing] = useState<any>(null);
   const { data, isLoading } = useQuery({ queryKey: ['external-quotes'], queryFn: async () => (await api.get('/external-quotes')).data, enabled: ready });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['external-quotes'] });
   const send = useMutation({ mutationFn: async ({ id, email, message }: any) => (await api.post(`/external-quotes/${id}/send`, { email, message })).data, onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
@@ -105,7 +111,8 @@ function QuotesPageInner() {
           <Button onClick={() => setAdding(true)}><Plus className="w-4 h-4 mr-1" /> Nouveau devis</Button>
         </div>
         {!(user as any)?.hasLegalInfo && <Card className="p-4 mb-6 bg-orange-50 border-orange-200 text-sm text-orange-900">Renseignez d&apos;abord vos <Link href="/profile#legal" className="underline">informations administratives</Link> : elles figurent sur le devis et le contrat.</Card>}
-        {adding && <QuoteCreateForm prefill={prefill} onDone={() => { setAdding(false); refresh(); }} />}
+        {adding && !editing && <QuoteCreateForm prefill={prefill} onDone={() => { setAdding(false); refresh(); }} />}
+        {editing && <QuoteCreateForm key={editing._id} initial={editing} onDone={() => { setEditing(null); refresh(); }} />}
         {isLoading ? <Spinner /> : data?.quotes?.length ? (
           <div className="space-y-3">
             {data.quotes.map((q: any) => {
@@ -128,6 +135,7 @@ function QuotesPageInner() {
                       {['draft', 'sent'].includes(q.status) && (
                         <>
                           <Button size="sm" onClick={() => { const email = prompt('Envoyer le devis à quelle adresse ?', q.client.email || ''); if (!email) return; const message = prompt('Un mot pour le client (optionnel) :') || ''; send.mutate({ id: q._id, email, message }); }} isLoading={send.isPending}><Send className="w-4 h-4 mr-1" /> {q.status === 'sent' ? 'Renvoyer' : 'Envoyer au client'}</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setAdding(false); setEditing(q); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Pencil className="w-4 h-4 mr-1" /> Modifier</Button>
                           <Button size="sm" variant="outline" onClick={() => { if (confirm('Le client a accepté et vous paie en direct, hors NeedCreator ? Aucune commission, pas de facture par mandat : vous facturez vous-même.')) direct.mutate(q._id); }} isLoading={direct.isPending}>Payé en direct</Button>
                           <Button size="sm" variant="ghost" onClick={() => { if (confirm('Supprimer ce devis ?')) remove.mutate(q._id); }}><Trash2 className="w-4 h-4" /></Button>
                         </>

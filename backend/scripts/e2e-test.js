@@ -881,11 +881,16 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   expect(pdfHead.status === 200 || pdfHead.status === 206, 'Le PDF du devis doit être téléchargeable', { status: pdfHead.status });
   const list = await creatorApi('GET', '/external-quotes');
   expect(list.status === 200 && list.data.quotes.some(q => q._id === q1.data.quote._id), 'Le devis doit être listé', list);
+  // Modification du brouillon : PDF régénérés, même numéro et même lien
+  const edited = await creatorApi('PATCH', `/external-quotes/${q1.data.quote._id}`, { ...base, price: 320, deliverables: 3 });
+  expect(edited.status === 200 && edited.data.quote.quote.price === 320 && edited.data.quote.mission.deliverables === 3 && edited.data.quote.pdf.number === q1.data.quote.pdf.number && edited.data.quote.token === q1.data.quote.token, 'Modification du brouillon échouée', edited);
+  const badEdit = await creatorApi('PATCH', `/external-quotes/${q1.data.quote._id}`, { ...base, price: 0 });
+  expect(badEdit.status === 400, 'Prix invalide refusé à la modification', badEdit);
   const sent = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { message: 'Comme convenu.' });
   expect(sent.status === 200 && sent.data.quote.status === 'sent', 'Envoi du devis échoué', sent);
   const token = q1.data.quote.token;
   const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
-  expect(pub.quote?.status === 'sent' && pub.quote.creator?.name && pub.quote.quote.price === 300 && !pub.quote.creatorId && !JSON.stringify(pub).includes('legalInfo'), 'Vue publique du devis sans données sensibles', { status: 200, data: pub });
+  expect(pub.quote?.status === 'sent' && pub.quote.creator?.name && pub.quote.quote.price === 320 && !pub.quote.creatorId && !JSON.stringify(pub).includes('legalInfo'), 'Vue publique du devis sans données sensibles', { status: 200, data: pub });
   // Refus par le client
   const q2 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis à décliner' });
   const dec = await fetch(`${API}/external-quotes/public/${q2.data.quote.token}/decline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Budget épuisé' }) });
@@ -900,7 +905,7 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   expect(reg.status === 201 && reg.data.quoteDeliveryId, 'L\'inscription avec le jeton du devis doit créer la mission', reg);
   extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
   const d = await clientApi('GET', `/deliveries/${reg.data.quoteDeliveryId}`);
-  expect(d.status === 200 && d.data.delivery.payment.amount === 300 && d.data.delivery.payment.platformFeePercent === 10 && d.data.delivery.payment.creatorAmount === 270 && d.data.delivery.contract?.url, 'Mission issue du devis : 300 € bloqués, commission 10 %, contrat généré', d);
+  expect(d.status === 200 && d.data.delivery.payment.amount === 320 && d.data.delivery.payment.platformFeePercent === 10 && d.data.delivery.payment.creatorAmount === 288 && d.data.delivery.contract?.url, 'Mission issue du devis : 320 € bloqués, commission 10 %, contrat généré', d);
   const camp = await clientApi('GET', `/campaigns/${d.data.delivery.campaignId._id || d.data.delivery.campaignId}`);
   expect(camp.status === 200 && camp.data.campaign.visibility === 'private' && camp.data.campaign.externalQuoteId, 'Campagne privée liée au devis attendue', camp);
   const q1after = await creatorApi('GET', '/external-quotes');
@@ -912,6 +917,8 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   const q3 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis pour une marque existante', price: 200 });
   const accExisting = await brandApi('POST', `/external-quotes/public/${q3.data.quote.token}/accept`);
   expect(accExisting.status === 200 && accExisting.data.deliveryId, 'Acceptation par une marque connectée échouée', accExisting);
+  const lockedEdit = await creatorApi('PATCH', `/external-quotes/${q3.data.quote._id}`, { ...base });
+  expect(lockedEdit.status === 400, 'Un devis accepté ne se modifie plus', lockedEdit);
   // Payé en direct : pas de mission, pas de commission
   const q4 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis payé en direct', price: 150 });
   const direct = await creatorApi('POST', `/external-quotes/${q4.data.quote._id}/direct`);
@@ -927,7 +934,7 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   await db.collection('deliveries').deleteMany({ _id: new mongoose.Types.ObjectId(accExisting.data.deliveryId) });
   await db.collection('campaigns').deleteMany({ externalQuoteId: { $exists: true }, brandId: new mongoose.Types.ObjectId(brandUser.id) });
   await db.collection('externalquotes').deleteMany({ creatorId: new mongoose.Types.ObjectId(creatorUser.id) });
-  return 'devis PDF + contrat, envoi, page publique, refus, acceptation nouveau client (300 € bloqués, 10 %), marque existante, payé en direct';
+  return 'devis PDF + contrat, envoi, page publique, refus, modification du brouillon, acceptation nouveau client (320 € bloqués, 10 %), marque existante, payé en direct';
 });
 
 await step('Créateur : registre des droits et exclusivités (sync mission, contenu externe, renouvellement, rappels)', async () => {
