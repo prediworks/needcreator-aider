@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { FolderOpen, Clock, FileSignature, Upload, Bell, Users, Search, ArrowRight, CheckCircle } from 'lucide-react';
+import RegistryMock from '@/components/RegistryMock';
 
 export const metadata: Metadata = {
   title: 'Contenus & droits : le CRM de votre contenu créatif',
@@ -30,6 +31,19 @@ export default function ContentsRightsPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Ouvrir mon registre <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
             <Link href="/marques"><Button variant="outline" size="lg" className="w-full sm:w-auto">NeedCreator pour les marques</Button></Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-2 gap-8 items-start">
+          <div>
+            <div className="text-sm font-medium text-neutral-500 mb-2">Ce que vous voyez, en un coup d&apos;œil</div>
+            <RegistryMock />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-neutral-500 mb-2">Dans l&apos;application</div>
+            <img src="/images/contents-registre.png" alt="Capture d'écran du registre Contenus & droits dans NeedCreator" className="rounded-xl border border-neutral-200 shadow-sm w-full" loading="lazy" />
           </div>
         </div>
       </section>

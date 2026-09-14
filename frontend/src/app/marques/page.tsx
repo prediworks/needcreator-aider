@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card';
 import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText, FolderOpen } from 'lucide-react';
 import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
+import RegistryMock from '@/components/RegistryMock';
 
 export const metadata: Metadata = {
   title: 'Trouver des créateurs UGC : NeedCreator pour les marques',
@@ -77,6 +78,9 @@ export default async function BrandsPage() {
               <span key={t} className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-primary-500" />{t}</span>
             ))}
           </div>
+          <Link href="#contenus-droits" className="mt-6 inline-flex items-center gap-2 bg-white border border-primary-200 rounded-full px-4 py-2 text-sm text-neutral-800 hover:border-primary-400">
+            <FolderOpen className="w-4 h-4 text-primary-600" /> <span><strong>Inclus :</strong> le registre de tous vos contenus et de leurs droits, y compris ceux achetés ailleurs.</span> <span className="text-primary-600 underline">Voir comment</span>
+          </Link>
         </div>
       </section>
 
@@ -100,23 +104,16 @@ export default async function BrandsPage() {
       </section>
 
       {/* Contenus & droits */}
-      <section className="py-20 bg-primary-50">
+      <section id="contenus-droits" className="py-20 bg-primary-50 scroll-mt-24">
         <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-2 gap-10 items-center">
           <div>
-            <div className="inline-flex items-center px-3 py-1 bg-white rounded-full mb-4 text-sm font-medium text-primary-700"><FolderOpen className="w-4 h-4 mr-2" /> Inclus, gratuit</div>
-            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">Combien de vos vidéos sont encore couvertes ?</h2>
-            <p className="text-lg text-neutral-700 mb-4">Une marque qui a des dizaines de contenus en circulation ne sait plus lesquels ont encore des droits valables. NeedCreator tient le registre de tous vos contenus créatifs et de leurs contrats, missions NeedCreator ajoutées automatiquement, contenus achetés ailleurs saisis ou importés depuis Excel.</p>
+            <div className="inline-flex items-center px-3 py-1 bg-white rounded-full mb-4 text-sm font-medium text-primary-700"><FolderOpen className="w-4 h-4 mr-2" /> Inclus, gratuit · aucun concurrent ne le propose</div>
+            <h2 className="text-3xl md:text-4xl font-bold text-neutral-900 mb-4">Une vidéo diffusée après la fin des droits, c&apos;est un risque. NeedCreator vous prévient avant.</h2>
+            <p className="text-lg text-neutral-700 mb-2"><strong>Même pour vos contenus achetés ailleurs</strong> : agence, autre plateforme, créateur contacté en direct.</p>
+            <p className="text-neutral-700 mb-5">Chaque contenu avec son créateur, son contrat, ses supports, sa date de fin et l&apos;endroit où il est diffusé. Rappel 30 jours puis 7 jours avant l&apos;échéance, renouvellement en un clic, import Excel.</p>
             <Link href="/contenus-et-droits"><Button>Découvrir Contenus &amp; droits <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
           </div>
-          <Card className="p-6">
-            <div className="text-sm font-medium text-neutral-500 mb-3">Pour chaque contenu, six réponses</div>
-            <ul className="space-y-2 text-neutral-800">
-              {['Qui a créé quoi ?', 'Pour combien ?', 'Avec quels droits, quel type de contrat ?', 'Jusqu\'à quand ?', 'Où est-ce utilisé ?', 'Qui peut le renouveler ?'].map((q) => (
-                <li key={q} className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-primary-500 flex-shrink-0" /> {q}</li>
-              ))}
-            </ul>
-            <p className="text-xs text-neutral-500 mt-4">Rappel par email 30 jours puis 7 jours avant chaque échéance. Renouvellement en un clic.</p>
-          </Card>
+          <RegistryMock />
         </div>
       </section>
 
