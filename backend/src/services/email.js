@@ -106,7 +106,7 @@ export function htmlToText(html) {
 /**
  * Send email (le fragment HTML est habillé dans le gabarit ; passer raw:true pour envoyer tel quel)
  */
-export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '' } = {}) {
+export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [] } = {}) {
   try {
     const full = raw ? html : renderLayout(html, { preheader });
     const info = await transporter.sendMail({
@@ -115,6 +115,7 @@ export async function sendEmail(to, subject, html, text = null, { raw = false, p
       subject,
       html: full,
       text: text || htmlToText(raw ? html : html),
+      ...(attachments.length ? { attachments } : {}),
     });
     
     logger.info(`Email sent: ${info.messageId}`);
@@ -270,18 +271,19 @@ export async function sendCreatorExclusivityEnded(email, name, title, clientName
 }
 
 /** Devis extérieur : envoi au client, avec devis et projet de contrat en PDF et lien d'acceptation */
-export async function sendExternalQuoteToClient(email, clientName, creatorName, title, price, link, quoteUrl, contractUrl, message) {
+export async function sendExternalQuoteToClient(email, clientName, creatorName, title, price, link, quoteUrl, contractUrl, message, attachments = []) {
   const subject = `Devis de ${creatorName} : ${title}`;
   const html = `
     <h1>Bonjour${clientName ? ' ' + clientName : ''},</h1>
     <p><strong>${creatorName}</strong> vous adresse un devis pour « ${title} » : <strong>${price} € HT</strong>.</p>
     ${message ? `<p><em>« ${message} »</em></p>` : ''}
     ${summary([['Montant', `${price} € HT`], ['Devis (PDF)', quoteUrl && `<a href="${quoteUrl}" style="color:#0f766e">Télécharger</a>`], ['Projet de contrat de cession de droits (PDF)', contractUrl && `<a href="${contractUrl}" style="color:#0f766e">Télécharger</a>`]])}
+    ${attachments.length ? '<p style="color:#666;font-size:13px">Le devis et le projet de contrat sont aussi joints à cet email.</p>' : ''}
     <p>Vous pouvez l'accepter et régler en ligne via NeedCreator : le montant est bloqué, versé au créateur seulement après votre validation des vidéos, et le contrat de cession de droits est généré automatiquement. Vous recevez une facture.</p>
     ${button(link, 'Voir le devis et accepter')}
     <p style="font-size:12px;color:#666">NeedCreator est la plateforme sur laquelle ${creatorName} gère ses missions. Le paiement sécurisé et le contrat sont inclus, sans frais ajoutés au devis.</p>
   `;
-  return sendEmail(email, subject, html);
+  return sendEmail(email, subject, html, null, { attachments });
 }
 export async function sendExternalQuoteAccepted(email, creatorName, clientName, title, deliveryId) {
   const subject = `${clientName} accepte votre devis et paie via NeedCreator`;

@@ -6,7 +6,7 @@ import { config } from '../config/index.js';
 import { getSetting, SETTINGS, getFeePercents, getMaxRevisions } from '../models/Setting.js';
 import { renderQuotePdf } from '../services/quotePdf.js';
 import { buildContractData, generateContractPdf } from '../services/contract.js';
-import { uploadFile, resolveUrl } from '../services/storage.js';
+import { uploadFile, resolveUrl, downloadFile, keyFromUrl } from '../services/storage.js';
 import { createDeliveryForCampaign } from './deliveries.js';
 import { sendExternalQuoteToClient, sendExternalQuoteAccepted, sendExternalQuoteDeclined } from '../services/email.js';
 import { notify } from '../services/notifications.js';
@@ -55,6 +55,18 @@ function pick(body, creator) {
   };
 }
 
+/** PDF du devis et du contrat en pièces jointes (téléchargés depuis le stockage ; ignorés si indisponibles) */
+async function quoteAttachments(q) {
+  const out = [];
+  for (const [label, url] of [[`Devis-${q.pdf?.number || 'NeedCreator'}.pdf`, q.pdf?.quoteUrl], [`Contrat-${q.pdf?.number || 'NeedCreator'}.pdf`, q.pdf?.contractUrl]]) {
+    const key = url && keyFromUrl(url);
+    if (!key) continue;
+    try { out.push({ filename: label, content: await downloadFile(key), contentType: 'application/pdf' }); }
+    catch (err) { logger.warn(`Quote attachment unavailable (${label}): ${err.message}`); }
+  }
+  return out;
+}
+
 const serialize = async (q) => { const o = q.toObject ? q.toObject() : q; if (o.pdf?.quoteUrl) o.pdf = { ...o.pdf, quoteUrl: await resolveUrl(o.pdf.quoteUrl), contractUrl: await resolveUrl(o.pdf.contractUrl) }; o.link = `${config.cors.origin}/q/${o.token}`; return o; };
 
 export async function listExternalQuotes(req, res) {
@@ -96,7 +108,8 @@ export async function sendExternalQuote(req, res) {
     q.client.email = email; q.status = 'sent'; q.sentAt = new Date();
     await q.save();
     const s = await serialize(q);
-    sendExternalQuoteToClient(email, q.client.contactName || q.client.companyName, req.user.profile?.name, q.mission.title, q.quote.price, s.link, s.pdf.quoteUrl, s.pdf.contractUrl, String(req.body?.message || '').trim().slice(0, 1000)).catch(err => logger.warn(`External quote email not sent: ${err.message}`));
+    const attachments = await quoteAttachments(q);
+    sendExternalQuoteToClient(email, q.client.contactName || q.client.companyName, req.user.profile?.name, q.mission.title, q.quote.price, s.link, s.pdf.quoteUrl, s.pdf.contractUrl, String(req.body?.message || '').trim().slice(0, 1000), attachments).catch(err => logger.warn(`External quote email not sent: ${err.message}`));
     res.json({ message: `Devis envoyé à ${email}`, quote: s });
   } catch (error) {
     logger.error('sendExternalQuote failed:', error);
