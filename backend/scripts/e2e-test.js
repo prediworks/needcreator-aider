@@ -2053,11 +2053,12 @@ await step('Admin : suppression complète d\'un compte (outil temporaire)', asyn
 // Nettoyage
 await step('Amorçage admin : marques et campagnes en masse, invisibles côté créateur, clôture à échéance, suppression du lot', async () => {
   const users = mongoose.connection.db.collection('users');
+  try {
   const seedEmail = `e2e-seed-${RUN}@needcreator-test.com`;
-  const lines = `# commentaire\n${seedEmail} ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; atelier-lumen.fr ; beauté ; 2\nmauvais ; x ; ; ; ; ; 1`;
+  const lines = `# commentaire\n${seedEmail} ; MotDePasse123! ; Atelier Lumen ; 35600000000048 ; atelier-lumen.fr ; beauté ; 2 ; 250\nmauvais ; x ; ; ; ; ; 1 ; abc`;
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const bad = await brandApi('POST', '/admin/seed/preview', { lines });
-  expect(bad.status === 200 && bad.data.errors.length === 1 && bad.data.rows.length === 1 && bad.data.rows[0].template === 'beauty-testimonial' && bad.data.rows[0].existing === null, 'Aperçu : 1 ligne valide, 1 invalide', bad);
+  expect(bad.status === 200 && bad.data.errors.length === 1 && bad.data.errors[0].errors.some(e => /tarif max/.test(e)) && bad.data.rows.length === 1 && bad.data.rows[0].template === 'beauty-testimonial' && bad.data.rows[0].maxBudget === 250 && bad.data.rows[0].existing === null, 'Aperçu : 1 ligne valide (tarif max 250), 1 invalide (tarif max abc)', bad);
   const refused = await brandApi('POST', '/admin/seed/run', { lines });
   expect(refused.status === 400, 'Un lot avec une ligne invalide est refusé', refused);
   const ok = await brandApi('POST', '/admin/seed/run', { lines: lines.split('\n').slice(0, 2).join('\n'), publishedWithinDays: 10, deadlineWithinDays: 20, budgetMin: 200, budgetMax: 300, closeAtDeadline: true });
@@ -2066,7 +2067,13 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   const seeded = await users.findOne({ email: seedEmail });
   expect(seeded && seeded.role === 'brand' && seeded.verification?.business?.status === 'verified' && seeded.verification?.email === true && seeded.seed?.batch === batch && seeded.legalInfo?.signatoryName, 'Compte d\'amorçage incomplet', { status: 200, data: seeded });
   const seedCamps = await mongoose.connection.db.collection('campaigns').find({ 'seed.batch': batch }).toArray();
-  expect(seedCamps.length === 2 && seedCamps.every(c => c.status === 'active' && c.budget?.total >= 200 && c.budget?.total <= 300 && c.timeline?.applicationDeadline > new Date()), 'Campagnes d\'amorçage incorrectes', { status: 200, data: seedCamps.map(c => ({ status: c.status, budget: c.budget })) });
+  expect(seedCamps.length === 2 && seedCamps.every(c => c.status === 'active' && c.budget?.total >= 200 && c.budget?.total <= 250 && c.timeline?.applicationDeadline > new Date()), 'Campagnes d\'amorçage : budget entre 200 et le tarif max 250 attendu', { status: 200, data: seedCamps.map(c => ({ status: c.status, budget: c.budget })) });
+  // Devis libre : tarif max 0 → aucun budget affiché
+  const free = await brandApi('POST', '/admin/seed/run', { lines: `${seedEmail} ; MotDePasse123! ; Atelier Lumen ; ; ; beauté ; 1 ; 0`, closeAtDeadline: true });
+  expect(free.status === 200 && free.data.existing === 1 && free.data.campaigns === 1, 'Lot devis libre non créé', free);
+  const freeCamp = await mongoose.connection.db.collection('campaigns').findOne({ 'seed.batch': free.data.batch });
+  expect(freeCamp && !freeCamp.budget?.total, 'Tarif max 0 doit donner une campagne sans budget (devis libre)', { status: 200, data: freeCamp?.budget });
+  await mongoose.connection.db.collection('campaigns').deleteOne({ _id: freeCamp._id });
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   // Côté créateur : rien ne distingue ces campagnes
   const feed = await creatorApi('GET', '/campaigns');
@@ -2093,6 +2100,9 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   expect(!(await users.findOne({ email: seedEmail })) && (await mongoose.connection.db.collection('campaigns').countDocuments({ 'seed.batch': batch })) === 0, 'Le lot doit avoir disparu (compte + campagnes)', { status: 200, data: {} });
   return 'lot créé (1 compte vérifié, 2 campagnes), invisible côté créateur, clôture à échéance avec non-sélection, lot supprimé avec le compte';
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
 });
 
 await step('Marque : invite un créateur extérieur par email, rattaché à la campagne à son inscription', async () => {

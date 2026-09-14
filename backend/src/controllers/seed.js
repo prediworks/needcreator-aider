@@ -34,21 +34,23 @@ const rand = (a) => a[Math.floor(Math.random() * a.length)];
 const between = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const templateFor = (sector) => { const k = String(sector || '').trim().toLowerCase(); return CAMPAIGN_TEMPLATES.find(t => t.key === (SECTORS[k] || Object.entries(SECTORS).find(([w]) => k.includes(w))?.[1])) || rand(CAMPAIGN_TEMPLATES); };
 
-/** Ligne : email ; mot de passe ; entreprise ; SIRET ; site ; secteur ; nombre de campagnes */
+/** Ligne : email ; mot de passe ; entreprise ; SIRET ; site ; secteur ; nombre de campagnes ; tarif max (0 = devis libre, vide = fourchette du lot) */
 export function parseSeedLines(text) {
   const rows = []; const errors = [];
   String(text || '').split(/\r?\n/).forEach((line, i) => {
     const raw = line.trim(); if (!raw || raw.startsWith('#')) return;
-    const [email, password, companyName, siret, website, sector, countRaw] = raw.split(';').map(x => (x || '').trim());
+    const [email, password, companyName, siret, website, sector, countRaw, maxRaw] = raw.split(';').map(x => (x || '').trim());
     const n = parseInt(countRaw || '3', 10);
+    const maxBudget = maxRaw === '' || maxRaw === undefined ? null : parseInt(maxRaw.replace(/[^\d]/g, ''), 10);
     const err = [];
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email || '')) err.push('email invalide');
     if (!password || password.length < 8) err.push('mot de passe : 8 caractères minimum');
     if (!companyName) err.push('nom d\'entreprise manquant');
     if (siret && !/^\d{14}$/.test(siret.replace(/\s/g, ''))) err.push('SIRET : 14 chiffres');
     if (!Number.isFinite(n) || n < 0 || n > 20) err.push('nombre de campagnes entre 0 et 20');
+    if (maxBudget !== null && (!Number.isFinite(maxBudget) || maxBudget < 0 || (maxBudget > 0 && maxBudget < config.business.minQuotePrice))) err.push(`tarif max : 0 (devis libre) ou au moins ${config.business.minQuotePrice} €`);
     if (err.length) errors.push({ line: i + 1, raw, errors: err });
-    else rows.push({ email: email.toLowerCase(), password, companyName, siret: siret ? siret.replace(/\s/g, '') : '', website: website && !/^https?:/.test(website) ? `https://${website}` : website, sector, count: n, template: templateFor(sector).key });
+    else rows.push({ email: email.toLowerCase(), password, companyName, siret: siret ? siret.replace(/\s/g, '') : '', website: website && !/^https?:/.test(website) ? `https://${website}` : website, sector, count: n, maxBudget, template: templateFor(sector).key });
   });
   return { rows, errors };
 }
@@ -88,14 +90,18 @@ async function makeCampaign(brand, row, opts, batch, fees) {
   const product = rand(PRODUCTS[t.key] || PRODUCTS['ecommerce-unboxing']);
   const title = rand(TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
   const deliverables = between(1, 3);
-  const budget = Math.round(between(opts.budgetMin, opts.budgetMax) / 10) * 10;
+  // Tarif max de la ligne : 0 = devis libre (pas de budget affiché), sinon plafond ; vide = fourchette du lot
+  const freeQuote = row.maxBudget === 0;
+  const max = row.maxBudget > 0 ? row.maxBudget : opts.budgetMax;
+  const min = Math.min(opts.budgetMin, max);
+  const budget = freeQuote ? null : Math.round(between(min, max) / 10) * 10;
   const publishedAt = new Date(Date.now() - between(0, opts.publishedWithinDays) * 86400000 - between(0, 23) * 3600000);
   const deadline = new Date(Date.now() + between(2, opts.deadlineWithinDays) * 86400000); deadline.setHours(23, 59, 59, 999);
   return Campaign.create({
     brandId: brand._id, platformFeePercent: brand.isPro?.() ? fees.pro : fees.standard, type: 'paid',
     title, description: `${t.description}\n\nProduit concerné : ${product}.`,
     brief: { videoType: t.videoType, duration: t.duration, deliverables, requirements: t.requirements, deliveryTypes: ['file', 'link'], platforms: t.platforms, productShipping: t.productShipping, productDescription: t.productShipping ? `${product} envoyé au créateur sélectionné` : '' },
-    visibility: 'public', budget: { total: budget, perVideo: Math.round(budget / deliverables) },
+    visibility: 'public', budget: budget ? { total: budget, perVideo: Math.round(budget / deliverables) } : {},
     matching: { niches: t.niches, creatorsWanted: 1 },
     timeline: { publishedAt, applicationDeadline: deadline }, status: 'active',
     seed: { batch, closeAtDeadline: !!opts.closeAtDeadline },
