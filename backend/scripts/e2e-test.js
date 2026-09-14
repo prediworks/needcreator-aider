@@ -1018,10 +1018,25 @@ await step('Créateur : disponibilité, kit média, académie, virements, missio
   // Calendrier des virements + seuils micro
   const po = await creatorApi('GET', '/auth/payouts');
   expect(po.status === 200 && typeof po.data.connected === 'boolean' && po.data.thresholds && po.data.thresholds.vat > 0 && typeof po.data.ytd === 'number', 'Calendrier des virements / seuils attendus', po);
+  // Revenus extérieurs : saisie manuelle + devis payés en direct comptés automatiquement, seuils sur le total
+  const dq = await creatorApi('POST', '/external-quotes', { client: { companyName: 'Client Direct' }, title: 'Vidéo payée en direct (revenus)', price: 80, rights: { duration: '1y' } });
+  await creatorApi('POST', `/external-quotes/${dq.data.quote._id}/direct`);
+  const badInc = await creatorApi('POST', '/external-incomes', { label: '', amountHT: 0 });
+  expect(badInc.status === 400 && /Il manque/.test(badInc.data.error), 'Revenu extérieur invalide refusé', badInc);
+  const inc = await creatorApi('POST', '/external-incomes', { label: 'Vidéo pour une agence', client: 'Agence Lune', amountHT: 250.5, date: new Date().toISOString() });
+  expect(inc.status === 201 && inc.data.income.amountHT === 250.5, 'Revenu extérieur non enregistré', inc);
+  const incs = await creatorApi('GET', '/external-incomes');
+  expect(incs.status === 200 && incs.data.incomes.some(i => i.source === 'quote' && i.amountHT === 80) && incs.data.total === 330.5, `Total revenus extérieurs attendu 330.5, reçu ${incs.data.total}`, incs);
+  const po2 = await creatorApi('GET', '/auth/payouts');
+  expect(po2.data.ytdExternal === 330.5 && po2.data.ytdTotal === Math.round((po2.data.ytd + 330.5) * 100) / 100, 'Les seuils doivent intégrer les revenus extérieurs', po2);
+  const delInc = await creatorApi('DELETE', `/external-incomes/${inc.data.income._id}`);
+  expect(delInc.status === 200, 'Retrait du revenu extérieur échoué', delInc);
+  await mongoose.connection.db.collection('externalincomes').deleteMany({ creatorId: new mongoose.Types.ObjectId(creatorUser.id) });
+  await mongoose.connection.db.collection('externalquotes').deleteMany({ _id: new mongoose.Types.ObjectId(dq.data.quote._id) });
   // Missions recommandées
   const reco = await creatorApi('GET', '/campaigns?filter=recommended&limit=3');
   expect(reco.status === 200 && Array.isArray(reco.data.campaigns), 'Missions recommandées attendues', reco);
-  return `kit ${kit.data.url}, badge Formé, virements ${po.data.stripeError ? 'indisponibles (' + po.data.stripeError.slice(0, 40) + ')' : 'OK'}`;
+  return `kit ${kit.data.url}, badge Formé, virements ${po.data.stripeError ? 'indisponibles (' + po.data.stripeError.slice(0, 40) + ')' : 'OK'}, revenus extérieurs 330,50 € intégrés aux seuils`;
 });
 
 await step('Filigrane : aperçu de portfolio marqué pour les marques, original pour le créateur', async () => {

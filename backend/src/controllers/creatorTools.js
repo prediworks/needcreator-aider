@@ -1,4 +1,5 @@
 import QRCode from 'qrcode';
+import { syncExternalIncomes, externalIncomeYtd } from './externalIncomes.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
@@ -93,13 +94,17 @@ export async function getPayouts(req, res) {
       { $group: { _id: null, ht: { $sum: '$totals.ht' } } },
     ]);
     const ytd = Math.round((agg[0]?.ht || 0) * 100) / 100;
+    // Revenus déclarés hors plateforme (clients directs, autres plateformes) : les seuils s'apprécient sur le total
+    await syncExternalIncomes(user._id).catch(() => {});
+    const ytdExternal = await externalIncomeYtd(user._id, year);
+    const ytdTotal = Math.round((ytd + ytdExternal) * 100) / 100;
     const thresholds = user.legalInfo?.status === 'micro' ? {
       revenue: config.business.microRevenueThreshold,
       vat: config.business.vatFranchiseThreshold,
       vatTolerance: config.business.vatFranchiseTolerance,
       vatRegistered: !!user.legalInfo?.vatRegistered,
     } : null;
-    res.json({ connected: !!accountId, balance, payouts, schedule, stripeError, year, ytd, thresholds });
+    res.json({ connected: !!accountId, balance, payouts, schedule, stripeError, year, ytd, ytdExternal, ytdTotal, thresholds });
   } catch (error) {
     logger.error('getPayouts failed:', error);
     res.status(500).json({ error: 'Calendrier indisponible' });
