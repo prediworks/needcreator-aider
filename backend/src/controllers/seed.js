@@ -23,13 +23,21 @@ const SECTORS = {
 };
 const TITLE_VARIANTS = ['Lancement {p}', 'Nouvelle collection {p}', 'Édition limitée {p}', 'Offre de rentrée {p}', 'Best-seller {p} : vidéos témoignage', '{p} : avis clients en vidéo', 'Découverte {p}', '{p} en situation réelle'];
 const PRODUCTS = {
-  'beauty-testimonial': ['sérum vitamine C', 'crème de nuit', 'huile visage', 'gommage corps', 'shampoing solide', 'baume à lèvres'],
-  'ecommerce-unboxing': ['coffret cadeau', 'gourde isotherme', 'lampe d\'ambiance', 'organiseur de bureau', 'sac week-end', 'tapis de yoga'],
-  'food-recipe': ['granola bio', 'sauce piquante', 'infusion du soir', 'pâte à tartiner', 'kit brunch', 'café de spécialité'],
-  'tech-demo': ['application de budget', 'montre connectée', 'enceinte nomade', 'clavier compact', 'appli de méditation', 'tracker de sommeil'],
-  'fashion-tryon': ['veste en lin', 'sneakers recyclées', 'robe d\'été', 'sac banane', 'lunettes de soleil', 'jean droit'],
-  'service-tutorial': ['abonnement fitness', 'cours de langue en ligne', 'coaching sommeil', 'box de jardinage', 'application de recettes', 'service de repassage'],
+  'beauty-testimonial': ['sérum vitamine C', 'crème de nuit', 'huile visage', 'gommage corps', 'shampoing solide', 'baume à lèvres', 'masque capillaire', 'déodorant naturel', 'crème solaire minérale', 'eau micellaire', 'contour des yeux', 'vernis longue tenue'],
+  'ecommerce-unboxing': ['coffret cadeau', 'gourde isotherme', 'lampe d\'ambiance', 'organiseur de bureau', 'sac week-end', 'tapis de yoga', 'plaid en laine', 'bougie parfumée', 'carnet relié', 'casque audio', 'kit de plantation', 'trousse de voyage'],
+  'food-recipe': ['granola bio', 'sauce piquante', 'infusion du soir', 'pâte à tartiner', 'kit brunch', 'café de spécialité', 'miel de montagne', 'huile d\'olive nouvelle', 'chocolat noir 85 %', 'kombucha maison', 'pâtes artisanales', 'mélange à pancakes'],
+  'tech-demo': ['application de budget', 'montre connectée', 'enceinte nomade', 'clavier compact', 'appli de méditation', 'tracker de sommeil', 'prise connectée', 'chargeur sans fil', 'appli de covoiturage', 'caméra de vélo', 'liseuse', 'assistant vocal'],
+  'fashion-tryon': ['veste en lin', 'sneakers recyclées', 'robe d\'été', 'sac banane', 'lunettes de soleil', 'jean droit', 'chemise oversize', 'montre minimaliste', 'sandales en cuir', 'bonnet en laine', 'trench léger', 'boucles d\'oreilles dorées'],
+  'service-tutorial': ['abonnement fitness', 'cours de langue en ligne', 'coaching sommeil', 'box de jardinage', 'application de recettes', 'service de repassage', 'abonnement de café', 'cours de piano en ligne', 'livraison de paniers de légumes', 'application de méditation', 'formation photo smartphone', 'service de ménage'],
 };
+/** Tire un produit puis un titre non encore utilisés dans le lot pour ce modèle : deux marques d'un même secteur n'ont pas le même sujet */
+function pickUnique(state, key, list) {
+  const used = state[key] || (state[key] = new Set());
+  const free = list.filter(x => !used.has(x));
+  const chosen = free.length ? rand(free) : rand(list);
+  used.add(chosen);
+  return chosen;
+}
 const rand = (a) => a[Math.floor(Math.random() * a.length)];
 const between = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
 const templateFor = (sector) => { const k = String(sector || '').trim().toLowerCase(); return CAMPAIGN_TEMPLATES.find(t => t.key === (SECTORS[k] || Object.entries(SECTORS).find(([w]) => k.includes(w))?.[1])) || rand(CAMPAIGN_TEMPLATES); };
@@ -85,10 +93,10 @@ async function ensureBrand(row, batch) {
   return { user, created };
 }
 
-async function makeCampaign(brand, row, opts, batch, fees) {
+async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   const t = templateFor(row.sector);
-  const product = rand(PRODUCTS[t.key] || PRODUCTS['ecommerce-unboxing']);
-  const title = rand(TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
+  const product = pickUnique(state, `product:${t.key}`, PRODUCTS[t.key] || PRODUCTS['ecommerce-unboxing']);
+  const title = pickUnique(state, `title:${t.key}`, TITLE_VARIANTS).replace('{p}', product).replace(/^\w/, c => c.toUpperCase());
   const deliverables = between(1, 3);
   // Tarif max de la ligne : 0 = devis libre (pas de budget affiché), sinon plafond ; vide = fourchette du lot
   const freeQuote = row.maxBudget === 0;
@@ -118,11 +126,12 @@ export async function runSeed(req, res) {
     const batch = `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
     const fees = await getFeePercents();
     const out = { batch, accounts: 0, existing: 0, campaigns: 0, details: [] };
+    const state = {}; // sujets déjà utilisés dans ce lot, par modèle
     for (const row of rows) {
       const { user, created } = await ensureBrand(row, batch);
       created ? out.accounts++ : out.existing++;
       let n = 0;
-      for (let i = 0; i < row.count; i++) { await makeCampaign(user, row, opts, batch, fees); n++; }
+      for (let i = 0; i < row.count; i++) { await makeCampaign(user, row, opts, batch, fees, state); n++; }
       out.campaigns += n;
       out.details.push({ email: row.email, created, campaigns: n });
     }
