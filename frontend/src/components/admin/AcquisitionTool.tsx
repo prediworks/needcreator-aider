@@ -9,7 +9,7 @@ import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
 import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Play } from 'lucide-react';
+import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Play, Send, Mail } from 'lucide-react';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   new: { label: 'À qualifier', cls: 'bg-neutral-100 text-neutral-700' },
@@ -52,6 +52,9 @@ export default function AcquisitionTool() {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
+  const pushNow = useMutation({ mutationFn: async (body: any) => (await api.post('/admin/acquisition/mailing/push', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSelected([]); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const syncNow = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/mailing/sync')).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
@@ -103,6 +106,25 @@ export default function AcquisitionTool() {
       </Card>
 
       <Card className="p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
+          <div>
+            <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><Mail className="w-5 h-5 text-primary-500" /> Envoi automatique par l&apos;outil de mailing</h3>
+            <p className="text-sm text-neutral-600 mt-1">Les prospects qualifiés avec email sont poussés dans deux listes de l&apos;outil ; vos séquences rattachées à ces listes envoient les emails et les relances. Réponses, désabonnements et rebonds reviennent ici chaque nuit ; un prospect qui s&apos;inscrit est retiré de la séquence.</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button size="sm" variant="outline" onClick={() => syncNow.mutate()} isLoading={syncNow.isPending} disabled={!ml?.settings?.configured}><RefreshCw className="w-4 h-4 mr-1" /> Synchroniser</Button>
+            <Button size="sm" onClick={() => { if (confirm(`Pousser maintenant jusqu'à ${ml?.settings?.dailyLimit || 50} prospects éligibles (à contacter, ou qualifiés avec score ≥ ${ml?.settings?.minScore ?? 60}) vers l'outil de mailing ?`)) pushNow.mutate({}); }} isLoading={pushNow.isPending} disabled={!ml?.settings?.configured}><Send className="w-4 h-4 mr-1" /> Pousser les éligibles</Button>
+          </div>
+        </div>
+        {ml && (
+          <div className="text-xs text-neutral-600 flex gap-3 flex-wrap">
+            <span className={ml.settings.configured ? 'text-green-700' : 'text-red-700'}>Outil : {ml.settings.provider || 'aucun'}{ml.settings.configured ? (ml.account ? ` (compte ${ml.account.account || ml.account.user})` : '') : ' : MAILING_PROVIDER / MAILING_API_KEY absents'}{ml.error ? ` · erreur : ${ml.error}` : ''}</span>
+            <span className={ml.settings.autoSend ? 'text-green-700' : 'text-orange-700'}>Envoi automatique : {ml.settings.autoSend ? 'activé' : 'désactivé'} · {ml.settings.dailyLimit} par nuit · score ≥ {ml.settings.minScore}</span>
+            <span>Éligibles : {ml.eligible} · poussés aujourd&apos;hui : {ml.pushedToday} · au total : {ml.pushedTotal} · réponses : {ml.replied}</span>
+            {ml.lists?.map((l: any) => <span key={l.kind}>{l.name} : {l.id ? `${l.contacts} contact(s)` : 'sera créée au premier envoi'}</span>)}
+          </div>
+        )}
+        <div className="border-t border-neutral-100 my-4" />
         <div className="flex items-center gap-2 flex-wrap mb-3">
           {(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-3 py-1.5 rounded-lg text-sm ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'} ({Object.values(ov?.counts?.[k] || {}).reduce((a: number, c: any) => a + c.n, 0)})</button>)}
           <span className="text-neutral-300">|</span>
@@ -119,6 +141,7 @@ export default function AcquisitionTool() {
             <span className="text-neutral-500">{selected.length} sélectionné(s) :</span>
             <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'to_contact' })}>À contacter</Button>
             <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'contacted', contactedVia: 'email' })}>Contactés</Button>
+            {ml?.settings?.configured && <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Pousser ${selected.length} prospect(s) vers l'outil de mailing, quel que soit le score ?`)) pushNow.mutate({ ids: selected }); }}><Send className="w-3.5 h-3.5 mr-1" /> Vers le mailing</Button>}
             <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'rejected' })}>Hors cible</Button>
           </>}
         </div>
@@ -142,7 +165,7 @@ export default function AcquisitionTool() {
                         {l.score != null && <span className={`px-2 py-0.5 rounded-full text-xs ${l.score >= 70 ? 'bg-green-100 text-green-800' : l.score >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-600'}`}>score {l.score}</span>}
                         <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span>
                       </div>
-                      <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}</div>
+                      <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}{l.mailing?.replyText ? <span className="text-purple-700"> · réponse : « {l.mailing.replyText.slice(0, 160)} »</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                     </div>

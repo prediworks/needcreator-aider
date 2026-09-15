@@ -3,6 +3,8 @@ import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, m
 import { importCreators } from '../services/externalCreatorsImport.js';
 import ExternalCreator from '../models/ExternalCreator.js';
 import { config } from '../config/index.js';
+import { outreachSettings, pushToMailing, syncFromMailing, LIST_NAMES } from '../services/acquisition/outreach.js';
+import { mailingProvider } from '../services/mailing/index.js';
 import logger from '../utils/logger.js';
 
 const esc = (v) => { const s = v == null ? '' : String(v); return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -21,6 +23,49 @@ export async function acquisitionOverview(req, res) {
   } catch (error) {
     logger.error('acquisitionOverview failed:', error);
     res.status(500).json({ error: 'Prospection indisponible' });
+  }
+}
+
+/** État de l'outil de mailing : fournisseur, clé, listes, envoyés aujourd'hui */
+export async function mailingStatus(req, res) {
+  try {
+    const s = await outreachSettings();
+    const provider = mailingProvider();
+    let account = null, lists = [], error = null;
+    if (provider) {
+      try { account = await provider.verify(); const all = await provider.listLists(); lists = Object.entries(LIST_NAMES).map(([kind, name]) => ({ kind, name, ...(all.find(l => l.name === name) || { id: null, contacts: 0 }) })); }
+      catch (err) { error = err.message; }
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const [pushedToday, pushedTotal, replied, eligible] = await Promise.all([
+      Lead.countDocuments({ 'mailing.pushedAt': { $gte: today } }), Lead.countDocuments({ 'mailing.pushedAt': { $ne: null } }), Lead.countDocuments({ 'mailing.replyAt': { $ne: null } }),
+      Lead.countDocuments({ email: { $ne: null }, 'mailing.pushedAt': null, $or: [{ status: 'to_contact' }, { status: 'qualified', score: { $gte: s.minScore } }] }),
+    ]);
+    res.json({ settings: s, account, lists, error, pushedToday, pushedTotal, replied, eligible });
+  } catch (error) {
+    logger.error('mailingStatus failed:', error);
+    res.status(500).json({ error: 'État du mailing indisponible' });
+  }
+}
+
+export async function pushLeadsNow(req, res) {
+  try {
+    const ids = Array.isArray(req.body?.ids) && req.body.ids.length ? req.body.ids.slice(0, 500) : null;
+    const r = await pushToMailing({ ids, limit: ids ? ids.length : parseInt(req.body?.limit, 10) || undefined, force: !!ids });
+    res.json({ message: r.reason ? r.reason : `${r.pushed} contact(s) poussé(s) vers ${r.provider}${r.skipped ? ` (ignorés : ${r.skipped.lowScore} score bas, ${r.skipped.generic} email générique, ${r.skipped.blocked} bloqués, ${r.skipped.registered} inscrits)` : ''}`, ...r });
+  } catch (error) {
+    logger.error('pushLeadsNow failed:', error);
+    res.status(500).json({ error: `Envoi impossible : ${error.message}` });
+  }
+}
+
+export async function syncMailingNow(req, res) {
+  try {
+    const r = await syncFromMailing();
+    res.json({ message: r.synced ? `Synchronisé : ${r.replies} réponse(s), ${r.unsubscribed} désabonné(s), ${r.bounced} rebond(s), ${r.removed} inscrit(s) retiré(s)${r.bounceRate != null ? `, taux de rebond ${r.bounceRate} %` : ''}${r.paused ? ' · envoi automatique mis en pause' : ''}` : r.reason, ...r });
+  } catch (error) {
+    logger.error('syncMailingNow failed:', error);
+    res.status(500).json({ error: `Synchronisation impossible : ${error.message}` });
   }
 }
 

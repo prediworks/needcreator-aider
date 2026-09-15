@@ -2313,7 +2313,7 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const ov = await brandApi('GET', '/admin/acquisition');
     expect(ov.status === 200 && ov.data.settings && ov.data.counts && Array.isArray(ov.data.statuses), 'Vue d\'ensemble prospection attendue', ov);
     const leadEmail = `e2e-lead-${RUN}@needcreator-test.com`;
-    await db.collection('leads').deleteMany({ $or: [{ email: /^e2e-lead-/ }, { handle: /^@leavlog/ }, { name: 'Maison Soleil' }] });
+    await db.collection('leads').deleteMany({ $or: [{ email: /^e2e-lead-/ }, { handle: /^@leavlog/ }, { handle: /^@rebond/ }, { name: 'Maison Soleil' }, { name: 'Marque Répond' }] });
     const bad = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: '' });
     expect(bad.status === 400, 'Prospect sans nom refusé', bad);
     const c = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Léa Vlog', handle: `@leavlog${RUN}`, url: `https://www.youtube.com/@leavlog${RUN}`, email: leadEmail, description: 'Créatrice UGC beauté à Lyon : routines skincare, tests de sérums et unboxings pour des marques de cosmétiques. Collaborations : contact par email.', niche: 'beauty', stats: { subscribers: 12000 } });
@@ -2337,13 +2337,36 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(imp.status === 200 && imp.data.stats.created === 1 && imp.data.linked === 1, 'Import dans l\'annuaire attendu', imp);
     const ec = await db.collection('externalcreators').findOne({ username: `leavlog${RUN}` });
     expect(ec && ec.source === 'prospection' && ec.niches.includes('beauty'), 'Créateur référencé créé depuis le prospect', { status: 200, data: ec });
+    // Outil de mailing (fournisseur factice en test) : poussée, réponse et rebond synchronisés
+    const ms = await brandApi('GET', '/admin/acquisition/mailing');
+    expect(ms.status === 200 && ms.data.settings && typeof ms.data.eligible === 'number', 'État du mailing attendu', ms);
+    let mailingNote = 'mailing non testé (fournisseur réel ou absent)';
+    if (ms.data.settings.provider === 'mock') {
+      const rl = await brandApi('POST', '/admin/acquisition/leads', { kind: 'brand', name: 'Marque Répond', website: `https://marque-repond-${RUN}.example.com`, email: `e2e-lead-${RUN}+reply@needcreator-test.com`, description: 'Marque de bougies parfumées vendues en ligne.', niche: 'maison', qualify: false });
+      const bl = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Créateur Rebond', handle: `@rebond${RUN}`, url: `https://www.youtube.com/@rebond${RUN}`, email: `e2e-lead-${RUN}+bounce@needcreator-test.com`, description: 'Créateur UGC tech.', niche: 'tech', qualify: false });
+      const push = await brandApi('POST', '/admin/acquisition/mailing/push', { ids: [c.data.lead._id, rl.data.lead._id, bl.data.lead._id] });
+      expect(push.status === 200 && push.data.pushed === 3, 'Poussée de 3 prospects vers le mailing attendue', push);
+      const after = await brandApi('GET', `/admin/acquisition/leads?kind=creator&q=leavlog${RUN}`);
+      expect(after.data.leads[0].status === 'contacted' && after.data.leads[0].mailing?.pushedAt && after.data.leads[0].mailing?.provider === 'mock', 'Le prospect poussé doit être « contacté » avec la trace mailing', after);
+      const ms2 = await brandApi('GET', '/admin/acquisition/mailing');
+      expect(ms2.data.pushedToday >= 3 && ms2.data.lists.some(l => l.kind === 'creator' && l.contacts >= 2) && ms2.data.lists.some(l => l.kind === 'brand' && l.contacts >= 1), 'Listes créées avec les contacts', ms2);
+      const sync = await brandApi('POST', '/admin/acquisition/mailing/sync');
+      expect(sync.status === 200 && sync.data.replies >= 1 && sync.data.bounced >= 1, 'Synchronisation : 1 réponse et 1 rebond attendus', sync);
+      const replied = await brandApi('GET', `/admin/acquisition/leads?kind=brand&status=replied&q=Marque Répond`);
+      expect(replied.data.leads.length === 1 && /intéresse/.test(replied.data.leads[0].mailing.replyText), 'Le prospect qui répond passe en « A répondu » avec le texte', replied);
+      const bounced = await brandApi('GET', `/admin/acquisition/leads?kind=creator&status=rejected&q=rebond${RUN}`);
+      expect(bounced.data.leads.length === 1 && bounced.data.leads[0].mailing.bounced === true, 'Le prospect en rebond passe en « Hors cible »', bounced);
+      const again = await brandApi('POST', '/admin/acquisition/mailing/push', { ids: [c.data.lead._id] });
+      expect(again.data.pushed === 0, 'Un prospect déjà poussé ne l\'est pas deux fois', again);
+      mailingNote = 'mailing (factice) : poussée, listes, réponse → a répondu, rebond → hors cible, pas de double envoi';
+    }
     const note = await brandApi('PATCH', `/admin/acquisition/leads/${b.data.lead._id}`, { status: 'contacted', contactedVia: 'linkedin', notes: 'Message envoyé sur LinkedIn' });
     expect(note.status === 200 && note.data.lead.status === 'contacted' && note.data.lead.contactedAt && note.data.lead.contactedVia === 'linkedin', 'Mise à jour manuelle du prospect échouée', note);
     const del = await brandApi('DELETE', `/admin/acquisition/leads/${b.data.lead._id}`);
     expect(del.status === 200, 'Suppression du prospect échouée', del);
-    await db.collection('leads').deleteMany({ $or: [{ email: leadEmail }, { handle: `@leavlog${RUN}` }] });
+    await db.collection('leads').deleteMany({ $or: [{ email: new RegExp(`^e2e-lead-${RUN}`) }, { handle: `@leavlog${RUN}` }, { handle: `@rebond${RUN}` }, { name: 'Marque Répond' }] });
     await db.collection('externalcreators').deleteMany({ username: `leavlog${RUN}` });
-    return `prospects créateur et marque, ${aiOn ? `qualification IA (score ${c.data.lead.score}, ${c.data.lead.status})` : 'IA non configurée'}, filtres, statut groupé, CSV mailing, import annuaire`;
+    return `prospects créateur et marque, ${aiOn ? `qualification IA (score ${c.data.lead.score}, ${c.data.lead.status})` : 'IA non configurée'}, filtres, statut groupé, CSV mailing, import annuaire ; ${mailingNote}`;
   } finally {
     await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   }

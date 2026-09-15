@@ -37,6 +37,7 @@ const leadSchema = new mongoose.Schema({
   externalCreatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalCreator' },
   notes: String,
   error: String,
+  mailing: { provider: String, listId: String, pushedAt: Date, replyAt: Date, replyText: String, bounced: Boolean, unsubscribedAt: Date, removedAt: Date },
 }, { timestamps: true });
 
 leadSchema.index({ source: 1, externalId: 1 }, { unique: true });

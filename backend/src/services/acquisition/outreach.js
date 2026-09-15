@@ -1,0 +1,133 @@
+import Lead from '../../models/Lead.js';
+import User from '../../models/User.js';
+import { getSetting, setSetting, SETTINGS } from '../../models/Setting.js';
+import { mailingProvider, mailingConfig } from '../mailing/index.js';
+import { config } from '../../config/index.js';
+import { notifyAdmins } from '../adminAlerts.js';
+import logger from '../../utils/logger.js';
+
+export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
+const isGeneric = (email) => /^(contact|hello|bonjour|info|admin|support|sales|commercial|marketing|presse|press|team|equipe)@/.test(email || '');
+
+export async function outreachSettings() {
+  const [autoSend, dailyLimit, minScore, pauseRate] = await Promise.all([
+    getSetting(SETTINGS.mailingAutoSend.key, false), getSetting(SETTINGS.mailingDailyLimit.key, 50), getSetting(SETTINGS.mailingMinScore.key, 60), getSetting(SETTINGS.mailingPauseBounceRate.key, 5),
+  ]);
+  return { autoSend: !!autoSend, dailyLimit: Number(dailyLimit) || 50, minScore: Number(minScore) || 0, pauseRate: Number(pauseRate) || 0, ...mailingConfig() };
+}
+
+/** Champs poussés dans l'outil de mailing (snake_case) : utilisables comme variables dans les modèles d'emails */
+function contactOf(lead) {
+  const handle = (lead.handle || '').replace(/^@/, '');
+  const base = { email: lead.email, first_name: lead.firstName || (lead.kind === 'brand' ? '' : (lead.name || '').split(/[\s|·-]/)[0]) || '', company_name: lead.kind === 'brand' ? lead.name : '', niche: lead.niche || '', paragraph: lead.emailParagraph || '', message: lead.message || '', score: lead.score ?? '', source: lead.source, kind: lead.kind };
+  if (lead.kind === 'creator') return { ...base, username: handle, profile_url: lead.url || '', followers: lead.stats?.subscribers ?? '', signup_link: `${config.cors.origin}/register?role=creator&from=${encodeURIComponent(handle)}` };
+  return { ...base, website: lead.website || '', ads: lead.stats?.ads ?? '', signup_link: `${config.cors.origin}/register?role=brand` };
+}
+
+/**
+ * Pousse vers l'outil de mailing : prospects « À contacter » (validés à la main) puis « Qualifiés » avec score ≥ minimum,
+ * email non générique pour les créateurs, jamais déjà poussés, hors liste de blocage ; dans la limite quotidienne.
+ */
+export async function pushToMailing({ limit, force = false, ids = null } = {}) {
+  const s = await outreachSettings();
+  const provider = mailingProvider();
+  if (!provider) return { pushed: 0, reason: 'mailing non configuré' };
+  const max = limit ?? s.dailyLimit;
+  const base = { email: { $ne: null }, 'mailing.pushedAt': null, status: { $in: ids ? ['new', 'to_contact', 'qualified'] : ['to_contact', 'qualified'] } };
+  const filter = ids ? { ...base, _id: { $in: ids } } : base;
+  const candidates = await Lead.find(filter).sort({ status: -1, score: -1 }).limit(max * 3).lean(); // to_contact avant qualified (ordre alphabétique inverse)
+  const blocked = new Set(await provider.blocklist().catch(() => []));
+  const byKind = { creator: [], brand: [] };
+  const skipped = { lowScore: 0, generic: 0, blocked: 0, registered: 0 };
+  for (const l of candidates) {
+    if (byKind.creator.length + byKind.brand.length >= max) break;
+    const validated = l.status === 'to_contact' || force || !!ids;
+    if (!validated && (l.score ?? 0) < s.minScore) { skipped.lowScore++; continue; }
+    if (!validated && l.kind === 'creator' && isGeneric(l.email)) { skipped.generic++; continue; }
+    if (blocked.has(l.email) || blocked.has(l.email.split('@')[1])) { skipped.blocked++; await Lead.updateOne({ _id: l._id }, { $set: { status: 'rejected', notes: 'Adresse dans la liste de blocage de l\'outil de mailing' } }); continue; }
+    if (await User.exists({ email: l.email })) { skipped.registered++; await Lead.updateOne({ _id: l._id }, { $set: { status: 'registered' } }); continue; }
+    byKind[l.kind].push(l);
+  }
+  let pushed = 0;
+  for (const kind of ['creator', 'brand']) {
+    if (!byKind[kind].length) continue;
+    const list = await provider.ensureList(LIST_NAMES[kind]);
+    await provider.pushContacts(list.id, byKind[kind].map(contactOf));
+    await Lead.updateMany({ _id: { $in: byKind[kind].map(l => l._id) } }, { $set: { status: 'contacted', contactedAt: new Date(), contactedVia: provider.name, 'mailing.provider': provider.name, 'mailing.listId': list.id, 'mailing.pushedAt': new Date() } });
+    pushed += byKind[kind].length;
+  }
+  logger.info(`Outreach push: ${pushed} contact(s) → ${provider.name} (${JSON.stringify(skipped)})`);
+  return { pushed, skipped, provider: provider.name };
+}
+
+/**
+ * Synchronisation depuis l'outil de mailing : réponses → « A répondu », désabonnés et rebonds → « Hors cible »,
+ * inscrits → retirés des séquences. Pause automatique si le taux de rebond des 7 derniers jours dépasse le seuil.
+ */
+export async function syncFromMailing() {
+  const provider = mailingProvider();
+  if (!provider) return { synced: false, reason: 'mailing non configuré' };
+  const s = await outreachSettings();
+  const out = { replies: 0, unsubscribed: 0, bounced: 0, removed: 0, bounceRate: null, paused: false };
+  const since = new Date(Date.now() - 14 * 86400000);
+  // Réponses
+  for (const r of await provider.replies(since).catch(err => { logger.warn(`mailing replies: ${err.message}`); return []; })) {
+    const lead = await Lead.findOne({ email: r.email, 'mailing.pushedAt': { $ne: null } });
+    if (!lead || lead.mailing?.replyAt) continue;
+    lead.status = ['registered'].includes(lead.status) ? lead.status : 'replied';
+    lead.mailing.replyAt = r.at || new Date(); lead.mailing.replyText = String(r.text || '').slice(0, 2000);
+    await lead.save(); out.replies++;
+  }
+  // Statistiques par contact : rebonds et désabonnements
+  const stats = await provider.leadStats(since, new Date()).catch(err => { logger.warn(`mailing stats: ${err.message}`); return []; });
+  let sent = 0, bounces = 0;
+  for (const st of stats) {
+    sent += st.sent; bounces += st.bounces;
+    if (!st.bounces && !st.unsubscribes) continue;
+    const lead = await Lead.findOne({ email: st.email, 'mailing.pushedAt': { $ne: null } });
+    if (!lead) continue;
+    if (st.bounces && !lead.mailing?.bounced) { lead.mailing.bounced = true; lead.status = 'rejected'; lead.notes = [lead.notes, 'Email en rebond (adresse invalide)'].filter(Boolean).join(' · '); out.bounced++; }
+    if (st.unsubscribes && !lead.mailing?.unsubscribedAt) { lead.mailing.unsubscribedAt = new Date(); lead.status = 'rejected'; lead.notes = [lead.notes, 'Désabonné'].filter(Boolean).join(' · '); out.unsubscribed++; }
+    await lead.save();
+  }
+  // Liste de blocage globale
+  const blocked = new Set(await provider.blocklist().catch(() => []));
+  if (blocked.size) {
+    const r = await Lead.updateMany({ email: { $in: [...blocked] }, status: { $nin: ['rejected', 'registered'] } }, { $set: { status: 'rejected', notes: 'Désabonné (liste de blocage)' } });
+    out.unsubscribed += r.modifiedCount;
+  }
+  // Inscrits : retirés des séquences
+  const pushed = await Lead.find({ 'mailing.pushedAt': { $ne: null }, 'mailing.removedAt': null, status: { $ne: 'rejected' } }).select('_id email kind mailing status').lean();
+  for (const l of pushed) {
+    const u = await User.findOne({ email: l.email }).select('_id').lean();
+    if (!u) continue;
+    const removed = await provider.removeFromSequences(l.mailing.listId, l.email).catch(() => 0);
+    await Lead.updateOne({ _id: l._id }, { $set: { status: 'registered', registeredUserId: u._id, 'mailing.removedAt': new Date() } });
+    out.removed += removed ? 1 : 0;
+  }
+  // Garde-fou : taux de rebond
+  if (sent >= 20) {
+    out.bounceRate = Math.round((bounces / sent) * 1000) / 10;
+    if (s.pauseRate > 0 && out.bounceRate > s.pauseRate && s.autoSend) {
+      await setSetting(SETTINGS.mailingAutoSend.key, false);
+      out.paused = true;
+      notifyAdmins('Prospection : envoi automatique mis en pause', `<p>Le taux de rebond des 7 derniers jours est de ${out.bounceRate} % (seuil ${s.pauseRate} %). L'envoi automatique a été désactivé : vérifiez la qualité des adresses et l'expéditeur dans l'outil de mailing, puis réactivez-le dans Admin → Réglages → Prospection.</p>`).catch(() => {});
+      logger.warn(`Outreach auto-send paused: bounce rate ${out.bounceRate} %`);
+    }
+  }
+  logger.info(`Outreach sync: ${JSON.stringify(out)}`);
+  return { synced: true, ...out };
+}
+
+/** Tâche planifiée : synchronisation puis envoi si activé */
+export async function runScheduledOutreach() {
+  if (!mailingConfig().configured) return { ran: false, reason: 'not configured' };
+  const sync = await syncFromMailing().catch(err => ({ synced: false, error: err.message }));
+  const s = await outreachSettings();
+  if (!s.autoSend || sync.paused) return { ran: true, sync, push: { pushed: 0, reason: 'auto-send off' } };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const already = await Lead.countDocuments({ 'mailing.pushedAt': { $gte: today } });
+  const remaining = Math.max(0, s.dailyLimit - already);
+  const push = remaining ? await pushToMailing({ limit: remaining }).catch(err => ({ pushed: 0, error: err.message })) : { pushed: 0, reason: 'plafond du jour atteint' };
+  return { ran: true, sync, push };
+}
