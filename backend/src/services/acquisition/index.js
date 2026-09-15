@@ -110,10 +110,12 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
         }
       }
     }
+    let metaBlocked = false;
     if (kinds.includes('brand') && s.meta) {
       for (const { niche: sector, keywords } of s.brandKeywords) {
+        if (metaBlocked) break;
         for (const kw of keywords) {
-          if (budget <= 0) break;
+          if (budget <= 0 || metaBlocked) break;
           try {
             sources.meta.searched++;
             const found = await searchBrands(kw, { limit: 50 });
@@ -125,7 +127,12 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
               sources.meta.new++; if (doc.email) sources.meta.withEmail++;
               if (doc.status === 'new') { created.push(doc); budget--; }
             }
-          } catch (err) { sources.meta.errors++; run.issues.push(`meta « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (err.code === 10 || err.code === 190) break; }
+          } catch (err) {
+            sources.meta.errors++; logger.warn(err.message);
+            if (err.code === 10) { run.issues.push('Meta : identité non encore validée par Meta (« Application does not have permission ») : la recherche de marques se débloquera seule après validation'); metaBlocked = true; break; }
+            if (err.code === 190) { run.issues.push('Meta : jeton expiré ou invalide, à renouveler dans Réglages → Prospection'); metaBlocked = true; break; }
+            run.issues.push(`meta « ${kw} » : ${err.message}`.slice(0, 200));
+          }
           job.found = sources.youtube.found + sources.meta.found; job.created = created.length;
         }
       }
