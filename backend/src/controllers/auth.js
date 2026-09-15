@@ -170,7 +170,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken, quoteToken } = req.body;
+    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken, quoteToken, leadId } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -229,6 +229,17 @@ export async function registerBrand(req, res) {
     if (quoteToken) {
       const { attachExternalQuoteToNewBrand } = await import('./externalQuotes.js');
       quoteDeliveryId = await attachExternalQuoteToNewBrand(user, quoteToken).catch(err => { logger.warn(`External quote not attached: ${err.message}`); return null; });
+    }
+
+    // Marque venue de la prospection : prospect marqué inscrit, première campagne préparée en brouillon
+    if (leadId && /^[a-f0-9]{24}$/i.test(String(leadId))) {
+      const Lead = (await import('../models/Lead.js')).default;
+      const lead = await Lead.findOne({ _id: leadId, kind: 'brand' });
+      if (lead) {
+        lead.status = 'registered'; lead.registeredUserId = user._id; await lead.save();
+        const { createDraftCampaignFromLead } = await import('../services/acquisition/replies.js');
+        setImmediate(() => createDraftCampaignFromLead(user, lead).catch(() => {}));
+      }
     }
 
     logger.info(`Brand registered successfully: ${user._id}`);

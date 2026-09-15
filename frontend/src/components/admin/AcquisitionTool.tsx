@@ -9,7 +9,42 @@ import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
 import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Play, Send, Mail } from 'lucide-react';
+import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
+
+const INTENT: Record<string, { label: string; cls: string }> = { interested: { label: 'Intéressé', cls: 'bg-green-100 text-green-800' }, question: { label: 'Question', cls: 'bg-blue-100 text-blue-800' }, not_now: { label: 'Pas maintenant', cls: 'bg-yellow-100 text-yellow-800' }, refusal: { label: 'Refus', cls: 'bg-red-50 text-red-700' }, unsubscribe: { label: 'Ne plus écrire', cls: 'bg-red-100 text-red-800' }, out_of_office: { label: 'Absence', cls: 'bg-neutral-100 text-neutral-600' }, other: { label: 'Autre', cls: 'bg-neutral-100 text-neutral-600' } };
+
+function Funnel({ title, f }: { title: string; f: any }) {
+  const steps: [string, number][] = [['Trouvés', f.found], ['Avec email', f.withEmail], ['Qualifiés', f.qualified], ['Contactés', f.contacted], ['Ont répondu', f.replied], ['Intéressés', f.interested], ['Inscrits', f.registered]];
+  const max = Math.max(1, f.found);
+  return (
+    <div>
+      <div className="text-sm font-medium text-neutral-800 mb-1">{title}</div>
+      <div className="space-y-1">{steps.map(([l, n]) => <div key={l} className="flex items-center gap-2 text-xs"><span className="w-24 text-neutral-600">{l}</span><div className="flex-1 h-3 bg-neutral-100 rounded overflow-hidden"><div className="h-full bg-primary-500" style={{ width: `${Math.round((n / max) * 100)}%` }} /></div><span className="w-14 text-right font-medium">{n}{l === 'Inscrits' && f.contacted ? <span className="text-neutral-400 font-normal"> ({Math.round((n / f.contacted) * 100)} %)</span> : ''}</span></div>)}</div>
+    </div>
+  );
+}
+
+function ReplyBox({ lead, onSent }: { lead: any; onSent: () => void }) {
+  const [text, setText] = useState(lead.mailing?.replySuggestion || '');
+  const [open, setOpen] = useState(false);
+  const send = useMutation({ mutationFn: async () => (await api.post(`/admin/acquisition/leads/${lead._id}/reply`, { text })).data, onSuccess: (d) => { toast.success(d.message); setOpen(false); onSent(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const reclass = useMutation({ mutationFn: async () => (await api.post(`/admin/acquisition/leads/${lead._id}/reclassify`)).data, onSuccess: (d) => { toast.success(d.message); onSent(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const m = lead.mailing || {};
+  const intent = INTENT[m.replyIntent] || null;
+  return (
+    <div className="mt-2 border-l-2 border-purple-200 pl-3 text-xs">
+      <div className="flex items-center gap-2 flex-wrap"><MessageSquare className="w-3.5 h-3.5 text-purple-600" /><span className="font-medium text-neutral-800">Réponse{m.replyAt ? ` du ${formatDateTime(m.replyAt)}` : ''}</span>{intent && <span className={`px-2 py-0.5 rounded-full ${intent.cls}`}>{intent.label}</span>}{m.replySummary && <span className="text-neutral-600">{m.replySummary}</span>}{!intent && <button type="button" onClick={() => reclass.mutate()} className="text-primary-600 underline">Classer avec l&apos;IA</button>}</div>
+      <div className="text-neutral-700 bg-purple-50 rounded px-2 py-1 mt-1 whitespace-pre-wrap">{(m.replyText || '').slice(0, 600)}</div>
+      {m.replySentAt ? <div className="text-green-700 mt-1">Réponse envoyée le {formatDateTime(m.replySentAt)} : « {(m.replySentText || '').slice(0, 160)} »</div> : (
+        <div className="mt-1">
+          {!open ? <div className="flex gap-2 items-center flex-wrap">{m.replySuggestion && <span className="text-neutral-600">Proposition : « {m.replySuggestion.slice(0, 140)}… »</span>}<Button size="sm" variant="outline" onClick={() => setOpen(true)}><Send className="w-3.5 h-3.5 mr-1" /> {m.replySuggestion ? 'Relire et envoyer' : 'Répondre'}</Button></div> : (
+            <div><textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-xs" /><div className="flex gap-2 mt-1"><Button size="sm" onClick={() => send.mutate()} isLoading={send.isPending} disabled={!text.trim()}><Send className="w-3.5 h-3.5 mr-1" /> Envoyer depuis l&apos;outil de mailing</Button><Button size="sm" variant="outline" onClick={() => setOpen(false)}>Annuler</Button></div></div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   new: { label: 'À qualifier', cls: 'bg-neutral-100 text-neutral-700' },
@@ -55,6 +90,8 @@ export default function AcquisitionTool() {
   const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
   const pushNow = useMutation({ mutationFn: async (body: any) => (await api.post('/admin/acquisition/mailing/push', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSelected([]); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const syncNow = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/mailing/sync')).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const [showDash, setShowDash] = useState(false);
+  const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
@@ -106,6 +143,37 @@ export default function AcquisitionTool() {
       </Card>
 
       <Card className="p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary-500" /> Tableau de bord</h3>
+          <Button size="sm" variant="outline" onClick={() => setShowDash(!showDash)}>{showDash ? 'Masquer' : 'Afficher'}</Button>
+        </div>
+        {showDash && dash && (
+          <div className="mt-4 space-y-5">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Funnel title="Créateurs, 30 derniers jours" f={dash.last30.creator} />
+              <Funnel title="Marques, 30 derniers jours" f={dash.last30.brand} />
+              <Funnel title="Créateurs, depuis le début" f={dash.total.creator} />
+              <Funnel title="Marques, depuis le début" f={dash.total.brand} />
+            </div>
+            {dash.byNiche?.length ? (
+              <div>
+                <div className="text-sm font-medium text-neutral-800 mb-1">Ce qui convertit, par niche ou secteur (contactés → répondu → inscrits)</div>
+                <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500 border-b"><th className="py-1 pr-2">Type</th><th className="py-1 pr-2">Niche</th><th className="py-1 pr-2 text-right">Contactés</th><th className="py-1 pr-2 text-right">Répondu</th><th className="py-1 pr-2 text-right">Inscrits</th><th className="py-1 text-right">Taux</th></tr></thead>
+                  <tbody>{dash.byNiche.map((r: any) => <tr key={`${r.kind}-${r.niche}`} className="border-b border-neutral-100"><td className="py-1 pr-2">{r.kind === 'creator' ? 'Créateur' : 'Marque'}</td><td className="py-1 pr-2">{r.niche}</td><td className="py-1 pr-2 text-right">{r.contacted}</td><td className="py-1 pr-2 text-right">{r.replied}</td><td className="py-1 pr-2 text-right">{r.registered}</td><td className="py-1 text-right">{r.contacted ? Math.round((r.registered / r.contacted) * 100) : 0} %</td></tr>)}</tbody></table>
+              </div>
+            ) : <p className="text-xs text-neutral-500">Le tableau par niche se remplit dès que des prospects sont contactés.</p>}
+            {dash.byKeyword?.length ? (
+              <div>
+                <div className="text-sm font-medium text-neutral-800 mb-1">Mots-clés les plus productifs (trouvés → avec email → score ≥ 60 → inscrits)</div>
+                <div className="flex flex-wrap gap-2">{dash.byKeyword.map((k: any) => <span key={`${k.kind}-${k.keyword}`} className="px-2 py-1 rounded-lg bg-neutral-100 text-xs">« {k.keyword} » : {k.found} · {k.withEmail} · {k.qualified} · {k.registered}</span>)}</div>
+              </div>
+            ) : null}
+            <p className="text-xs text-neutral-500">Sources : {dash.bySource?.map((s: any) => `${SOURCE[s.source] || s.source} ${s.found} (${s.withEmail} avec email, ${s.registered} inscrits)`).join(' · ') || 'aucune'} · {dash.runsLast30} exécution(s) sur 30 jours.</p>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
           <div>
             <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><Mail className="w-5 h-5 text-primary-500" /> Envoi automatique par l&apos;outil de mailing</h3>
@@ -120,6 +188,7 @@ export default function AcquisitionTool() {
           <div className="text-xs text-neutral-600 flex gap-3 flex-wrap">
             <span className={ml.settings.configured ? 'text-green-700' : 'text-red-700'}>Outil : {ml.settings.provider || 'aucun'}{ml.settings.configured ? (ml.account ? ` (compte ${ml.account.account || ml.account.user})` : '') : ' : MAILING_PROVIDER / MAILING_API_KEY absents'}{ml.error ? ` · erreur : ${ml.error}` : ''}</span>
             <span className={ml.settings.autoSend ? 'text-green-700' : 'text-orange-700'}>Envoi automatique : {ml.settings.autoSend ? 'activé' : 'désactivé'} · {ml.settings.dailyLimit} par nuit · score ≥ {ml.settings.minScore}</span>
+            <span className={ml.settings.autoReply ? 'text-green-700' : 'text-neutral-600'}>Réponse automatique aux intéressés : {ml.settings.autoReply ? 'activée' : 'désactivée (à relire dans la liste)'}</span>
             <span>Éligibles : {ml.eligible} · poussés aujourd&apos;hui : {ml.pushedToday} · au total : {ml.pushedTotal} · réponses : {ml.replied}</span>
             {ml.lists?.map((l: any) => <span key={l.kind}>{l.name} : {l.id ? `${l.contacts} contact(s)` : 'sera créée au premier envoi'}</span>)}
           </div>
@@ -165,9 +234,11 @@ export default function AcquisitionTool() {
                         {l.score != null && <span className={`px-2 py-0.5 rounded-full text-xs ${l.score >= 70 ? 'bg-green-100 text-green-800' : l.score >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-600'}`}>score {l.score}</span>}
                         <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span>
                       </div>
-                      <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}{l.mailing?.replyText ? <span className="text-purple-700"> · réponse : « {l.mailing.replyText.slice(0, 160)} »</span> : ''}</div>
+                      <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
+                      {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}
+                      {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                     </div>
                     <div className="flex gap-1 flex-wrap justify-end shrink-0">
                       {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 hover:text-primary-600" title="Ouvrir le profil"><ExternalLink className="w-4 h-4" /></a>}

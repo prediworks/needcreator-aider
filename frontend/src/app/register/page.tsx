@@ -43,6 +43,7 @@ function RegisterForm() {
   const teamToken = searchParams.get('team') || '';
   const campaignInviteToken = searchParams.get('campaignInvite') || '';
   const quoteToken = searchParams.get('quote') || '';
+  const leadId = searchParams.get('lead') || '';
   const targetCampaign = searchParams.get('campaign') || '';
   const [campaignInvite, setCampaignInvite] = useState<{ email: string; name?: string; campaignId: string; campaignTitle: string; companyName: string } | null>(null);
   const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
@@ -89,6 +90,8 @@ function RegisterForm() {
     }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
   }, [campaignInviteToken]);
   useEffect(() => { if (targetCampaign) { setRole('creator'); setStep(2); } }, [targetCampaign]);
+  // Marque venue de la prospection : compte pré-rempli, première campagne préparée après l'inscription
+  useEffect(() => { if (!leadId) return; setRole('brand'); setStep(2); const e = searchParams.get('email'); const c = searchParams.get('company'); if (e) setEmail(e); if (c) setCompanyName(c); }, [leadId, searchParams]);
   // Client d'un créateur (devis extérieur) : compte marque pré-rempli, la mission démarre à l'inscription
   useEffect(() => {
     if (!quoteToken) return;
@@ -121,7 +124,7 @@ function RegisterForm() {
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
         ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language, ...(campaignInviteToken ? { campaignInviteToken } : {}) }
-        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}), ...(quoteToken ? { quoteToken } : {}) };
+        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}), ...(quoteToken ? { quoteToken } : {}), ...(leadId ? { leadId } : {}) };
 
       const res = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }

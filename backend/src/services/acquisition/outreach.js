@@ -4,6 +4,7 @@ import { getSetting, setSetting, SETTINGS } from '../../models/Setting.js';
 import { mailingProvider, mailingConfig } from '../mailing/index.js';
 import { config } from '../../config/index.js';
 import { notifyAdmins } from '../adminAlerts.js';
+import { classifyReply } from './replies.js';
 import logger from '../../utils/logger.js';
 
 export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
@@ -13,7 +14,8 @@ export async function outreachSettings() {
   const [autoSend, dailyLimit, minScore, pauseRate] = await Promise.all([
     getSetting(SETTINGS.mailingAutoSend.key, false), getSetting(SETTINGS.mailingDailyLimit.key, 50), getSetting(SETTINGS.mailingMinScore.key, 60), getSetting(SETTINGS.mailingPauseBounceRate.key, 5),
   ]);
-  return { autoSend: !!autoSend, dailyLimit: Number(dailyLimit) || 50, minScore: Number(minScore) || 0, pauseRate: Number(pauseRate) || 0, ...mailingConfig() };
+  const autoReply = await getSetting(SETTINGS.mailingAutoReplyInterested.key, false);
+  return { autoSend: !!autoSend, autoReply: !!autoReply, dailyLimit: Number(dailyLimit) || 50, minScore: Number(minScore) || 0, pauseRate: Number(pauseRate) || 0, ...mailingConfig() };
 }
 
 /** Champs poussés dans l'outil de mailing (snake_case) : utilisables comme variables dans les modèles d'emails */
@@ -60,6 +62,44 @@ export async function pushToMailing({ limit, force = false, ids = null } = {}) {
   return { pushed, skipped, provider: provider.name };
 }
 
+/** Classe une réponse avec l'IA, prépare la réponse, l'envoie si « intéressé » et réponse automatique activée */
+export async function handleReply(lead, provider, s, out = {}) {
+  try {
+    const c = await classifyReply(lead, lead.mailing.replyText);
+    if (!c) return lead;
+    lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply;
+    if (['refusal', 'unsubscribe'].includes(c.intent)) { lead.status = 'rejected'; lead.notes = [lead.notes, c.intent === 'unsubscribe' ? 'Demande de ne plus écrire' : 'A refusé'].filter(Boolean).join(' · '); }
+    if (c.intent === 'out_of_office') lead.status = lead.mailing.pushedAt ? 'contacted' : lead.status;
+    if (!lead.mailing.replyMessageId) lead.mailing.replyMessageId = await provider.findThread(lead.email).catch(() => null);
+    out.classified = (out.classified || 0) + 1;
+    if (c.intent === 'interested' && s.autoReply && !c.needsHuman && c.reply && lead.mailing.replyMessageId && !lead.mailing.replySentAt) {
+      const html = c.reply.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+      await provider.sendReply(lead.mailing.replyMessageId, html);
+      lead.mailing.replySentAt = new Date(); lead.mailing.replySentText = c.reply;
+      out.autoReplied = (out.autoReplied || 0) + 1;
+    }
+    if (c.intent === 'unsubscribe' && lead.mailing.listId) await provider.removeFromSequences(lead.mailing.listId, lead.email).catch(() => 0);
+  } catch (err) {
+    lead.error = `Classement de la réponse : ${err.message}`.slice(0, 300);
+    logger.warn(`handleReply ${lead._id}: ${err.message}`);
+  }
+  await lead.save();
+  return lead;
+}
+
+/** Envoie une réponse (texte brut → HTML) dans le fil du prospect */
+export async function sendLeadReply(lead, text) {
+  const provider = mailingProvider();
+  if (!provider) throw new Error('Outil de mailing non configuré');
+  if (!lead.mailing?.replyMessageId) lead.mailing.replyMessageId = await provider.findThread(lead.email);
+  if (!lead.mailing.replyMessageId) throw new Error('Fil de discussion introuvable dans l\'outil de mailing');
+  const html = String(text).trim().split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+  await provider.sendReply(lead.mailing.replyMessageId, html);
+  lead.mailing.replySentAt = new Date(); lead.mailing.replySentText = String(text).trim().slice(0, 2000);
+  await lead.save();
+  return lead;
+}
+
 /**
  * Synchronisation depuis l'outil de mailing : réponses → « A répondu », désabonnés et rebonds → « Hors cible »,
  * inscrits → retirés des séquences. Pause automatique si le taux de rebond des 7 derniers jours dépasse le seuil.
@@ -68,7 +108,7 @@ export async function syncFromMailing() {
   const provider = mailingProvider();
   if (!provider) return { synced: false, reason: 'mailing non configuré' };
   const s = await outreachSettings();
-  const out = { replies: 0, unsubscribed: 0, bounced: 0, removed: 0, bounceRate: null, paused: false };
+  const out = { replies: 0, classified: 0, autoReplied: 0, unsubscribed: 0, bounced: 0, removed: 0, bounceRate: null, paused: false };
   const since = new Date(Date.now() - 14 * 86400000);
   // Réponses
   for (const r of await provider.replies(since).catch(err => { logger.warn(`mailing replies: ${err.message}`); return []; })) {
@@ -77,6 +117,7 @@ export async function syncFromMailing() {
     lead.status = ['registered'].includes(lead.status) ? lead.status : 'replied';
     lead.mailing.replyAt = r.at || new Date(); lead.mailing.replyText = String(r.text || '').slice(0, 2000);
     await lead.save(); out.replies++;
+    await handleReply(lead, provider, s, out);
   }
   // Statistiques par contact : rebonds et désabonnements
   const stats = await provider.leadStats(since, new Date()).catch(err => { logger.warn(`mailing stats: ${err.message}`); return []; });

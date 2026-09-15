@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, mailingStatus, pushLeadsNow, syncMailingNow, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -103,7 +103,10 @@ router.post('/seed/run', runSeed);
 
 // Agents de prospection : prospects créateurs et marques (sourcing nocturne, qualification IA, export mailing)
 router.get('/acquisition', acquisitionOverview);
+router.get('/acquisition/dashboard', acquisitionDashboard);
 router.get('/acquisition/mailing', mailingStatus);
+router.post('/acquisition/leads/:id/reply', replyToLead);
+router.post('/acquisition/leads/:id/reclassify', reclassifyReply);
 router.post('/acquisition/mailing/push', pushLeadsNow);
 router.post('/acquisition/mailing/sync', syncMailingNow);
 router.get('/acquisition/leads', listLeads);

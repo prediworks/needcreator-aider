@@ -4,7 +4,7 @@ import mock from './mock.js';
 /**
  * Outil de mailing interchangeable (MAILING_PROVIDER + MAILING_API_KEY) : SalesBlink aujourd'hui, un autre demain sans toucher au reste.
  * Contrat : verify, listLists, ensureList(name), pushContacts(listId, contacts), isBlocked(email), blocklist(), replies(since),
- * leadStats(from, to), sequencesForList(listId), removeFromSequences(listId, email), listContact(listId, email).
+ * leadStats(from, to), sequencesForList(listId), removeFromSequences(listId, email), listContact(listId, email), findThread(email), sendReply(messageId, html).
  */
 const PROVIDERS = { salesblink, mock };
 export function mailingConfig() {

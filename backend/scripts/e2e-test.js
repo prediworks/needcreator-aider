@@ -2358,7 +2358,28 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       expect(bounced.data.leads.length === 1 && bounced.data.leads[0].mailing.bounced === true, 'Le prospect en rebond passe en « Hors cible »', bounced);
       const again = await brandApi('POST', '/admin/acquisition/mailing/push', { ids: [c.data.lead._id] });
       expect(again.data.pushed === 0, 'Un prospect déjà poussé ne l\'est pas deux fois', again);
-      mailingNote = 'mailing (factice) : poussée, listes, réponse → a répondu, rebond → hors cible, pas de double envoi';
+      // Livraison 3 : réponse classée par l'IA, proposition envoyée depuis l'outil, onboarding de la marque, tableau de bord
+      const rlead = replied.data.leads[0];
+      if (aiOn) expect(rlead.mailing.replyIntent && rlead.mailing.replySuggestion && rlead.mailing.replySummary, 'La réponse doit être classée par l\'IA avec une proposition', rlead.mailing);
+      const sendR = await brandApi('POST', `/admin/acquisition/leads/${rlead._id}/reply`, { text: rlead.mailing.replySuggestion || 'Merci pour votre retour, voici le lien pour créer votre compte.' });
+      expect(sendR.status === 200 && sendR.data.lead.mailing.replySentAt && sendR.data.lead.mailing.replyMessageId, 'Envoi de la réponse depuis l\'outil attendu', sendR);
+      const ds = await brandApi('GET', '/admin/acquisition/dashboard');
+      expect(ds.status === 200 && ds.data.total.brand.replied >= 1 && ds.data.last30.creator.contacted >= 1 && Array.isArray(ds.data.byNiche), 'Tableau de bord : entonnoirs attendus', ds);
+      // Marque intéressée qui s'inscrit avec le lien du prospect : prospect « inscrit », campagne brouillon préparée
+      const leadBrandEmail = `e2e-lead-${RUN}+reply@needcreator-test.com`;
+      const fuLead = await firebaseUser(leadBrandEmail);
+      const regLead = await client(fuLead.idToken)('POST', '/auth/register/brand', { acceptTerms: true, email: leadBrandEmail, companyName: 'Marque Répond', country: 'FR', language: 'fr', leadId: rlead._id });
+      expect(regLead.status === 201, 'Inscription marque depuis un prospect échouée', regLead);
+      let draft = null;
+      for (let i = 0; i < 40 && !draft; i++) { draft = await db.collection('campaigns').findOne({ brandId: new mongoose.Types.ObjectId(regLead.data.user.id), status: 'draft' }); if (!draft) await new Promise(r => setTimeout(r, 1000)); }
+      expect(draft && draft.title && draft.description.length > 50, 'Campagne brouillon préparée pour la marque inscrite', { status: 200, data: draft });
+      const leadAfter = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(rlead._id) });
+      expect(leadAfter.status === 'registered' && String(leadAfter.registeredUserId) === regLead.data.user.id && String(leadAfter.draftCampaignId) === String(draft._id), 'Le prospect doit être « inscrit » et lié à la campagne brouillon', { status: 200, data: leadAfter });
+      await db.collection('campaigns').deleteMany({ brandId: new mongoose.Types.ObjectId(regLead.data.user.id) });
+      await db.collection('notifications').deleteMany({ userId: new mongoose.Types.ObjectId(regLead.data.user.id) });
+      await db.collection('users').deleteOne({ _id: new mongoose.Types.ObjectId(regLead.data.user.id) });
+      await admin.auth().deleteUser(fuLead.uid).catch(() => {});
+      mailingNote = `mailing (factice) : poussée, listes, réponse → a répondu${aiOn ? ` (${rlead.mailing.replyIntent})` : ''}, réponse envoyée, rebond → hors cible, pas de double envoi, marque inscrite → campagne brouillon « ${draft.title.slice(0, 40)} »`;
     }
     const note = await brandApi('PATCH', `/admin/acquisition/leads/${b.data.lead._id}`, { status: 'contacted', contactedVia: 'linkedin', notes: 'Message envoyé sur LinkedIn' });
     expect(note.status === 200 && note.data.lead.status === 'contacted' && note.data.lead.contactedAt && note.data.lead.contactedVia === 'linkedin', 'Mise à jour manuelle du prospect échouée', note);

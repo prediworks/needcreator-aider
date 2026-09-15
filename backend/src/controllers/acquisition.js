@@ -3,7 +3,8 @@ import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, m
 import { importCreators } from '../services/externalCreatorsImport.js';
 import ExternalCreator from '../models/ExternalCreator.js';
 import { config } from '../config/index.js';
-import { outreachSettings, pushToMailing, syncFromMailing, LIST_NAMES } from '../services/acquisition/outreach.js';
+import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES } from '../services/acquisition/outreach.js';
+import { LeadRun as _LeadRun } from '../models/Lead.js';
 import { mailingProvider } from '../services/mailing/index.js';
 import logger from '../utils/logger.js';
 
@@ -66,6 +67,54 @@ export async function syncMailingNow(req, res) {
   } catch (error) {
     logger.error('syncMailingNow failed:', error);
     res.status(500).json({ error: `Synchronisation impossible : ${error.message}` });
+  }
+}
+
+/** Envoie la réponse (texte fourni ou proposition de l'IA) dans le fil du prospect */
+export async function replyToLead(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    const text = String(req.body?.text || lead.mailing?.replySuggestion || '').trim();
+    if (!text) return res.status(400).json({ error: 'Il manque : le texte de la réponse' });
+    await sendLeadReply(lead, text);
+    res.json({ message: 'Réponse envoyée depuis l\'outil de mailing', lead });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+}
+
+/** Reclasse une réponse avec l'IA (sans envoyer) */
+export async function reclassifyReply(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead || !lead.mailing?.replyText) return res.status(404).json({ error: 'Aucune réponse à classer' });
+  const provider = mailingProvider();
+  const s = await outreachSettings();
+  await handleReply(lead, provider || { findThread: async () => null, sendReply: async () => ({}), removeFromSequences: async () => 0 }, { ...s, autoReply: false });
+  res.json({ message: lead.error ? lead.error : 'Réponse classée', lead });
+}
+
+/** Tableau de bord : entonnoir par type, conversion par niche et par source, 30 derniers jours et total */
+export async function acquisitionDashboard(req, res) {
+  try {
+    const since = new Date(Date.now() - 30 * 86400000);
+    const funnel = async (match) => {
+      const rows = await Lead.aggregate([{ $match: match }, { $group: { _id: '$kind', found: { $sum: 1 }, withEmail: { $sum: { $cond: [{ $gt: ['$email', null] }, 1, 0] } }, qualified: { $sum: { $cond: [{ $in: ['$status', ['qualified', 'to_contact', 'contacted', 'replied', 'registered']] }, 1, 0] } }, contacted: { $sum: { $cond: [{ $or: [{ $ne: ['$contactedAt', null] }, { $in: ['$status', ['contacted', 'replied', 'registered']] }] }, 1, 0] } }, replied: { $sum: { $cond: [{ $ne: ['$mailing.replyAt', null] }, 1, 0] } }, interested: { $sum: { $cond: [{ $eq: ['$mailing.replyIntent', 'interested'] }, 1, 0] } }, registered: { $sum: { $cond: [{ $eq: ['$status', 'registered'] }, 1, 0] } } } }]);
+      const out = { creator: { found: 0, withEmail: 0, qualified: 0, contacted: 0, replied: 0, interested: 0, registered: 0 }, brand: { found: 0, withEmail: 0, qualified: 0, contacted: 0, replied: 0, interested: 0, registered: 0 } };
+      for (const r of rows) { const { _id, ...rest } = r; out[_id] = rest; }
+      return out;
+    };
+    const [total, last30, byNiche, bySource, byKeyword, runs] = await Promise.all([
+      funnel({}), funnel({ createdAt: { $gte: since } }),
+      Lead.aggregate([{ $match: { contactedAt: { $ne: null } } }, { $group: { _id: { kind: '$kind', niche: '$niche' }, contacted: { $sum: 1 }, replied: { $sum: { $cond: [{ $ne: ['$mailing.replyAt', null] }, 1, 0] } }, registered: { $sum: { $cond: [{ $eq: ['$status', 'registered'] }, 1, 0] } } } }, { $sort: { contacted: -1 } }, { $limit: 30 }]),
+      Lead.aggregate([{ $group: { _id: '$source', found: { $sum: 1 }, withEmail: { $sum: { $cond: [{ $gt: ['$email', null] }, 1, 0] } }, registered: { $sum: { $cond: [{ $eq: ['$status', 'registered'] }, 1, 0] } } } }]),
+      Lead.aggregate([{ $match: { keyword: { $ne: null } } }, { $group: { _id: { kind: '$kind', keyword: '$keyword' }, found: { $sum: 1 }, withEmail: { $sum: { $cond: [{ $gt: ['$email', null] }, 1, 0] } }, qualified: { $sum: { $cond: [{ $gte: ['$score', 60] }, 1, 0] } }, registered: { $sum: { $cond: [{ $eq: ['$status', 'registered'] }, 1, 0] } } } }, { $sort: { qualified: -1 } }, { $limit: 20 }]),
+      _LeadRun.countDocuments({ startedAt: { $gte: since } }),
+    ]);
+    res.json({ total, last30, byNiche: byNiche.map(r => ({ kind: r._id.kind, niche: r._id.niche || '?', contacted: r.contacted, replied: r.replied, registered: r.registered })), bySource: bySource.map(r => ({ source: r._id, ...r, _id: undefined })), byKeyword: byKeyword.map(r => ({ kind: r._id.kind, keyword: r._id.keyword, found: r.found, withEmail: r.withEmail, qualified: r.qualified, registered: r.registered })), runsLast30: runs, aiConfigured: (await outreachSettings()).configured });
+  } catch (error) {
+    logger.error('acquisitionDashboard failed:', error);
+    res.status(500).json({ error: 'Tableau de bord indisponible' });
   }
 }
 

@@ -76,6 +76,10 @@ export default function salesblink({ apiKey }) {
       }
       return removed;
     },
+    /** Fil de discussion d'un contact (boîte de réception unifiée) → identifiant pour répondre */
+    async findThread(email) { const d = await call('GET', '/inbox', { query: { search: email, limit: 10 } }); const rows = d.data?.result || []; const hit = rows.find(t => JSON.stringify(t).toLowerCase().includes(email)) || rows[0]; return hit?.messageId || hit?.id || null; },
+    /** Répond dans le fil, depuis l'expéditeur d'origine (contenu HTML) */
+    async sendReply(messageId, html) { const d = await call('POST', `/inbox/${messageId}/reply`, { body: { content: html } }); return { ok: true, id: d.data?.id, status: d.data?.status }; },
     async listContact(listId, email) { const d = await call('GET', `/lists/${listId}/leads`, { query: { search: email, limit: 5 } }); return (d.data?.contacts || []).find(c => (c.email || c.Email || '').toLowerCase() === email) || null; },
   };
 }

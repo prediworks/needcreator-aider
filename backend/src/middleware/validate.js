@@ -62,6 +62,7 @@ export const schemas = {
     referralCode: Joi.string().max(20).allow(''),
     teamToken: Joi.string().max(60).allow(''), // invitation à rejoindre l'équipe d'une marque
     quoteToken: Joi.string().max(64).allow(''), // devis extérieur d'un créateur à accepter
+    leadId: Joi.string().hex().length(24).allow(''), // prospect de la prospection (onboarding automatique)
   }),
   
   // Stripe Connect onboarding

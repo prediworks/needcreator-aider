@@ -1,5 +1,5 @@
 /** Fournisseur factice pour les tests automatiques : tout en mémoire, aucune requête réseau */
-const state = { lists: [], contacts: new Map(), blocklist: new Set(), replies: [], stats: new Map(), removed: [] };
+const state = { lists: [], contacts: new Map(), blocklist: new Set(), replies: [], stats: new Map(), removed: [], sentReplies: [] };
 export const mockState = state;
 export default function mock() {
   return {
@@ -15,5 +15,7 @@ export default function mock() {
     async sequencesForList(listId) { return [{ id: `seq-${listId}`, name: 'Mock', paused: false }]; },
     async removeFromSequences(listId, email) { state.removed.push(email); return 1; },
     async listContact(listId, email) { return (state.contacts.get(listId) || []).find(c => c.email === email) || null; },
+    async findThread(email) { return `thread-${email}`; },
+    async sendReply(messageId, html) { state.sentReplies.push({ messageId, html, at: new Date() }); return { ok: true, id: `reply-${state.sentReplies.length}`, status: 'scheduled' }; },
   };
 }

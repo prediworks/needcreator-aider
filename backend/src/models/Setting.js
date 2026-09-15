@@ -74,6 +74,7 @@ export const SETTINGS = {
   mailingDailyLimit: { key: 'mailingDailyLimit', type: 'number', unit: 'contacts', min: 1, max: 1000, group: 'Prospection', default: 50, label: 'Contacts poussés par nuit (maximum)', description: 'Plafond quotidien, créateurs et marques confondus. Montez progressivement : 50 la première semaine, puis 100, puis 200.' },
   mailingMinScore: { key: 'mailingMinScore', type: 'number', unit: '/100', min: 0, max: 100, group: 'Prospection', default: 60, label: 'Score IA minimum pour l\'envoi automatique', description: 'En dessous, le prospect reste « Qualifié » en attente de votre validation (statut « À contacter »).' },
   mailingPauseBounceRate: { key: 'mailingPauseBounceRate', type: 'number', unit: '%', min: 0, max: 50, group: 'Prospection', default: 5, label: 'Pause automatique si le taux de rebond dépasse', description: 'Calculé sur les 7 derniers jours d\'après les statistiques de l\'outil de mailing. 0 = jamais de pause automatique. La pause désactive « Envoi automatique » et vous êtes prévenu par email.' },
+  mailingAutoReplyInterested: { key: 'mailingAutoReplyInterested', type: 'boolean', group: 'Prospection', default: false, label: 'Répondre automatiquement aux prospects intéressés', description: 'Quand une réponse est classée « intéressé » par l\'IA, la réponse proposée (avec le lien d\'inscription) part automatiquement depuis l\'outil de mailing. Désactivé : la réponse attend votre clic dans Admin → Prospection. Les questions et les refus attendent toujours un humain.' },
 };
 
 /**

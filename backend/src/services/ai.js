@@ -146,8 +146,17 @@ function normalizeBrief(raw) {
 function parseJsonLoose(text) {
   const cleaned = String(text).replace(/```(?:json)?/gi, '').trim();
   const start = cleaned.indexOf('{');
+  if (start === -1) throw new Error('Réponse sans JSON');
+  // Premier objet JSON complet (accolades appariées, chaînes respectées) : ignore le texte qui suit
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { try { return JSON.parse(cleaned.slice(start, i + 1)); } catch { break; } } }
+  }
   const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('Réponse sans JSON');
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
