@@ -34,10 +34,12 @@ export default function AdminPage() {
     return (t as Tab) || 'pending';
   });
   const [userSearch, setUserSearch] = useState('');
+  const [userFilters, setUserFilters] = useState<any>({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' });
+  const setUserFilter = (k: string, v: string) => setUserFilters((p: any) => ({ ...p, [k]: v }));
 
   const { data: stats } = useAdminStats(ready);
   const { data: pending, isLoading: pendingLoading } = usePendingCreators(ready);
-  const { data: users } = useAdminUsers({ search: userSearch || undefined, limit: 50 }, ready && tab === 'users');
+  const { data: users } = useAdminUsers({ search: userSearch || undefined, limit: 100, ...Object.fromEntries(Object.entries(userFilters).filter(([, v]) => v)) }, ready && tab === 'users');
   const { data: campaigns } = useAdminCampaigns(ready && tab === 'campaigns');
   const { data: deliveries } = useAdminDeliveries(ready && tab === 'deliveries');
 
@@ -401,14 +403,30 @@ export default function AdminPage() {
         {/* Users */}
         {tab === 'users' && (
           <Card className="p-6">
-            <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
-              <h2 className="text-xl font-semibold">Utilisateurs</h2>
+            <div className="flex items-center justify-between mb-3 gap-4 flex-wrap">
+              <h2 className="text-xl font-semibold">Utilisateurs{users?.pagination ? <span className="text-sm font-normal text-neutral-500 ml-2">{users.pagination.total} résultat{users.pagination.total > 1 ? 's' : ''}{users.pagination.total > (users.users?.length || 0) ? `, ${users.users.length} affichés` : ''}</span> : null}</h2>
               <input
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
                 placeholder="Rechercher (email, nom, entreprise)"
                 className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-72"
               />
+            </div>
+            <div className="flex items-center gap-2 mb-4 flex-wrap text-sm">
+              {([
+                ['role', 'Rôle', [['creator', 'Créateurs'], ['brand', 'Marques'], ['admin', 'Admins']]],
+                ['status', 'Statut', [['pending', 'En attente'], ['active', 'Actifs'], ['suspended', 'Suspendus'], ['deleted', 'Supprimés']]],
+                ['origin', 'Origine', [['real', 'Comptes réels'], ['seed', 'Amorçage']]],
+                ['verified', 'Email', [['1', 'Confirmé'], ['0', 'Non confirmé']]],
+                ['plan', 'Abonnement', [['pro', 'Pro'], ['free', 'Gratuit']]],
+                ['ambassador', 'Ambassadeur', [['1', 'Ambassadeurs'], ['pending', 'Demande en attente']]],
+              ] as [string, string, [string, string][]][]).map(([key, label, opts]) => (
+                <select key={key} value={userFilters[key]} onChange={(e) => setUserFilter(key, e.target.value)} className={`border rounded-lg px-2 py-1.5 ${userFilters[key] ? 'border-primary-500 bg-primary-50' : 'border-neutral-300'}`} aria-label={label}>
+                  <option value="">{label} : tous</option>
+                  {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              ))}
+              {Object.values(userFilters).some(Boolean) && <button type="button" onClick={() => setUserFilters({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' })} className="text-primary-600 underline">Réinitialiser</button>}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

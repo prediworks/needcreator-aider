@@ -417,13 +417,21 @@ export async function rejectCreator(req, res) {
  */
 export async function getUsers(req, res) {
   try {
-    const { role, status, search, page = 1, limit = 20 } = req.query;
+    const { role, status, search, origin, verified, plan, ambassador, page = 1, limit = 20 } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     let query = {};
     
     if (role) query.role = role;
     if (status) query.status = status;
+    if (origin === 'seed') query['seed.batch'] = { $exists: true, $ne: null };
+    if (origin === 'real') query['seed.batch'] = { $in: [null] };
+    if (verified === '1') query['verification.email'] = true;
+    if (verified === '0') query['verification.email'] = { $ne: true };
+    if (plan === 'pro') query['subscription.plan'] = 'pro';
+    if (plan === 'free') query['subscription.plan'] = { $ne: 'pro' };
+    if (ambassador === '1') query['profile.ambassador.status'] = 'approved';
+    if (ambassador === 'pending') query['profile.ambassador.status'] = 'pending';
     if (search) {
       query.$or = [
         { email: { $regex: search, $options: 'i' } },

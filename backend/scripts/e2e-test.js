@@ -1970,6 +1970,11 @@ await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset 
     // 0. Admin : marquer une adresse comme confirmée (Firebase + base)
     const mv = await brandApi('POST', `/admin/users/${creatorUser.id}/verify-email`);
     expect(mv.status === 200 && mv.data.emailVerified === true, 'Marquage email confirmé échoué', mv);
+    // 0 bis. Liste des utilisateurs avec filtres (rôle, origine, email confirmé)
+    const fl = await brandApi('GET', `/admin/users?role=creator&origin=real&verified=1&search=${encodeURIComponent(creatorUser.email)}`);
+    expect(fl.status === 200 && fl.data.users.length === 1 && fl.data.users[0].email === creatorUser.email && fl.data.pagination.total === 1, 'Filtres utilisateurs : créateur réel confirmé attendu', fl);
+    const fl2 = await brandApi('GET', `/admin/users?role=brand&search=${encodeURIComponent(creatorUser.email)}`);
+    expect(fl2.status === 200 && fl2.data.users.length === 0, 'Filtre rôle marque : aucun résultat attendu', fl2);
     // 1. Créateur avec mission en cours : refus
     const blocked = await brandApi('POST', `/admin/users/${creatorUser.id}/stripe-connect/reset`);
     expect(blocked.status === 409, 'La suppression devrait être refusée tant qu\'une mission est en cours', blocked);
