@@ -7,7 +7,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
-import { formatDate } from '@/lib/utils';
+import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Sprout, Trash2, Eye } from 'lucide-react';
 
@@ -76,7 +76,7 @@ export default function SeedTool() {
           <ul className="divide-y divide-neutral-100 text-sm">
             {batches.batches.map((b: any) => (
               <li key={b.batch} className="py-2 flex items-center justify-between gap-3 flex-wrap">
-                <div><span className="font-mono text-xs">{b.batch}</span> · {b.accounts} compte(s) · {b.campaigns} campagne(s) dont {b.active} ouverte(s) · {b.applications} devis reçu(s){b.createdAt ? ` · ${formatDate(b.createdAt)}` : ''}{b.progress && (b.progress.running ? <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 text-xs">en cours : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}</span> : <span className="ml-2 px-2 py-0.5 rounded-full bg-green-50 text-green-800 text-xs">terminé : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}{b.progress.errors ? ` · ${b.progress.errors} erreur(s)` : ''}</span>)}<div className="text-xs text-neutral-500">{b.emails.join(', ')}</div></div>
+                <div><span className="font-mono text-xs">{b.batch}</span> · {b.accounts} compte(s) · {b.campaigns} campagne(s) dont {b.active} ouverte(s) · {b.applications} devis reçu(s){b.createdAt ? ` · généré le ${formatDateTime(b.createdAt)}` : ''}{b.progress && (b.progress.running ? <span className="ml-2 px-2 py-0.5 rounded-full bg-primary-50 text-primary-800 text-xs">en cours : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}</span> : <span className="ml-2 px-2 py-0.5 rounded-full bg-green-50 text-green-800 text-xs">terminé : {b.progress.done} / {b.progress.planned}{b.progress.aiUsed ? ` · ${b.progress.aiUsed} par l'IA` : ''}{b.progress.errors ? ` · ${b.progress.errors} erreur(s)` : ''}</span>)}<div className="text-xs text-neutral-500">{b.emails.join(', ')}</div></div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="outline" isLoading={del.isPending} onClick={() => { if (confirm(`Supprimer les ${b.campaigns} campagne(s) du lot ${b.batch} ? Les comptes sont conservés.`)) del.mutate({ batch: b.batch, users: false }); }}><Trash2 className="w-4 h-4 mr-1" /> Campagnes</Button>
                   <Button size="sm" variant="ghost" isLoading={del.isPending} onClick={() => { if (confirm(`Supprimer le lot ${b.batch} AVEC ses ${b.accounts} compte(s) marque (base + Firebase) ?`)) del.mutate({ batch: b.batch, users: true }); }}><Trash2 className="w-4 h-4 mr-1" /> Avec les comptes</Button>
