@@ -9,7 +9,7 @@ import RegistryMock from '@/components/RegistryMock';
 
 export const metadata: Metadata = {
   title: 'Trouver des créateurs UGC : NeedCreator pour les marques',
-  description: 'Publiez un brief, recevez des devis de créateurs UGC vérifiés avec portfolio vidéo, payez le prix du devis à la validation. Contrat de droits, garantie de remplacement et contrôle de conformité inclus.',
+  description: 'Publiez un brief, recevez des devis de créateurs UGC vérifiés avec portfolio vidéo, payez le prix du devis à la validation ou offrez votre produit (gifting). Contrat de droits, garantie de remplacement et contrôle de conformité inclus.',
   alternates: { canonical: '/marques' },
 };
 
@@ -66,10 +66,10 @@ export default async function BrandsPage() {
         <div className="container mx-auto px-4 max-w-4xl text-center">
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-6 text-sm font-medium text-primary-700">Pour les marques et les e-commerçants</div>
           <h1 className="text-4xl md:text-6xl font-bold text-neutral-900 mb-6">
-            Des vidéos UGC livrées, contrôlées, <span className="text-primary-500">au prix du devis</span>
+            Des vidéos UGC livrées, contrôlées, <span className="text-primary-500">payées seulement si elles vous conviennent</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Publiez un brief, choisissez un créateur vérifié sur son portfolio, payez uniquement quand les vidéos vous conviennent. Contrat de droits, garantie de remplacement et registre de tous vos contenus, même achetés ailleurs, inclus.
+            Publiez un brief, choisissez un créateur vérifié sur son portfolio, rémunérez-le au prix de son devis ou avec votre produit offert. Débit à la validation seulement, contrat de droits, garantie de remplacement et registre de tous vos contenus, même achetés ailleurs, inclus.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
