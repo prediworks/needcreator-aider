@@ -20,6 +20,7 @@
     "consent:default": "node scripts/consent-default.js",
     "backup": "node scripts/backup.js",
     "backup:restore": "node scripts/restore-backup.js",
+    "backup:restore-brand": "node scripts/restore-brand-campaigns.js",
     "make-admin": "node scripts/make-admin.js",
     "test:e2e": "node scripts/e2e-test.js",
     "test:unit": "NODE_ENV=test jest --coverage --detectOpenHandles"

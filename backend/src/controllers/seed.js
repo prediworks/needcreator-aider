@@ -98,22 +98,35 @@ async function ensureBrand(row, batch) {
   return { user, created };
 }
 
-/** Brief rédigé par l'IA à partir du secteur et de la consigne interne (ex. « uniquement des applications et du service ») */
+/** Formats alternés au sein d'un même secteur : deux marques food n'ont pas toutes deux une « recette » */
+const FORMATS = [
+  { videoType: 'testimonial', label: 'Témoignage authentique', duration: 30 },
+  { videoType: 'unboxing', label: 'Unboxing et première impression', duration: 45 },
+  { videoType: 'demo', label: 'Démonstration en situation réelle', duration: 45 },
+  { videoType: 'tutorial', label: 'Tutoriel pas à pas', duration: 60 },
+  { videoType: 'review', label: 'Avis honnête après une semaine d\'usage', duration: 45 },
+  { videoType: 'lifestyle', label: 'Le produit dans une journée type', duration: 30 },
+  { videoType: 'comparison', label: 'Avant / après ou comparatif', duration: 45 },
+];
+
+/** Brief rédigé par l'IA à partir du secteur, de l'entreprise et, s'il y en a une, de la consigne interne (ex. « uniquement des applications et du service ») */
 async function aiCampaignContent(row, t, state) {
   const already = (state.aiTitles || []).slice(-12);
+  const format = pickUnique(state, `format:${t.key}`, FORMATS);
+  const consigne = row.comment ? `Consigne interne sur ce que vend l'entreprise et ce qu'elle attend : ${row.comment}. ` : '';
   const brief = await generateBrief({
-    productDescription: `Entreprise : ${row.companyName}${row.sector ? ` (secteur : ${row.sector})` : ''}. Consigne interne sur ce que vend l'entreprise et ce qu'elle attend : ${row.comment}. Invente un produit ou un service précis et crédible de cette entreprise, cohérent avec la consigne, et rédige la campagne pour lui.${already.length ? ` Sujets déjà utilisés, à éviter : ${already.join(' ; ')}.` : ''}`,
-    brandName: row.companyName, industry: row.sector || '', videoType: t.videoType, videoTypeLabel: t.title, platforms: t.platforms.join(', '), niches: t.niches.join(', '),
-    goal: 'notoriété et ventes', tone: 'authentique', duration: t.duration, deliverables: between(1, 3),
+    productDescription: `Entreprise : ${row.companyName}${row.sector ? ` (secteur : ${row.sector})` : ''}${row.website ? `, site ${row.website}` : ''}. ${consigne}Invente un produit ou un service précis et crédible de cette entreprise${row.comment ? ', cohérent avec la consigne' : ''}, et rédige la campagne pour lui, au format « ${format.label} ».${already.length ? ` Sujets déjà utilisés dans d'autres campagnes, à éviter absolument (produit et angle différents) : ${already.join(' ; ')}.` : ''}`,
+    brandName: row.companyName, industry: row.sector || '', videoType: format.videoType, videoTypeLabel: format.label, platforms: t.platforms.join(', '), niches: t.niches.join(', '),
+    goal: 'notoriété et ventes', tone: 'authentique', duration: format.duration, deliverables: between(1, 3),
   });
   state.aiTitles = [...already, brief.title];
-  return { title: brief.title, description: brief.description, requirements: brief.requirements.slice(0, 6), duration: brief.suggestedDuration || t.duration, deliverables: Math.min(3, Math.max(1, brief.suggestedDeliverables || 1)) };
+  return { title: brief.title, description: brief.description, requirements: brief.requirements.slice(0, 6), videoType: format.videoType, duration: brief.suggestedDuration || format.duration, deliverables: Math.min(3, Math.max(1, brief.suggestedDeliverables || 1)) };
 }
 
 async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   const t = templateFor(row.sector);
   let content = null;
-  if (opts.useAi && row.comment && aiConfig().configured) {
+  if (opts.useAi && aiConfig().configured) {
     try { content = await aiCampaignContent(row, t, state); state.aiUsed = (state.aiUsed || 0) + 1; }
     catch (err) { logger.warn(`Seed AI brief failed for ${row.companyName}: ${err.message} → modèle`); }
   }
@@ -130,7 +143,7 @@ async function makeCampaign(brand, row, opts, batch, fees, state = {}) {
   return Campaign.create({
     brandId: brand._id, platformFeePercent: brand.isPro?.() ? fees.pro : fees.standard, type: 'paid',
     title, description: content?.description || `${t.description}\n\nProduit concerné : ${product}.`,
-    brief: { videoType: t.videoType, duration: content?.duration || t.duration, deliverables, requirements: content?.requirements || t.requirements, deliveryTypes: ['file', 'link'], platforms: t.platforms, productShipping: t.productShipping, productDescription: t.productShipping ? (content ? 'Produit envoyé au créateur sélectionné' : `${product} envoyé au créateur sélectionné`) : '' },
+    brief: { videoType: content?.videoType || t.videoType, duration: content?.duration || t.duration, deliverables, requirements: content?.requirements || t.requirements, deliveryTypes: ['file', 'link'], platforms: t.platforms, productShipping: t.productShipping, productDescription: t.productShipping ? (content ? 'Produit envoyé au créateur sélectionné' : `${product} envoyé au créateur sélectionné`) : '' },
     visibility: 'public', budget: budget ? { total: budget, perVideo: Math.round(budget / deliverables) } : {},
     matching: { niches: t.niches, creatorsWanted: 1 },
     timeline: { publishedAt, applicationDeadline: deadline }, status: 'active',
@@ -155,7 +168,7 @@ export async function runSeed(req, res) {
       brands.push({ user, row });
       out.details.push({ email: row.email, created, campaigns: row.count });
     }
-    const withAi = opts.useAi && aiConfig().configured && rows.some(r => r.comment);
+    const withAi = opts.useAi && aiConfig().configured;
     // Campagnes en arrière-plan (l'IA prend 10 à 20 s par campagne) : avancement dans la liste des lots
     const job = { planned: out.planned, done: 0, running: true, aiUsed: 0, errors: 0, startedAt: new Date() };
     progress.set(batch, job);
@@ -191,7 +204,9 @@ export async function listSeedBatches(req, res) {
 /** Supprime un lot : campagnes (et devis reçus, livraisons éventuelles), puis les comptes si demandé (base + Firebase) */
 export async function deleteSeedBatch(req, res) {
   try {
-    const batch = req.params.batch;
+    const batch = String(req.params.batch || '').trim();
+    // Garde-fou : sans identifiant de lot, un filtre { 'seed.batch': undefined } correspondrait à toutes les campagnes non amorcées
+    if (!/^\d{4}-\d{2}-\d{2}-[a-z0-9]{3,8}$/.test(batch)) return res.status(400).json({ error: 'Identifiant de lot invalide' });
     const withUsers = req.query.users === '1' || req.body?.users === true;
     const camps = await Campaign.find({ 'seed.batch': batch }).select('_id').lean();
     const ids = camps.map(c => c._id);
