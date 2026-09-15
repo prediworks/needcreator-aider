@@ -2306,6 +2306,49 @@ await step('Amorçage admin : marques et campagnes en masse, invisibles côté c
   }
 });
 
+await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut groupé, export CSV mailing, import annuaire', async () => {
+  const db = mongoose.connection.db;
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const ov = await brandApi('GET', '/admin/acquisition');
+    expect(ov.status === 200 && ov.data.settings && ov.data.counts && Array.isArray(ov.data.statuses), 'Vue d\'ensemble prospection attendue', ov);
+    const leadEmail = `e2e-lead-${RUN}@needcreator-test.com`;
+    await db.collection('leads').deleteMany({ $or: [{ email: /^e2e-lead-/ }, { handle: /^@leavlog/ }, { name: 'Maison Soleil' }] });
+    const bad = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: '' });
+    expect(bad.status === 400, 'Prospect sans nom refusé', bad);
+    const c = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Léa Vlog', handle: `@leavlog${RUN}`, url: `https://www.youtube.com/@leavlog${RUN}`, email: leadEmail, description: 'Créatrice UGC beauté à Lyon : routines skincare, tests de sérums et unboxings pour des marques de cosmétiques. Collaborations : contact par email.', niche: 'beauty', stats: { subscribers: 12000 } });
+    expect(c.status === 201 && c.data.lead._id && c.data.lead.source === 'manual', 'Prospect créateur non créé', c);
+    const aiOn = ov.data.settings.ai;
+    if (aiOn) expect(['qualified', 'rejected'].includes(c.data.lead.status) && c.data.lead.message && c.data.lead.message.length <= 320 && c.data.lead.emailParagraph && typeof c.data.lead.score === 'number', 'Qualification IA attendue (statut, message, paragraphe, score)', c);
+    const dup = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Léa Vlog', url: `https://www.youtube.com/@leavlog${RUN}` });
+    expect(dup.status === 409, 'Doublon de prospect refusé', dup);
+    const b = await brandApi('POST', '/admin/acquisition/leads', { kind: 'brand', name: 'Maison Soleil', website: `https://maison-soleil-${RUN}.example.com`, description: 'Marque française de crèmes solaires minérales vendues en ligne, publicités vidéo actives sur Instagram.', niche: 'cosmétiques', stats: { ads: 4 } });
+    expect(b.status === 201 && b.data.lead.kind === 'brand', 'Prospect marque non créé', b);
+    const list = await brandApi('GET', `/admin/acquisition/leads?kind=creator&hasEmail=1&q=leavlog${RUN}`);
+    expect(list.status === 200 && list.data.total === 1 && list.data.leads[0].email === leadEmail, 'Filtres prospects : 1 créateur avec email attendu', list);
+    const none = await brandApi('GET', `/admin/acquisition/leads?kind=brand&q=leavlog${RUN}`);
+    expect(none.data.total === 0, 'Filtre type marque : aucun résultat attendu', none);
+    const bulk = await brandApi('PATCH', '/admin/acquisition/leads/bulk', { ids: [c.data.lead._id], status: 'to_contact' });
+    expect(bulk.status === 200 && bulk.data.updated === 1, 'Statut groupé échoué', bulk);
+    const csvRes = await fetch(`${API}/admin/acquisition/export.csv?kind=creator&status=to_contact`, { headers: { Authorization: `Bearer ${brand.idToken}` } });
+    const csv = await csvRes.text();
+    expect(csvRes.status === 200 && csv.includes(leadEmail) && csv.includes(`register?role=creator&from=leavlog${RUN}`) && csv.replace(/^\uFEFF/, '').startsWith('email;prenom;pseudo'), 'Export CSV mailing attendu (email, lien d\'inscription rattaché)', { status: csvRes.status, data: csv.slice(0, 200) });
+    const imp = await brandApi('POST', '/admin/acquisition/import-directory', { ids: [c.data.lead._id] });
+    expect(imp.status === 200 && imp.data.stats.created === 1 && imp.data.linked === 1, 'Import dans l\'annuaire attendu', imp);
+    const ec = await db.collection('externalcreators').findOne({ username: `leavlog${RUN}` });
+    expect(ec && ec.source === 'prospection' && ec.niches.includes('beauty'), 'Créateur référencé créé depuis le prospect', { status: 200, data: ec });
+    const note = await brandApi('PATCH', `/admin/acquisition/leads/${b.data.lead._id}`, { status: 'contacted', contactedVia: 'linkedin', notes: 'Message envoyé sur LinkedIn' });
+    expect(note.status === 200 && note.data.lead.status === 'contacted' && note.data.lead.contactedAt && note.data.lead.contactedVia === 'linkedin', 'Mise à jour manuelle du prospect échouée', note);
+    const del = await brandApi('DELETE', `/admin/acquisition/leads/${b.data.lead._id}`);
+    expect(del.status === 200, 'Suppression du prospect échouée', del);
+    await db.collection('leads').deleteMany({ $or: [{ email: leadEmail }, { handle: `@leavlog${RUN}` }] });
+    await db.collection('externalcreators').deleteMany({ username: `leavlog${RUN}` });
+    return `prospects créateur et marque, ${aiOn ? `qualification IA (score ${c.data.lead.score}, ${c.data.lead.status})` : 'IA non configurée'}, filtres, statut groupé, CSV mailing, import annuaire`;
+  } finally {
+    await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 await step('Marque : invite un créateur extérieur par email, rattaché à la campagne à son inscription', async () => {
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await brandApi('POST', '/campaigns', { title: 'Campagne avec invitation extérieure', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 120, niches: ['beauty'], applicationDeadline: deadline });

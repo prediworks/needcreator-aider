@@ -1,0 +1,177 @@
+import Lead, { LeadRun } from '../../models/Lead.js';
+import User from '../../models/User.js';
+import Campaign from '../../models/Campaign.js';
+import ExternalCreator from '../../models/ExternalCreator.js';
+import { getSetting, SETTINGS } from '../../models/Setting.js';
+import { searchCreators, youtubeConfigured } from './youtube.js';
+import { searchBrands, metaConfigured } from './meta.js';
+import { qualifyLead } from './qualify.js';
+import { parseKeywordLines, DEFAULT_CREATOR_KEYWORDS, DEFAULT_BRAND_KEYWORDS } from './keywords.js';
+import { aiConfig } from '../ai.js';
+import logger from '../../utils/logger.js';
+
+const progress = new Map();
+export const acquisitionProgress = () => [...progress.values()].find(p => p.running) || null;
+
+export async function acquisitionSettings() {
+  const [enabled, dailyLimit, minSubscribers, maxSubscribers, creatorKw, brandKw] = await Promise.all([
+    getSetting(SETTINGS.acquisitionEnabled.key, false), getSetting(SETTINGS.acquisitionDailyLimit.key, 60),
+    getSetting(SETTINGS.acquisitionMinSubscribers.key, 0), getSetting(SETTINGS.acquisitionMaxSubscribers.key, 300000),
+    getSetting(SETTINGS.acquisitionCreatorKeywords.key, ''), getSetting(SETTINGS.acquisitionBrandKeywords.key, ''),
+  ]);
+  return { enabled: !!enabled, dailyLimit: Number(dailyLimit) || 60, minSubscribers: Number(minSubscribers) || 0, maxSubscribers: Number(maxSubscribers) || 300000, creatorKeywords: parseKeywordLines(creatorKw, DEFAULT_CREATOR_KEYWORDS), brandKeywords: parseKeywordLines(brandKw, DEFAULT_BRAND_KEYWORDS), youtube: youtubeConfigured(), meta: await metaConfigured(), ai: aiConfig().configured };
+}
+
+/** Prospect déjà connu ? (compte inscrit par email, créateur référencé, ou déjà en base) */
+async function alreadyKnown(cand) {
+  if (cand.email) {
+    const u = await User.findOne({ email: cand.email }).select('_id role').lean();
+    if (u) return { registeredUserId: u._id };
+    const ec = await ExternalCreator.findOne({ email: cand.email }).select('_id').lean();
+    if (ec) return { externalCreatorId: ec._id };
+  }
+  if (cand.source === 'youtube' && cand.handle) {
+    const ec = await ExternalCreator.findOne({ youtube: new RegExp(cand.handle.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }).select('_id').lean();
+    if (ec) return { externalCreatorId: ec._id };
+  }
+  return null;
+}
+
+/** Enregistre un candidat s'il est nouveau ; retourne le document créé ou null */
+async function upsertCandidate(cand, runId) {
+  const exists = await Lead.findOne({ source: cand.source, externalId: cand.externalId }).select('_id').lean();
+  if (exists) return null;
+  const known = await alreadyKnown(cand);
+  const { links, ...data } = cand;
+  return Lead.create({ ...data, runId, status: known?.registeredUserId ? 'registered' : known?.externalCreatorId ? 'excluded' : 'new', notes: known?.externalCreatorId ? 'Déjà dans l\'annuaire des créateurs référencés' : undefined, ...known });
+}
+
+/** Qualification IA d'un prospect « new » → « qualified » (ou « rejected » si hors cible) */
+export async function qualifyOne(lead, openNiches) {
+  try {
+    const q = await qualifyLead(lead, { openNiches });
+    if (!q) return lead;
+    lead.niche = q.niche || q.sector || lead.niche;
+    lead.score = Math.round(q.fit);
+    lead.signals = q.signals;
+    lead.aiSummary = q.summary;
+    lead.message = q.message;
+    lead.emailParagraph = q.emailParagraph;
+    if (q.firstName) lead.name = lead.name || q.firstName;
+    if (q.firstName) lead.firstName = q.firstName;
+    const offTarget = lead.kind === 'brand' ? q.sellsProducts === false : false;
+    lead.status = lead.status === 'new' ? (offTarget || lead.score < 30 ? 'rejected' : 'qualified') : lead.status;
+    lead.error = undefined;
+  } catch (err) {
+    lead.error = `Qualification IA : ${err.message}`.slice(0, 300);
+    logger.warn(`Lead ${lead._id} qualification failed: ${err.message}`);
+  }
+  await lead.save();
+  return lead;
+}
+
+async function openNicheKeys() {
+  const rows = await Campaign.aggregate([{ $match: { status: 'active', visibility: { $ne: 'private' } } }, { $unwind: '$matching.niches' }, { $group: { _id: '$matching.niches', n: { $sum: 1 } } }, { $sort: { n: -1 } }]);
+  return rows.map(r => r._id);
+}
+
+/**
+ * Exécution complète : sources → dédoublonnage → qualification IA, dans la limite quotidienne.
+ * Une seule exécution à la fois ; journal dans LeadRun.
+ */
+export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator', 'brand'] } = {}) {
+  if (acquisitionProgress()) return { ran: false, reason: 'running' };
+  const s = await acquisitionSettings();
+  const runId = `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
+  const run = await LeadRun.create({ runId, startedAt: new Date(), trigger, sources: {}, issues: [] });
+  const job = { runId, running: true, startedAt: new Date(), found: 0, created: 0, qualified: 0, step: 'sourcing' };
+  progress.set(runId, job);
+  const sources = { youtube: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 }, meta: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 } };
+  let budget = s.dailyLimit;
+  try {
+    const created = [];
+    if (kinds.includes('creator') && s.youtube) {
+      for (const { niche, keywords } of s.creatorKeywords) {
+        for (const kw of keywords) {
+          if (budget <= 0) break;
+          try {
+            sources.youtube.searched++;
+            const found = await searchCreators(kw, { maxResults: 25, minSubscribers: s.minSubscribers, maxSubscribers: s.maxSubscribers });
+            sources.youtube.found += found.length;
+            for (const c of found) {
+              if (budget <= 0) break;
+              const doc = await upsertCandidate({ ...c, niche }, runId);
+              if (!doc) continue;
+              sources.youtube.new++; if (doc.email) sources.youtube.withEmail++;
+              if (doc.status === 'new') { created.push(doc); budget--; }
+            }
+          } catch (err) { sources.youtube.errors++; run.issues.push(`youtube « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (/quota/i.test(err.message)) break; }
+          job.found = sources.youtube.found + sources.meta.found; job.created = created.length;
+        }
+      }
+    }
+    if (kinds.includes('brand') && s.meta) {
+      for (const { niche: sector, keywords } of s.brandKeywords) {
+        for (const kw of keywords) {
+          if (budget <= 0) break;
+          try {
+            sources.meta.searched++;
+            const found = await searchBrands(kw, { limit: 50 });
+            sources.meta.found += found.length;
+            for (const b of found) {
+              if (budget <= 0) break;
+              const doc = await upsertCandidate({ ...b, niche: sector }, runId);
+              if (!doc) continue;
+              sources.meta.new++; if (doc.email) sources.meta.withEmail++;
+              if (doc.status === 'new') { created.push(doc); budget--; }
+            }
+          } catch (err) { sources.meta.errors++; run.issues.push(`meta « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (err.code === 10 || err.code === 190) break; }
+          job.found = sources.youtube.found + sources.meta.found; job.created = created.length;
+        }
+      }
+    }
+    job.step = 'qualification';
+    const niches = await openNicheKeys();
+    // Qualifie aussi les « new » restés en attente d'une exécution précédente (IA indisponible), dans la limite
+    const pending = await Lead.find({ status: 'new', _id: { $nin: created.map(c => c._id) } }).sort({ createdAt: 1 }).limit(Math.max(0, s.dailyLimit - created.length));
+    for (const lead of [...created, ...pending]) {
+      if (!s.ai) break;
+      const q = await qualifyOne(lead, niches);
+      if (q.status !== 'new') { run.qualified++; job.qualified++; }
+    }
+    // Inscrits depuis : rattachement automatique
+    const withEmail = await Lead.find({ email: { $ne: null }, status: { $nin: ['registered', 'excluded'] } }).select('_id email').lean();
+    for (const l of withEmail) { const u = await User.findOne({ email: l.email }).select('_id').lean(); if (u) await Lead.updateOne({ _id: l._id }, { $set: { status: 'registered', registeredUserId: u._id } }); }
+  } catch (err) {
+    run.issues.push(`run : ${err.message}`.slice(0, 200));
+    logger.error('runAcquisition failed:', err);
+  }
+  run.sources = sources; run.finishedAt = new Date();
+  await run.save();
+  job.running = false; job.finishedAt = run.finishedAt;
+  setTimeout(() => progress.delete(runId), 3600000);
+  logger.info(`Acquisition run ${runId}: ${JSON.stringify({ sources, qualified: run.qualified, issues: run.issues.length })}`);
+  return { ran: true, runId, sources, qualified: run.qualified, issues: run.issues };
+}
+
+/** Tâche planifiée : une exécution par période de 20 h quand activé */
+export async function runScheduledAcquisition() {
+  const enabled = await getSetting(SETTINGS.acquisitionEnabled.key, false);
+  if (!enabled) return { ran: false, reason: 'disabled' };
+  const last = await LeadRun.findOne({}).sort({ startedAt: -1 }).select('startedAt').lean();
+  if (last && Date.now() - new Date(last.startedAt).getTime() < 20 * 3600000) return { ran: false, reason: 'recent' };
+  setImmediate(() => runAcquisition({ trigger: 'scheduled' }).catch(err => logger.error('runScheduledAcquisition:', err)));
+  return { ran: true, started: true };
+}
+
+/** Jeton Meta : date d'expiration (pour le rappel admin) */
+export async function metaTokenInfo() {
+  const { metaToken } = await import('./meta.js');
+  const token = await metaToken();
+  if (!token) return { configured: false };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`);
+    const d = (await res.json()).data || {};
+    return { configured: true, valid: !!d.is_valid, expiresAt: d.expires_at ? new Date(d.expires_at * 1000) : null, scopes: d.scopes || [] };
+  } catch (err) { return { configured: true, valid: null, error: err.message }; }
+}

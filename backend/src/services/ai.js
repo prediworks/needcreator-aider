@@ -152,6 +152,23 @@ function parseJsonLoose(text) {
 }
 
 /**
+ * Génère un objet JSON conforme à un schéma zod à partir d'un prompt (sortie structurée, repli texte + lecture tolérante)
+ */
+export async function generateJson({ system, prompt, schema, normalize = (x) => x }) {
+  const model = await getModel();
+  let raw;
+  try {
+    const r = await generateObject({ model, schema, system, prompt, maxRetries: 1 });
+    raw = r.object;
+  } catch (err) {
+    if (!NoObjectGeneratedError.isInstance(err) && !/schema|JSON|object/i.test(err.message)) throw err;
+    const r = await generateText({ model, system, prompt, maxRetries: 1 });
+    raw = parseJsonLoose(err.text || r.text);
+  }
+  return schema.parse(normalize(raw));
+}
+
+/**
  * Génère un brief structuré. Essaie d'abord la sortie structurée native du fournisseur,
  * puis se rabat sur une génération texte + lecture tolérante du JSON.
  */

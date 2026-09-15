@@ -1,5 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
+import { acquisitionOverview, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -99,6 +100,18 @@ router.get('/backups', listBackupsAdmin);
 // Amorçage : marques et campagnes en masse
 router.post('/seed/preview', previewSeed);
 router.post('/seed/run', runSeed);
+
+// Agents de prospection : prospects créateurs et marques (sourcing nocturne, qualification IA, export mailing)
+router.get('/acquisition', acquisitionOverview);
+router.get('/acquisition/leads', listLeads);
+router.post('/acquisition/leads', createLead);
+router.patch('/acquisition/leads/bulk', bulkUpdateLeads);
+router.patch('/acquisition/leads/:id', updateLead);
+router.post('/acquisition/leads/:id/requalify', requalifyLead);
+router.delete('/acquisition/leads/:id', deleteLead);
+router.post('/acquisition/run', startAcquisitionRun);
+router.get('/acquisition/export.csv', exportLeadsCsv);
+router.post('/acquisition/import-directory', importLeadsToDirectory);
 router.get('/seed/batches', listSeedBatches);
 router.delete('/seed/batches/:batch', deleteSeedBatch);
 router.post('/backups/run', runBackupAdmin);
