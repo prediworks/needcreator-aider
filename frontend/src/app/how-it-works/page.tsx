@@ -9,8 +9,8 @@ export const metadata = {
   alternates: { canonical: '/how-it-works' },
 };
 
-const brandSteps = (cfg: { autoApprovalDays: number; replacementGraceHours: number }) => [
-  ['1', 'Créez votre campagne', 'Partez d\'un modèle par secteur ou d\'une campagne passée. Brief guidé, budget suggéré selon le marché. 5 minutes suffisent. Campagne publique, ou privée sur invitation.'],
+const brandSteps = (cfg: { autoApprovalDays: number; replacementGraceHours: number; giftingMinProductValue: number }) => [
+  ['1', 'Créez votre campagne : mission payée ou gifting', `Partez d'un modèle par secteur ou d'une campagne passée. Brief guidé, budget suggéré selon le marché. 5 minutes suffisent. Choisissez la rémunération : un devis du créateur, ou votre produit offert à la place (gifting, ${cfg.giftingMinProductValue} € de valeur minimum). Campagne publique, ou privée sur invitation.`],
   ['2', 'Recevez des candidatures', 'Les créateurs de vos niches sont notifiés. Chaque candidature affiche un score de matching, le prix et le portfolio vidéo.'],
   ['3', 'Sélectionnez et bloquez le paiement', 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation. Un contrat de mission et de cession de droits en PDF est généré automatiquement.'],
   ['4', 'Validez les vidéos', 'Regardez-les directement en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez des modifications dans la limite prévue par le devis. Sans réponse sous ' + plural(cfg.autoApprovalDays, 'jour') + ', la livraison est validée automatiquement. Si le créateur ne livre pas, confiez la mission à un autre devis en un clic. Révisions épuisées et vidéos toujours hors brief ? Ouvrez un litige, notre équipe tranche.'],

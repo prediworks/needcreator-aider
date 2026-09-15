@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText, FolderOpen } from 'lucide-react';
+import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, Sparkles, Clock, ArrowRight, LayoutTemplate, Users, FileText, FolderOpen, Gift } from 'lucide-react';
 import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import RegistryMock from '@/components/RegistryMock';
@@ -19,6 +19,7 @@ export default async function BrandsPage() {
 
   const reasons: [any, string, string][] = [
     [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
+    [Gift, 'Gifting : payez en produit', `Pas de budget vidéo ? Envoyez votre produit (${cfg.giftingMinProductValue} € de valeur minimum) à la place d'une rémunération. Le créateur qui accepte livre ses vidéos, contrôlées comme une mission payée, et vous gardez les droits prévus au brief. Gratuit en Pro, ${cfg.giftingFeePerVideo} € HT par vidéo livrée avec l'offre gratuite.`],
     [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],
     [FileSignature, 'Un contrat de cession de droits à chaque mission', 'Généré automatiquement à l\'acceptation du devis, en PDF : durée, supports, territoire, exclusivité. Vous êtes prévenu 30 jours avant l\'expiration et pouvez prolonger les droits.'],
     [ShieldCheck, 'Chaque vidéo est contrôlée avant votre validation', 'Nombre de vidéos, durée, format, résolution, son, et présence du produit dans la bande-son : un score de conformité au brief vous est présenté avant de valider.'],
@@ -41,6 +42,7 @@ export default async function BrandsPage() {
     ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix hors taxes, généralement à partir de 80 €. Vous payez exactement le devis accepté, plus la TVA si le créateur y est assujetti (indiqué sur le devis). La commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement. Vous recevez une facture pour chaque mission.`],
     ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
     ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. Si, révisions épuisées, les vidéos ne correspondent toujours pas au brief, vous ouvrez un litige : le créateur répond, notre équipe tranche, et le montant bloqué est réparti ou remboursé en conséquence.`],
+    ['Puis-je payer en produit plutôt qu\'en argent ?', `Oui, c'est le gifting : vous créez une campagne « produit offert » (${cfg.giftingMinProductValue} € de valeur minimum), les créateurs intéressés candidatent, vous en sélectionnez un, vous lui envoyez le produit, il livre ses vidéos. Contrôle de conformité, contrat de droits et révisions fonctionnent comme pour une mission payée. Gratuit en Pro ; avec l'offre gratuite, ${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée.`],
     ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
     ['Puis-je retravailler avec le même créateur ?', `Oui, en un clic : « Reconduire avec ce créateur » depuis une mission validée crée une campagne privée avec le même brief et son dernier devis pré-rempli. NeedCreator vous offre une remise fidélité de ${cfg.repeatDiscountPercent} % sur le prix, sans rien retirer au créateur.`],
     ['Puis-je suivre les contenus achetés en dehors de NeedCreator ?', 'Oui. Le registre « Contenus & droits » accepte tout contenu et tout contrat artistique, d\'où qu\'il vienne : vous saisissez ou importez depuis Excel le créateur, le type de contrat, les dates, les supports, le territoire, le prix, les liens vers le contrat et la facture. Vous êtes prévenu avant chaque expiration et vous relancez le créateur en un clic.'],
@@ -78,6 +80,7 @@ export default async function BrandsPage() {
               <span key={t} className="flex items-center gap-2"><CheckCircle className="w-5 h-5 text-primary-500" />{t}</span>
             ))}
           </div>
+          <p className="mt-5 text-sm text-neutral-700 flex items-center justify-center gap-2 flex-wrap"><Gift className="w-4 h-4 text-primary-600 shrink-0" /><span>Deux façons de rémunérer un créateur : <strong>un devis</strong>, ou <strong>votre produit offert</strong> (gifting), à partir de {cfg.giftingMinProductValue} € de valeur.</span></p>
           <Link href="#contenus-droits" className="mt-6 inline-flex items-center gap-2 bg-white border border-primary-200 rounded-full px-4 py-2 text-sm text-neutral-800 hover:border-primary-400">
             <FolderOpen className="w-4 h-4 text-primary-600" /> <span><strong>Inclus :</strong> le registre de tous vos contenus et de leurs droits, y compris ceux achetés ailleurs.</span> <span className="text-primary-600 underline">Voir comment</span>
           </Link>
