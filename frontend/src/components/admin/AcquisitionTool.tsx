@@ -130,7 +130,7 @@ export default function AcquisitionTool() {
             <span className={s.enabled ? 'text-green-700' : 'text-orange-700'}>Recherche nocturne : {s.enabled ? 'activée' : 'désactivée'}</span>
             <span className={s.youtube ? 'text-green-700' : 'text-red-700'}>YouTube : {s.youtube ? 'clé présente' : 'clé absente'}</span>
             <span className={ov?.meta?.valid ? 'text-green-700' : 'text-orange-700'}>Meta : {!ov?.meta?.configured ? 'jeton absent' : ov.meta.valid === false ? 'jeton invalide' : daysLeft !== null ? `jeton valide, expire dans ${daysLeft} j${daysLeft <= 10 ? ' : à renouveler dans les réglages' : ''}` : 'jeton présent'}</span>
-            <span className={s.instagram ? 'text-green-700' : 'text-orange-700'}>Instagram : {s.instagram ? `compte relié, ${s.hashtags} hashtags${s.oembed === false ? ', auteur non fourni (oEmbed à faire approuver)' : ''}` : 'aucun compte professionnel relié à une page Facebook du jeton'}</span>
+            <span className={s.instagram ? 'text-green-700' : 'text-orange-700'}>Instagram : {s.instagram ? `compte relié, ${s.hashtags} hashtags${s.oembed === false ? ', auteur non fourni (oEmbed à faire approuver)' : ''}` : 'aucun compte professionnel relié à une page Facebook du jeton (sinon, renseignez « ID de la page Facebook » dans les réglages)'}</span>
             <span className={s.ai ? 'text-green-700' : 'text-red-700'}>IA : {s.ai ? 'configurée' : 'non configurée (pas de qualification)'}</span>
             <span>{s.creatorKeywords} lignes de mots-clés créateurs · {s.brandKeywords} marques · {s.dailyLimit} nouveaux par nuit max</span>
           </div>

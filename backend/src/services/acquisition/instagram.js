@@ -1,9 +1,10 @@
 import logger from '../../utils/logger.js';
 import { extractEmails, pickEmail, findEmailViaLinks } from './enrich.js';
 import { metaToken } from './meta.js';
+import { getSetting, SETTINGS } from '../../models/Setting.js';
 
 const API = 'https://graph.facebook.com/v21.0';
-const cache = { igUserId: null, at: 0, oembedBlocked: false };
+const cache = { igUserId: null, key: '', at: 0, oembedBlocked: false };
 
 async function graph(path, params, token) {
   const url = new URL(`${API}/${path}`);
@@ -15,15 +16,27 @@ async function graph(path, params, token) {
   return data;
 }
 
-/** Compte Instagram professionnel relié à une page Facebook du jeton (nécessaire pour la recherche par hashtag) */
+/**
+ * Compte Instagram professionnel relié à une page Facebook (nécessaire pour la recherche par hashtag).
+ * Priorité au réglage « ID de la page Facebook » (la liste « mes pages » de Meta omet parfois une page pourtant accessible), sinon première page du jeton reliée à Instagram.
+ */
 export async function instagramAccount() {
   const token = await metaToken();
   if (!token) return null;
-  if (cache.igUserId && Date.now() - cache.at < 3600000) return cache.igUserId;
-  const d = await graph('me/accounts', { fields: 'id,name,instagram_business_account' }, token);
-  const page = (d.data || []).find(p => p.instagram_business_account?.id);
-  cache.igUserId = page?.instagram_business_account?.id || null; cache.at = Date.now();
-  return cache.igUserId;
+  const pageId = String(await getSetting(SETTINGS.metaPageId.key, '') || '').trim();
+  const key = `${pageId}|${token.slice(-12)}`;
+  if (cache.key === key && Date.now() - cache.at < 3600000) return cache.igUserId;
+  let igUserId = null;
+  if (pageId) {
+    const page = await graph(pageId, { fields: 'id,name,instagram_business_account' }, token);
+    igUserId = page.instagram_business_account?.id || null;
+  }
+  if (!igUserId) {
+    const d = await graph('me/accounts', { fields: 'id,name,instagram_business_account' }, token);
+    igUserId = (d.data || []).find(p => p.instagram_business_account?.id)?.instagram_business_account?.id || null;
+  }
+  cache.igUserId = igUserId; cache.key = key; cache.at = Date.now();
+  return igUserId;
 }
 export const instagramConfigured = async () => { try { return !!(await instagramAccount()); } catch { return false; } };
 
