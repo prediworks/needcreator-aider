@@ -5,8 +5,9 @@ import ExternalCreator from '../../models/ExternalCreator.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
 import { searchCreators, youtubeConfigured } from './youtube.js';
 import { searchBrands, metaConfigured } from './meta.js';
+import { searchHashtag, instagramConfigured, oembedBlocked } from './instagram.js';
 import { qualifyLead } from './qualify.js';
-import { parseKeywordLines, DEFAULT_CREATOR_KEYWORDS, DEFAULT_BRAND_KEYWORDS } from './keywords.js';
+import { parseKeywordLines, parseHashtags, DEFAULT_CREATOR_KEYWORDS, DEFAULT_BRAND_KEYWORDS, DEFAULT_INSTAGRAM_HASHTAGS } from './keywords.js';
 import { aiConfig } from '../ai.js';
 import logger from '../../utils/logger.js';
 
@@ -19,7 +20,8 @@ export async function acquisitionSettings() {
     getSetting(SETTINGS.acquisitionMinSubscribers.key, 0), getSetting(SETTINGS.acquisitionMaxSubscribers.key, 300000),
     getSetting(SETTINGS.acquisitionCreatorKeywords.key, ''), getSetting(SETTINGS.acquisitionBrandKeywords.key, ''),
   ]);
-  return { enabled: !!enabled, dailyLimit: Number(dailyLimit) || 60, minSubscribers: Number(minSubscribers) || 0, maxSubscribers: Number(maxSubscribers) || 300000, creatorKeywords: parseKeywordLines(creatorKw, DEFAULT_CREATOR_KEYWORDS), brandKeywords: parseKeywordLines(brandKw, DEFAULT_BRAND_KEYWORDS), youtube: youtubeConfigured(), meta: await metaConfigured(), ai: aiConfig().configured };
+  const hashtags = parseHashtags(await getSetting(SETTINGS.acquisitionInstagramHashtags.key, ''), DEFAULT_INSTAGRAM_HASHTAGS);
+  return { enabled: !!enabled, hashtags, instagram: await instagramConfigured(), oembed: !oembedBlocked(), dailyLimit: Number(dailyLimit) || 60, minSubscribers: Number(minSubscribers) || 0, maxSubscribers: Number(maxSubscribers) || 300000, creatorKeywords: parseKeywordLines(creatorKw, DEFAULT_CREATOR_KEYWORDS), brandKeywords: parseKeywordLines(brandKw, DEFAULT_BRAND_KEYWORDS), youtube: youtubeConfigured(), meta: await metaConfigured(), ai: aiConfig().configured };
 }
 
 /** Prospect déjà connu ? (compte inscrit par email, créateur référencé, ou déjà en base) */
@@ -79,18 +81,19 @@ async function openNicheKeys() {
  * Exécution complète : sources → dédoublonnage → qualification IA, dans la limite quotidienne.
  * Une seule exécution à la fois ; journal dans LeadRun.
  */
-export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator', 'brand'] } = {}) {
+export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator', 'brand'], sources: wantedSources = ['youtube', 'instagram', 'meta'] } = {}) {
   if (acquisitionProgress()) return { ran: false, reason: 'running' };
   const s = await acquisitionSettings();
   const runId = `${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 6)}`;
   const run = await LeadRun.create({ runId, startedAt: new Date(), trigger, sources: {}, issues: [] });
   const job = { runId, running: true, startedAt: new Date(), found: 0, created: 0, qualified: 0, step: 'sourcing' };
   progress.set(runId, job);
-  const sources = { youtube: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 }, meta: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 } };
+  const wanted = new Set(wantedSources);
+  const sources = { youtube: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 }, instagram: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 }, meta: { searched: 0, found: 0, new: 0, withEmail: 0, errors: 0 } };
   let budget = s.dailyLimit;
   try {
     const created = [];
-    if (kinds.includes('creator') && s.youtube) {
+    if (kinds.includes('creator') && s.youtube && wanted.has('youtube')) {
       for (const { niche, keywords } of s.creatorKeywords) {
         for (const kw of keywords) {
           if (budget <= 0) break;
@@ -106,12 +109,35 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
               if (doc.status === 'new') { created.push(doc); budget--; }
             }
           } catch (err) { sources.youtube.errors++; run.issues.push(`youtube « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (/quota/i.test(err.message)) break; }
-          job.found = sources.youtube.found + sources.meta.found; job.created = created.length;
+          job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
         }
       }
     }
+    if (kinds.includes('creator') && s.instagram && wanted.has('instagram')) {
+      for (const tag of s.hashtags) {
+        if (budget <= 0) break;
+        try {
+          sources.instagram.searched++;
+          const found = await searchHashtag(tag, { limit: 40 });
+          sources.instagram.found += found.length;
+          for (const c of found) {
+            if (budget <= 0) break;
+            const doc = await upsertCandidate({ ...c, niche: 'lifestyle' }, runId);
+            if (!doc) continue;
+            sources.instagram.new++; if (doc.email) sources.instagram.withEmail++;
+            if (doc.status === 'new') { created.push(doc); budget--; }
+          }
+        } catch (err) {
+          sources.instagram.errors++; logger.warn(err.message);
+          if (err.code === 10 || err.code === 190 || /hashtag/i.test(err.message) && /limit/i.test(err.message)) { run.issues.push(`Instagram : ${err.message}`.slice(0, 200)); break; }
+          run.issues.push(`instagram #${tag} : ${err.message}`.slice(0, 200));
+        }
+        job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
+      }
+      if (oembedBlocked()) run.issues.push('Instagram : auteur des publications indisponible tant que « oEmbed Read » n\'est pas approuvé par Meta (revue de fonctionnalité) : pseudo à compléter à la main');
+    }
     let metaBlocked = false;
-    if (kinds.includes('brand') && s.meta) {
+    if (kinds.includes('brand') && s.meta && wanted.has('meta')) {
       for (const { niche: sector, keywords } of s.brandKeywords) {
         if (metaBlocked) break;
         for (const kw of keywords) {
@@ -133,7 +159,7 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
             if (err.code === 190) { run.issues.push('Meta : jeton expiré ou invalide, à renouveler dans Réglages → Prospection'); metaBlocked = true; break; }
             run.issues.push(`meta « ${kw} » : ${err.message}`.slice(0, 200));
           }
-          job.found = sources.youtube.found + sources.meta.found; job.created = created.length;
+          job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
         }
       }
     }

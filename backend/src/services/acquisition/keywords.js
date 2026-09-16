@@ -21,6 +21,9 @@ tech: montre connectée ; écouteurs ; application
 bébé: poussette ; vêtements bébé ; jouet éveil
 animaux: croquettes ; friandises chien ; litière chat`;
 
+export const DEFAULT_INSTAGRAM_HASHTAGS = 'ugcfrance ; ugccreatorfrance ; creatriceugc ; createurugc ; ugccreator';
+export function parseHashtags(text, fallback) { return (String(text || '').trim() || fallback).split(/[;,\n]/).map(t => t.trim().replace(/^#/, '').toLowerCase()).filter(Boolean).slice(0, 25); }
+
 /** « niche: mot ; mot ; mot » par ligne → [{ niche, keywords[] }] */
 export function parseKeywordLines(text, fallback) {
   const src = String(text || '').trim() || fallback;

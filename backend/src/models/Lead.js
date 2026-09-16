@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 export const LEAD_STATUSES = ['new', 'qualified', 'to_contact', 'contacted', 'replied', 'registered', 'rejected', 'excluded'];
-export const LEAD_SOURCES = ['youtube', 'meta', 'manual'];
+export const LEAD_SOURCES = ['youtube', 'instagram', 'meta', 'manual'];
 
 /**
  * Prospect trouvé par les agents d'acquisition (créateur ou marque), enrichi (email), qualifié par l'IA,
@@ -21,7 +21,7 @@ const leadSchema = new mongoose.Schema({
   email: { type: String, lowercase: true, trim: true, index: true },
   emailSource: String, // bio, site, mentions-legales, lien-bio
   emailChecked: { type: Boolean, default: false },
-  stats: { subscribers: Number, videos: Number, views: Number, ads: Number, lastUploadAt: Date },
+  stats: { subscribers: Number, videos: Number, views: Number, ads: Number, likes: Number, comments: Number, postedAt: Date, lastUploadAt: Date },
   keyword: String, // mot-clé de recherche qui l'a trouvé
   niche: String, // niche NeedCreator (créateur) ou secteur (marque)
   score: Number, // 0-100

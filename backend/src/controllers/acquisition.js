@@ -20,7 +20,7 @@ export async function acquisitionOverview(req, res) {
     ]);
     const counts = { creator: {}, brand: {} };
     for (const r of byStatus) counts[r._id.kind][r._id.status] = { n: r.n, withEmail: r.withEmail };
-    res.json({ settings: { ...settings, creatorKeywords: settings.creatorKeywords.length, brandKeywords: settings.brandKeywords.length }, counts, runs, progress: acquisitionProgress(), meta, statuses: LEAD_STATUSES });
+    res.json({ settings: { ...settings, creatorKeywords: settings.creatorKeywords.length, brandKeywords: settings.brandKeywords.length, hashtags: settings.hashtags.length }, counts, runs, progress: acquisitionProgress(), meta, statuses: LEAD_STATUSES });
   } catch (error) {
     logger.error('acquisitionOverview failed:', error);
     res.status(500).json({ error: 'Prospection indisponible' });
@@ -187,10 +187,11 @@ export async function requalifyLead(req, res) {
 
 export async function startAcquisitionRun(req, res) {
   const s = await acquisitionSettings();
-  if (!s.youtube && !s.meta) return res.status(400).json({ error: 'Aucune source configurée : ajoutez YOUTUBE_API_KEY ou le jeton Meta' });
+  if (!s.youtube && !s.meta && !s.instagram) return res.status(400).json({ error: 'Aucune source configurée : ajoutez YOUTUBE_API_KEY ou le jeton Meta' });
   if (acquisitionProgress()) return res.status(409).json({ error: 'Une exécution est déjà en cours' });
   const kinds = Array.isArray(req.body?.kinds) && req.body.kinds.length ? req.body.kinds : ['creator', 'brand'];
-  setImmediate(() => runAcquisition({ trigger: `manual:${req.user._id}`, kinds }).catch(err => logger.error('manual acquisition:', err)));
+  const sources = Array.isArray(req.body?.sources) && req.body.sources.length ? req.body.sources : ['youtube', 'instagram', 'meta'];
+  setImmediate(() => runAcquisition({ trigger: `manual:${req.user._id}`, kinds, sources }).catch(err => logger.error('manual acquisition:', err)));
   res.json({ message: 'Recherche lancée en arrière-plan : suivez l\'avancement ici, comptez quelques minutes', started: true });
 }
 

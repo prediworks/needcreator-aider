@@ -56,7 +56,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   rejected: { label: 'Hors cible', cls: 'bg-red-50 text-red-700' },
   excluded: { label: 'Déjà connu', cls: 'bg-neutral-100 text-neutral-500' },
 };
-const SOURCE: Record<string, string> = { youtube: 'YouTube', meta: 'Pub Meta', manual: 'Manuel' };
+const SOURCE: Record<string, string> = { youtube: 'YouTube', instagram: 'Instagram', meta: 'Pub Meta', manual: 'Manuel' };
 
 function ManualForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState<any>({ kind: 'creator', name: '', handle: '', url: '', website: '', email: '', description: '', niche: '' });
@@ -118,10 +118,10 @@ export default function AcquisitionTool() {
         <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
           <div>
             <h2 className="text-xl font-semibold flex items-center gap-2"><Radar className="w-5 h-5 text-primary-500" /> Prospection</h2>
-            <p className="text-sm text-neutral-600 mt-1">Chaque nuit, les agents cherchent des créateurs (YouTube) et des marques (bibliothèque publicitaire Meta), trouvent leur email et les qualifient avec l&apos;IA. Vous exportez les qualifiés vers votre outil de mailing, ou copiez le message pour les contacter à la main sur les réseaux. Réglages dans l&apos;onglet Réglages, groupe « Prospection ».</p>
+            <p className="text-sm text-neutral-600 mt-1">Chaque nuit, les agents cherchent des créateurs (YouTube, hashtags Instagram) et des marques (bibliothèque publicitaire Meta), trouvent leur email et les qualifient avec l&apos;IA. Vous exportez les qualifiés vers votre outil de mailing, ou copiez le message pour les contacter à la main sur les réseaux. Réglages dans l&apos;onglet Réglages, groupe « Prospection ».</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" onClick={() => run.mutate(['creator'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || !s?.youtube}><Play className="w-4 h-4 mr-1" /> Chercher des créateurs</Button>
+            <Button size="sm" onClick={() => run.mutate(['creator'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || (!s?.youtube && !s?.instagram)}><Play className="w-4 h-4 mr-1" /> Chercher des créateurs</Button>
             <Button size="sm" variant="outline" onClick={() => run.mutate(['brand'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || !s?.meta}><Play className="w-4 h-4 mr-1" /> Chercher des marques</Button>
           </div>
         </div>
@@ -130,6 +130,7 @@ export default function AcquisitionTool() {
             <span className={s.enabled ? 'text-green-700' : 'text-orange-700'}>Recherche nocturne : {s.enabled ? 'activée' : 'désactivée'}</span>
             <span className={s.youtube ? 'text-green-700' : 'text-red-700'}>YouTube : {s.youtube ? 'clé présente' : 'clé absente'}</span>
             <span className={ov?.meta?.valid ? 'text-green-700' : 'text-orange-700'}>Meta : {!ov?.meta?.configured ? 'jeton absent' : ov.meta.valid === false ? 'jeton invalide' : daysLeft !== null ? `jeton valide, expire dans ${daysLeft} j${daysLeft <= 10 ? ' : à renouveler dans les réglages' : ''}` : 'jeton présent'}</span>
+            <span className={s.instagram ? 'text-green-700' : 'text-orange-700'}>Instagram : {s.instagram ? `compte relié, ${s.hashtags} hashtags${s.oembed === false ? ', auteur non fourni (oEmbed à faire approuver)' : ''}` : 'aucun compte professionnel relié à une page Facebook du jeton'}</span>
             <span className={s.ai ? 'text-green-700' : 'text-red-700'}>IA : {s.ai ? 'configurée' : 'non configurée (pas de qualification)'}</span>
             <span>{s.creatorKeywords} lignes de mots-clés créateurs · {s.brandKeywords} marques · {s.dailyLimit} nouveaux par nuit max</span>
           </div>
@@ -137,7 +138,7 @@ export default function AcquisitionTool() {
         {ov?.progress?.running && <div className="mt-3 text-sm px-3 py-2 rounded-lg bg-primary-50 text-primary-800">Recherche en cours ({ov.progress.step === 'sourcing' ? 'sources' : 'qualification IA'}) : {ov.progress.found} trouvés, {ov.progress.created} nouveaux, {ov.progress.qualified} qualifiés…</div>}
         {ov?.runs?.length ? (
           <details className="mt-3 text-xs text-neutral-600"><summary className="cursor-pointer">Dernières exécutions ({ov.runs.length})</summary>
-            <ul className="mt-2 space-y-1">{ov.runs.map((r: any) => <li key={r.runId}><span className="font-mono">{r.runId}</span> · {formatDateTime(r.startedAt)} · {r.trigger} · YouTube {r.sources?.youtube?.searched || 0} recherches, {r.sources?.youtube?.new || 0} nouveaux ({r.sources?.youtube?.withEmail || 0} avec email) · Meta {r.sources?.meta?.searched || 0} recherches, {r.sources?.meta?.new || 0} nouveaux ({r.sources?.meta?.withEmail || 0} avec email) · {r.qualified} qualifiés{r.issues?.length ? ` · ${r.issues.length} erreur(s) : ${r.issues[0]}` : ''}</li>)}</ul>
+            <ul className="mt-2 space-y-1">{ov.runs.map((r: any) => <li key={r.runId}><span className="font-mono">{r.runId}</span> · {formatDateTime(r.startedAt)} · {r.trigger} · YouTube {r.sources?.youtube?.searched || 0} recherches, {r.sources?.youtube?.new || 0} nouveaux ({r.sources?.youtube?.withEmail || 0} avec email) · Instagram {r.sources?.instagram?.searched || 0} hashtags, {r.sources?.instagram?.new || 0} nouveaux ({r.sources?.instagram?.withEmail || 0} avec email) · Meta {r.sources?.meta?.searched || 0} recherches, {r.sources?.meta?.new || 0} nouveaux ({r.sources?.meta?.withEmail || 0} avec email) · {r.qualified} qualifiés{r.issues?.length ? ` · ${r.issues.length} erreur(s) : ${r.issues[0]}` : ''}</li>)}</ul>
           </details>
         ) : null}
       </Card>
@@ -232,7 +233,7 @@ export default function AcquisitionTool() {
                         {l.handle && <span className="text-neutral-500">{l.handle}</span>}
                         <span className={`px-2 py-0.5 rounded-full text-xs ${st.cls}`}>{st.label}</span>
                         {l.score != null && <span className={`px-2 py-0.5 rounded-full text-xs ${l.score >= 70 ? 'bg-green-100 text-green-800' : l.score >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-600'}`}>score {l.score}</span>}
-                        <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span>
+                        <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.source === 'instagram' && l.stats?.likes != null ? ` · ${l.stats.likes} j'aime` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span>
                       </div>
                       <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
