@@ -208,6 +208,8 @@ Coût de fonctionnement en version gratuite : moins de 10 € par mois (IA). Eff
 
 ## 5 quinquies. Idées produit d'acquisition sans créateur requis (notées le 17/09/2026, ordre décidé)
 
+Livré le 17/09/2026 en complément : import groupé de prospects (liste collée) dans Admin → Prospection et consignes pour l'assistant Chrome de l'application Claude (`docs/AGENT-CHROME.md`) : bibliothèque Meta sans attendre la vérification, auteurs Instagram sans oEmbed, TikTok et LinkedIn (sans API), messages privés assistés.
+
 Source : `docs/idees.txt`. Toutes réutilisent l'existant (brief IA, lecture de pages web des agents, calculateur de tarif, accès bibliothèque Meta, annuaire public).
 
 1. ~~**Brief depuis une URL produit**~~ Livré le 17/09/2026 (page `/brief-depuis-url`, reprise à l'inscription et par une marque connectée) : page publique sans compte « collez votre lien produit » (Shopify ou autre) → lecture de la fiche, positionnement, trois angles, format, budget estimé par le calculateur → inscription pour publier le brief pré-rempli. Capte des marques sans budget encore.

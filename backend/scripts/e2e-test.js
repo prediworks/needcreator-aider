@@ -2443,6 +2443,20 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       await admin.auth().deleteUser(fuLead.uid).catch(() => {});
       mailingNote = `mailing (factice) : poussée, listes, réponse → a répondu${aiOn ? ` (${rlead.mailing.replyIntent})` : ''}, réponse envoyée, rebond → hors cible, pas de double envoi, marque inscrite → campagne brouillon « ${draft.title.slice(0, 40)} »`;
     }
+    // Import groupé : liste collée, lecture préalable, doublons et lignes invalides, réseaux, compte inscrit marqué
+    const pasted = `nom;lien;email;bio\nImport Une ; https://www.instagram.com/imp1${RUN}/ ; imp1-${RUN}@needcreator-test.com ; Créatrice UGC food Nantes, TikTok : @imp1${RUN}\nhttps://www.tiktok.com/@imp2${RUN} | Import Deux, vidéos fitness, contact imp2-${RUN}@needcreator-test.com\n${leadEmail} ; doublon du prospect manuel\n;;\nImport Inscrite ; ${brandEmail}`;
+    const prev = await brandApi('POST', '/admin/acquisition/leads/import?preview=1', { kind: 'creator', text: pasted });
+    expect(prev.status === 200 && prev.data.rows.length === 5 && prev.data.rows[0].name === 'Import Une' && prev.data.rows[0].socials.tiktok === `https://www.tiktok.com/@imp1${RUN}` && prev.data.rows[1].name === 'Import Deux' && prev.data.rows[1].email === `imp2-${RUN}@needcreator-test.com` && prev.data.rows[3].error, 'Lecture préalable de la liste collée attendue', prev);
+    const impB = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted, niche: 'food', origin: 'test' });
+    expect(impB.status === 201 && impB.data.created === 3 && impB.data.duplicates === 1 && impB.data.invalid === 1 && impB.data.known === 1, 'Import groupé : 3 créés, 1 doublon, 1 invalide, 1 déjà inscrit', impB);
+    const impList = await brandApi('GET', `/admin/acquisition/leads?kind=creator&q=Import`);
+    const one = impList.data.leads.find(l => l.name === 'Import Une');
+    const registered = impList.data.leads.find(l => l.name === 'Import Inscrite');
+    expect(one && one.socials?.instagram && one.socials?.tiktok && one.niche === 'food' && one.keyword === 'import:test' && registered?.status === 'registered', 'Prospects importés avec réseaux, niche par défaut, origine et compte inscrit marqué', { status: 200, data: { one, registered } });
+    const again = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted });
+    expect(again.status === 201 && again.data.created === 0 && again.data.duplicates === 4, 'Un second import identique ne crée rien', again);
+    if (aiOn) { let q = null; for (let i = 0; i < 40 && !q; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(one._id) }); if (['qualified', 'rejected'].includes(l?.status)) q = l; else await new Promise(r => setTimeout(r, 1000)); } expect(q && q.message, 'Les prospects importés doivent être qualifiés par l\'IA en arrière-plan', { status: 200, data: q }); }
+    await db.collection('leads').deleteMany({ _id: { $in: impB.data.ids.map(id => new mongoose.Types.ObjectId(id)) } });
     const note = await brandApi('PATCH', `/admin/acquisition/leads/${b.data.lead._id}`, { status: 'contacted', contactedVia: 'linkedin', notes: 'Message envoyé sur LinkedIn' });
     expect(note.status === 200 && note.data.lead.status === 'contacted' && note.data.lead.contactedAt && note.data.lead.contactedVia === 'linkedin', 'Mise à jour manuelle du prospect échouée', note);
     const del = await brandApi('DELETE', `/admin/acquisition/leads/${b.data.lead._id}`);

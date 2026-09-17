@@ -9,7 +9,7 @@ import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
 import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
+import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
 
 const INTENT: Record<string, { label: string; cls: string }> = { interested: { label: 'Intéressé', cls: 'bg-green-100 text-green-800' }, question: { label: 'Question', cls: 'bg-blue-100 text-blue-800' }, not_now: { label: 'Pas maintenant', cls: 'bg-yellow-100 text-yellow-800' }, refusal: { label: 'Refus', cls: 'bg-red-50 text-red-700' }, unsubscribe: { label: 'Ne plus écrire', cls: 'bg-red-100 text-red-800' }, out_of_office: { label: 'Absence', cls: 'bg-neutral-100 text-neutral-600' }, other: { label: 'Autre', cls: 'bg-neutral-100 text-neutral-600' } };
 
@@ -66,6 +66,35 @@ function SocialLinks({ socials }: { socials?: Record<string, string> }) {
   return <span className="inline-flex gap-1 flex-wrap ml-1" data-testid="lead-socials">{entries.map(([k, label]) => <a key={k} href={socials![k]} target="_blank" rel="noopener noreferrer" className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 hover:bg-primary-100 hover:text-primary-700 text-[11px]">{label}</a>)}</span>;
 }
 
+/** Import groupé : une ligne par prospect, colonnes libres (nom ; lien ; email ; bio ; site), dédoublonné, qualifié à la suite */
+function ImportForm({ kind, onDone }: { kind: 'creator' | 'brand'; onDone: () => void }) {
+  const [text, setText] = useState('');
+  const [niche, setNiche] = useState('');
+  const [origin, setOrigin] = useState('');
+  const lines = text.split(/\r?\n/).filter((l) => l.trim()).length;
+  const preview = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/import?preview=1', { kind, text, niche, origin })).data.rows as any[], onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const run = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/import', { kind, text, niche, origin })).data, onSuccess: (d) => { toast.success(d.message); onDone(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const missing = [!lines && 'au moins une ligne', lines > 500 && 'au plus 500 lignes'].filter(Boolean) as string[];
+  return (
+    <Card className="p-4 mb-4" data-testid="import-form">
+      <p className="text-sm text-neutral-700 mb-2">Une ligne par {kind === 'creator' ? 'créateur' : 'marque'}, champs séparés par « ; », tabulation ou « | » : <span className="font-mono text-xs">nom ; lien du profil ; email ; bio ; site</span>. L&apos;ordre importe peu : l&apos;email et les liens sont reconnus où qu&apos;ils soient. Doublons ignorés, comptes déjà inscrits marqués, qualification IA à la suite. Format attendu des listes produites par l&apos;assistant Chrome (voir <span className="font-mono text-xs">docs/AGENT-CHROME.md</span>).</p>
+      <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={kind === 'creator' ? 'Marie UGC ; https://www.instagram.com/marie.ugc/ ; marie@gmail.com ; Créatrice UGC beauté Lyon, TikTok : @marie_ugc\nhttps://www.tiktok.com/@paul.ugc | Paul, vidéos food, contact paul.pro@outlook.fr' : 'Boutique Soleil ; https://boutique-soleil.fr ; contact@boutique-soleil.fr ; bougies artisanales, publicités vidéo actives'} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" data-testid="import-text" />
+      <div className="grid sm:grid-cols-3 gap-3 my-3">
+        <Input label={kind === 'creator' ? 'Niche par défaut (facultatif)' : 'Secteur par défaut (facultatif)'} value={niche} onChange={(e) => setNiche(e.target.value)} placeholder={kind === 'creator' ? 'beauty, food, fitness…' : 'cosmétique, mode…'} />
+        <Input label="Origine (facultatif)" value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="tiktok #ugcfrance, salon, bibliothèque Meta…" />
+        <div className="text-xs text-neutral-500 self-end pb-2">{lines} ligne(s)</div>
+      </div>
+      {preview.data && <ul className="text-xs text-neutral-700 mb-3 space-y-0.5 max-h-40 overflow-auto" data-testid="import-preview">{preview.data.map((r, i) => <li key={i} className={r.error ? 'text-red-600' : ''}>{r.error ? `Ignorée : ${r.error}` : `${r.name}${r.email ? ` · ${r.email}` : ' · pas d\'email'}${r.url ? ` · ${r.url}` : ''}${Object.keys(r.socials || {}).length ? ` · réseaux : ${Object.keys(r.socials).join(', ')}` : ''}`}</li>)}</ul>}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button size="sm" variant="outline" onClick={() => preview.mutate()} isLoading={preview.isPending} disabled={missing.length > 0}>Vérifier la lecture</Button>
+        <Button size="sm" onClick={() => run.mutate()} isLoading={run.isPending} disabled={missing.length > 0} data-testid="import-submit">Importer et qualifier</Button>
+        <Button size="sm" variant="outline" onClick={onDone}>Annuler</Button>
+        <MissingHint items={missing} />
+      </div>
+    </Card>
+  );
+}
+
 function ManualForm({ onDone }: { onDone: () => void }) {
   const [f, setF] = useState<any>({ kind: 'creator', name: '', handle: '', url: '', website: '', email: '', description: '', niche: '', socials: { instagram: '', tiktok: '' } });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
@@ -96,6 +125,7 @@ export default function AcquisitionTool() {
   const [hasEmail, setHasEmail] = useState('');
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
   const pushNow = useMutation({ mutationFn: async (body: any) => (await api.post('/admin/acquisition/mailing/push', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSelected([]); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
@@ -214,6 +244,7 @@ export default function AcquisitionTool() {
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)}><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
+          <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
           <Button size="sm" variant="outline" onClick={() => exportCsv(false)}><Download className="w-4 h-4 mr-1" /> Export CSV (avec email)</Button>
           <Button size="sm" variant="outline" onClick={() => { if (confirm('Exporter et marquer ces prospects « contactés » ?')) exportCsv(true); }}><Download className="w-4 h-4 mr-1" /> Export + marquer contactés</Button>
           {kind === 'creator' && <Button size="sm" variant="outline" onClick={() => { if (confirm(selected.length ? `Ajouter ${selected.length} créateur(s) à l'annuaire des créateurs référencés ?` : 'Ajouter tous les créateurs qualifiés à l\'annuaire des créateurs référencés ?')) importDir.mutate(selected.length ? selected : undefined); }} isLoading={importDir.isPending}>Vers l&apos;annuaire {selected.length ? `(${selected.length})` : '(tous les qualifiés)'}</Button>}
@@ -226,6 +257,7 @@ export default function AcquisitionTool() {
           </>}
         </div>
         {adding && <ManualForm onDone={() => { setAdding(false); refresh(); }} />}
+        {importing && <ImportForm kind={kind} onDone={() => { setImporting(false); refresh(); }} />}
         {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : !data?.leads?.length ? (
           <p className="text-sm text-neutral-500">Aucun prospect dans cette catégorie. {status === 'qualified' && total('new') > 0 ? `${total('new')} en attente de qualification (IA).` : ''} Lancez une recherche ou activez la recherche nocturne dans les réglages.</p>
         ) : (

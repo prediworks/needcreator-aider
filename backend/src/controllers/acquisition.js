@@ -1,5 +1,6 @@
 import { extractSocials } from '../services/acquisition/enrich.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
+import { importLeads, parseLeadLines } from '../services/acquisition/importLeads.js';
 import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, metaTokenInfo } from '../services/acquisition/index.js';
 import { importCreators } from '../services/externalCreatorsImport.js';
 import ExternalCreator from '../models/ExternalCreator.js';
@@ -239,6 +240,23 @@ export async function importLeadsToDirectory(req, res) {
     res.json({ message: `${stats.created} créateur(s) ajouté(s) à l'annuaire, ${stats.updated} mis à jour`, stats, linked });
   } catch (error) {
     logger.error('importLeadsToDirectory failed:', error);
+    res.status(500).json({ error: `Import impossible : ${error.message}` });
+  }
+}
+
+/** Import groupé : liste collée (une ligne par prospect), dédoublonnée, qualifiée par l'IA à la suite. ?preview=1 renvoie la lecture sans enregistrer. */
+export async function importLeadsBulk(req, res) {
+  try {
+    const { kind = 'creator', text = '', niche = '', origin = '' } = req.body || {};
+    if (!['creator', 'brand'].includes(kind)) return res.status(400).json({ error: 'Type attendu : creator ou brand' });
+    if (!String(text).trim()) return res.status(400).json({ error: 'Collez au moins une ligne' });
+    const lines = String(text).split(/\r?\n/).filter(l => l.trim()).length;
+    if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
+    if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
+    const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
+    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)`, ...result });
+  } catch (error) {
+    logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });
   }
 }
