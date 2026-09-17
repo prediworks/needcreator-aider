@@ -170,7 +170,7 @@ export async function registerBrand(req, res) {
       firebaseUid: req.firebaseUser?.uid
     });
 
-    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken, quoteToken, leadId } = req.body;
+    const { email, companyName, website, industry, referralCode, country = 'FR', language = 'fr', teamToken, quoteToken, leadId, briefId } = req.body;
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -242,12 +242,24 @@ export async function registerBrand(req, res) {
       }
     }
 
+    // Marque venue du brief depuis une URL produit : campagne brouillon prête à relire
+    let briefCampaignId = null;
+    if (briefId && /^[a-f0-9]{24}$/i.test(String(briefId))) {
+      const ProductBrief = (await import('../models/ProductBrief.js')).default;
+      const pb = await ProductBrief.findOne({ _id: briefId, campaignId: null });
+      if (pb) {
+        const { createDraftCampaignFromProductBrief } = await import('../services/productBrief.js');
+        briefCampaignId = await createDraftCampaignFromProductBrief(user, pb).then(c => c?._id || null).catch(err => { logger.warn(`Product brief not attached: ${err.message}`); return null; });
+      }
+    }
+
     logger.info(`Brand registered successfully: ${user._id}`);
 
     res.status(201).json({
       message: 'Brand account created successfully',
       user: await serializeUser(user),
       quoteDeliveryId,
+      briefCampaignId,
     });
   } catch (error) {
     logger.error('Brand registration failed:', error);

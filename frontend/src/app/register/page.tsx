@@ -44,6 +44,7 @@ function RegisterForm() {
   const campaignInviteToken = searchParams.get('campaignInvite') || '';
   const quoteToken = searchParams.get('quote') || '';
   const leadId = searchParams.get('lead') || '';
+  const briefId = searchParams.get('brief') || ''; // brief généré depuis une URL produit
   const targetCampaign = searchParams.get('campaign') || '';
   const [campaignInvite, setCampaignInvite] = useState<{ email: string; name?: string; campaignId: string; campaignTitle: string; companyName: string } | null>(null);
   const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
@@ -90,6 +91,7 @@ function RegisterForm() {
     }).catch(() => toast.error('Invitation introuvable ou déjà utilisée', { duration: 8000 }));
   }, [campaignInviteToken]);
   useEffect(() => { if (targetCampaign) { setRole('creator'); setStep(2); } }, [targetCampaign]);
+  useEffect(() => { if (briefId) { setRole('brand'); setStep(2); } }, [briefId]);
   // Marque venue de la prospection : compte pré-rempli, première campagne préparée après l'inscription
   useEffect(() => { if (!leadId) return; setRole('brand'); setStep(2); const e = searchParams.get('email'); const c = searchParams.get('company'); if (e) setEmail(e); if (c) setCompanyName(c); }, [leadId, searchParams]);
   // Client d'un créateur (devis extérieur) : compte marque pré-rempli, la mission démarre à l'inscription
@@ -124,7 +126,7 @@ function RegisterForm() {
       const endpoint = role === 'creator' ? '/auth/register/creator' : '/auth/register/brand';
       const data = role === 'creator'
         ? { email, name, niches, referralCode, turnstileToken, acceptTerms, country, language, ...(campaignInviteToken ? { campaignInviteToken } : {}) }
-        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}), ...(quoteToken ? { quoteToken } : {}), ...(leadId ? { leadId } : {}) };
+        : { email, companyName, referralCode, turnstileToken, acceptTerms, country, language, ...(teamToken ? { teamToken } : {}), ...(quoteToken ? { quoteToken } : {}), ...(leadId ? { leadId } : {}), ...(briefId ? { briefId } : {}) };
 
       const res = await api.post(endpoint, data, {
         headers: { Authorization: `Bearer ${idToken}` }
@@ -139,7 +141,8 @@ function RegisterForm() {
       );
       const invited = (res as any)?.data?.invitedCampaignId || campaignInvite?.campaignId || targetCampaign;
       const quoteDelivery = (res as any)?.data?.quoteDeliveryId;
-      router.push(quoteDelivery ? `/deliveries/${quoteDelivery}` : invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
+      const briefCampaign = (res as any)?.data?.briefCampaignId;
+      router.push(quoteDelivery ? `/deliveries/${quoteDelivery}` : briefCampaign ? `/campaigns/${briefCampaign}` : invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
 

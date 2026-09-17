@@ -23,7 +23,7 @@ const FETCH_TIMEOUT = 8000;
 const MAX_BYTES = 400 * 1024;
 
 /** Télécharge une page (HTML texte seulement, taille bornée, délai court) */
-export async function fetchPage(url) {
+export async function fetchPage(url, { maxBytes = MAX_BYTES } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
   try {
@@ -33,7 +33,7 @@ export async function fetchPage(url) {
     if (!/text\/html|text\/plain|application\/json/.test(type)) return null;
     const reader = res.body.getReader();
     let received = 0; const chunks = [];
-    while (received < MAX_BYTES) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); received += value.length; }
+    while (received < maxBytes) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); received += value.length; }
     try { reader.cancel(); } catch {}
     return Buffer.concat(chunks).toString('utf8');
   } catch (err) {

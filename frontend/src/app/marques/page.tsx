@@ -73,6 +73,7 @@ export default async function BrandsPage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
+            <Link href="/brief-depuis-url"><Button variant="outline" size="lg" className="w-full sm:w-auto">Mon brief depuis un lien produit</Button></Link>
             <Link href="/nos-createurs"><Button variant="outline" size="lg" className="w-full sm:w-auto">Voir des créateurs</Button></Link>
           </div>
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-neutral-600 flex-wrap">

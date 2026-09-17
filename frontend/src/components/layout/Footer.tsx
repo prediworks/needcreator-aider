@@ -23,6 +23,7 @@ export default function Footer() {
             <li><Link href="/createurs" className="hover:text-primary-600">Je suis créateur</Link></li>
             <li><Link href="/academie" className="hover:text-primary-600">Académie créateurs</Link></li>
             <li><Link href="/calculateur-tarif-ugc" className="hover:text-primary-600">Calculateur de tarif UGC</Link></li>
+            <li><Link href="/brief-depuis-url" className="hover:text-primary-600">Brief depuis un lien produit</Link></li>
             <li><Link href="/contenus-et-droits" className="hover:text-primary-600">Contenus &amp; droits</Link></li>
           </ul>
         </div>

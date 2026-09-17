@@ -7,6 +7,7 @@
 import { chromium } from 'playwright';
 import { createRequire } from 'module';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import os from 'os';
 
@@ -312,6 +313,33 @@ await step('Page publique : calculateur de tarif UGC', async () => {
   await p.screenshot({ path: `${SHOTS}/10b-calculateur.png`, fullPage: true });
   await ctx.close();
   return `tarif recalculé (${before.split(' HT')[0]} → publicité payante)`;
+});
+
+await step('Page publique : brief depuis une URL produit (page factice locale, résultat, bouton d\'inscription)', async () => {
+  // Page produit servie en local : le serveur de test tourne avec ALLOW_LOCAL_FETCH=1
+  const html = `<!doctype html><html><head><title>Gourde isotherme Nomade 750 ml</title><script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: 'Gourde isotherme Nomade 750 ml', brand: { '@type': 'Brand', name: 'Boutique Test' }, description: 'Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe.', offers: { '@type': 'Offer', price: '29.90', priceCurrency: 'EUR' } })}</script></head><body><h1>Gourde isotherme Nomade 750 ml</h1><p>Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe.</p></body></html>`;
+  const srv = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  try {
+    await p.goto(`${FRONT}/brief-depuis-url`, { waitUntil: 'commit' });
+    await p.getByRole('heading', { name: /brief UGC à partir d/ }).waitFor({ timeout: 60000 });
+    await p.waitForLoadState('networkidle', { timeout: 60000 }); // hydratation React avant la saisie
+    await p.getByTestId('product-url').fill(`http://127.0.0.1:${srv.address().port}/products/gourde`);
+    await p.waitForFunction(() => !document.querySelector('[data-testid="product-brief-submit"]')?.hasAttribute('disabled'), null, { timeout: 20000 });
+    await p.getByTestId('product-brief-submit').click();
+    await p.getByTestId('product-brief-progress').waitFor({ timeout: 10000 });
+    await p.getByTestId('product-brief-result').waitFor({ timeout: 120000 });
+    const name = await p.getByTestId('product-name').innerText();
+    if (!/Gourde isotherme/.test(name)) throw new Error(`Produit non lu (${name})`);
+    const budget = await p.getByTestId('product-budget').innerText();
+    const title = await p.getByTestId('product-brief-title').innerText();
+    if (!/brief=/.test(await p.getByTestId('product-brief-register').evaluate((el) => el.closest('a')?.getAttribute('href') || ''))) throw new Error('Le bouton d\'inscription doit porter l\'identifiant du brief');
+    if (!/[?&]id=/.test(p.url())) throw new Error('L\'adresse doit contenir l\'identifiant du brief (lien partageable)');
+    await p.screenshot({ path: `${SHOTS}/10c-brief-url.png`, fullPage: true });
+    return `« ${title.slice(0, 40)} », budget ${budget.split(' HT')[0]}, inscription reliée au brief`;
+  } finally { await ctx.close(); srv.close(); }
 });
 
 await step('Créateur : navigation Campagnes / Missions', async () => {

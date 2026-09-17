@@ -12,6 +12,7 @@
  */
 import dotenv from 'dotenv';
 import fs from 'fs';
+import http from 'http';
 import path from 'path';
 import mongoose from 'mongoose';
 import admin from 'firebase-admin';
@@ -1702,6 +1703,59 @@ await step('Brief IA : statut et génération (ou message clair si non configur�
   }
   expect(res.status === 200 && res.data.brief.title.length >= 10 && res.data.brief.requirements.length >= 3, 'Brief IA invalide', res);
   return `brief généré par ${res.data.provider}/${res.data.model} : « ${res.data.brief.title} »`;
+});
+
+await step('Brief depuis une URL produit : page publique, reprise par une marque connectée et à l\'inscription', async () => {
+  const db = mongoose.connection.db;
+  const st = await brandApi('GET', '/campaigns/ai-brief/status');
+  // Page produit factice servie en local (le serveur de test tourne avec ALLOW_LOCAL_FETCH=1)
+  const page = `<!doctype html><html><head><title>Gourde isotherme Nomade 750 ml – Boutique Test</title>
+<meta property="og:description" content="Gourde inox double paroi, garde 24 h au froid, 12 h au chaud. Sans BPA, fabriquée en Europe.">
+<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: 'Gourde isotherme Nomade 750 ml', brand: { '@type': 'Brand', name: 'Boutique Test' }, description: 'Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe. Idéale randonnée, sport et bureau.', image: 'https://exemple.test/gourde.jpg', offers: { '@type': 'Offer', price: '29.90', priceCurrency: 'EUR' } })}</script>
+</head><body><h1>Gourde isotherme Nomade 750 ml</h1><p>Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe. Idéale randonnée, sport et bureau. Livraison offerte dès 40 €.</p></body></html>`;
+  const srv = http.createServer((req, res) => { if (req.url === '/blocked') { res.writeHead(403); return res.end('no'); } res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page); });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  const pubApi = client(null);
+  try {
+    const bad = await pubApi('POST', '/product-briefs', { url: 'pas une adresse' });
+    expect(bad.status === 400, 'Une adresse invalide doit être refusée (400)', bad);
+    const res = await pubApi('POST', '/product-briefs', { url: `${base}/products/gourde` });
+    if (!st.data.configured) {
+      expect(res.status === 503, 'Sans IA, un 503 clair est attendu', res);
+      return 'IA non configurée : message clair renvoyé';
+    }
+    expect(res.status === 201 && res.data.brief.id && res.data.brief.product.name === 'Gourde isotherme Nomade 750 ml' && res.data.brief.product.price === 29.9, 'Fiche produit non lue depuis le JSON-LD', res);
+    const b = res.data.brief;
+    expect(b.analysis.angles.length === 3 && b.analysis.angles.every(a => a.hook.length >= 5) && b.brief.title.length >= 10 && b.brief.requirements.length >= 3 && b.budget.mid >= 50, 'Analyse ou brief incomplets', res);
+    const blocked = await pubApi('POST', '/product-briefs', { url: `${base}/blocked` });
+    expect(blocked.status === 422 && /bloque/.test(blocked.data.error), 'Un site qui bloque doit renvoyer un message clair', blocked);
+    const get = await pubApi('GET', `/product-briefs/${b.id}`);
+    expect(get.status === 200 && get.data.brief.claimed === false && get.data.brief.brief.title === b.brief.title, 'Lecture publique du brief attendue', get);
+    // Marque connectée : campagne brouillon
+    const claim = await brandApi('POST', `/product-briefs/${b.id}/claim`);
+    expect(claim.status === 200 && claim.data.campaignId, 'Reprise du brief par une marque connectée échouée', claim);
+    const camp = await brandApi('GET', `/campaigns/${claim.data.campaignId}`);
+    expect(camp.status === 200 && camp.data.campaign.status === 'draft' && camp.data.campaign.title === b.brief.title && camp.data.campaign.brief.requirements.length >= 3 && camp.data.campaign.budget?.total === b.budget.mid && /gourde/i.test(camp.data.campaign.brief.productDescription), 'Campagne brouillon incomplète', camp);
+    const again = await brandApi('POST', `/product-briefs/${b.id}/claim`);
+    expect(again.status === 200 && String(again.data.campaignId) === String(claim.data.campaignId), 'Une seconde reprise renvoie la même campagne', again);
+    await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(claim.data.campaignId) });
+    // Nouvelle marque inscrite avec le lien du brief : campagne brouillon prête à la réponse d'inscription
+    const res2 = await pubApi('POST', '/product-briefs', { url: `${base}/products/gourde?v=2` });
+    expect(res2.status === 201, 'Second brief attendu', res2);
+    const email = `e2e-brief-${RUN}@needcreator-test.com`;
+    const fu = await firebaseUser(email);
+    const reg = await client(fu.idToken)('POST', '/auth/register/brand', { acceptTerms: true, email, companyName: 'Boutique Test', country: 'FR', language: 'fr', briefId: res2.data.brief.id });
+    expect(reg.status === 201 && reg.data.briefCampaignId, 'Inscription avec brief : campagne brouillon attendue dans la réponse', reg);
+    const pb2 = await pubApi('GET', `/product-briefs/${res2.data.brief.id}`);
+    expect(pb2.data.brief.claimed === true && String(pb2.data.brief.campaignId) === String(reg.data.briefCampaignId), 'Le brief doit être marqué repris', pb2);
+    await db.collection('campaigns').deleteMany({ brandId: new mongoose.Types.ObjectId(reg.data.user.id) });
+    await db.collection('notifications').deleteMany({ userId: new mongoose.Types.ObjectId(reg.data.user.id) });
+    await db.collection('users').deleteOne({ _id: new mongoose.Types.ObjectId(reg.data.user.id) });
+    await admin.auth().deleteUser(fu.uid).catch(() => {});
+    await db.collection('productbriefs').deleteMany({ _id: { $in: [b.id, res2.data.brief.id].map(id => new mongoose.Types.ObjectId(id)) } });
+    return `« ${b.brief.title.slice(0, 50)} », ${b.analysis.angles.length} angles, budget ${b.budget.mid} €, campagne brouillon (marque connectée et à l'inscription)`;
+  } finally { srv.close(); }
 });
 
 await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vignette', async () => {

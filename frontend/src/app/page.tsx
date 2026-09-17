@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell, FolderOpen, Target, Landmark, Calculator, Gift } from 'lucide-react';
+import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSignature, UserX, ShieldCheck, FileText, Users, Bell, FolderOpen, Target, Landmark, Calculator, Gift, Link2 } from 'lucide-react';
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
@@ -129,6 +129,7 @@ export default async function HomePage() {
               [ShieldCheck, 'Conformité vérifiée', 'À la livraison, durée, format, son et mention du produit sont contrôlés automatiquement avant votre validation.'],
               [Video, 'Portfolio vidéo interactif', 'Regardez les vidéos des créateurs directement dans la plateforme, sans téléchargement.'],
               [Gift, 'Gifting : payez en produit', `Pas de budget vidéo ? Offrez votre produit (${cfg.giftingMinProductValue} € minimum) à la place d'une rémunération. Le créateur livre ses vidéos, contrôlées comme une mission payée, et vous gardez les droits. Gratuit en Pro, ${cfg.giftingFeePerVideo} € par vidéo avec l'offre gratuite.`],
+              [Link2, 'Brief depuis un lien produit', 'Collez l\'adresse de votre fiche produit : trois angles, un format, un budget estimé et un brief prêt à publier, gratuitement et sans compte.'],
               [TrendingUp, 'Gratuit et complet', 'Le prix affiché est le prix payé, aucun frais ajouté. L\'offre gratuite comprend tout ; Pro n\'est utile qu\'aux marques qui font du volume.'],
               [CheckCircle, 'Créateurs vérifiés et formés', 'Chaque profil est validé manuellement par notre équipe, avec 3 vidéos minimum et identité administrative renseignée. Une académie gratuite et un badge Formé distinguent les créateurs qui l\'ont suivie.'],
               [FileText, 'Factures automatiques', 'Une facture PDF par mission, émise au nom du créateur, un avoir en cas de remboursement, un relevé mensuel. TVA gérée selon le statut de chacun.'],
