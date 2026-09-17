@@ -3,8 +3,9 @@ import User from '../../models/User.js';
 import Campaign from '../../models/Campaign.js';
 import ExternalCreator from '../../models/ExternalCreator.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
-import { searchCreators, youtubeConfigured } from './youtube.js';
+import { searchCreators, youtubeConfigured, channelLinks } from './youtube.js';
 import { searchBrands, metaConfigured } from './meta.js';
+import { extractSocials } from './enrich.js';
 import { searchHashtag, instagramConfigured, oembedBlocked } from './instagram.js';
 import { qualifyLead } from './qualify.js';
 import { parseKeywordLines, parseHashtags, DEFAULT_CREATOR_KEYWORDS, DEFAULT_BRAND_KEYWORDS, DEFAULT_INSTAGRAM_HASHTAGS } from './keywords.js';
@@ -51,6 +52,10 @@ async function upsertCandidate(cand, runId) {
 /** Qualification IA d'un prospect « new » → « qualified » (ou « rejected » si hors cible) */
 export async function qualifyOne(lead, openNiches) {
   try {
+    // Réseaux cités dans la bio, pour les prospects créés avant l'ajout du champ (requalification)
+    const cur = lead.socials?.toObject?.() || lead.socials || {};
+    if (!Object.values(cur).some(Boolean)) { const soc = extractSocials(`${lead.description || ''} ${lead.url || ''}`); if (Object.keys(soc).length) lead.socials = { ...cur, ...soc }; }
+    if (lead.source === 'youtube' && lead.url && !lead.socials?.instagram && !lead.socials?.tiktok) { const soc = await channelLinks(lead.url); if (Object.keys(soc).length) lead.socials = { ...(lead.socials?.toObject?.() || lead.socials || {}), ...soc }; }
     const q = await qualifyLead(lead, { openNiches });
     if (!q) return lead;
     lead.niche = q.niche || q.sector || lead.niche;

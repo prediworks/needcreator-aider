@@ -1,3 +1,4 @@
+import { extractSocials } from '../services/acquisition/enrich.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
 import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, metaTokenInfo } from '../services/acquisition/index.js';
 import { importCreators } from '../services/externalCreatorsImport.js';
@@ -133,10 +134,19 @@ export async function listLeads(req, res) {
   res.json({ leads, total, page: parseInt(page, 10), limit: lim });
 }
 
+const SOCIAL_KEYS = ['instagram', 'tiktok', 'youtube', 'linkedin', 'facebook'];
+/** Ne garde que des adresses http(s) pour les cinq réseaux connus ; une valeur vide efface */
+function cleanSocials(obj = {}) {
+  const out = {};
+  for (const k of SOCIAL_KEYS) { const v = String(obj[k] || '').trim(); if (/^https?:\/\//i.test(v)) out[k] = v.slice(0, 300); }
+  return out;
+}
+
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia } = req.body || {};
+  const { status, notes, email, contactedVia, socials } = req.body || {};
+  if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
   if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; } }
   if (notes !== undefined) lead.notes = String(notes).slice(0, 2000);
   if (email !== undefined) { lead.email = String(email).trim().toLowerCase() || null; lead.emailSource = lead.email ? 'manuel' : null; }
@@ -167,7 +177,7 @@ export async function createLead(req, res) {
     const externalId = String(b.externalId || b.url || b.website || b.email || b.name).trim().toLowerCase();
     const exists = await Lead.findOne({ source: 'manual', externalId });
     if (exists) return res.status(409).json({ error: 'Ce prospect existe déjà', lead: exists });
-    const lead = await Lead.create({ kind: b.kind, source: 'manual', externalId, name: String(b.name).trim(), handle: b.handle, url: b.url, website: b.website, country: b.country || 'FR', description: String(b.description || '').slice(0, 2000), email: b.email ? String(b.email).trim().toLowerCase() : null, emailSource: b.email ? 'manuel' : null, keyword: b.keyword || 'manuel', niche: b.niche, stats: b.stats || {}, status: 'new' });
+    const lead = await Lead.create({ kind: b.kind, source: 'manual', externalId, name: String(b.name).trim(), handle: b.handle, url: b.url, website: b.website, country: b.country || 'FR', description: String(b.description || '').slice(0, 2000), email: b.email ? String(b.email).trim().toLowerCase() : null, emailSource: b.email ? 'manuel' : null, keyword: b.keyword || 'manuel', niche: b.niche, stats: b.stats || {}, socials: cleanSocials({ ...extractSocials(`${b.description || ''} ${b.url || ''}`), ...(b.socials || {}) }), status: 'new' });
     if (req.body?.qualify !== false) await qualifyOne(lead, []);
     res.status(201).json({ message: 'Prospect ajouté', lead });
   } catch (error) {
@@ -201,10 +211,10 @@ export async function exportLeadsCsv(req, res) {
   const filter = { kind, email: { $ne: null }, status };
   if (parseInt(minScore, 10) > 0) filter.score = { $gte: parseInt(minScore, 10) };
   const leads = await Lead.find(filter).sort({ score: -1 }).limit(2000).lean();
-  const head = kind === 'creator' ? ['email', 'prenom', 'pseudo', 'nom', 'niche', 'abonnes', 'url', 'score', 'paragraphe', 'message', 'inscription'] : ['email', 'entreprise', 'secteur', 'site', 'annonces', 'score', 'paragraphe', 'message', 'inscription'];
+  const head = kind === 'creator' ? ['email', 'prenom', 'pseudo', 'nom', 'niche', 'abonnes', 'url', 'instagram', 'tiktok', 'score', 'paragraphe', 'message', 'inscription'] : ['email', 'entreprise', 'secteur', 'site', 'instagram', 'tiktok', 'annonces', 'score', 'paragraphe', 'message', 'inscription'];
   const rows = leads.map(l => kind === 'creator'
-    ? [l.email, l.firstName || '', (l.handle || '').replace(/^@/, ''), l.name, l.niche, l.stats?.subscribers ?? '', l.url, l.score ?? '', l.emailParagraph || '', l.message || '', `${config.cors.origin}/register?role=creator&from=${encodeURIComponent((l.handle || '').replace(/^@/, ''))}`]
-    : [l.email, l.name, l.niche, l.website || '', l.stats?.ads ?? '', l.score ?? '', l.emailParagraph || '', l.message || '', `${config.cors.origin}/register?role=brand`]);
+    ? [l.email, l.firstName || '', (l.handle || '').replace(/^@/, ''), l.name, l.niche, l.stats?.subscribers ?? '', l.url, l.socials?.instagram || '', l.socials?.tiktok || '', l.score ?? '', l.emailParagraph || '', l.message || '', `${config.cors.origin}/register?role=creator&from=${encodeURIComponent((l.handle || '').replace(/^@/, ''))}`]
+    : [l.email, l.name, l.niche, l.website || '', l.socials?.instagram || '', l.socials?.tiktok || '', l.stats?.ads ?? '', l.score ?? '', l.emailParagraph || '', l.message || '', `${config.cors.origin}/register?role=brand`]);
   const csv = '﻿' + [head, ...rows].map(r => r.map(esc).join(';')).join('\r\n');
   if (markContacted === '1' && leads.length) await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { status: 'contacted', contactedAt: new Date(), contactedVia: 'email' } });
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');

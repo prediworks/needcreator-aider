@@ -57,9 +57,17 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   excluded: { label: 'Déjà connu', cls: 'bg-neutral-100 text-neutral-500' },
 };
 const SOURCE: Record<string, string> = { youtube: 'YouTube', instagram: 'Instagram', meta: 'Pub Meta', manual: 'Manuel' };
+const SOCIALS: Record<string, string> = { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', linkedin: 'LinkedIn', facebook: 'Facebook' };
+
+/** Liens vers les profils réseaux du prospect (trouvés dans la bio, le lien de bio ou le site) */
+function SocialLinks({ socials }: { socials?: Record<string, string> }) {
+  const entries = Object.entries(SOCIALS).filter(([k]) => socials?.[k]);
+  if (!entries.length) return null;
+  return <span className="inline-flex gap-1 flex-wrap ml-1" data-testid="lead-socials">{entries.map(([k, label]) => <a key={k} href={socials![k]} target="_blank" rel="noopener noreferrer" className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 hover:bg-primary-100 hover:text-primary-700 text-[11px]">{label}</a>)}</span>;
+}
 
 function ManualForm({ onDone }: { onDone: () => void }) {
-  const [f, setF] = useState<any>({ kind: 'creator', name: '', handle: '', url: '', website: '', email: '', description: '', niche: '' });
+  const [f, setF] = useState<any>({ kind: 'creator', name: '', handle: '', url: '', website: '', email: '', description: '', niche: '', socials: { instagram: '', tiktok: '' } });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const missing = [!f.name.trim() && 'un nom'].filter(Boolean) as string[];
   const add = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads', f)).data, onSuccess: (d) => { toast.success(d.message); onDone(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -72,6 +80,8 @@ function ManualForm({ onDone }: { onDone: () => void }) {
         <Input label="Profil ou page (URL)" value={f.url} onChange={(e) => set('url', e.target.value)} />
         <Input label="Site" value={f.website} onChange={(e) => set('website', e.target.value)} />
         <Input label="Email" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
+        <Input label="Instagram (URL)" placeholder="https://www.instagram.com/pseudo/" value={f.socials.instagram} onChange={(e) => set('socials', { ...f.socials, instagram: e.target.value })} />
+        <Input label="TikTok (URL)" placeholder="https://www.tiktok.com/@pseudo" value={f.socials.tiktok} onChange={(e) => set('socials', { ...f.socials, tiktok: e.target.value })} />
         <div className="sm:col-span-3"><textarea value={f.description} onChange={(e) => set('description', e.target.value)} rows={2} placeholder="Bio, description, ce que vend la marque… (sert à la qualification IA)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" /></div>
       </div>
       <div className="flex items-center gap-2 flex-wrap"><Button size="sm" onClick={() => add.mutate()} isLoading={add.isPending} disabled={missing.length > 0}>Ajouter et qualifier</Button><Button size="sm" variant="outline" onClick={onDone}>Annuler</Button><MissingHint items={missing} /></div>
@@ -233,7 +243,7 @@ export default function AcquisitionTool() {
                         {l.handle && <span className="text-neutral-500">{l.handle}</span>}
                         <span className={`px-2 py-0.5 rounded-full text-xs ${st.cls}`}>{st.label}</span>
                         {l.score != null && <span className={`px-2 py-0.5 rounded-full text-xs ${l.score >= 70 ? 'bg-green-100 text-green-800' : l.score >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-600'}`}>score {l.score}</span>}
-                        <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.source === 'instagram' && l.stats?.likes != null ? ` · ${l.stats.likes} j'aime` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span>
+                        <span className="text-xs text-neutral-500">{SOURCE[l.source] || l.source} · {l.niche || '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.stats?.ads ? ` · ${l.stats.ads} annonce(s)` : ''}{l.source === 'instagram' && l.stats?.likes != null ? ` · ${l.stats.likes} j'aime` : ''}{l.keyword ? ` · « ${l.keyword} »` : ''}</span><SocialLinks socials={l.socials} />
                       </div>
                       <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
@@ -247,6 +257,7 @@ export default function AcquisitionTool() {
                       <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Requalifier avec l'IA"><RefreshCw className="w-4 h-4" /></button>
                       <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs" aria-label="Statut">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
                       <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Note</button>
+                      <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer)', l.socials?.tiktok || ''); if (tt === null) return; patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt } }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Réseaux</button>
                       {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Email</button>}
                       <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
                     </div>

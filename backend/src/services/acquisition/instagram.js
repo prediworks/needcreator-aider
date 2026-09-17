@@ -1,5 +1,5 @@
 import logger from '../../utils/logger.js';
-import { extractEmails, pickEmail, findEmailViaLinks } from './enrich.js';
+import { extractEmails, pickEmail, findEmailViaLinks, extractSocials } from './enrich.js';
 import { metaToken } from './meta.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
 
@@ -63,14 +63,16 @@ export async function searchHashtag(tag, { limit = 40 } = {}) {
       catch (err) { if (err.code === 10) cache.oembedBlocked = true; }
     }
     const links = [...caption.matchAll(/https?:\/\/[^\s)]+/g)].map(x => x[0]);
+    const socials = extractSocials(caption);
+    if (author) socials.instagram = `https://www.instagram.com/${author}/`;
     let email = pickEmail(extractEmails(caption)), emailSource = email ? 'légende' : null;
-    if (!email && links.length) { const r = await findEmailViaLinks(links); if (r) { email = r.email; emailSource = r.source; } }
+    if (!email && links.length) { const r = await findEmailViaLinks(links); if (r) { if (r.email) { email = r.email; emailSource = r.source; } for (const [k, v] of Object.entries(r.socials || {})) if (!socials[k]) socials[k] = v; } }
     const firstLine = caption.split('\n').map(l => l.trim()).find(l => l.length > 3) || '';
     out.push({
       kind: 'creator', source: 'instagram', externalId: m.id,
       name: author ? `@${author}` : firstLine.slice(0, 60), handle: author ? `@${author}` : null, url: author ? `https://www.instagram.com/${author}/` : m.permalink,
       website: links.find(l => !/instagram\.com|tiktok\.com|youtube\.com/.test(l)) || null, country: null, language: 'fr',
-      description: caption.slice(0, 2000), email, emailSource, keyword: `#${clean}`,
+      description: caption.slice(0, 2000), email, emailSource, keyword: `#${clean}`, socials,
       stats: { likes: m.like_count || 0, comments: m.comments_count || 0, postedAt: m.timestamp ? new Date(m.timestamp) : null },
       links,
     });

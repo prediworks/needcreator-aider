@@ -15,6 +15,7 @@ const leadSchema = new mongoose.Schema({
   handle: { type: String, trim: true }, // @pseudo YouTube / nom de page
   url: String,
   website: String,
+  socials: { instagram: String, tiktok: String, youtube: String, linkedin: String, facebook: String }, // profils trouvés dans la bio, le lien de bio ou le site
   country: String,
   language: String,
   description: String,

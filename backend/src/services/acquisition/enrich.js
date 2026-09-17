@@ -44,7 +44,37 @@ export async function fetchPage(url, { maxBytes = MAX_BYTES } = {}) {
 const decode = (html) => String(html || '').replace(/&#64;|&commat;/g, '@').replace(/\s?\[at\]\s?|\s\(at\)\s|\s+at\s+(?=[a-z0-9-]+\s?(\.|\[dot\]|\(dot\))\s?[a-z]{2,})/gi, '@').replace(/\s?\[dot\]\s?|\s\(dot\)\s/gi, '.');
 const stripTags = (html) => decode(html).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-/** Cherche un email sur une page, puis sur ses pages contact / mentions légales (même domaine) */
+const SOCIAL_PATTERNS = {
+  instagram: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9_.]{2,30})\/?(?![\w.])/gi,
+  tiktok: /https?:\/\/(?:www\.)?tiktok\.com\/@([A-Za-z0-9_.]{2,30})/gi,
+  youtube: /https?:\/\/(?:www\.)?youtube\.com\/(?:@|c\/|channel\/|user\/)([A-Za-z0-9_.-]{2,40})/gi,
+  linkedin: /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:company|in)\/([A-Za-z0-9_.%-]{2,60})/gi,
+  facebook: /https?:\/\/(?:www\.|m\.)?facebook\.com\/(?!sharer|share|dialog|plugins|login|policies|privacy|tr\b)([A-Za-z0-9_.-]{3,60})/gi,
+};
+const SOCIAL_IGNORED = { instagram: /^(p|reel|reels|explore|accounts|stories|share|tv|about|legal|developer|api|directory)$/i, tiktok: /^(discover|tag|foryou|explore|search)$/i, youtube: /^(watch|shorts|results|feed|playlist)$/i, facebook: /^(profile\.php|groups|events|pages|photo|watch|marketplace|hashtag|help|business|about|legal)$/i };
+/** Comptes réseaux sociaux cités dans un texte, une bio ou une page HTML (profils uniquement : pas de publications ni de boutons de partage) */
+export function extractSocials(text) {
+  const out = {};
+  for (const [net, re] of Object.entries(SOCIAL_PATTERNS)) {
+    for (const m of String(text || '').matchAll(re)) {
+      const handle = m[1].replace(/\.$/, '');
+      if (SOCIAL_IGNORED[net]?.test(handle)) continue;
+      out[net] = net === 'youtube' ? `https://www.youtube.com/${/^UC[\w-]{20,}$/.test(handle) ? 'channel/' : m[0].includes('/c/') ? 'c/' : m[0].includes('/user/') ? 'user/' : '@'}${handle.replace(/^@/, '')}`
+        : net === 'tiktok' ? `https://www.tiktok.com/@${handle}` : net === 'instagram' ? `https://www.instagram.com/${handle}/`
+        : net === 'linkedin' ? `https://www.linkedin.com/${m[0].includes('/in/') ? 'in' : 'company'}/${handle}/` : `https://www.facebook.com/${handle}`;
+      break;
+    }
+  }
+  // Pseudos @tiktok / @instagram écrits dans une bio : « TikTok : @moncompte »
+  for (const m of String(text || '').matchAll(/\b(tiktok|instagram|insta|ig)\s*[:：]?\s*@([A-Za-z0-9_.]{2,30})/gi)) {
+    const net = /tiktok/i.test(m[1]) ? 'tiktok' : 'instagram';
+    const h = m[2].replace(/\.$/, "");
+    if (!out[net]) out[net] = net === 'tiktok' ? `https://www.tiktok.com/@${h}` : `https://www.instagram.com/${h}/`;
+  }
+  return out;
+}
+
+/** Cherche un email sur une page, puis sur ses pages contact / mentions légales (même domaine) ; relève aussi les réseaux sociaux affichés */
 export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
   if (!startUrl) return null;
   let base;
@@ -52,6 +82,7 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
   const visited = new Set();
   const queue = [base.href];
   const candidates = [];
+  const socials = {};
   const contactWords = /contact|mentions|legal|legales|impressum|about|a-propos|apropos|qui-sommes|collab|partenariat|presse|press/i;
   while (queue.length && visited.size < maxPages) {
     const url = queue.shift();
@@ -59,6 +90,7 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
     visited.add(url);
     const html = await fetchPage(url);
     if (!html) continue;
+    for (const [k, v] of Object.entries(extractSocials(html))) if (!socials[k]) socials[k] = v;
     // mailto: en priorité
     for (const m of html.matchAll(/mailto:([^"'?\s>]+)/gi)) candidates.push(...extractEmails(decodeURIComponent(m[1])));
     candidates.push(...extractEmails(stripTags(html)));
@@ -73,14 +105,17 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
   }
   const email = pickEmail([...new Set(candidates)]);
   if (email) logger.debug(`Email found on ${base.hostname}: ${email}`);
-  return email ? { email, source: visited.size > 1 ? 'site:contact' : 'site' } : null;
+  if (!email && !Object.keys(socials).length) return null;
+  return { email: email || null, source: email ? (visited.size > 1 ? 'site:contact' : 'site') : null, socials };
 }
 
 /** Lien de bio (Linktree, Beacons, site perso…) : la page liste souvent un email ou un mailto */
 export async function findEmailViaLinks(links = []) {
+  const socials = {};
   for (const l of links.slice(0, 3)) {
     const r = await findEmailOnSite(l, { maxPages: 2 });
-    if (r) return { email: r.email, source: 'lien-bio' };
+    for (const [k, v] of Object.entries(r?.socials || {})) if (!socials[k]) socials[k] = v;
+    if (r?.email) return { email: r.email, source: 'lien-bio', socials };
   }
-  return null;
+  return Object.keys(socials).length ? { email: null, source: null, socials } : null;
 }
