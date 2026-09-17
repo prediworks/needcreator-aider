@@ -50,7 +50,7 @@ async function fetchProductPage(url) {
   try {
     const res = await fetch(url, { signal: ctrl.signal, redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 NeedCreator/1.0', Accept: 'text/html,application/xhtml+xml,*/*;q=0.5', 'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.5' } });
     if (res.status === 404 || res.status === 410) throw Object.assign(new Error('Page introuvable (404) : vérifiez l\'adresse du produit'), { status: 422 });
-    if (res.status === 403 || res.status === 401 || res.status === 429) throw Object.assign(new Error('Ce site bloque la lecture automatique. Créez votre compte et collez la description du produit dans le formulaire de campagne : le brief IA y est aussi disponible.'), { status: 422 });
+    if (res.status === 403 || res.status === 401 || res.status === 429) throw Object.assign(new Error('Ce site bloque la lecture automatique (protection anti-robot). Décrivez le produit à la main ci-dessous.'), { status: 422, code: 'UNREADABLE' });
     if (!res.ok) throw Object.assign(new Error(`Page indisponible (erreur ${res.status})`), { status: 422 });
     if (!/text\/html|application\/xhtml/.test(res.headers.get('content-type') || '')) throw Object.assign(new Error('Cette adresse n\'est pas une page web'), { status: 422 });
     const reader = res.body.getReader();
@@ -60,7 +60,8 @@ async function fetchProductPage(url) {
     return Buffer.concat(chunks).toString('utf8');
   } catch (err) {
     if (err.status) throw err;
-    throw Object.assign(new Error(err.name === 'AbortError' ? 'Le site met trop de temps à répondre, réessayez' : 'Page illisible : vérifiez que l\'adresse est publique et accessible'), { status: 422 });
+    const blocked = /redirect count exceeded/i.test(String(err.cause?.message || err.message));
+    throw Object.assign(new Error(err.name === 'AbortError' ? 'Le site met trop de temps à répondre, réessayez' : blocked ? 'Ce site bloque la lecture automatique (protection anti-robot). Décrivez le produit à la main ci-dessous.' : 'Page illisible : vérifiez que l\'adresse est publique et accessible, ou décrivez le produit à la main ci-dessous'), { status: 422, code: 'UNREADABLE' });
   } finally { clearTimeout(t); }
 }
 
@@ -90,7 +91,7 @@ export async function extractProduct(url) {
   const body = (html.match(/<body[\s\S]*<\/body>/i) || [html])[0];
   const text = stripTags(body).slice(0, 4000);
   product.name = product.name.slice(0, 150); product.description = stripTags(product.description).slice(0, 1500); product.brand = product.brand.slice(0, 80);
-  if (!product.name && text.length < 80) throw Object.assign(new Error('Aucune fiche produit trouvée sur cette page'), { status: 422 });
+  if (!product.name && text.length < 80) throw Object.assign(new Error('Aucune fiche produit trouvée sur cette page. Décrivez le produit à la main ci-dessous.'), { status: 422, code: 'UNREADABLE' });
   return { product, text };
 }
 
@@ -143,10 +144,13 @@ N'invente aucune caractéristique absente de la fiche. Réponds uniquement avec 
 }
 
 /** Chaîne complète : lecture, analyse, brief, budget, enregistrement */
-export async function buildProductBrief(url, { ip } = {}) {
+export async function buildProductBrief(url, { ip, manual } = {}) {
   if (!aiConfig().configured) throw Object.assign(new Error('Génération indisponible : IA non configurée sur le serveur'), { status: 503 });
   const u = await assertPublicUrl(url);
-  const extracted = await extractProduct(u.href);
+  // Repli : description saisie à la main quand la page ne peut pas être lue (protection anti-robot)
+  const extracted = manual?.description
+    ? { product: { name: clip(manual.name, 150), brand: clip(manual.brand, 80) || u.hostname.replace(/^www\./, ''), description: clip(manual.description, 1500), price: Number.isFinite(Number(manual.price)) && Number(manual.price) > 0 ? Number(manual.price) : null, currency: 'EUR', image: '' }, text: clip(manual.description, 4000) }
+    : await extractProduct(u.href);
   const analysis = await analyzeProduct(extracted);
   const { product } = extracted;
   const brief = await generateBrief({
@@ -157,7 +161,7 @@ export async function buildProductBrief(url, { ip } = {}) {
   const rates = await marketRatesData();
   const est = estimateRate({ videoType: analysis.videoType, duration: analysis.duration, deliverables: analysis.deliverables, rights: '1y', supports: 'social_organic,paid_ads' }, rates.rates);
   const doc = await ProductBrief.create({
-    url: u.href, domain: u.hostname.replace(/^www\./, ''), ip, product, analysis,
+    url: u.href, domain: u.hostname.replace(/^www\./, ''), ip, product, analysis, manual: !!manual?.description,
     brief: { title: brief.title, description: brief.description, requirements: brief.requirements, dos: brief.dos, donts: brief.donts, hashtags: brief.hashtags },
     budget: { low: est.total.low, mid: est.total.mid, high: est.total.high, perVideoMid: est.perVideo.mid },
   });

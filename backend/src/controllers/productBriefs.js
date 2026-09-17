@@ -22,10 +22,11 @@ export async function createProductBrief(req, res) {
     ]);
     if (hour >= PER_IP_PER_HOUR) return res.status(429).json({ error: 'Limite atteinte : 5 briefs par heure. Créez un compte marque pour continuer sans limite.', code: 'RATE_LIMIT' });
     if (day >= PER_DAY) return res.status(429).json({ error: 'Outil très sollicité aujourd\'hui, réessayez demain ou créez un compte marque.', code: 'DAILY_LIMIT' });
-    const pb = await buildProductBrief(req.body?.url, { ip });
+    const { url, name, brand, description, price } = req.body || {};
+    const pb = await buildProductBrief(url, { ip, manual: description ? { name, brand, description, price } : null });
     res.status(201).json({ brief: serialize(pb) });
   } catch (error) {
-    if (error.status) return res.status(error.status).json({ error: error.message });
+    if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
     logger.error('createProductBrief failed:', error);
     res.status(500).json({ error: 'Génération impossible sur cette page, réessayez avec une autre adresse' });
   }

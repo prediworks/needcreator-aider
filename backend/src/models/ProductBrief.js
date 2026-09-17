@@ -8,6 +8,7 @@ const productBriefSchema = new mongoose.Schema({
   url: { type: String, required: true },
   domain: String,
   ip: String,
+  manual: { type: Boolean, default: false }, // description saisie à la main (page illisible)
   product: {
     name: String,
     brand: String,

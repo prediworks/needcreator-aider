@@ -24,13 +24,15 @@ export default function ProductBriefTool() {
   const [url, setUrl] = useState('');
   const [id, setId] = useState<string | null>(searchParams.get('id'));
   const [stepIdx, setStepIdx] = useState(0);
+  const [manual, setManual] = useState(false); // repli : description saisie à la main quand la page ne peut pas être lue
+  const [m, setM] = useState({ name: '', brand: '', description: '', price: '' });
 
   const { data, isFetching } = useQuery({ queryKey: ['product-brief', id], queryFn: async () => (await api.get(`/product-briefs/${id}`)).data.brief, enabled: !!id, staleTime: 60000 });
 
   const generate = useMutation({
-    mutationFn: async () => (await api.post('/product-briefs', { url: url.trim() })).data.brief,
-    onSuccess: (b) => { setId(b.id); router.replace(`/brief-depuis-url?id=${b.id}`); },
-    onError: (e) => toast.error(getErrorMessage(e)),
+    mutationFn: async (withManual: boolean) => (await api.post('/product-briefs', withManual ? { url: url.trim(), name: m.name, brand: m.brand, description: m.description, price: m.price === '' ? null : Number(m.price) } : { url: url.trim() })).data.brief,
+    onSuccess: (b) => { setId(b.id); setManual(false); router.replace(`/brief-depuis-url?id=${b.id}`); },
+    onError: (e: any) => { toast.error(getErrorMessage(e)); if (e?.response?.data?.code === 'UNREADABLE') setManual(true); },
   });
   const claim = useMutation({
     mutationFn: async () => (await api.post(`/product-briefs/${id}/claim`)).data,
@@ -54,11 +56,27 @@ export default function ProductBriefTool() {
   return (
     <div className="space-y-6">
       <Card className="p-6">
-        <form onSubmit={(e) => { e.preventDefault(); if (url.trim()) generate.mutate(); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
+        <form onSubmit={(e) => { e.preventDefault(); if (url.trim()) generate.mutate(false); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="flex-1"><Input label="Adresse de la fiche produit" placeholder="https://www.votreboutique.fr/products/mon-produit" value={url} onChange={(e) => setUrl(e.target.value)} type="url" required data-testid="product-url" /></div>
           <Button type="submit" isLoading={generate.isPending} disabled={!url.trim()} data-testid="product-brief-submit"><Sparkles className="w-4 h-4 mr-2" /> Générer le brief</Button>
         </form>
-        <p className="text-xs text-neutral-500 mt-2">Shopify, WooCommerce, Prestashop ou toute page produit publique. Gratuit, sans compte, 5 briefs par heure. Rien n&apos;est publié sans vous.</p>
+        <p className="text-xs text-neutral-500 mt-2">Shopify, WooCommerce, Prestashop ou toute page produit publique. Gratuit, sans compte, 5 briefs par heure. Rien n&apos;est publié sans vous.{!manual && <> Site protégé contre les robots ? <button type="button" className="underline" onClick={() => setManual(true)}>Décrivez le produit à la main</button>.</>}</p>
+        {manual && (
+          <form onSubmit={(e) => { e.preventDefault(); if (url.trim() && m.description.trim().length >= 40) generate.mutate(true); }} className="mt-4 border-t border-neutral-200 pt-4 space-y-3" data-testid="product-manual-form">
+            <p className="text-sm text-neutral-700">La page ne peut pas être lue automatiquement : copiez ici la fiche produit, le brief est généré pareil. L&apos;adresse ci-dessus sert de lien vers le produit.</p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              <Input label="Nom du produit" value={m.name} onChange={(e) => setM({ ...m, name: e.target.value })} placeholder="Savon surgras karité 250 g" />
+              <Input label="Marque" value={m.brand} onChange={(e) => setM({ ...m, brand: e.target.value })} placeholder="Nom de la marque" />
+              <Input label="Prix (€)" type="number" min={0} step="0.01" value={m.price} onChange={(e) => setM({ ...m, price: e.target.value })} placeholder="9,90" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">Description du produit (copiée depuis la fiche)</label>
+              <textarea value={m.description} onChange={(e) => setM({ ...m, description: e.target.value })} rows={5} maxLength={3000} className="w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" placeholder="Composition, bénéfices, usage, pour qui, ce qui le distingue…" data-testid="product-manual-description" />
+              <p className="text-xs text-neutral-500 mt-1">{m.description.trim().length < 40 ? `Encore ${40 - m.description.trim().length} caractères minimum` : `${m.description.length} / 3000`}</p>
+            </div>
+            <Button type="submit" isLoading={generate.isPending} disabled={!url.trim() || m.description.trim().length < 40} data-testid="product-manual-submit"><Sparkles className="w-4 h-4 mr-2" /> Générer depuis ma description</Button>
+          </form>
+        )}
         {generate.isPending && (
           <ol className="mt-4 grid sm:grid-cols-4 gap-2 text-sm" data-testid="product-brief-progress">
             {STEPS.map((s, i) => <li key={s} className={`rounded-lg px-3 py-2 ${i < stepIdx ? 'bg-primary-50 text-primary-700' : i === stepIdx ? 'bg-primary-500 text-white animate-pulse' : 'bg-neutral-100 text-neutral-500'}`}>{i + 1}. {s}</li>)}

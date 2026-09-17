@@ -1729,7 +1729,12 @@ await step('Brief depuis une URL produit : page publique, reprise par une marque
     const b = res.data.brief;
     expect(b.analysis.angles.length === 3 && b.analysis.angles.every(a => a.hook.length >= 5) && b.brief.title.length >= 10 && b.brief.requirements.length >= 3 && b.budget.mid >= 50, 'Analyse ou brief incomplets', res);
     const blocked = await pubApi('POST', '/product-briefs', { url: `${base}/blocked` });
-    expect(blocked.status === 422 && /bloque/.test(blocked.data.error), 'Un site qui bloque doit renvoyer un message clair', blocked);
+    expect(blocked.status === 422 && /bloque/.test(blocked.data.error) && blocked.data.code === 'UNREADABLE', 'Un site qui bloque doit renvoyer un message clair et le code UNREADABLE', blocked);
+    const short = await pubApi('POST', '/product-briefs', { url: `${base}/blocked`, description: 'trop court' });
+    expect(short.status === 400, 'Une description manuelle trop courte doit être refusée', short);
+    const manual = await pubApi('POST', '/product-briefs', { url: `${base}/blocked`, name: 'Savon surgras karité', brand: 'Marque Test', price: 9.9, description: 'Savon surgras enrichi en beurre de karité, peaux sèches et sensibles, parfum doux, fabriqué en Provence, 250 g.' });
+    expect(manual.status === 201 && manual.data.brief.product.name === 'Savon surgras karité' && manual.data.brief.product.price === 9.9 && manual.data.brief.analysis.angles.length === 3, 'Repli manuel : brief attendu depuis la description saisie', manual);
+    await db.collection('productbriefs').deleteOne({ _id: new mongoose.Types.ObjectId(manual.data.brief.id) });
     const get = await pubApi('GET', `/product-briefs/${b.id}`);
     expect(get.status === 200 && get.data.brief.claimed === false && get.data.brief.brief.title === b.brief.title, 'Lecture publique du brief attendue', get);
     // Marque connectée : campagne brouillon
