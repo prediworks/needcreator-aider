@@ -72,20 +72,20 @@ export default function AdminPage() {
 
   if (!ready) return <Spinner />;
 
-  const tabs: Array<{ key: Tab; label: string; count?: number }> = [
-    { key: 'pending', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
-    { key: 'ambassadors', label: 'Vidéos Ambassadeur', count: stats?.todo?.pendingAmbassadors },
-    { key: 'businesses', label: 'Marques à vérifier', count: stats?.todo?.pendingBusinesses },
-    { key: 'reports', label: 'Signalements', count: stats?.todo?.openReports },
-    { key: 'disputes', label: 'Litiges', count: disputes?.disputes?.length || stats?.todo?.openDisputes || undefined },
-    { key: 'invoices', label: 'Factures' },
-    { key: 'users', label: 'Utilisateurs' },
-    { key: 'campaigns', label: 'Campagnes' },
-    { key: 'deliveries', label: 'Livraisons' },
-    { key: 'external', label: 'Créateurs référencés' },
-    { key: 'seed', label: 'Amorçage' },
-    { key: 'acquisition', label: 'Prospection' },
-    { key: 'settings', label: 'Réglages' },
+  const tabs: Array<{ key: Tab; label: string; title?: string; count?: number }> = [
+    { key: 'pending', title: 'Profils créateurs en attente de validation manuelle (3 vidéos minimum, identité administrative)', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
+    { key: 'ambassadors', title: 'Vidéos proposées par les créateurs Ambassadeurs pour la vitrine, à approuver', label: 'Vidéos Ambassadeur', count: stats?.todo?.pendingAmbassadors },
+    { key: 'businesses', title: 'Marques dont le SIRET ou l’entreprise n’a pas pu être vérifié automatiquement', label: 'Marques à vérifier', count: stats?.todo?.pendingBusinesses },
+    { key: 'reports', title: 'Signalements d’utilisateurs ou de contenus à traiter', label: 'Signalements', count: stats?.todo?.openReports },
+    { key: 'disputes', title: 'Livraisons refusées par une marque : arbitrage à rendre', label: 'Litiges', count: disputes?.disputes?.length || stats?.todo?.openDisputes || undefined },
+    { key: 'invoices', title: 'Factures et avoirs émis, relevés mensuels', label: 'Factures' },
+    { key: 'users', title: 'Tous les comptes avec filtres (rôle, statut, origine, email confirmé, plan, ambassadeur)', label: 'Utilisateurs' },
+    { key: 'campaigns', title: 'Toutes les campagnes, tous statuts', label: 'Campagnes' },
+    { key: 'deliveries', title: 'Toutes les livraisons et leur avancement', label: 'Livraisons' },
+    { key: 'external', title: 'Annuaire public des créateurs référencés (import xlsx ou csv, séquence email)', label: 'Créateurs référencés' },
+    { key: 'seed', title: 'Campagnes d’amorçage générées par l’IA pour remplir la place de marché au lancement', label: 'Amorçage' },
+    { key: 'acquisition', title: 'Agents de prospection : recherche de créateurs et de marques, qualification IA, mailing, réponses, import groupé', label: 'Prospection' },
+    { key: 'settings', title: 'Réglages de la plateforme par groupe (commissions, délais, IA, prospection, mailing…)', label: 'Réglages' },
   ];
 
   return (
@@ -96,7 +96,7 @@ export default function AdminPage() {
             <h1 className="text-3xl font-bold text-neutral-900 mb-1">Administration</h1>
             <p className="text-neutral-600">Validation des créateurs, supervision des campagnes et des paiements</p>
           </div>
-          <Button variant="outline" onClick={() => runJobs.mutate()} isLoading={runJobs.isPending}>
+          <Button variant="outline" onClick={() => runJobs.mutate()} isLoading={runJobs.isPending} title="Exécute tout de suite les tâches normalement nocturnes : validations automatiques, relances, rappels de droits, prospection et mailing si activés">
             <Play className="w-4 h-4 mr-2" />
             Lancer les tâches planifiées
           </Button>
@@ -141,6 +141,7 @@ export default function AdminPage() {
           {tabs.map((t) => (
             <button
               key={t.key}
+              title={t.title}
               onClick={() => setTab(t.key)}
               className={cn(
                 'px-4 py-2 rounded-full text-sm font-medium transition',

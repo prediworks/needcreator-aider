@@ -37,8 +37,8 @@ function ReplyBox({ lead, onSent }: { lead: any; onSent: () => void }) {
       <div className="text-neutral-700 bg-purple-50 rounded px-2 py-1 mt-1 whitespace-pre-wrap">{(m.replyText || '').slice(0, 600)}</div>
       {m.replySentAt ? <div className="text-green-700 mt-1">Réponse envoyée le {formatDateTime(m.replySentAt)} : « {(m.replySentText || '').slice(0, 160)} »</div> : (
         <div className="mt-1">
-          {!open ? <div className="flex gap-2 items-center flex-wrap">{m.replySuggestion && <span className="text-neutral-600">Proposition : « {m.replySuggestion.slice(0, 140)}… »</span>}<Button size="sm" variant="outline" onClick={() => setOpen(true)}><Send className="w-3.5 h-3.5 mr-1" /> {m.replySuggestion ? 'Relire et envoyer' : 'Répondre'}</Button></div> : (
-            <div><textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-xs" /><div className="flex gap-2 mt-1"><Button size="sm" onClick={() => send.mutate()} isLoading={send.isPending} disabled={!text.trim()}><Send className="w-3.5 h-3.5 mr-1" /> Envoyer depuis l&apos;outil de mailing</Button><Button size="sm" variant="outline" onClick={() => setOpen(false)}>Annuler</Button></div></div>
+          {!open ? <div className="flex gap-2 items-center flex-wrap">{m.replySuggestion && <span className="text-neutral-600">Proposition : « {m.replySuggestion.slice(0, 140)}… »</span>}<Button size="sm" variant="outline" onClick={() => setOpen(true)} title="Ouvrir la réponse proposée par l'IA pour la relire, la modifier et l'envoyer depuis l'outil de mailing, dans le fil de la conversation"><Send className="w-3.5 h-3.5 mr-1" /> {m.replySuggestion ? 'Relire et envoyer' : 'Répondre'}</Button></div> : (
+            <div><textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} className="w-full border border-neutral-300 rounded-lg px-2 py-1 text-xs" /><div className="flex gap-2 mt-1"><Button size="sm" onClick={() => send.mutate()} isLoading={send.isPending} disabled={!text.trim()} title="Envoie ce texte au prospect depuis l'expéditeur de l'outil de mailing, en réponse à son message"><Send className="w-3.5 h-3.5 mr-1" /> Envoyer depuis l&apos;outil de mailing</Button><Button size="sm" variant="outline" onClick={() => setOpen(false)}>Annuler</Button></div></div>
           )}
         </div>
       )}
@@ -86,8 +86,8 @@ function ImportForm({ kind, onDone }: { kind: 'creator' | 'brand'; onDone: () =>
       </div>
       {preview.data && <ul className="text-xs text-neutral-700 mb-3 space-y-0.5 max-h-40 overflow-auto" data-testid="import-preview">{preview.data.map((r, i) => <li key={i} className={r.error ? 'text-red-600' : ''}>{r.error ? `Ignorée : ${r.error}` : `${r.name}${r.email ? ` · ${r.email}` : ' · pas d\'email'}${r.url ? ` · ${r.url}` : ''}${Object.keys(r.socials || {}).length ? ` · réseaux : ${Object.keys(r.socials).join(', ')}` : ''}`}</li>)}</ul>}
       <div className="flex items-center gap-2 flex-wrap">
-        <Button size="sm" variant="outline" onClick={() => preview.mutate()} isLoading={preview.isPending} disabled={missing.length > 0}>Vérifier la lecture</Button>
-        <Button size="sm" onClick={() => run.mutate()} isLoading={run.isPending} disabled={missing.length > 0} data-testid="import-submit">Importer et qualifier</Button>
+        <Button size="sm" variant="outline" onClick={() => preview.mutate()} isLoading={preview.isPending} disabled={missing.length > 0} title="Montre comment chaque ligne sera lue (nom, email, lien, réseaux) sans rien enregistrer">Vérifier la lecture</Button>
+        <Button size="sm" onClick={() => run.mutate()} isLoading={run.isPending} disabled={missing.length > 0} data-testid="import-submit" title="Enregistre les lignes valides comme prospects, ignore les doublons, puis lance la qualification IA en arrière-plan">Importer et qualifier</Button>
         <Button size="sm" variant="outline" onClick={onDone}>Annuler</Button>
         <MissingHint items={missing} />
       </div>
@@ -113,7 +113,7 @@ function ManualForm({ onDone }: { onDone: () => void }) {
         <Input label="TikTok (URL)" placeholder="https://www.tiktok.com/@pseudo" value={f.socials.tiktok} onChange={(e) => set('socials', { ...f.socials, tiktok: e.target.value })} />
         <div className="sm:col-span-3"><textarea value={f.description} onChange={(e) => set('description', e.target.value)} rows={2} placeholder="Bio, description, ce que vend la marque… (sert à la qualification IA)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" /></div>
       </div>
-      <div className="flex items-center gap-2 flex-wrap"><Button size="sm" onClick={() => add.mutate()} isLoading={add.isPending} disabled={missing.length > 0}>Ajouter et qualifier</Button><Button size="sm" variant="outline" onClick={onDone}>Annuler</Button><MissingHint items={missing} /></div>
+      <div className="flex items-center gap-2 flex-wrap"><Button size="sm" onClick={() => add.mutate()} isLoading={add.isPending} disabled={missing.length > 0} title="Crée le prospect et le qualifie aussitôt avec l'IA (score, message, paragraphe email)">Ajouter et qualifier</Button><Button size="sm" variant="outline" onClick={onDone}>Annuler</Button><MissingHint items={missing} /></div>
     </Card>
   );
 }
@@ -161,8 +161,8 @@ export default function AcquisitionTool() {
             <p className="text-sm text-neutral-600 mt-1">Chaque nuit, les agents cherchent des créateurs (YouTube, hashtags Instagram) et des marques (bibliothèque publicitaire Meta), trouvent leur email et les qualifient avec l&apos;IA. Vous exportez les qualifiés vers votre outil de mailing, ou copiez le message pour les contacter à la main sur les réseaux. Réglages dans l&apos;onglet Réglages, groupe « Prospection ».</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" onClick={() => run.mutate(['creator'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || (!s?.youtube && !s?.instagram)}><Play className="w-4 h-4 mr-1" /> Chercher des créateurs</Button>
-            <Button size="sm" variant="outline" onClick={() => run.mutate(['brand'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || !s?.meta}><Play className="w-4 h-4 mr-1" /> Chercher des marques</Button>
+            <Button size="sm" onClick={() => run.mutate(['creator'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || (!s?.youtube && !s?.instagram)} title="Lance maintenant une recherche de créateurs : chaînes YouTube par mots-clés et publications Instagram par hashtags, email trouvé dans la bio ou le lien de bio, puis qualification IA. Même chose que la recherche nocturne."><Play className="w-4 h-4 mr-1" /> Chercher des créateurs</Button>
+            <Button size="sm" variant="outline" onClick={() => run.mutate(['brand'])} isLoading={run.isPending} disabled={!!ov?.progress?.running || !s?.meta} title="Lance maintenant une recherche de marques dans la bibliothèque publicitaire Meta (annonceurs actifs en France pour vos mots-clés), site et email trouvés automatiquement. Nécessite l'identité Meta vérifiée."><Play className="w-4 h-4 mr-1" /> Chercher des marques</Button>
           </div>
         </div>
         {s && (
@@ -186,7 +186,7 @@ export default function AcquisitionTool() {
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary-500" /> Tableau de bord</h3>
-          <Button size="sm" variant="outline" onClick={() => setShowDash(!showDash)}>{showDash ? 'Masquer' : 'Afficher'}</Button>
+          <Button size="sm" variant="outline" onClick={() => setShowDash(!showDash)} title="Entonnoirs créateurs et marques (trouvés → email → qualifiés → contactés → répondu → intéressés → inscrits), conversion par niche, mots-clés et sources les plus productifs">{showDash ? 'Masquer' : 'Afficher'}</Button>
         </div>
         {showDash && dash && (
           <div className="mt-4 space-y-5">
@@ -221,8 +221,8 @@ export default function AcquisitionTool() {
             <p className="text-sm text-neutral-600 mt-1">Les prospects qualifiés avec email sont poussés dans deux listes de l&apos;outil ; vos séquences rattachées à ces listes envoient les emails et les relances. Réponses, désabonnements et rebonds reviennent ici chaque nuit ; un prospect qui s&apos;inscrit est retiré de la séquence.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" onClick={() => syncNow.mutate()} isLoading={syncNow.isPending} disabled={!ml?.settings?.configured}><RefreshCw className="w-4 h-4 mr-1" /> Synchroniser</Button>
-            <Button size="sm" onClick={() => { if (confirm(`Pousser maintenant jusqu'à ${ml?.settings?.dailyLimit || 50} prospects éligibles (à contacter, ou qualifiés avec score ≥ ${ml?.settings?.minScore ?? 60}) vers l'outil de mailing ?`)) pushNow.mutate({}); }} isLoading={pushNow.isPending} disabled={!ml?.settings?.configured}><Send className="w-4 h-4 mr-1" /> Pousser les éligibles</Button>
+            <Button size="sm" variant="outline" onClick={() => syncNow.mutate()} isLoading={syncNow.isPending} disabled={!ml?.settings?.configured} title="Récupère depuis l'outil de mailing les réponses, rebonds et désabonnements, met à jour les statuts et retire des séquences les prospects inscrits. Fait aussi chaque nuit."><RefreshCw className="w-4 h-4 mr-1" /> Synchroniser</Button>
+            <Button size="sm" onClick={() => { if (confirm(`Pousser maintenant jusqu'à ${ml?.settings?.dailyLimit || 50} prospects éligibles (à contacter, ou qualifiés avec score ≥ ${ml?.settings?.minScore ?? 60}) vers l'outil de mailing ?`)) pushNow.mutate({}); }} isLoading={pushNow.isPending} disabled={!ml?.settings?.configured} title="Envoie tout de suite vers l'outil de mailing les prospects « À contacter » et les « Qualifiés » avec email au-dessus du score minimum, dans la limite quotidienne. Vos séquences rattachées aux listes font le reste."><Send className="w-4 h-4 mr-1" /> Pousser les éligibles</Button>
           </div>
         </div>
         {ml && (
@@ -243,17 +243,17 @@ export default function AcquisitionTool() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-40" />
         </div>
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
-          <Button size="sm" variant="outline" onClick={() => setAdding(!adding)}><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
-          <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
-          <Button size="sm" variant="outline" onClick={() => exportCsv(false)}><Download className="w-4 h-4 mr-1" /> Export CSV (avec email)</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (confirm('Exporter et marquer ces prospects « contactés » ?')) exportCsv(true); }}><Download className="w-4 h-4 mr-1" /> Export + marquer contactés</Button>
-          {kind === 'creator' && <Button size="sm" variant="outline" onClick={() => { if (confirm(selected.length ? `Ajouter ${selected.length} créateur(s) à l'annuaire des créateurs référencés ?` : 'Ajouter tous les créateurs qualifiés à l\'annuaire des créateurs référencés ?')) importDir.mutate(selected.length ? selected : undefined); }} isLoading={importDir.isPending}>Vers l&apos;annuaire {selected.length ? `(${selected.length})` : '(tous les qualifiés)'}</Button>}
+          <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
+          <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle" title="Coller une liste (une ligne par prospect) venant de l'assistant Chrome, d'un salon ou d'un fichier : dédoublonnée, réseaux relevés, qualifiée par l'IA"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
+          <Button size="sm" variant="outline" onClick={() => exportCsv(false)} title="Télécharge un CSV des prospects de la file affichée qui ont un email (prénom, pseudo, niche, réseaux, paragraphe et message personnalisés, lien d'inscription) pour votre outil de mailing"><Download className="w-4 h-4 mr-1" /> Export CSV (avec email)</Button>
+          <Button size="sm" variant="outline" onClick={() => { if (confirm('Exporter et marquer ces prospects « contactés » ?')) exportCsv(true); }} title="Même export, puis passe ces prospects en « Contacté » (canal email) pour ne pas les exporter deux fois"><Download className="w-4 h-4 mr-1" /> Export + marquer contactés</Button>
+          {kind === 'creator' && <Button size="sm" variant="outline" onClick={() => { if (confirm(selected.length ? `Ajouter ${selected.length} créateur(s) à l'annuaire des créateurs référencés ?` : 'Ajouter tous les créateurs qualifiés à l\'annuaire des créateurs référencés ?')) importDir.mutate(selected.length ? selected : undefined); }} isLoading={importDir.isPending} title="Ajoute les créateurs sélectionnés (ou tous les qualifiés) à l'annuaire public des créateurs référencés, avec leur séquence email habituelle">Vers l&apos;annuaire {selected.length ? `(${selected.length})` : '(tous les qualifiés)'}</Button>}
           {selected.length > 0 && <>
             <span className="text-neutral-500">{selected.length} sélectionné(s) :</span>
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'to_contact' })}>À contacter</Button>
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'contacted', contactedVia: 'email' })}>Contactés</Button>
-            {ml?.settings?.configured && <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Pousser ${selected.length} prospect(s) vers l'outil de mailing, quel que soit le score ?`)) pushNow.mutate({ ids: selected }); }}><Send className="w-3.5 h-3.5 mr-1" /> Vers le mailing</Button>}
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'rejected' })}>Hors cible</Button>
+            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'to_contact' })} title="Valide ces prospects pour l'envoi : ils seront poussés vers l'outil de mailing quel que soit leur score">À contacter</Button>
+            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'contacted', contactedVia: 'email' })} title="Marque ces prospects comme contactés (par exemple après un message envoyé à la main sur les réseaux)">Contactés</Button>
+            {ml?.settings?.configured && <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Pousser ${selected.length} prospect(s) vers l'outil de mailing, quel que soit le score ?`)) pushNow.mutate({ ids: selected }); }} title="Pousse la sélection vers l'outil de mailing tout de suite, quel que soit le score"><Send className="w-3.5 h-3.5 mr-1" /> Vers le mailing</Button>}
+            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'rejected' })} title="Écarte ces prospects : ils ne seront ni exportés ni poussés vers le mailing">Hors cible</Button>
           </>}
         </div>
         {adding && <ManualForm onDone={() => { setAdding(false); refresh(); }} />}
@@ -286,12 +286,12 @@ export default function AcquisitionTool() {
                     <div className="flex gap-1 flex-wrap justify-end shrink-0">
                       {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 hover:text-primary-600" title="Ouvrir le profil"><ExternalLink className="w-4 h-4" /></a>}
                       {l.message && <button type="button" onClick={() => copy(l.message)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Copier le message"><Copy className="w-4 h-4" /></button>}
-                      <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Requalifier avec l'IA"><RefreshCw className="w-4 h-4" /></button>
-                      <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs" aria-label="Statut">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
-                      <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Note</button>
-                      <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer)', l.socials?.tiktok || ''); if (tt === null) return; patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt } }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Réseaux</button>
-                      {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600">Email</button>}
-                      <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer"><Trash2 className="w-4 h-4" /></button>
+                      <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Relance la qualification IA : score, signaux, message, paragraphe email, et complète les réseaux depuis la bio ou la chaîne YouTube"><RefreshCw className="w-4 h-4" /></button>
+                      <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs" aria-label="Statut" title="Changer le statut du prospect à la main">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                      <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Ajouter une note interne sur ce prospect">Note</button>
+                      <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer)', l.socials?.tiktok || ''); if (tt === null) return; patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt } }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Saisir ou corriger les liens Instagram et TikTok du prospect">Réseaux</button>
+                      {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Renseigner un email trouvé à la main : le prospect devient éligible au mailing">Email</button>}
+                      <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer définitivement ce prospect"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 </div>
