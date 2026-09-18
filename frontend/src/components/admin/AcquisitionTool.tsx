@@ -7,6 +7,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
+import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
 import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
@@ -279,6 +280,7 @@ export default function AcquisitionTool() {
                       </div>
                       <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
+                      {embedProvider(l.url) && <div className="mt-2 max-w-xl"><SocialEmbed url={l.url} compact onAuthor={(a) => { if (l.source === 'instagram' && !l.handle && a.name) patch.mutate({ id: l._id, handle: a.name, socials: { instagram: `https://www.instagram.com/${String(a.name).replace(/^@/, '')}/` } }); }} /></div>}
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                       {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}

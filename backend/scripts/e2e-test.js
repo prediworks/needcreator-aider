@@ -1705,6 +1705,20 @@ await step('Brief IA : statut et génération (ou message clair si non configur�
   return `brief généré par ${res.data.provider}/${res.data.model} : « ${res.data.brief.title} »`;
 });
 
+await step('Aperçu intégré des publications (livraisons par lien, prospection) : adresses reconnues, repli sans agrément', async () => {
+  const { parseSocialUrl } = await import('../src/services/embeds.js');
+  expect(parseSocialUrl('https://www.instagram.com/reel/DdWYcVvIEba/?igsh=abc')?.url === 'https://www.instagram.com/reel/DdWYcVvIEba/' && parseSocialUrl('https://www.instagram.com/un.profil/') === null && parseSocialUrl('https://www.tiktok.com/@a.b/video/6718335390845095173')?.provider === 'tiktok' && parseSocialUrl('https://youtu.be/dQw4w9WgXcQ')?.id === 'dQw4w9WgXcQ' && parseSocialUrl('https://exemple.com/p/abc') === null, 'Lecture des adresses de publication incorrecte', { status: 200, data: parseSocialUrl('https://www.instagram.com/reel/DdWYcVvIEba/') });
+  const anon = await client(null)('GET', '/embeds?url=' + encodeURIComponent('https://www.instagram.com/reel/DdWYcVvIEba/'));
+  expect(anon.status === 401, 'L\'aperçu est réservé aux utilisateurs connectés', anon);
+  const bad = await brandApi('GET', '/embeds?url=' + encodeURIComponent('https://exemple.com/article'));
+  expect(bad.status === 422, 'Une adresse non reconnue doit être refusée', bad);
+  const ig = await brandApi('GET', '/embeds?url=' + encodeURIComponent('https://www.instagram.com/reel/DdWYcVvIEba/?utm=x'));
+  expect(ig.status === 200 && ig.data.embed.provider === 'instagram' && ig.data.embed.url === 'https://www.instagram.com/reel/DdWYcVvIEba/' && ['oembed', 'fallback'].includes(ig.data.embed.source) && !/<script/i.test(ig.data.embed.html || ''), 'Aperçu Instagram attendu (oEmbed si accordé, repli sinon), sans script', ig);
+  const yt = await brandApi('GET', '/embeds?url=' + encodeURIComponent('https://youtube.com/shorts/dQw4w9WgXcQ'));
+  expect(yt.status === 200 && yt.data.embed.provider === 'youtube' && yt.data.embed.id === 'dQw4w9WgXcQ', 'Aperçu YouTube attendu', yt);
+  return `Instagram : ${ig.data.embed.source}${ig.data.embed.reason ? ` (${ig.data.embed.reason})` : ''}${ig.data.embed.authorName ? `, auteur @${ig.data.embed.authorName}` : ''} ; YouTube : ${yt.data.embed.source}`;
+});
+
 await step('Brief depuis une URL produit : page publique, reprise par une marque connectée et à l\'inscription', async () => {
   const db = mongoose.connection.db;
   const st = await brandApi('GET', '/campaigns/ai-brief/status');

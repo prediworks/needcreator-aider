@@ -147,7 +147,9 @@ function cleanSocials(obj = {}) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle } = req.body || {};
+  // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
+  if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
   if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
   if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; } }
   if (notes !== undefined) lead.notes = String(notes).slice(0, 2000);

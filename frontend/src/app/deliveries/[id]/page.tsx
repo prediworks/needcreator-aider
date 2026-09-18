@@ -21,6 +21,7 @@ import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import ReviewForm, { Stars } from '@/components/ReviewForm';
+import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
 import PaymentCard from '@/components/PaymentCard';
 import ShippingCard from '@/components/ShippingCard';
 import DisputeCard from '@/components/DisputeCard';
@@ -316,7 +317,8 @@ export default function DeliveryDetailPage() {
               {currentLinks.length > 0 && (
                 <div className="space-y-2 mb-4">
                   {currentLinks.map((l: any) => (
-                    <div key={l._id} className="border border-neutral-200 rounded-lg p-3 flex items-start gap-3">
+                    <div key={l._id} className="border border-neutral-200 rounded-lg p-3">
+                    <div className="flex items-start gap-3">
                       <Link2 className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary-700 hover:underline break-all">
@@ -348,6 +350,8 @@ export default function DeliveryDetailPage() {
                           </button>
                         )}
                       </div>
+                    </div>
+                    {embedProvider(l.url) && <div className="mt-3"><SocialEmbed url={l.url} /></div>}
                     </div>
                   ))}
                 </div>
