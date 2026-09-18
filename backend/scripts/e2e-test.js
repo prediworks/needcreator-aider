@@ -2539,7 +2539,13 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const igImp = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/reel/E2E${RUN}/?igsh=abc ; https://www.instagram.com/devi.ugc${RUN}/ ; devi-${RUN}@needcreator-test.com ; Créatrice UGC lifestyle, 1 200 abonnés` });
     expect(igImp.status === 201 && igImp.data.updated === 1 && igImp.data.created === 0, 'La ligne doit compléter la fiche existante, sans doublon', igImp);
     const igDone = await db.collection('leads').findOne({ _id: igPost.insertedId });
-    expect(igDone.handle === `@devi.ugc${RUN}` && igDone.email === `devi-${RUN}@needcreator-test.com` && igDone.socials?.instagram === `https://www.instagram.com/devi.ugc${RUN}/` && /1 200 abonnés/.test(igDone.description), 'Auteur, profil, email et bio attendus sur la fiche complétée', { status: 200, data: igDone });
+    expect(igDone.handle === `@devi.ugc${RUN}` && igDone.email === `devi-${RUN}@needcreator-test.com` && igDone.socials?.instagram === `https://www.instagram.com/devi.ugc${RUN}/` && /^Créatrice UGC lifestyle, 1 200 abonnés/.test(igDone.description) && igDone.stats?.subscribers === 1200, 'Auteur, profil, email et bio attendus sur la fiche complétée', { status: 200, data: igDone });
+    // Même créatrice, autre publication : la seconde fiche est complétée puis mise de côté, une seule reste active
+    const igPost2 = await db.collection('leads').insertOne({ kind: 'creator', source: 'instagram', externalId: `igpost2-${RUN}`, name: 'Autre publication', url: `https://www.instagram.com/p/E2F${RUN}/`, status: 'qualified', keyword: '#ugcfrance', createdAt: new Date(), updatedAt: new Date() });
+    const igTwin = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/p/E2F${RUN}/ ; https://www.instagram.com/devi.ugc${RUN}/ ; devi-${RUN}@needcreator-test.com ; Créatrice UGC lifestyle – 1 200 abonnés` });
+    const twinDoc = await db.collection('leads').findOne({ _id: igPost2.insertedId });
+    expect(igTwin.status === 201 && igTwin.data.twins === 1 && twinDoc.status === 'excluded' && /Doublon de/.test(twinDoc.notes || ''), 'Le doublon d\'un même créateur doit être mis de côté', { status: igTwin.status, data: { res: igTwin.data, twinDoc } });
+    await db.collection('leads').deleteOne({ _id: igPost2.insertedId });
     const igList2 = await brandApi('GET', '/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60');
     expect(!igList2.data.leads.some(l => String(l._id) === String(igPost.insertedId)), 'Une fiche complétée ne doit plus être proposée à l\'assistant', igList2);
     await db.collection('leads').deleteOne({ _id: igPost.insertedId });
