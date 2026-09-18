@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
@@ -124,6 +124,11 @@ export default function AcquisitionTool() {
   const [kind, setKind] = useState<'creator' | 'brand'>('creator');
   const [status, setStatus] = useState('qualified');
   const [hasEmail, setHasEmail] = useState('');
+  // File affichée (créateurs ou marques, statut, filtre email) conservée au rafraîchissement de la page
+  useEffect(() => {
+    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); } } catch { /* stockage indisponible */ }
+  }, []);
+  useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);

@@ -52,7 +52,12 @@ export async function searchHashtag(tag, { limit = 40 } = {}) {
   const found = await graph('ig_hashtag_search', { user_id: igUserId, q: clean }, token);
   const hashtagId = found.data?.[0]?.id;
   if (!hashtagId) return [];
-  const media = await graph(`${hashtagId}/recent_media`, { user_id: igUserId, fields: 'id,caption,permalink,media_type,timestamp,like_count,comments_count', limit: Math.min(50, limit) }, token);
+  // Instagram refuse parfois une page trop lourde (« Please reduce the amount of data ») : on redemande par paliers plus petits
+  let media = null;
+  for (const size of [Math.min(25, limit), 12, 6]) {
+    try { media = await graph(`${hashtagId}/recent_media`, { user_id: igUserId, fields: 'id,caption,permalink,media_type,timestamp,like_count,comments_count', limit: size }, token); break; }
+    catch (err) { if (!/reduce the amount of data/i.test(err.message) || size === 6) throw err; }
+  }
   const out = [];
   for (const m of media.data || []) {
     const caption = String(m.caption || '');

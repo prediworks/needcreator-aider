@@ -23,7 +23,7 @@ export async function acquisitionSettings() {
     getSetting(SETTINGS.acquisitionCreatorKeywords.key, ''), getSetting(SETTINGS.acquisitionBrandKeywords.key, ''),
   ]);
   const hashtags = parseHashtags(await getSetting(SETTINGS.acquisitionInstagramHashtags.key, ''), DEFAULT_INSTAGRAM_HASHTAGS);
-  return { enabled: !!enabled, hashtags, instagram: await instagramConfigured(), oembed: !oembedBlocked(), dailyLimit: Number(dailyLimit) || 60, minSubscribers: Number(minSubscribers) || 0, maxSubscribers: Number(maxSubscribers) || 300000, creatorKeywords: parseKeywordLines(creatorKw, DEFAULT_CREATOR_KEYWORDS), brandKeywords: parseKeywordLines(brandKw, DEFAULT_BRAND_KEYWORDS), youtube: youtubeConfigured(), meta: await metaConfigured(), ai: aiConfig().configured };
+  return { enabled: !!enabled, hashtags, instagram: await instagramConfigured(), oembed: !oembedBlocked(), dailyLimit: Number(dailyLimit) || 60, instagramShare: Math.min(100, Math.max(0, Number(await getSetting(SETTINGS.acquisitionInstagramShare.key, 30)))), brandShare: Math.min(100, Math.max(0, Number(await getSetting(SETTINGS.acquisitionBrandShare.key, 30)))), minSubscribers: Number(minSubscribers) || 0, maxSubscribers: Number(maxSubscribers) || 300000, creatorKeywords: parseKeywordLines(creatorKw, DEFAULT_CREATOR_KEYWORDS), brandKeywords: parseKeywordLines(brandKw, DEFAULT_BRAND_KEYWORDS), youtube: youtubeConfigured(), meta: await metaConfigured(), ai: aiConfig().configured };
 }
 
 /** Prospect déjà connu ? (compte inscrit par email, créateur référencé, ou déjà en base) */
@@ -100,49 +100,11 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
   let budget = s.dailyLimit;
   try {
     const created = [];
-    if (kinds.includes('creator') && s.youtube && wanted.has('youtube')) {
-      for (const { niche, keywords } of s.creatorKeywords) {
-        for (const kw of keywords) {
-          if (budget <= 0) break;
-          try {
-            sources.youtube.searched++;
-            const found = await searchCreators(kw, { maxResults: 25, minSubscribers: s.minSubscribers, maxSubscribers: s.maxSubscribers });
-            sources.youtube.found += found.length;
-            for (const c of found) {
-              if (budget <= 0) break;
-              const doc = await upsertCandidate({ ...c, niche }, runId);
-              if (!doc) continue;
-              sources.youtube.new++; if (doc.email) sources.youtube.withEmail++;
-              if (doc.status === 'new') { created.push(doc); budget--; }
-            }
-          } catch (err) { sources.youtube.errors++; run.issues.push(`youtube « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (/quota/i.test(err.message)) break; }
-          job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
-        }
-      }
-    }
-    if (kinds.includes('creator') && s.instagram && wanted.has('instagram')) {
-      for (const tag of s.hashtags) {
-        if (budget <= 0) break;
-        try {
-          sources.instagram.searched++;
-          const found = await searchHashtag(tag, { limit: 40 });
-          sources.instagram.found += found.length;
-          for (const c of found) {
-            if (budget <= 0) break;
-            const doc = await upsertCandidate({ ...c, niche: 'lifestyle' }, runId);
-            if (!doc) continue;
-            sources.instagram.new++; if (doc.email) sources.instagram.withEmail++;
-            if (doc.status === 'new') { created.push(doc); budget--; }
-          }
-        } catch (err) {
-          sources.instagram.errors++; logger.warn(err.message);
-          if (err.code === 10 || err.code === 190 || /hashtag/i.test(err.message) && /limit/i.test(err.message)) { run.issues.push(`Instagram : ${err.message}`.slice(0, 200)); break; }
-          run.issues.push(`instagram #${tag} : ${err.message}`.slice(0, 200));
-        }
-        job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
-      }
-      if (oembedBlocked()) run.issues.push('Instagram : auteur des publications indisponible tant que « oEmbed Read » n\'est pas approuvé par Meta (revue de fonctionnalité) : pseudo à compléter à la main');
-    }
+    // Répartition du plafond : une part réservée aux marques et à Instagram, YouTube (la source la plus abondante) passe en dernier et prend tout ce qui reste
+    const brandOn = kinds.includes('brand') && s.meta && wanted.has('meta');
+    const igOn = kinds.includes('creator') && s.instagram && wanted.has('instagram');
+    const ytOn = kinds.includes('creator') && s.youtube && wanted.has('youtube');
+    budget = brandOn ? (igOn || ytOn ? Math.round(s.dailyLimit * s.brandShare / 100) : s.dailyLimit) : 0;
     let metaBlocked = false;
     if (kinds.includes('brand') && s.meta && wanted.has('meta')) {
       for (const { niche: sector, keywords } of s.brandKeywords) {
@@ -166,6 +128,51 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
             if (err.code === 190) { run.issues.push('Meta : jeton expiré ou invalide, à renouveler dans Réglages → Prospection'); metaBlocked = true; break; }
             run.issues.push(`meta « ${kw} » : ${err.message}`.slice(0, 200));
           }
+          job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
+        }
+      }
+    }
+    budget = igOn ? (ytOn ? Math.min(s.dailyLimit - created.length, Math.round(s.dailyLimit * s.instagramShare / 100)) : s.dailyLimit - created.length) : 0;
+    if (kinds.includes('creator') && s.instagram && wanted.has('instagram')) {
+      for (const tag of s.hashtags) {
+        if (budget <= 0) break;
+        try {
+          sources.instagram.searched++;
+          const found = await searchHashtag(tag, { limit: 40 });
+          sources.instagram.found += found.length;
+          for (const c of found) {
+            if (budget <= 0) break;
+            const doc = await upsertCandidate({ ...c, niche: 'lifestyle' }, runId);
+            if (!doc) continue;
+            sources.instagram.new++; if (doc.email) sources.instagram.withEmail++;
+            if (doc.status === 'new') { created.push(doc); budget--; }
+          }
+        } catch (err) {
+          sources.instagram.errors++; logger.warn(err.message);
+          if (err.code === 10 || err.code === 190 || /hashtag/i.test(err.message) && /limit/i.test(err.message)) { run.issues.push(`Instagram : ${err.message}`.slice(0, 200)); break; }
+          run.issues.push(`instagram #${tag} : ${err.message}`.slice(0, 200));
+        }
+        job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
+      }
+      if (oembedBlocked()) run.issues.push('Instagram : auteur des publications indisponible tant que « oEmbed Read » n\'est pas approuvé par Meta (revue de fonctionnalité) : pseudo à compléter à la main');
+    }
+    budget = s.dailyLimit - created.length;
+    if (kinds.includes('creator') && s.youtube && wanted.has('youtube')) {
+      for (const { niche, keywords } of s.creatorKeywords) {
+        for (const kw of keywords) {
+          if (budget <= 0) break;
+          try {
+            sources.youtube.searched++;
+            const found = await searchCreators(kw, { maxResults: 25, minSubscribers: s.minSubscribers, maxSubscribers: s.maxSubscribers });
+            sources.youtube.found += found.length;
+            for (const c of found) {
+              if (budget <= 0) break;
+              const doc = await upsertCandidate({ ...c, niche }, runId);
+              if (!doc) continue;
+              sources.youtube.new++; if (doc.email) sources.youtube.withEmail++;
+              if (doc.status === 'new') { created.push(doc); budget--; }
+            }
+          } catch (err) { sources.youtube.errors++; run.issues.push(`youtube « ${kw} » : ${err.message}`.slice(0, 200)); logger.warn(err.message); if (/quota/i.test(err.message)) break; }
           job.found = sources.youtube.found + sources.instagram.found + sources.meta.found; job.created = created.length;
         }
       }

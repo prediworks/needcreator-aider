@@ -29,11 +29,21 @@ type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | '
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
-  const [tab, setTab] = useState<Tab>(() => {
-    if (typeof window === 'undefined') return 'pending';
-    const t = new URLSearchParams(window.location.search).get('tab');
-    return (t as Tab) || 'pending';
-  });
+  const TAB_KEYS: Tab[] = ['pending', 'ambassadors', 'businesses', 'reports', 'disputes', 'invoices', 'users', 'campaigns', 'deliveries', 'external', 'seed', 'acquisition', 'settings'];
+  const [tab, setTabState] = useState<Tab>('pending');
+  // L'onglet vit dans l'adresse (?tab=…) : conservé au rafraîchissement, partageable, et le bouton Précédent du navigateur fonctionne
+  useEffect(() => {
+    const read = () => { const t = new URLSearchParams(window.location.search).get('tab') as Tab | null; setTabState(t && TAB_KEYS.includes(t) ? t : 'pending'); };
+    read();
+    window.addEventListener('popstate', read);
+    return () => window.removeEventListener('popstate', read);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    window.history.pushState(null, '', url.toString());
+  };
   const [userSearch, setUserSearch] = useState('');
   const [userFilters, setUserFilters] = useState<any>({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' });
   const setUserFilter = (k: string, v: string) => setUserFilters((p: any) => ({ ...p, [k]: v }));
