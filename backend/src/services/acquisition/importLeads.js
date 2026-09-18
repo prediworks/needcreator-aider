@@ -1,7 +1,7 @@
 import Lead from '../../models/Lead.js';
 import User from '../../models/User.js';
 import ExternalCreator from '../../models/ExternalCreator.js';
-import { extractEmails, pickEmail, extractSocials } from './enrich.js';
+import { extractEmails, pickEmail, extractSocials, enrichLeadFromSite } from './enrich.js';
 import { qualifyOne } from './index.js';
 import { isSuppressed } from '../../models/LeadSuppression.js';
 import logger from '../../utils/logger.js';
@@ -65,7 +65,10 @@ export async function importLeads({ kind, text, niche, origin }) {
   if (toQualify.length) setImmediate(async () => {
     for (const id of toQualify) {
       const lead = await Lead.findById(id);
-      if (lead && lead.status === 'new') await qualifyOne(lead, []).catch(err => logger.warn(`import qualify ${id}: ${err.message}`));
+      if (!lead) continue;
+      // Prospect importé sans email mais avec un site : l'email est cherché sur le site (contact, mentions légales) avant la qualification
+      if (!lead.email) { const got = await enrichLeadFromSite(lead).catch(() => false); if (got || lead.isModified()) await lead.save(); }
+      if (lead.status === 'new') await qualifyOne(lead, []).catch(err => logger.warn(`import qualify ${id}: ${err.message}`));
     }
     logger.info(`Import : ${toQualify.length} prospect(s) qualifié(s)`);
   });

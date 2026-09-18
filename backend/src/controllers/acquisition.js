@@ -1,4 +1,4 @@
-import { extractSocials } from '../services/acquisition/enrich.js';
+import { extractSocials, enrichLeadFromSite } from '../services/acquisition/enrich.js';
 import { channelLinks } from '../services/acquisition/youtube.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
 import { suppressLead } from '../models/LeadSuppression.js';
@@ -289,5 +289,26 @@ export async function enrichLeadSocials(req, res) {
     }
     socialsJob.running = false; socialsJob.finishedAt = new Date();
     logger.info(`Réseaux complétés : ${socialsJob.found} prospect(s) avec Instagram ou TikTok sur ${socialsJob.total}`);
+  });
+}
+
+let emailsJob = null; // une seule passe à la fois
+/** Cherche en arrière-plan l'email des prospects qui ont un site web mais pas d'email : accueil, page contact, mentions légales. Sans appel à l'IA. */
+export async function enrichLeadEmails(req, res) {
+  if (emailsJob?.running) return res.json({ message: `Déjà en cours : ${emailsJob.done} / ${emailsJob.total}, ${emailsJob.found} email(s) trouvé(s)`, ...emailsJob });
+  const kind = ['creator', 'brand'].includes(req.body?.kind) ? req.body.kind : 'brand';
+  const leads = await Lead.find({ kind, email: { $in: [null, ''] }, status: { $nin: ['excluded', 'registered'] }, $or: [{ website: { $nin: [null, ''] } }, { url: { $regex: '^https?://', $not: /instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i } }] }).select('_id').limit(500).lean();
+  emailsJob = { running: true, kind, total: leads.length, done: 0, found: 0, startedAt: new Date() };
+  res.json({ message: leads.length ? `Recherche d'email lancée sur le site de ${leads.length} prospect(s) : comptez 5 à 15 secondes par site, rechargez la page dans quelques minutes` : 'Aucun prospect sans email avec un site web à visiter', ...emailsJob });
+  setImmediate(async () => {
+    for (const { _id } of leads) {
+      try {
+        const lead = await Lead.findById(_id);
+        if (lead && !lead.email) { const got = await enrichLeadFromSite(lead); if (got) emailsJob.found++; if (got || lead.isModified()) await lead.save(); }
+      } catch (err) { logger.warn(`enrichLeadEmails ${_id}: ${err.message}`); }
+      emailsJob.done++;
+    }
+    emailsJob.running = false; emailsJob.finishedAt = new Date();
+    logger.info(`Emails complétés : ${emailsJob.found} trouvé(s) sur ${emailsJob.total} site(s) visités (${kind})`);
   });
 }

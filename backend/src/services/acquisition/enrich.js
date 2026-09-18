@@ -88,7 +88,7 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
     const url = queue.shift();
     if (!url || visited.has(url)) continue;
     visited.add(url);
-    const html = await fetchPage(url);
+    const html = await fetchPage(url, { maxBytes: 6 * 1024 * 1024 }); // boutiques en ligne : pages d'accueil de 1 à 4 Mo, le pied de page (contact, mentions légales) est tout à la fin
     if (!html) continue;
     for (const [k, v] of Object.entries(extractSocials(html))) if (!socials[k]) socials[k] = v;
     // mailto: en priorité
@@ -102,6 +102,8 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
       if (href.hostname !== base.hostname || !contactWords.test(href.pathname)) continue;
       if (!visited.has(href.href) && queue.length < 6) queue.push(href.href);
     }
+    // Aucun lien repéré sur l'accueil (menu chargé en JavaScript) : adresses habituelles des pages légales et de contact, Shopify en tête
+    if (visited.size === 1 && !queue.length && maxPages > 2) for (const path of ['/policies/legal-notice', '/policies/contact-information', '/pages/contact', '/contact', '/mentions-legales', '/pages/mentions-legales']) queue.push(new URL(path, base.href).href);
   }
   const email = pickEmail([...new Set(candidates)]);
   if (email) logger.debug(`Email found on ${base.hostname}: ${email}`);
@@ -118,4 +120,20 @@ export async function findEmailViaLinks(links = []) {
     if (r?.email) return { email: r.email, source: 'lien-bio', socials };
   }
   return Object.keys(socials).length ? { email: null, source: null, socials } : null;
+}
+
+/**
+ * Complète l'email (et les réseaux) d'un prospect à partir de son site : page d'accueil, contact, mentions légales.
+ * Retourne true si un email a été trouvé. Ne touche pas un email déjà présent.
+ */
+export async function enrichLeadFromSite(lead) {
+  const site = lead.website || (lead.url && !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(lead.url) ? lead.url : null);
+  if (!site) return false;
+  const r = await findEmailOnSite(site, { maxPages: 4 });
+  if (!r) return false;
+  const cur = lead.socials?.toObject?.() || lead.socials || {};
+  const merged = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) };
+  if (Object.keys(merged).length) lead.socials = merged;
+  if (r.email && !lead.email) { lead.email = r.email; lead.emailSource = r.source; return true; }
+  return false;
 }

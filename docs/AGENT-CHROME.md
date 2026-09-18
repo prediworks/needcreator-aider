@@ -86,5 +86,6 @@ Marquez ensuite les prospects « Contacté » (sélection groupée → statut) a
 
 1. Dédoublonnage par lien, email et identifiant ; comptes déjà inscrits marqués « Inscrit », créateurs de l'annuaire marqués « Déjà connu ».
 2. Réseaux relevés dans la ligne (Instagram, TikTok, YouTube, LinkedIn, Facebook), niche et origine par défaut si renseignées.
-3. Qualification IA en arrière-plan : score, signaux, message réseaux, paragraphe email. Résultat visible en quelques minutes dans les files.
-4. Les prospects avec email suivent le circuit mailing habituel (envoi automatique ou « Pousser les éligibles »).
+3. Pour les prospects importés sans email mais avec un site : recherche de l'email sur le site (accueil, contact, mentions légales) avant la qualification.
+4. Qualification IA en arrière-plan : score, signaux, message réseaux, paragraphe email. Résultat visible en quelques minutes dans les files.
+5. Les prospects avec email suivent le circuit mailing habituel (envoi automatique ou « Pousser les éligibles »).

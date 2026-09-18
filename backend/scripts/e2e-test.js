@@ -2505,6 +2505,24 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const again = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted });
     expect(again.status === 201 && again.data.created === 0 && again.data.duplicates === 4, 'Un second import identique ne crée rien', again);
     if (aiOn) { let q = null; for (let i = 0; i < 40 && !q; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(one._id) }); if (['qualified', 'rejected'].includes(l?.status)) q = l; else await new Promise(r => setTimeout(r, 1000)); } expect(q && q.message, 'Les prospects importés doivent être qualifiés par l\'IA en arrière-plan', { status: 200, data: q }); }
+    // Marque importée avec un site mais sans email : l'email est trouvé sur la page contact du site (site factice local), à l'import puis par la passe groupée
+    const site = http.createServer((rq, rs) => { rs.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); rs.end(rq.url.startsWith('/contact') ? `<html><body><h1>Contact</h1><a href="mailto:bonjour-${RUN}@needcreator-test.com">Nous écrire</a></body></html>` : `<html><body><h1>Boutique</h1><a href="/contact">Contact</a> <a href="https://www.instagram.com/boutique${RUN}/">Instagram</a></body></html>`); });
+    await new Promise(r => site.listen(0, '127.0.0.1', r));
+    try {
+      const siteUrl = `http://127.0.0.1:${site.address().port}`;
+      const impS = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'brand', text: `Boutique Site ${RUN} ; ${siteUrl} ; bougies artisanales, publicités vidéo actives`, origin: 'test' });
+      expect(impS.status === 201 && impS.data.created === 1, 'Import de la marque avec site attendu', impS);
+      let withMail = null;
+      for (let i = 0; i < 60 && !withMail; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(impS.data.ids[0]) }); if (l?.email) withMail = l; else await new Promise(r => setTimeout(r, 1000)); }
+      expect(withMail?.email === `bonjour-${RUN}@needcreator-test.com` && withMail.emailSource === 'site:contact' && withMail.socials?.instagram, 'Email et Instagram attendus depuis le site de la marque importée', { status: 200, data: withMail });
+      await db.collection('leads').updateOne({ _id: withMail._id }, { $set: { email: null, emailSource: null } });
+      const pass = await brandApi('POST', '/admin/acquisition/leads/enrich-emails', { kind: 'brand' });
+      expect(pass.status === 200 && pass.data.total >= 1, 'Lancement de la recherche groupée des emails attendu', pass);
+      let again2 = null;
+      for (let i = 0; i < 90 && !again2; i++) { const l = await db.collection('leads').findOne({ _id: withMail._id }); if (l?.email) again2 = l; else await new Promise(r => setTimeout(r, 1000)); }
+      expect(again2?.email === `bonjour-${RUN}@needcreator-test.com`, 'La passe groupée doit retrouver l\'email sur le site', { status: 200, data: again2 });
+      await db.collection('leads').deleteOne({ _id: withMail._id });
+    } finally { site.close(); }
     // « Compléter les réseaux (tous) » : passe en arrière-plan, le TikTok cité dans la bio d'un prospect sans réseaux est retrouvé
     const bare = await db.collection('leads').insertOne({ kind: 'creator', source: 'manual', externalId: `bare-${RUN}`, name: `Sans Reseaux ${RUN}`, description: `Créatrice UGC. TikTok : @bare${RUN}`, status: 'qualified', createdAt: new Date(), updatedAt: new Date() });
     const enr = await brandApi('POST', '/admin/acquisition/leads/enrich-socials');

@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -112,7 +112,8 @@ router.post('/acquisition/mailing/sync', syncMailingNow);
 router.get('/acquisition/leads', listLeads);
 router.post('/acquisition/leads', createLead);
 router.post('/acquisition/leads/import', importLeadsBulk);
-router.post('/acquisition/leads/enrich-socials', enrichLeadSocials); // complète Instagram / TikTok des prospects existants // import groupé (liste collée)
+router.post('/acquisition/leads/enrich-socials', enrichLeadSocials);
+router.post('/acquisition/leads/enrich-emails', enrichLeadEmails); // email cherché sur le site des prospects sans email // complète Instagram / TikTok des prospects existants // import groupé (liste collée)
 router.patch('/acquisition/leads/bulk', bulkUpdateLeads);
 router.patch('/acquisition/leads/:id', updateLead);
 router.post('/acquisition/leads/:id/requalify', requalifyLead);
