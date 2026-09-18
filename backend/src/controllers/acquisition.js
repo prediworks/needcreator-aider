@@ -1,4 +1,5 @@
 import { extractSocials } from '../services/acquisition/enrich.js';
+import { channelLinks } from '../services/acquisition/youtube.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
 import { suppressLead } from '../models/LeadSuppression.js';
 import { importLeads, parseLeadLines } from '../services/acquisition/importLeads.js';
@@ -265,4 +266,28 @@ export async function importLeadsBulk(req, res) {
     logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });
   }
+}
+
+let socialsJob = null; // une seule passe à la fois
+/** Complète en arrière-plan les réseaux (Instagram, TikTok…) des prospects qui n'en ont pas : bio, puis rubrique « Liens » de la chaîne YouTube. Sans appel à l'IA. */
+export async function enrichLeadSocials(req, res) {
+  if (socialsJob?.running) return res.json({ message: `Déjà en cours : ${socialsJob.done} / ${socialsJob.total}`, ...socialsJob });
+  const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
+  socialsJob = { running: true, total: leads.length, done: 0, found: 0, startedAt: new Date() };
+  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube, rechargez la page dans quelques minutes` : 'Tous les prospects ont déjà leurs réseaux (ou rien à chercher)', ...socialsJob });
+  setImmediate(async () => {
+    for (const { _id } of leads) {
+      try {
+        const lead = await Lead.findById(_id);
+        if (!lead) continue;
+        const cur = lead.socials?.toObject?.() || lead.socials || {};
+        let soc = { ...extractSocials(`${lead.description || ''} ${lead.url || ''} ${lead.website || ''}`), ...cur };
+        if (lead.source === 'youtube' && lead.url && !soc.instagram && !soc.tiktok) { soc = { ...(await channelLinks(lead.url)), ...soc }; await new Promise(r => setTimeout(r, 1200)); }
+        if (soc.instagram || soc.tiktok || Object.keys(soc).length > Object.keys(cur).length) { lead.socials = soc; await lead.save(); if (soc.instagram || soc.tiktok) socialsJob.found++; }
+      } catch (err) { logger.warn(`enrichLeadSocials ${_id}: ${err.message}`); }
+      socialsJob.done++;
+    }
+    socialsJob.running = false; socialsJob.finishedAt = new Date();
+    logger.info(`Réseaux complétés : ${socialsJob.found} prospect(s) avec Instagram ou TikTok sur ${socialsJob.total}`);
+  });
 }

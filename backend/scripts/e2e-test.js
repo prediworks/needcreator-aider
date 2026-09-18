@@ -2505,6 +2505,14 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const again = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted });
     expect(again.status === 201 && again.data.created === 0 && again.data.duplicates === 4, 'Un second import identique ne crée rien', again);
     if (aiOn) { let q = null; for (let i = 0; i < 40 && !q; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(one._id) }); if (['qualified', 'rejected'].includes(l?.status)) q = l; else await new Promise(r => setTimeout(r, 1000)); } expect(q && q.message, 'Les prospects importés doivent être qualifiés par l\'IA en arrière-plan', { status: 200, data: q }); }
+    // « Compléter les réseaux (tous) » : passe en arrière-plan, le TikTok cité dans la bio d'un prospect sans réseaux est retrouvé
+    const bare = await db.collection('leads').insertOne({ kind: 'creator', source: 'manual', externalId: `bare-${RUN}`, name: `Sans Reseaux ${RUN}`, description: `Créatrice UGC. TikTok : @bare${RUN}`, status: 'qualified', createdAt: new Date(), updatedAt: new Date() });
+    const enr = await brandApi('POST', '/admin/acquisition/leads/enrich-socials');
+    expect(enr.status === 200 && enr.data.total >= 1 && /lancée|Déjà en cours/.test(enr.data.message), 'Lancement de la recherche des réseaux attendu', enr);
+    let enriched = null;
+    for (let i = 0; i < 60 && !enriched; i++) { const l = await db.collection('leads').findOne({ _id: bare.insertedId }); if (l?.socials?.tiktok) enriched = l; else await new Promise(r => setTimeout(r, 1000)); }
+    expect(enriched?.socials?.tiktok === `https://www.tiktok.com/@bare${RUN}`, 'Le TikTok de la bio doit être relevé par la passe groupée', { status: 200, data: enriched });
+    await db.collection('leads').deleteOne({ _id: bare.insertedId });
     // Suppression d'un prospect = liste d'exclusion : ni réimporté ni recollecté (politique de confidentialité)
     const delOne = await brandApi('DELETE', `/admin/acquisition/leads/${one._id}`);
     expect(delOne.status === 200 && /exclusion/.test(delOne.data.message), 'Suppression avec mise en liste d\'exclusion attendue', delOne);
