@@ -106,7 +106,7 @@ export function htmlToText(html) {
 /**
  * Send email (le fragment HTML est habillé dans le gabarit ; passer raw:true pour envoyer tel quel)
  */
-export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [] } = {}) {
+export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '' } = {}) {
   try {
     const full = raw ? html : renderLayout(html, { preheader });
     const info = await transporter.sendMail({
@@ -116,6 +116,7 @@ export async function sendEmail(to, subject, html, text = null, { raw = false, p
       html: full,
       text: text || htmlToText(raw ? html : html),
       ...(attachments.length ? { attachments } : {}),
+      ...(replyTo ? { replyTo } : {}),
     });
     
     logger.info(`Email sent: ${info.messageId}`);

@@ -33,6 +33,7 @@ import externalIncomesRoutes from './routes/externalIncomes.js';
 import prospectsRoutes from './routes/prospects.js';
 import productBriefRoutes from './routes/productBriefs.js';
 import embedRoutes from './routes/embeds.js';
+import contactRoutes from './routes/contact.js';
 import academyRoutes from './routes/academy.js';
 
 const app = express();
@@ -100,6 +101,7 @@ app.use('/api/creator-contents', creatorContentsRoutes); // registre des droits 
 app.use('/api/external-incomes', externalIncomesRoutes); // revenus hors plateforme (seuils micro)
 app.use('/api/prospects', prospectsRoutes); // suivi de prospection du créateur
 app.use('/api/academy', academyRoutes);
+app.use('/api/contact', contactRoutes); // formulaire « Nous contacter » (public)
 app.use('/api/embeds', embedRoutes); // aperçu intégré des publications (oEmbed)
 app.use('/api/product-briefs', productBriefRoutes); // brief depuis une URL produit (public)
 logger.info('✓ Portfolio routes mounted at /api/portfolio');

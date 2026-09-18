@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { auth } from '@/lib/firebase';
 import { signOut } from 'firebase/auth';
 import Button from '@/components/ui/Button';
-import { User, LogOut, Menu, X } from 'lucide-react';
+import { User, LogOut, Menu, X, LifeBuoy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
 import { useQuery } from '@tanstack/react-query';
@@ -98,6 +98,9 @@ export default function Header() {
             {loading && knownUser ? null : connected ? (
               <>
                 <NotificationBell enabled={isAuthenticated} />
+                <Link href="/contact" title="Nous contacter : une question, un problème, une suggestion">
+                  <Button variant="ghost" size="sm" aria-label="Nous contacter"><LifeBuoy className="w-4 h-4" /></Button>
+                </Link>
                 <Link href="/profile" title="Mon profil">
                   <Button variant="ghost" size="sm" aria-label="Mon profil">
                     <User className="w-4 h-4 xl:mr-2" />
@@ -133,6 +136,7 @@ export default function Header() {
             {isAuthenticated ? (
               <>
                 <Link href="/profile" onClick={() => setOpen(false)} className="text-neutral-700">Mon profil</Link>
+                <Link href="/contact" onClick={() => setOpen(false)} className="text-neutral-700">Nous contacter</Link>
                 <button onClick={handleLogout} className="text-left text-neutral-700">Déconnexion</button>
               </>
             ) : (

@@ -1712,6 +1712,34 @@ await step('Brief IA : statut et génération (ou message clair si non configur�
   return `brief généré par ${res.data.provider}/${res.data.model} : « ${res.data.brief.title} »`;
 });
 
+await step('Formulaire « Nous contacter » : validation, piège à robots, adresse de réception réglable dans l\'admin', async () => {
+  const db = mongoose.connection.db;
+  const pub = client(null);
+  const short = await pub('POST', '/contact', { name: 'Test', email: 'visiteur@exemple.fr', subject: 'Question', message: 'trop court' });
+  expect(short.status === 400, 'Un message trop court doit être refusé', short);
+  const badMail = await pub('POST', '/contact', { name: 'Test', email: 'pas-un-email', subject: 'Question', message: 'Bonjour, je voudrais des informations sur vos tarifs pour les marques.' });
+  expect(badMail.status === 400, 'Un email invalide doit être refusé', badMail);
+  const before = await db.collection('contactmessages').countDocuments({});
+  const bot = await pub('POST', '/contact', { name: 'Robot', email: 'robot@exemple.fr', subject: 'Offre SEO', message: 'Nous améliorons votre référencement pour pas cher, contactez-nous vite.', website: 'https://spam.example' });
+  expect(bot.status === 201 && await db.collection('contactmessages').countDocuments({}) === before, 'Le piège à robots répond 201 sans rien enregistrer ni envoyer', bot);
+  // Adresse de réception : réglage admin (adresse de test : le serveur d'envoi peut la refuser, le message reste tracé)
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const target = `e2e-contact-${RUN}@needcreator-test.com`;
+    const setRes = await brandApi('PUT', '/admin/settings/contactEmail', { value: target });
+    expect(setRes.status === 200, 'Réglage de l\'adresse de contact échoué', setRes);
+    const ok = await pub('POST', '/contact', { name: 'Camille Martin', email: `visiteur-${RUN}@needcreator-test.com`, role: 'brand', subject: `Question tarifs ${RUN}`, message: 'Bonjour, je voudrais des informations sur vos tarifs pour les marques. Merci.' });
+    expect([201, 502].includes(ok.status), 'Envoi du message : 201 attendu (ou 502 si le serveur d\'envoi refuse l\'adresse de test)', ok);
+    const doc = await db.collection('contactmessages').findOne({ subject: `Question tarifs ${RUN}` });
+    expect(doc && doc.sentTo === target && doc.role === 'brand' && doc.name === 'Camille Martin', 'Le message doit être tracé avec l\'adresse de réception du réglage', { status: 200, data: doc });
+    await db.collection('contactmessages').deleteMany({ subject: `Question tarifs ${RUN}` });
+    return `validation, piège à robots, réception sur l'adresse du réglage (${ok.status === 201 ? 'email envoyé' : 'adresse de test refusée par le serveur d\'envoi, message tracé'})`;
+  } finally {
+    await db.collection('settings').deleteOne({ key: 'contactEmail' });
+    await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  }
+});
+
 await step('Aperçu intégré des publications (livraisons par lien, prospection) : adresses reconnues, repli sans agrément', async () => {
   const { parseSocialUrl } = await import('../src/services/embeds.js');
   expect(parseSocialUrl('https://www.instagram.com/reel/DdWYcVvIEba/?igsh=abc')?.url === 'https://www.instagram.com/reel/DdWYcVvIEba/' && parseSocialUrl('https://www.instagram.com/un.profil/') === null && parseSocialUrl('https://www.tiktok.com/@a.b/video/6718335390845095173')?.provider === 'tiktok' && parseSocialUrl('https://youtu.be/dQw4w9WgXcQ')?.id === 'dQw4w9WgXcQ' && parseSocialUrl('https://exemple.com/p/abc') === null, 'Lecture des adresses de publication incorrecte', { status: 200, data: parseSocialUrl('https://www.instagram.com/reel/DdWYcVvIEba/') });
