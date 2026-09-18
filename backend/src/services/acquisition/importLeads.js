@@ -37,7 +37,9 @@ export function parseLeadLines(text) {
     const handleFromUrl = profile ? (profile.match(/(?:instagram\.com\/|tiktok\.com\/@|youtube\.com\/@|linkedin\.com\/(?:company|in)\/|facebook\.com\/)([^/?]+)/i) || [])[1] : null;
     if (!name) name = handleFromUrl || (email ? email.split('@')[0] : '') || (website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : '');
     if (!name) { rows.push({ line, error: 'ni nom, ni lien, ni email' }); continue; }
-    rows.push({ line, name: name.slice(0, 120), handle: handleFromUrl ? `@${handleFromUrl}` : null, url: profile || website, website, email, socials, description: texts.slice(1).join(' · ').slice(0, 2000) });
+    // Lien d'une publication Instagram dans la ligne : sert à compléter la fiche « publication seule » trouvée par hashtag
+    const postCode = (line.match(/instagram\.com\/(?:[^/\s]+\/)?(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i) || [])[1] || null;
+    rows.push({ line, postCode, name: name.slice(0, 120), handle: handleFromUrl ? `@${handleFromUrl}` : null, url: profile || website, website, email, socials, description: texts.slice(1).join(' · ').slice(0, 2000) });
   }
   return rows;
 }
@@ -45,9 +47,26 @@ export function parseLeadLines(text) {
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
 export async function importLeads({ kind, text, niche, origin }) {
   const rows = parseLeadLines(text);
-  const result = { total: rows.length, created: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
+  const result = { total: rows.length, created: 0, updated: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
     if (r.error) { result.invalid++; result.errors.push(`${r.line.slice(0, 60)} : ${r.error}`); continue; }
+    // Fiche existante trouvée par hashtag (lien de publication sans auteur) : on la complète au lieu de créer un doublon
+    if (r.postCode) {
+      const existing = await Lead.findOne({ source: 'instagram', url: { $regex: `/(?:p|reel|reels|tv)/${r.postCode}(?:/|$)`, $options: 'i' } });
+      if (existing) {
+        const handle = r.handle || (r.socials.instagram ? `@${(r.socials.instagram.match(/instagram\.com\/([^/?]+)/i) || [])[1]}` : null);
+        if (handle && handle !== '@undefined') { existing.handle = handle; existing.name = handle; }
+        const cur = existing.socials?.toObject?.() || existing.socials || {};
+        existing.socials = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) , ...(r.socials.instagram ? { instagram: r.socials.instagram } : {}) };
+        if (r.email && !existing.email) { existing.email = r.email; existing.emailSource = 'import'; }
+        if (r.website && !existing.website) existing.website = r.website;
+        if (r.description) existing.description = `${r.description}\n${existing.description || ''}`.slice(0, 2000);
+        if (['rejected', 'qualified', 'new'].includes(existing.status)) existing.status = 'new'; // requalifié avec la bio et l'auteur
+        await existing.save();
+        result.updated = (result.updated || 0) + 1; result.ids.push(existing._id);
+        continue;
+      }
+    }
     const externalId = String(r.url || r.email || r.name).trim().toLowerCase();
     const dup = await Lead.findOne({ $or: [{ externalId }, ...(r.email ? [{ email: r.email }] : []), ...(r.url ? [{ url: r.url }] : [])] }).select('_id').lean();
     if (dup) { result.duplicates++; continue; }

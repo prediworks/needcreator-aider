@@ -2532,6 +2532,17 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       expect(again2?.email === `bonjour-${RUN}@needcreator-test.com`, 'La passe groupée doit retrouver l\'email sur le site', { status: 200, data: again2 });
       await db.collection('leads').deleteOne({ _id: withMail._id });
     } finally { site.close(); }
+    // Publication Instagram trouvée par hashtag sans auteur : le lien est listé pour l'assistant Chrome, puis la ligne importée complète la fiche au lieu d'en créer une
+    const igPost = await db.collection('leads').insertOne({ kind: 'creator', source: 'instagram', externalId: `igpost-${RUN}`, name: 'Bon… cette fois c\'est officiel', url: `https://www.instagram.com/reel/E2E${RUN}/`, description: 'Je me lance dans l\'UGC', status: 'qualified', score: 40, keyword: '#ugcfrance', createdAt: new Date(), updatedAt: new Date() });
+    const igList = await brandApi('GET', '/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60');
+    expect(igList.status === 200 && igList.data.leads.some(l => String(l._id) === String(igPost.insertedId)), 'La publication sans auteur doit être listée pour l\'assistant', igList);
+    const igImp = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/reel/E2E${RUN}/?igsh=abc ; https://www.instagram.com/devi.ugc${RUN}/ ; devi-${RUN}@needcreator-test.com ; Créatrice UGC lifestyle, 1 200 abonnés` });
+    expect(igImp.status === 201 && igImp.data.updated === 1 && igImp.data.created === 0, 'La ligne doit compléter la fiche existante, sans doublon', igImp);
+    const igDone = await db.collection('leads').findOne({ _id: igPost.insertedId });
+    expect(igDone.handle === `@devi.ugc${RUN}` && igDone.email === `devi-${RUN}@needcreator-test.com` && igDone.socials?.instagram === `https://www.instagram.com/devi.ugc${RUN}/` && /1 200 abonnés/.test(igDone.description), 'Auteur, profil, email et bio attendus sur la fiche complétée', { status: 200, data: igDone });
+    const igList2 = await brandApi('GET', '/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60');
+    expect(!igList2.data.leads.some(l => String(l._id) === String(igPost.insertedId)), 'Une fiche complétée ne doit plus être proposée à l\'assistant', igList2);
+    await db.collection('leads').deleteOne({ _id: igPost.insertedId });
     // « Compléter les réseaux (tous) » : passe en arrière-plan, le TikTok cité dans la bio d'un prospect sans réseaux est retrouvé
     const bare = await db.collection('leads').insertOne({ kind: 'creator', source: 'manual', externalId: `bare-${RUN}`, name: `Sans Reseaux ${RUN}`, description: `Créatrice UGC. TikTok : @bare${RUN}`, status: 'qualified', createdAt: new Date(), updatedAt: new Date() });
     const enr = await brandApi('POST', '/admin/acquisition/leads/enrich-socials');

@@ -123,11 +123,12 @@ export async function acquisitionDashboard(req, res) {
 }
 
 export async function listLeads(req, res) {
-  const { kind, status, source, q, hasEmail, minScore, limit = 100, page = 1 } = req.query;
+  const { kind, status, source, q, hasEmail, minScore, noHandle, limit = 100, page = 1 } = req.query;
   const filter = {};
   if (kind) filter.kind = kind;
   if (status) filter.status = status;
   if (source) filter.source = source;
+  if (noHandle === '1') { filter.handle = { $in: [null, ''] }; if (!status) filter.status = { $nin: ['rejected', 'excluded', 'registered'] }; } // publications Instagram dont l'auteur reste à trouver
   if (hasEmail === '1') filter.email = { $ne: null };
   if (hasEmail === '0') filter.email = null;
   if (minScore) filter.score = { $gte: parseInt(minScore, 10) };
@@ -261,7 +262,7 @@ export async function importLeadsBulk(req, res) {
     if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
     if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, website: r.website, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
     const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
-    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
+    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.updated ? `, ${result.updated} fiche(s) complétée(s)` : ''}${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
   } catch (error) {
     logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });

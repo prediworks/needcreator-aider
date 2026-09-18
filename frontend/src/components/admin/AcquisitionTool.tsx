@@ -143,6 +143,15 @@ export default function AcquisitionTool() {
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
   const patch = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, body)).data, onSuccess: () => refresh(), onError: (e: any) => toast.error(getErrorMessage(e)) });
   const bulk = useMutation({ mutationFn: async (body: any) => (await api.patch('/admin/acquisition/leads/bulk', body)).data, onSuccess: (d) => { toast.success(d.message); setSelected([]); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const copyIgLinks = async () => {
+    try {
+      const d = (await api.get('/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60')).data;
+      const links = (d.leads || []).map((l: any) => l.url).filter(Boolean);
+      if (!links.length) { toast.info('Aucune publication Instagram sans auteur : rien à compléter.'); return; }
+      await navigator.clipboard.writeText(links.join('\n'));
+      toast.success(`${links.length} lien(s) copié(s)${d.total > links.length ? ` sur ${d.total} : recommencez après l'import pour les suivants` : ''}. Collez-les dans la consigne Instagram de l'assistant Chrome.`, { duration: 8000 });
+    } catch (e: any) { toast.error(getErrorMessage(e)); }
+  };
   const enrichEmails = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-emails', { kind })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const enrichSocials = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-socials')).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const requalify = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/leads/${id}/requalify`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -253,6 +262,7 @@ export default function AcquisitionTool() {
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
           <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle" title="Coller une liste (une ligne par prospect) venant de l'assistant Chrome, d'un salon ou d'un fichier : dédoublonnée, réseaux relevés, qualifiée par l'IA"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
+          {kind === 'creator' && <Button size="sm" variant="outline" onClick={copyIgLinks} title="Copie les liens des publications Instagram trouvées par hashtag dont l'auteur n'est pas encore connu (60 au plus). À coller dans la consigne « Créateurs Instagram » de l'assistant Chrome (docs/AGENT-CHROME.md) ; le résultat se recolle dans « Import groupé », qui complète ces fiches au lieu d'en créer de nouvelles." data-testid="copy-ig-links"><Copy className="w-4 h-4 mr-1" /> Copier les liens Instagram sans auteur</Button>}
           <Button size="sm" variant="outline" onClick={() => enrichEmails.mutate()} isLoading={enrichEmails.isPending} title="Pour les prospects de cet onglet qui ont un site web mais pas d'email : visite la page d'accueil, la page contact et les mentions légales, et relève l'adresse. Tourne en arrière-plan, sans appel à l'IA ; 5 à 15 secondes par site. Fait automatiquement à chaque import groupé." data-testid="enrich-emails"><Mail className="w-4 h-4 mr-1" /> Chercher les emails (sites web)</Button>
           <Button size="sm" variant="outline" onClick={() => enrichSocials.mutate()} isLoading={enrichSocials.isPending} title="Cherche Instagram et TikTok pour tous les prospects qui ne les ont pas encore : dans leur bio, puis dans la rubrique « Liens » de leur chaîne YouTube. Tourne en arrière-plan, sans appel à l'IA ; rechargez la page dans quelques minutes." data-testid="enrich-socials"><RefreshCw className="w-4 h-4 mr-1" /> Compléter les réseaux (tous)</Button>
           <Button size="sm" variant="outline" onClick={() => exportCsv(false)} title="Télécharge un CSV des prospects de la file affichée qui ont un email (prénom, pseudo, niche, réseaux, paragraphe et message personnalisés, lien d'inscription) pour votre outil de mailing"><Download className="w-4 h-4 mr-1" /> Export CSV (avec email)</Button>

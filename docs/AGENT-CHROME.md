@@ -31,8 +31,10 @@ Coller la liste dans Admin → Prospection, onglet Marques, « Import groupé »
 
 ## 2. Créateurs Instagram : compléter les auteurs des publications trouvées par hashtag
 
-Tant que Meta n'a pas approuvé « oEmbed Read », les prospects Instagram de la file « À qualifier » ou « Qualifié » n'ont que le lien
-de la publication. Exportez-les (Admin → Prospection → filtre source Instagram, ou copiez les liens), puis :
+Tant que Meta n'a pas approuvé « oEmbed Read », les prospects Instagram trouvés par hashtag n'ont que le lien de la publication, sans auteur.
+
+**Où trouver les liens** : Admin → Prospection → onglet Créateurs → bouton **« Copier les liens Instagram sans auteur »**. Il copie
+jusqu'à 60 liens dans le presse-papiers. Collez-les à la place de `<coller les liens>` dans la consigne ci-dessous.
 
 ```
 Utilise Claude in Chrome avec mon compte Instagram secondaire déjà connecté. Voici des liens de publications Instagram (un par ligne) :
@@ -40,11 +42,12 @@ Utilise Claude in Chrome avec mon compte Instagram secondaire déjà connecté. 
 Pour chaque lien : ouvre la publication, note le pseudo de l'auteur, ouvre son profil, relève la bio, l'email s'il est affiché ou dans le bouton
 « E-mail », le lien de bio (ouvre-le et relève un email s'il y en a un), et le nombre d'abonnés.
 Règles : 5 à 10 secondes entre deux pages, pas de like, pas de commentaire, pas de message, pas d'abonnement. Au plus 60 profils.
-Sortie : une ligne par profil, séparateur « ; » : @pseudo ; https://www.instagram.com/pseudo/ ; email ; bio courte + abonnés ; site ou lien de bio.
+Sortie : une ligne par publication, séparateur « ; » : lien de la publication (tel que fourni) ; https://www.instagram.com/pseudo/ ; email ; bio courte + abonnés ; site ou lien de bio.
 ```
 
-Coller dans « Import groupé », onglet Créateurs : les lignes dont l'email ou le lien existe déjà sont ignorées, les autres deviennent
-des prospects complets ; supprimez ensuite les anciennes fiches « publication seule » si vous le souhaitez.
+Coller le résultat dans « Import groupé », onglet Créateurs. Comme chaque ligne commence par le lien de la publication, NeedCreator
+**complète la fiche existante** (pseudo, profil, email, bio) au lieu d'en créer une nouvelle, puis la requalifie avec ces informations.
+Le message indique « N fiche(s) complétée(s) ». Recommencez avec le bouton pour les 60 suivantes.
 
 ## 3. Créateurs TikTok par hashtags (seule voie propre pour TikTok)
 
