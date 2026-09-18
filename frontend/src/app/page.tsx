@@ -20,7 +20,7 @@ const jsonLd = (cfg: { autoApprovalDays: number; replacementGraceHours: number }
       name: 'NeedCreator',
       url: SITE_URL,
       logo: `${SITE_URL}/icon.svg`,
-      email: COMPANY.contactEmail,
+      contactPoint: { '@type': 'ContactPoint', contactType: 'customer support', url: `${SITE_URL}/contact`, availableLanguage: ['French'] },
     },
     {
       '@type': 'WebSite',

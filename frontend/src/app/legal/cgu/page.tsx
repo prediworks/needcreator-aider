@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import LegalLayout from '@/components/legal/LegalLayout';
 import { COMPANY, TERMS_FIGURES } from '@/lib/legal';
 import { fetchPublicConfig } from '@/lib/publicConfig';
@@ -70,7 +71,7 @@ export default async function TermsPage() {
       <h2>7. Modération, suspension et litiges</h2>
       <ul>
         <li>La Plateforme peut suspendre ou fermer un compte en cas de manquement aux CGU, de fraude ou de signalement fondé, après en avoir informé l&apos;utilisateur sauf urgence.</li>
-        <li>En cas de désaccord sur une livraison, les parties recherchent d&apos;abord une solution via la messagerie. À défaut, l&apos;équipe de la Plateforme peut être saisie à {COMPANY.contactEmail} et proposer une solution (nouvelle révision, remboursement partiel ou total).</li>
+        <li>En cas de désaccord sur une livraison, les parties recherchent d&apos;abord une solution via la messagerie. À défaut, l&apos;équipe de la Plateforme peut être saisie depuis la page <Link href="/contact">Nous contacter</Link> et proposer une solution (nouvelle révision, remboursement partiel ou total).</li>
         <li>Les avis publiés après une mission doivent être sincères et porter sur la collaboration.</li>
       </ul>
 
@@ -108,7 +109,7 @@ export default async function TermsPage() {
         du Code de la consommation, un consommateur peut recourir gratuitement à un médiateur de la consommation.
       </p>
 
-      <p>Contact : <a href={`mailto:${COMPANY.contactEmail}`}>{COMPANY.contactEmail}</a></p>
+      <p>Contact : <Link href="/contact">page Nous contacter</Link></p>
     </LegalLayout>
   );
 }

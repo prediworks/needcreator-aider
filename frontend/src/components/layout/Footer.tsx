@@ -39,7 +39,6 @@ export default function Footer() {
           <h3 className="font-semibold text-neutral-900 mb-3">Contact</h3>
           <ul className="space-y-2 text-neutral-600">
             <li><Link href="/contact" className="hover:text-primary-600">Nous contacter</Link></li>
-            <li><a href={`mailto:${COMPANY.contactEmail}`} className="hover:text-primary-600">{COMPANY.contactEmail}</a></li>
             <li><Link href="/login" className="hover:text-primary-600">Connexion</Link></li>
           </ul>
         </div>

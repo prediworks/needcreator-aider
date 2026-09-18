@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import LegalLayout from '@/components/legal/LegalLayout';
 import { COMPANY, SITE_URL } from '@/lib/legal';
 
@@ -40,7 +41,7 @@ export default function LegalNoticePage() {
       <h2>Médiation</h2>
       <p>
         Conformément au Code de la consommation, tout consommateur peut recourir gratuitement à un médiateur de la
-        consommation en vue de la résolution amiable d&apos;un litige. Les coordonnées du médiateur sont communiquées sur demande à {COMPANY.contactEmail}.
+        consommation en vue de la résolution amiable d&apos;un litige. Les coordonnées du médiateur sont communiquées sur demande depuis la page <Link href="/contact">Nous contacter</Link>.
       </p>
     </LegalLayout>
   );

@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import ContactForm from '@/components/ContactForm';
-import { COMPANY } from '@/lib/legal';
 
 export const metadata: Metadata = {
   title: 'Nous contacter',
@@ -17,7 +16,7 @@ export default function ContactPage() {
           <p className="text-lg text-neutral-600">Une question sur une campagne, un paiement, votre compte ou un partenariat ? Nous répondons sous deux jours ouvrés.</p>
         </div>
         <ContactForm />
-        <p className="text-sm text-neutral-500 text-center mt-6">Vous préférez l&apos;email ? <a href={`mailto:${COMPANY.contactEmail}`} className="text-primary-600 underline">{COMPANY.contactEmail}</a>. Pour une mission en cours, la messagerie de la mission reste le plus rapide.</p>
+        <p className="text-sm text-neutral-500 text-center mt-6">Pour une mission en cours, la messagerie de la mission reste le plus rapide.</p>
       </div>
     </div>
   );
