@@ -1305,6 +1305,13 @@ await step('Envoi de produit : adresse, expédition, réception, délai de produ
   expect(early.status === 400, 'Réception impossible avant expédition', early);
   const notBrand = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'shipped' });
   expect(notBrand.status === 403, 'Seule la marque expédie', notBrand);
+  // La marque peut renoncer à l'envoi puis le redemander (« Envoyer un produit finalement »), réservé à la marque
+  const off = await brandApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'not_required' });
+  expect(off.status === 200 && off.data.shipping.required === false && off.data.shipping.status === 'none', 'Renoncer à l\'envoi échoué', off);
+  const onCreator = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'required' });
+  expect(onCreator.status === 403, 'Seule la marque peut décider d\'un envoi', onCreator);
+  const on = await brandApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'required' });
+  expect(on.status === 200 && on.data.shipping.required === true && on.data.shipping.status === 'pending', 'Envoi redemandé : statut « à expédier » attendu', on);
   const ship = await brandApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'shipped', carrier: 'Colissimo', trackingNumber: '6A123', trackingUrl: 'https://www.laposte.fr/suivi/6A123' });
   expect(ship.status === 200 && ship.data.shipping.status === 'shipped', 'Expédition échouée', ship);
   const recv = await creatorApi('PATCH', `/deliveries/${d._id}/shipping`, { action: 'received' });

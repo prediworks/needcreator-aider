@@ -36,3 +36,15 @@ export function formatRelativeTime(date: Date | string) {
   
   return formatDate(date);
 }
+
+/** Adresse lisible : domaine + chemin, sans « www », ni paramètres de suivi (utm, igsh…), tronquée au milieu si elle reste longue */
+export function shortUrl(url: string, max = 46): string {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, '');
+    const text = `${u.hostname.replace(/^www\./, '')}${path}`;
+    if (text.length <= max) return text;
+    const head = Math.ceil((max - 1) * 0.6), tail = Math.floor((max - 1) * 0.4);
+    return `${text.slice(0, head)}…${text.slice(-tail)}`;
+  } catch { return url.length > max ? `${url.slice(0, max - 1)}…` : url; }
+}

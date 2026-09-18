@@ -34,6 +34,17 @@ export default function ShippingCard({ delivery, role }: { delivery: any; role: 
   });
 
   if (!shipping.required && shipping.status === 'none' && role === 'creator') return null;
+  // Mission sans envoi de produit : pas d'adresse à réclamer, juste la possibilité d'en envoyer un finalement
+  if (!shipping.required && shipping.status === 'none') return (
+    <Card className="p-4" data-testid="shipping-none">
+      <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
+        <span className="text-neutral-600 flex items-center gap-2"><Package className="w-4 h-4 text-neutral-400" /> Aucun envoi de produit prévu pour cette mission.</span>
+        <Button variant="ghost" size="sm" onClick={() => update.mutate({ action: 'required' })} isLoading={update.isPending} title="Le créateur sera prévenu et invité à renseigner son adresse de livraison ; le délai de production courra à partir de la réception du produit">
+          <Truck className="w-4 h-4 mr-2" /> Envoyer un produit finalement
+        </Button>
+      </div>
+    </Card>
+  );
 
   return (
     <Card className="p-6">
@@ -81,11 +92,6 @@ export default function ShippingCard({ delivery, role }: { delivery: any; role: 
                 <Button variant="ghost" onClick={() => update.mutate({ action: 'not_required' })} isLoading={update.isPending}>Pas d&apos;envoi nécessaire</Button>
               </div>
             </div>
-          )}
-          {shipping.status === 'none' && !shipping.required && (
-            <Button variant="outline" size="sm" onClick={() => update.mutate({ action: 'shipped', carrier, trackingNumber: tracking })} isLoading={update.isPending}>
-              <Truck className="w-4 h-4 mr-2" /> J&apos;envoie quand même un produit
-            </Button>
           )}
         </div>
       )}

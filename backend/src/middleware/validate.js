@@ -209,7 +209,7 @@ export const schemas = {
 
   // Envoi de produit
   shippingUpdate: Joi.object({
-    action: Joi.string().valid('shipped', 'received', 'not_required').required(),
+    action: Joi.string().valid('shipped', 'received', 'not_required', 'required').required(),
     carrier: Joi.string().max(60).allow(''),
     trackingNumber: Joi.string().max(80).allow(''),
     trackingUrl: Joi.string().uri({ scheme: ['http', 'https'] }).allow(''),

@@ -1111,6 +1111,14 @@ export async function updateShipping(req, res) {
       sendProductReceived(delivery.brandId.email, delivery.brandId.profile.companyName || delivery.brandId.profile.name, delivery.creatorId.profile.name, delivery.campaignId.title, delivery.productionDeadline, delivery._id)
         .catch(err => logger.error('Shipping email failed:', err.message));
       notify(idOf(delivery.brandId), { type: 'delivery', title: 'Produit reçu par le créateur', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}#expedition` }).catch(() => {});
+    } else if (action === 'required') {
+      // La marque décide d'envoyer un produit sur une mission qui n'en prévoyait pas : le créateur est invité à renseigner son adresse
+      if (!isBrand) return res.status(403).json({ error: 'Réservé à la marque' });
+      if (['shipped', 'received'].includes(delivery.shipping.status)) return res.status(400).json({ error: 'Le produit est déjà expédié' });
+      delivery.shipping.required = true;
+      delivery.shipping.status = 'pending';
+      await delivery.save();
+      notify(idOf(delivery.creatorId), { type: 'delivery', title: 'La marque va vous envoyer un produit', text: `${delivery.campaignId.title} : vérifiez votre adresse de livraison dans votre profil.`, href: `/deliveries/${delivery._id}#expedition` }).catch(() => {});
     } else if (action === 'not_required') {
       if (!isBrand) return res.status(403).json({ error: 'Réservé à la marque' });
       delivery.shipping.required = false;

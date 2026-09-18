@@ -51,7 +51,7 @@ import {
   Globe,
   Lock,
 } from 'lucide-react';
-import { formatCurrency, formatDate, formatRelativeTime } from '@/lib/utils';
+import { formatCurrency, formatDate, formatRelativeTime, shortUrl } from '@/lib/utils';
 import { DELIVERY_STATUS, PAYMENT_STATUS, VIDEO_TYPES, PLATFORMS, DELIVERY_TYPES } from '@/lib/labels';
 import Link from 'next/link';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
@@ -321,8 +321,8 @@ export default function DeliveryDetailPage() {
                     <div className="flex items-start gap-3">
                       <Link2 className="w-5 h-5 text-primary-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <a href={l.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-primary-700 hover:underline break-all">
-                          {l.title || l.url}
+                        <a href={l.url} target="_blank" rel="noopener noreferrer" title={l.url} className="text-sm font-medium text-primary-700 hover:underline break-words">
+                          {l.title || shortUrl(l.url)}
                         </a>
                         <div className="text-xs text-neutral-500 mt-0.5 flex items-center gap-2 flex-wrap">
                           <span className="px-1.5 py-0.5 bg-neutral-100 rounded">{PLATFORMS[l.platform] || l.platform}</span>
@@ -410,7 +410,7 @@ export default function DeliveryDetailPage() {
                   <ul className="mt-2 space-y-1 text-neutral-600">
                     {previousItems.map((i: any) => (
                       <li key={i._id}>
-                        <a href={i.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline break-all">{i.filename || i.title || i.url}</a>
+                        <a href={i.url} target="_blank" rel="noopener noreferrer" title={i.url} className="text-primary-600 hover:underline break-words">{i.filename || i.title || shortUrl(i.url)}</a>
                         <span className="text-xs text-neutral-400"> · {formatRelativeTime(i.uploadedAt || i.addedAt)}</span>
                       </li>
                     ))}
