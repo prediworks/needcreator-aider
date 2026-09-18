@@ -2456,6 +2456,13 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const again = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted });
     expect(again.status === 201 && again.data.created === 0 && again.data.duplicates === 4, 'Un second import identique ne crée rien', again);
     if (aiOn) { let q = null; for (let i = 0; i < 40 && !q; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(one._id) }); if (['qualified', 'rejected'].includes(l?.status)) q = l; else await new Promise(r => setTimeout(r, 1000)); } expect(q && q.message, 'Les prospects importés doivent être qualifiés par l\'IA en arrière-plan', { status: 200, data: q }); }
+    // Suppression d'un prospect = liste d'exclusion : ni réimporté ni recollecté (politique de confidentialité)
+    const delOne = await brandApi('DELETE', `/admin/acquisition/leads/${one._id}`);
+    expect(delOne.status === 200 && /exclusion/.test(delOne.data.message), 'Suppression avec mise en liste d\'exclusion attendue', delOne);
+    const reimp = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `Import Une ; https://www.instagram.com/imp1${RUN}/ ; imp1-${RUN}@needcreator-test.com` });
+    expect(reimp.status === 201 && reimp.data.created === 0 && reimp.data.suppressed === 1, 'Un prospect supprimé ne doit pas pouvoir être réimporté', reimp);
+    const stored = await db.collection('leadsuppressions').find({}).limit(200).toArray();
+    expect(stored.length >= 2 && stored.every(x => /^[a-f0-9]{64}$/.test(x.hash) && !JSON.stringify(x).includes('imp1-')), 'La liste d\'exclusion ne doit contenir que des empreintes', { status: 200, data: stored.slice(0, 2) });
     await db.collection('leads').deleteMany({ _id: { $in: impB.data.ids.map(id => new mongoose.Types.ObjectId(id)) } });
     const note = await brandApi('PATCH', `/admin/acquisition/leads/${b.data.lead._id}`, { status: 'contacted', contactedVia: 'linkedin', notes: 'Message envoyé sur LinkedIn' });
     expect(note.status === 200 && note.data.lead.status === 'contacted' && note.data.lead.contactedAt && note.data.lead.contactedVia === 'linkedin', 'Mise à jour manuelle du prospect échouée', note);

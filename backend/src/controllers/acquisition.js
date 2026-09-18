@@ -1,5 +1,6 @@
 import { extractSocials } from '../services/acquisition/enrich.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
+import { suppressLead } from '../models/LeadSuppression.js';
 import { importLeads, parseLeadLines } from '../services/acquisition/importLeads.js';
 import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, metaTokenInfo } from '../services/acquisition/index.js';
 import { importCreators } from '../services/externalCreatorsImport.js';
@@ -164,10 +165,13 @@ export async function bulkUpdateLeads(req, res) {
   res.json({ message: `${r.modifiedCount} prospect(s) mis à jour`, updated: r.modifiedCount });
 }
 
+/** Suppression définitive : les données sont effacées, seules des empreintes restent en liste d'exclusion (plus jamais collecté ni contacté) */
 export async function deleteLead(req, res) {
-  const r = await Lead.deleteOne({ _id: req.params.id });
-  if (!r.deletedCount) return res.status(404).json({ error: 'Prospect introuvable' });
-  res.json({ message: 'Prospect supprimé' });
+  const lead = await Lead.findById(req.params.id);
+  if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+  await suppressLead(lead);
+  await lead.deleteOne();
+  res.json({ message: 'Prospect supprimé et placé en liste d\'exclusion' });
 }
 
 /** Ajout manuel (ou test) d'un prospect, qualifié immédiatement si l'IA est configurée */
@@ -254,7 +258,7 @@ export async function importLeadsBulk(req, res) {
     if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
     if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
     const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
-    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)`, ...result });
+    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
   } catch (error) {
     logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });

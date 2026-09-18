@@ -6,6 +6,7 @@ import { getSetting, SETTINGS } from '../../models/Setting.js';
 import { searchCreators, youtubeConfigured, channelLinks } from './youtube.js';
 import { searchBrands, metaConfigured } from './meta.js';
 import { extractSocials } from './enrich.js';
+import { isSuppressed } from '../../models/LeadSuppression.js';
 import { searchHashtag, instagramConfigured, oembedBlocked } from './instagram.js';
 import { qualifyLead } from './qualify.js';
 import { parseKeywordLines, parseHashtags, DEFAULT_CREATOR_KEYWORDS, DEFAULT_BRAND_KEYWORDS, DEFAULT_INSTAGRAM_HASHTAGS } from './keywords.js';
@@ -44,6 +45,7 @@ async function alreadyKnown(cand) {
 async function upsertCandidate(cand, runId) {
   const exists = await Lead.findOne({ source: cand.source, externalId: cand.externalId }).select('_id').lean();
   if (exists) return null;
+  if (await isSuppressed(cand)) return null; // supprimé à sa demande ou par un administrateur : plus jamais collecté
   const known = await alreadyKnown(cand);
   const { links, ...data } = cand;
   return Lead.create({ ...data, runId, status: known?.registeredUserId ? 'registered' : known?.externalCreatorId ? 'excluded' : 'new', notes: known?.externalCreatorId ? 'Déjà dans l\'annuaire des créateurs référencés' : undefined, ...known });
@@ -193,7 +195,16 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
 }
 
 /** Tâche planifiée : une exécution par période de 20 h quand activé */
+const RETENTION_MS = 24 * 30 * 86400000; // 24 mois après la dernière activité (politique de confidentialité, 2 ter)
+/** Purge des prospects sans activité depuis 24 mois (hors comptes inscrits, conservés avec leur compte) */
+export async function purgeOldLeads() {
+  const r = await Lead.deleteMany({ updatedAt: { $lt: new Date(Date.now() - RETENTION_MS) }, status: { $ne: 'registered' } });
+  if (r.deletedCount) logger.info(`Prospection : ${r.deletedCount} prospect(s) purgé(s) après 24 mois sans activité`);
+  return r.deletedCount;
+}
+
 export async function runScheduledAcquisition() {
+  await purgeOldLeads().catch(err => logger.warn(`purgeOldLeads: ${err.message}`));
   const enabled = await getSetting(SETTINGS.acquisitionEnabled.key, false);
   if (!enabled) return { ran: false, reason: 'disabled' };
   const last = await LeadRun.findOne({}).sort({ startedAt: -1 }).select('startedAt').lean();

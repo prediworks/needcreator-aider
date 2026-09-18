@@ -3,6 +3,7 @@ import User from '../../models/User.js';
 import ExternalCreator from '../../models/ExternalCreator.js';
 import { extractEmails, pickEmail, extractSocials } from './enrich.js';
 import { qualifyOne } from './index.js';
+import { isSuppressed } from '../../models/LeadSuppression.js';
 import logger from '../../utils/logger.js';
 
 const URL_RE = /https?:\/\/[^\s;,|"']+/gi;
@@ -42,12 +43,13 @@ export function parseLeadLines(text) {
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
 export async function importLeads({ kind, text, niche, origin }) {
   const rows = parseLeadLines(text);
-  const result = { total: rows.length, created: 0, duplicates: 0, invalid: 0, known: 0, ids: [], errors: [] };
+  const result = { total: rows.length, created: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
     if (r.error) { result.invalid++; result.errors.push(`${r.line.slice(0, 60)} : ${r.error}`); continue; }
     const externalId = String(r.url || r.email || r.name).trim().toLowerCase();
     const dup = await Lead.findOne({ $or: [{ externalId }, ...(r.email ? [{ email: r.email }] : []), ...(r.url ? [{ url: r.url }] : [])] }).select('_id').lean();
     if (dup) { result.duplicates++; continue; }
+    if (await isSuppressed({ email: r.email, url: r.url, socials: r.socials })) { result.suppressed = (result.suppressed || 0) + 1; continue; }
     let known = null;
     if (r.email) {
       const u = await User.findOne({ email: r.email }).select('_id').lean();

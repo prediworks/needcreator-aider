@@ -26,6 +26,14 @@ const nextConfig = {
     return config;
   },
   transpilePackages: ['firebase', '@firebase/auth'],
+  // Adresses courtes attendues par les plateformes tierces (revue d'application Meta, stores)
+  async redirects() {
+    return [
+      { source: '/privacy', destination: '/legal/confidentialite', permanent: true },
+      { source: '/terms', destination: '/legal/cgu', permanent: true },
+      { source: '/data-deletion', destination: '/legal/confidentialite#suppression', permanent: true },
+    ];
+  },
 }
 
 // Sentry : n'envoie les sourcemaps que si SENTRY_AUTH_TOKEN est défini (facultatif)

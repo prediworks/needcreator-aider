@@ -48,6 +48,25 @@ export default function PrivacyPage() {
         (lien « Retirer mon profil ») ou en écrivant à {COMPANY.privacyEmail}. Le retrait est définitif et empêche toute réinscription par import.
       </p>
 
+      <h2 id="donnees-plateformes">2 ter. Données publiques issues de Meta (Instagram, Facebook) et de YouTube</h2>
+      <p>
+        Pour identifier des créateurs de contenu et des marques susceptibles d&apos;utiliser la plateforme, nous consultons, par les interfaces officielles
+        de ces services et dans le respect de leurs conditions, des informations <strong>rendues publiques</strong> par leurs auteurs :
+      </p>
+      <ul>
+        <li><strong>Instagram (API Graph de Meta)</strong> : publications publiques associées à un hashtag (légende, lien de la publication, type de média, date, nombre de mentions « J&apos;aime » et de commentaires) et, par la fonction oEmbed, le nom de compte public de l&apos;auteur d&apos;une publication. Nous n&apos;accédons à aucun message privé, aucune liste d&apos;abonnés, aucun compte privé.</li>
+        <li><strong>Bibliothèque publicitaire de Meta</strong> : nom de la page de l&apos;annonceur, textes et liens des publicités diffusées, dates de diffusion, c&apos;est-à-dire des données que Meta publie au titre de la transparence publicitaire.</li>
+        <li><strong>Compte Instagram et page Facebook NeedCreator</strong> : identifiants de notre propre page et de notre propre compte professionnel, nécessaires à ces requêtes ; statistiques de nos propres publications.</li>
+        <li><strong>YouTube (API Data)</strong> : nom, description, pays, liens et statistiques publiques des chaînes.</li>
+      </ul>
+      <p>
+        <strong>Usage</strong> : repérer des profils pertinents, relever une adresse de contact professionnelle lorsqu&apos;elle est affichée publiquement, évaluer l&apos;adéquation du profil
+        (avec l&apos;aide d&apos;un outil d&apos;analyse automatisée, sans décision produisant d&apos;effet juridique) et proposer, une fois, une collaboration ou l&apos;inscription sur la plateforme.
+        Base légale : notre intérêt légitime à développer une place de marché entre marques et créateurs. Ces données ne sont <strong>ni vendues, ni louées, ni transmises</strong> à des tiers,
+        ni utilisées pour de la publicité ciblée ; seuls nos administrateurs y accèdent. Elles sont conservées au plus 24 mois après le dernier contact, et supprimées sans délai sur demande
+        (voir « Supprimer vos données » ci-dessous). Chaque message de prospection contient un lien de désinscription ; une personne désinscrite ou qui a refusé n&apos;est plus recontactée.
+      </p>
+
       <h2>3. Destinataires et sous-traitants</h2>
       <p>Vos données sont accessibles à notre équipe, aux autres utilisateurs dans la mesure nécessaire à la mission (profil public du créateur, informations de campagne de la marque), et aux prestataires suivants :</p>
       <ul>
@@ -75,6 +94,13 @@ export default function PrivacyPage() {
         <a href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a>. Nous répondons sous un mois. Vous pouvez
         également introduire une réclamation auprès de la CNIL (www.cnil.fr).
       </p>
+
+      <h2 id="suppression">5 bis. Supprimer vos données</h2>
+      <ul>
+        <li><strong>Vous avez un compte NeedCreator</strong> : Profil → « Supprimer mon compte ». Le compte, le profil, le portfolio et les messages sont supprimés ou anonymisés immédiatement ; seules les pièces que la loi nous impose de conserver (factures, contrats : 10 ans) sont gardées, sans autre usage.</li>
+        <li><strong>Vous n&apos;avez pas de compte</strong> (vous figurez dans l&apos;annuaire des créateurs référencés, ou nous vous avons contacté à partir d&apos;informations publiques d&apos;Instagram, Facebook, YouTube ou de votre site) : écrivez à <a href={`mailto:${COMPANY.privacyEmail}?subject=Suppression%20de%20mes%20donn%C3%A9es`}>{COMPANY.privacyEmail}</a> en indiquant le lien de votre profil ou l&apos;adresse email concernée. Nous supprimons toutes les données vous concernant, y compris celles obtenues par les interfaces de Meta et de YouTube, sous 30 jours au plus, et nous vous le confirmons par email. Vous pouvez aussi utiliser le lien « Retirer mon profil » de votre fiche de l&apos;annuaire ou le lien de désinscription de nos emails.</li>
+        <li>La suppression est définitive : votre profil ou votre adresse est inscrit sur une liste d&apos;exclusion réduite au strict nécessaire, afin de ne plus être collecté ni contacté.</li>
+      </ul>
 
       <h2>6. Cookies et traceurs</h2>
       <p>
