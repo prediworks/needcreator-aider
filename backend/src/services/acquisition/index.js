@@ -221,6 +221,6 @@ export async function metaTokenInfo() {
   try {
     const res = await fetch(`https://graph.facebook.com/v21.0/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`);
     const d = (await res.json()).data || {};
-    return { configured: true, valid: !!d.is_valid, expiresAt: d.expires_at ? new Date(d.expires_at * 1000) : null, scopes: d.scopes || [] };
+    return { configured: true, valid: !!d.is_valid, expiresAt: (d.expires_at || d.data_access_expires_at) ? new Date((d.expires_at || d.data_access_expires_at) * 1000) : null, scopes: d.scopes || [] }; // jeton prolongé : Meta ne renvoie parfois que la date de fin d'accès aux données
   } catch (err) { return { configured: true, valid: null, error: err.message }; }
 }
