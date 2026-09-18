@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { Play, ExternalLink } from 'lucide-react';
+import { Play, ExternalLink, X } from 'lucide-react';
 
 const LABEL: Record<string, string> = { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube' };
 const SCRIPT: Record<string, string> = { instagram: 'https://www.instagram.com/embed.js', tiktok: 'https://www.tiktok.com/embed.js' };
@@ -57,6 +57,8 @@ export default function SocialEmbed({ url, onAuthor, compact = false }: { url: s
   }, [open, data]);
 
   if (!provider) return null;
+  // Masquer : referme la publication et oublie « Toujours afficher »
+  const hide = () => { try { localStorage.removeItem(PREF_KEY); } catch { /* stockage indisponible */ } if (box.current) box.current.innerHTML = ''; setOpen(false); };
   const show = (always: boolean) => { if (always) { try { localStorage.setItem(PREF_KEY, '1'); } catch { /* stockage indisponible */ } } setOpen(true); };
 
   if (!open) return (
@@ -68,6 +70,7 @@ export default function SocialEmbed({ url, onAuthor, compact = false }: { url: s
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-2" data-testid="social-embed">
+      <div className="flex justify-end mb-1"><button type="button" onClick={hide} className="inline-flex items-center gap-1 text-xs text-neutral-600 hover:text-primary-700" title="Refermer la publication (elle ne sera plus chargée automatiquement)" data-testid="social-embed-hide"><X className="w-3.5 h-3.5" /> Masquer la publication</button></div>
       {isLoading && <div className="text-sm text-neutral-500 p-4 text-center">Chargement de la publication…</div>}
       {data?.provider === 'youtube' && (
         <div className="relative w-full mx-auto" style={{ maxWidth: 560, aspectRatio: '16 / 9' }}>
