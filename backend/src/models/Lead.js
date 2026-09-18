@@ -15,7 +15,8 @@ const leadSchema = new mongoose.Schema({
   handle: { type: String, trim: true }, // @pseudo YouTube / nom de page
   url: String,
   website: String,
-  socials: { instagram: String, tiktok: String, youtube: String, linkedin: String, facebook: String }, // profils trouvés dans la bio, le lien de bio ou le site
+  socials: { instagram: String, tiktok: String, youtube: String, linkedin: String, facebook: String },
+  enrich: { emailSearchedAt: Date, socialsSearchedAt: Date, noSite: Boolean }, // mémoire des passes de recherche : un même prospect n'est pas revisité avant 30 jours // profils trouvés dans la bio, le lien de bio ou le site
   country: String,
   language: String,
   description: String,

@@ -1,7 +1,7 @@
 import Lead from '../../models/Lead.js';
 import User from '../../models/User.js';
 import ExternalCreator from '../../models/ExternalCreator.js';
-import { extractEmails, pickEmail, extractSocials, enrichLeadFromSite } from './enrich.js';
+import { extractEmails, pickEmail, extractSocials, enrichLeadFromSite, findBareDomain } from './enrich.js';
 import { qualifyOne } from './index.js';
 import { isSuppressed } from '../../models/LeadSuppression.js';
 import logger from '../../utils/logger.js';
@@ -25,9 +25,11 @@ export function parseLeadLines(text) {
     const email = pickEmail(extractEmails(line));
     const socials = extractSocials(line);
     const profile = socials.instagram || socials.tiktok || socials.youtube || socials.linkedin || socials.facebook || null;
-    const website = urls.find(u => !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(u)) || null;
+    // Site avec ou sans « https:// » (« respire.co », « www.cabaia.fr ») : l'assistant Chrome écrit souvent le domaine seul
+    const website = urls.find(u => !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(u)) || findBareDomain(line.replace(URL_RE, ' ')) || null;
     // Texte restant une fois les liens et emails retirés (un même champ peut mêler nom, bio et email)
-    const texts = cells.map(c => c.replace(URL_RE, ' ').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ').replace(/\b(contact|mail|email|e-mail)\s*[:：]?\s*$/i, '').replace(/\s+/g, ' ').replace(/^[\s,;:-]+|[\s,;:-]+$/g, '').replace(/^@/, '')).filter(Boolean);
+    const bare = website && !urls.includes(website) ? new RegExp(`(?:www\\.)?${website.replace(/^https?:\/\/(www\.)?/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\/\\S*)?`, 'ig') : null;
+    const texts = cells.map(c => (bare ? c.replace(bare, ' ') : c)).map(c => c.replace(URL_RE, ' ').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, ' ').replace(/\b(contact|mail|email|e-mail)\s*[:：]?\s*$/i, '').replace(/\s+/g, ' ').replace(/^[\s,;:-]+|[\s,;:-]+$/g, '').replace(/^@/, '')).filter(Boolean);
     // « Paul, vidéos food » : le nom s'arrête à la première virgule, la suite rejoint la description
     let name = (texts[0] || '').split(/,\s+/)[0];
     const rest = (texts[0] || '').slice(name.length).replace(/^[\s,]+/, '');
@@ -67,7 +69,7 @@ export async function importLeads({ kind, text, niche, origin }) {
       const lead = await Lead.findById(id);
       if (!lead) continue;
       // Prospect importé sans email mais avec un site : l'email est cherché sur le site (contact, mentions légales) avant la qualification
-      if (!lead.email) { const got = await enrichLeadFromSite(lead).catch(() => false); if (got || lead.isModified()) await lead.save(); }
+      if (!lead.email) { await enrichLeadFromSite(lead).catch(() => false); lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), noSite: !lead.website }; await lead.save(); } // déjà visité : la passe groupée ne le refera pas avant 30 jours
       if (lead.status === 'new') await qualifyOne(lead, []).catch(err => logger.warn(`import qualify ${id}: ${err.message}`));
     }
     logger.info(`Import : ${toQualify.length} prospect(s) qualifié(s)`);

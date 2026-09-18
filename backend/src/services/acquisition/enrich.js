@@ -122,12 +122,26 @@ export async function findEmailViaLinks(links = []) {
   return Object.keys(socials).length ? { email: null, source: null, socials } : null;
 }
 
+const BARE_DOMAIN = /(?<![@\w.-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:fr|com|co|io|shop|store|paris|eu|net|org|bio|care|me|be|ch|ca|lu|bzh|app|studio|club|life|world|beauty|fashion|boutique))(?![\w@-])(?:\/[^\s;,|"']*)?/gi;
+const NOT_A_SITE = /^(?:www\.)?(?:instagram|tiktok|youtube|youtu|linkedin|facebook|fb|twitter|x|pinterest|snapchat|linktr|beacons|gmail|outlook|hotmail|yahoo|orange|free|laposte|wanadoo|sfr|icloud|proton|protonmail|google|apple|amazon|cdiscount|etsy|vinted)\.[a-z.]+$/i;
+/** Site écrit sans « https:// » dans un texte (« respire.co », « www.cabaia.fr/pages/contact ») : renvoie l'adresse complète du premier site plausible */
+export function findBareDomain(text) {
+  for (const m of String(text || '').matchAll(BARE_DOMAIN)) {
+    const host = m[1].toLowerCase();
+    if (NOT_A_SITE.test(host) || host.split('.').length < 2 || /^\d+(\.\d+)*$/.test(host)) continue;
+    return `https://${host}`;
+  }
+  return null;
+}
+
 /**
  * Complète l'email (et les réseaux) d'un prospect à partir de son site : page d'accueil, contact, mentions légales.
  * Retourne true si un email a été trouvé. Ne touche pas un email déjà présent.
  */
 export async function enrichLeadFromSite(lead) {
-  const site = lead.website || (lead.url && !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(lead.url) ? lead.url : null);
+  let site = lead.website || (lead.url && !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(lead.url) ? lead.url : null);
+  // Site écrit sans « https:// » et resté dans la description ou le nom (imports anciens) : on le range dans le champ « site »
+  if (!site) { site = findBareDomain(`${lead.description || ''} ${lead.name || ''}`); if (site) lead.website = site; }
   if (!site) return false;
   const r = await findEmailOnSite(site, { maxPages: 4 });
   if (!r) return false;

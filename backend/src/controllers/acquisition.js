@@ -259,7 +259,7 @@ export async function importLeadsBulk(req, res) {
     if (!String(text).trim()) return res.status(400).json({ error: 'Collez au moins une ligne' });
     const lines = String(text).split(/\r?\n/).filter(l => l.trim()).length;
     if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
-    if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
+    if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, website: r.website, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
     const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
     res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
   } catch (error) {
@@ -272,9 +272,10 @@ let socialsJob = null; // une seule passe à la fois
 /** Complète en arrière-plan les réseaux (Instagram, TikTok…) des prospects qui n'en ont pas : bio, puis rubrique « Liens » de la chaîne YouTube. Sans appel à l'IA. */
 export async function enrichLeadSocials(req, res) {
   if (socialsJob?.running) return res.json({ message: `Déjà en cours : ${socialsJob.done} / ${socialsJob.total}`, ...socialsJob });
-  const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
+  const sinceS = new Date(Date.now() - 30 * 86400000);
+  const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }, { $or: [{ 'enrich.socialsSearchedAt': { $exists: false } }, { 'enrich.socialsSearchedAt': null }, { 'enrich.socialsSearchedAt': { $lt: sinceS } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
   socialsJob = { running: true, total: leads.length, done: 0, found: 0, startedAt: new Date() };
-  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube, rechargez la page dans quelques minutes` : 'Tous les prospects ont déjà leurs réseaux (ou rien à chercher)', ...socialsJob });
+  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours', ...socialsJob });
   setImmediate(async () => {
     for (const { _id } of leads) {
       try {
@@ -283,7 +284,9 @@ export async function enrichLeadSocials(req, res) {
         const cur = lead.socials?.toObject?.() || lead.socials || {};
         let soc = { ...extractSocials(`${lead.description || ''} ${lead.url || ''} ${lead.website || ''}`), ...cur };
         if (lead.source === 'youtube' && lead.url && !soc.instagram && !soc.tiktok) { soc = { ...(await channelLinks(lead.url)), ...soc }; await new Promise(r => setTimeout(r, 1200)); }
-        if (soc.instagram || soc.tiktok || Object.keys(soc).length > Object.keys(cur).length) { lead.socials = soc; await lead.save(); if (soc.instagram || soc.tiktok) socialsJob.found++; }
+        if (soc.instagram || soc.tiktok || Object.keys(soc).length > Object.keys(cur).length) { lead.socials = soc; if (soc.instagram || soc.tiktok) socialsJob.found++; }
+        lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), socialsSearchedAt: new Date() }; // pas revisité avant 30 jours
+        await lead.save();
       } catch (err) { logger.warn(`enrichLeadSocials ${_id}: ${err.message}`); }
       socialsJob.done++;
     }
@@ -293,22 +296,34 @@ export async function enrichLeadSocials(req, res) {
 }
 
 let emailsJob = null; // une seule passe à la fois
-/** Cherche en arrière-plan l'email des prospects qui ont un site web mais pas d'email : accueil, page contact, mentions légales. Sans appel à l'IA. */
+const RESEARCH_AFTER_MS = 30 * 86400000; // un prospect déjà cherché n'est pas revisité avant 30 jours
+const lastPass = (j, what) => j?.finishedAt ? ` Dernière passe : ${j.found} ${what} trouvé(s) sur ${j.total} prospect(s)${j.noSite ? `, dont ${j.noSite} sans site web connu` : ''}.` : '';
+/** Cherche en arrière-plan l'email des prospects sans email : accueil, page contact, mentions légales de leur site. Sans appel à l'IA. Chaque prospect n'est visité qu'une fois par période de 30 jours. */
 export async function enrichLeadEmails(req, res) {
   if (emailsJob?.running) return res.json({ message: `Déjà en cours : ${emailsJob.done} / ${emailsJob.total}, ${emailsJob.found} email(s) trouvé(s)`, ...emailsJob });
   const kind = ['creator', 'brand'].includes(req.body?.kind) ? req.body.kind : 'brand';
-  const leads = await Lead.find({ kind, email: { $in: [null, ''] }, status: { $nin: ['excluded', 'registered'] }, $or: [{ website: { $nin: [null, ''] } }, { url: { $regex: '^https?://', $not: /instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i } }] }).select('_id').limit(500).lean();
-  emailsJob = { running: true, kind, total: leads.length, done: 0, found: 0, startedAt: new Date() };
-  res.json({ message: leads.length ? `Recherche d'email lancée sur le site de ${leads.length} prospect(s) : comptez 5 à 15 secondes par site, rechargez la page dans quelques minutes` : 'Aucun prospect sans email avec un site web à visiter', ...emailsJob });
+  const since = new Date(Date.now() - RESEARCH_AFTER_MS);
+  const leads = await Lead.find({ kind, email: { $in: [null, ''] }, status: { $nin: ['excluded', 'registered'] }, $or: [{ 'enrich.emailSearchedAt': { $exists: false } }, { 'enrich.emailSearchedAt': null }, { 'enrich.emailSearchedAt': { $lt: since } }] }).select('_id').limit(500).lean();
+  const previous = emailsJob;
+  if (!leads.length) return res.json({ message: `Rien à chercher : tous les prospects sans email de cet onglet ont déjà été visités il y a moins de 30 jours.${lastPass(previous, 'email(s)')}`, total: 0 });
+  emailsJob = { running: true, kind, total: leads.length, done: 0, found: 0, noSite: 0, startedAt: new Date() };
+  res.json({ message: `Recherche d'email lancée pour ${leads.length} prospect(s) : 5 à 15 secondes par site, sans IA. Recliquez sur ce bouton pour voir l'avancement.${lastPass(previous, 'email(s)')}`, ...emailsJob });
   setImmediate(async () => {
     for (const { _id } of leads) {
       try {
         const lead = await Lead.findById(_id);
-        if (lead && !lead.email) { const got = await enrichLeadFromSite(lead); if (got) emailsJob.found++; if (got || lead.isModified()) await lead.save(); }
+        if (lead && !lead.email) {
+          const got = await enrichLeadFromSite(lead);
+          if (got) emailsJob.found++;
+          const noSite = !lead.website && !(lead.url && !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(lead.url));
+          if (noSite) emailsJob.noSite++;
+          lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), noSite };
+          await lead.save();
+        }
       } catch (err) { logger.warn(`enrichLeadEmails ${_id}: ${err.message}`); }
       emailsJob.done++;
     }
     emailsJob.running = false; emailsJob.finishedAt = new Date();
-    logger.info(`Emails complétés : ${emailsJob.found} trouvé(s) sur ${emailsJob.total} site(s) visités (${kind})`);
+    logger.info(`Emails complétés : ${emailsJob.found} trouvé(s) sur ${emailsJob.total} prospect(s), ${emailsJob.noSite} sans site (${kind})`);
   });
 }

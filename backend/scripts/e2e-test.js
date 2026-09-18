@@ -2515,7 +2515,16 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       let withMail = null;
       for (let i = 0; i < 60 && !withMail; i++) { const l = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(impS.data.ids[0]) }); if (l?.email) withMail = l; else await new Promise(r => setTimeout(r, 1000)); }
       expect(withMail?.email === `bonjour-${RUN}@needcreator-test.com` && withMail.emailSource === 'site:contact' && withMail.socials?.instagram, 'Email et Instagram attendus depuis le site de la marque importée', { status: 200, data: withMail });
+      // Mémoire de 30 jours : un prospect déjà visité à l'import n'est pas revisité par la passe groupée
+      expect(withMail.enrich?.emailSearchedAt, 'La visite du site à l\'import doit être mémorisée', { status: 200, data: withMail.enrich });
       await db.collection('leads').updateOne({ _id: withMail._id }, { $set: { email: null, emailSource: null } });
+      const skip = await brandApi('POST', '/admin/acquisition/leads/enrich-emails', { kind: 'brand' });
+      const skipped = await db.collection('leads').findOne({ _id: withMail._id });
+      expect(skip.status === 200 && !skipped.email, 'Un prospect visité il y a moins de 30 jours ne doit pas être revisité', skip);
+      for (let i = 0; i < 60; i++) { const st = await brandApi('POST', '/admin/acquisition/leads/enrich-emails', { kind: 'brand' }); if (!/Déjà en cours/.test(st.data.message)) break; await new Promise(r => setTimeout(r, 1000)); }
+      await db.collection('leads').updateOne({ _id: withMail._id }, { $set: { 'enrich.emailSearchedAt': new Date(Date.now() - 40 * 86400000) } }); // comme si la visite datait de 40 jours
+      const bareRow = await brandApi('POST', '/admin/acquisition/leads/import?preview=1', { kind: 'brand', text: 'Respire ; https://www.facebook.com/respire.co ; ; déodorants naturels ; respire.co' });
+      expect(bareRow.status === 200 && bareRow.data.rows[0].name === 'Respire' && bareRow.data.rows[0].website === 'https://respire.co' && bareRow.data.rows[0].description === 'déodorants naturels', 'Un site écrit sans https:// doit être reconnu comme site web', bareRow);
       const pass = await brandApi('POST', '/admin/acquisition/leads/enrich-emails', { kind: 'brand' });
       expect(pass.status === 200 && pass.data.total >= 1, 'Lancement de la recherche groupée des emails attendu', pass);
       let again2 = null;
