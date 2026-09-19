@@ -19,9 +19,17 @@ export async function outreachSettings() {
 }
 
 /** Champs poussés dans l'outil de mailing (snake_case) : utilisables comme variables dans les modèles d'emails */
+/** Prénom utilisable dans « Bonjour … » : celui relevé par l'IA, sinon le premier mot du nom seulement s'il ressemble à un prénom (pas un pseudo du type « ugcbymarie ») */
+function safeFirstName(lead) {
+  if (lead.firstName) return String(lead.firstName).trim();
+  if (lead.kind === 'brand') return '';
+  const w = String(lead.name || '').replace(/^@/, '').split(/[\s|·–-]/)[0];
+  return /^[A-ZÀ-Ý][a-zà-ÿ]{1,14}$/.test(w) && !/ugc|creat|créat|studio|officiel/i.test(w) ? w : '';
+}
+
 function contactOf(lead) {
   const handle = (lead.handle || '').replace(/^@/, '');
-  const base = { email: lead.email, first_name: lead.firstName || (lead.kind === 'brand' ? '' : (lead.name || '').split(/[\s|·-]/)[0]) || '', company_name: lead.kind === 'brand' ? lead.name : '', niche: lead.niche || '', paragraph: lead.emailParagraph || '', message: lead.message || '', score: lead.score ?? '', source: lead.source, kind: lead.kind };
+  const base = { email: lead.email, first_name: safeFirstName(lead), greeting: safeFirstName(lead) ? `Bonjour ${safeFirstName(lead)},` : 'Bonjour,', company_name: lead.kind === 'brand' ? lead.name : '', niche: lead.niche || '', paragraph: lead.emailParagraph || '', message: lead.message || '', score: lead.score ?? '', source: lead.source, kind: lead.kind };
   if (lead.kind === 'creator') return { ...base, username: handle, profile_url: lead.url || '', followers: lead.stats?.subscribers ?? '', signup_link: `${config.cors.origin}/register?role=creator&from=${encodeURIComponent(handle)}` };
   return { ...base, website: lead.website || '', ads: lead.stats?.ads ?? '', signup_link: `${config.cors.origin}/register?role=brand` };
 }
