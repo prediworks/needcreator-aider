@@ -56,7 +56,7 @@ export function parseLeadLines(text) {
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
 export async function importLeads({ kind, text, niche, origin }) {
   const rows = parseLeadLines(text);
-  const result = { total: rows.length, created: 0, updated: 0, emailsAdded: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
+  const result = { total: rows.length, created: 0, updated: 0, unchanged: 0, emailsAdded: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
     if (r.error) { result.invalid++; result.errors.push(`${r.line.slice(0, 60)} : ${r.error}`); continue; }
     // Fiche existante trouvée par hashtag (lien de publication sans auteur) : on la complète au lieu de créer un doublon
@@ -99,7 +99,9 @@ export async function importLeads({ kind, text, niche, origin }) {
         const merged = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) };
         if (Object.keys(merged).length > Object.values(cur).filter(Boolean).length) { known.socials = merged; changed = true; }
         if (r.description && !(known.description || '').includes(r.description.slice(0, 40))) { known.description = `${known.description || ''}\n${r.description}`.trim().slice(0, 2000); changed = true; }
-        if (changed) { await known.save(); result.updated = (result.updated || 0) + 1; if (r.email) result.emailsAdded = (result.emailsAdded || 0) + 1; } else result.duplicates++;
+        // Fiche reconnue : complétée si la ligne apporte du nouveau, sinon « sans nouveauté » (ce n'est pas un rejet)
+        const gotEmail = !!(r.email && known.isModified('email'));
+        if (changed) { await known.save(); result.updated = (result.updated || 0) + 1; if (gotEmail) result.emailsAdded = (result.emailsAdded || 0) + 1; } else result.unchanged = (result.unchanged || 0) + 1;
         continue;
       }
     }

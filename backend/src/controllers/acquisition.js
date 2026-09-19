@@ -262,7 +262,17 @@ export async function importLeadsBulk(req, res) {
     if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
     if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, website: r.website, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
     const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
-    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.emailsAdded ? `, ${result.emailsAdded} email(s) ajouté(s) à des fiches existantes` : ''}${result.updated ? `, ${result.updated} fiche(s) complétée(s)${result.twins ? ` dont ${result.twins} doublon(s) d'un même créateur mis de côté` : ''}` : ''}${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
+    // Message en clair : une ligne reconnue n'est pas un rejet, elle complète la fiche ou n'apporte rien de nouveau
+    const parts = [
+      `${result.total} ligne(s) lue(s)`,
+      result.created ? `${result.created} nouveau(x) prospect(s)` : null,
+      result.updated ? `${result.updated} fiche(s) existante(s) complétée(s)${result.emailsAdded ? `, dont ${result.emailsAdded} avec un nouvel email` : ''}${result.twins ? `, dont ${result.twins} doublon(s) d'un même créateur mis de côté` : ''}` : null,
+      result.unchanged ? `${result.unchanged} fiche(s) déjà connue(s) sans rien de nouveau (ni email ni réseau trouvé en plus)` : null,
+      result.duplicates ? `${result.duplicates} ligne(s) en double` : null,
+      result.suppressed ? `${result.suppressed} en liste d'exclusion` : null,
+      result.invalid ? `${result.invalid} ligne(s) illisible(s)` : null,
+    ].filter(Boolean);
+    res.status(201).json({ message: `${parts.join(' · ')}.`, ...result });
   } catch (error) {
     logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });
