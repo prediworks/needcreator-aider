@@ -8,7 +8,7 @@ import { classifyReply } from './replies.js';
 import logger from '../../utils/logger.js';
 
 export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
-const isGeneric = (email) => /^(contact|hello|bonjour|info|admin|support|sales|commercial|marketing|presse|press|team|equipe)@/.test(email || '');
+export const isGeneric = (email) => /^(contact|hello|bonjour|info|admin|support|sales|commercial|marketing|presse|press|team|equipe)@/.test(email || '');
 
 export async function outreachSettings() {
   const [autoSend, dailyLimit, minScore, pauseRate] = await Promise.all([
@@ -171,4 +171,35 @@ export async function runScheduledOutreach() {
   const remaining = Math.max(0, s.dailyLimit - already);
   const push = remaining ? await pushToMailing({ limit: remaining }).catch(err => ({ pushed: 0, error: err.message })) : { pushed: 0, reason: 'plafond du jour atteint' };
   return { ran: true, sync, push };
+}
+
+/**
+ * Où en est chaque prospect vis-à-vis du mailing : chaque fiche tombe dans une seule case, dans l'ordre des filtres de l'envoi,
+ * si bien que la somme des cases est égale au total. Sert à expliquer l'écart entre l'application et l'outil de mailing.
+ */
+export async function mailingBreakdown() {
+  const s = await outreachSettings();
+  const leads = await Lead.find({}).select('kind status email score mailing.pushedAt mailing.bounced mailing.unsubscribedAt mailing.replyAt notes').lean();
+  const empty = () => ({ total: 0, pushed: 0, replied: 0, left: 0, noEmail: 0, rejected: 0, known: 0, registered: 0, toQualify: 0, lowScore: 0, generic: 0, eligible: 0 });
+  const out = { creator: empty(), brand: empty(), minScore: s.minScore, dailyLimit: s.dailyLimit };
+  for (const l of leads) {
+    const b = out[l.kind]; if (!b) continue;
+    b.total++;
+    if (l.mailing?.pushedAt) {
+      b.pushed++;
+      if (l.mailing.replyAt) b.replied++;
+      if (l.mailing.bounced || l.mailing.unsubscribedAt) b.left++;
+      continue;
+    }
+    if (l.status === 'registered') b.registered++;
+    else if (l.status === 'excluded') b.known++;
+    else if (l.status === 'rejected') b.rejected++;
+    else if (!l.email) b.noEmail++;
+    else if (l.status === 'new') b.toQualify++;
+    else if (l.status === 'contacted' || l.status === 'replied') b.known++; // contacté à la main, hors outil
+    else if (l.status !== 'to_contact' && (l.score ?? 0) < s.minScore) b.lowScore++;
+    else if (l.status !== 'to_contact' && l.kind === 'creator' && isGeneric(l.email)) b.generic++;
+    else b.eligible++;
+  }
+  return out;
 }

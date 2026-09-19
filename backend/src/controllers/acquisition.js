@@ -7,7 +7,7 @@ import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, m
 import { importCreators } from '../services/externalCreatorsImport.js';
 import ExternalCreator from '../models/ExternalCreator.js';
 import { config } from '../config/index.js';
-import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES } from '../services/acquisition/outreach.js';
+import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES, mailingBreakdown } from '../services/acquisition/outreach.js';
 import { LeadRun as _LeadRun } from '../models/Lead.js';
 import { mailingProvider } from '../services/mailing/index.js';
 import logger from '../utils/logger.js';
@@ -327,4 +327,10 @@ export async function enrichLeadEmails(req, res) {
     emailsJob.running = false; emailsJob.finishedAt = new Date();
     logger.info(`Emails complétés : ${emailsJob.found} trouvé(s) sur ${emailsJob.total} prospect(s), ${emailsJob.noSite} sans site (${kind})`);
   });
+}
+
+/** Explication de l'écart entre les prospects de l'application et les contacts de l'outil de mailing */
+export async function mailingBreakdownView(req, res) {
+  try { res.json(await mailingBreakdown()); }
+  catch (error) { logger.error('mailingBreakdown failed:', error); res.status(500).json({ error: 'Décompte indisponible' }); }
 }

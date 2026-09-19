@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -105,6 +105,7 @@ router.post('/seed/run', runSeed);
 router.get('/acquisition', acquisitionOverview);
 router.get('/acquisition/dashboard', acquisitionDashboard);
 router.get('/acquisition/mailing', mailingStatus);
+router.get('/acquisition/mailing/breakdown', mailingBreakdownView); // pourquoi tel prospect n'est pas dans l'outil de mailing
 router.post('/acquisition/leads/:id/reply', replyToLead);
 router.post('/acquisition/leads/:id/reclassify', reclassifyReply);
 router.post('/acquisition/mailing/push', pushLeadsNow);

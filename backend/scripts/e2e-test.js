@@ -2549,6 +2549,10 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const igList2 = await brandApi('GET', '/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60');
     expect(!igList2.data.leads.some(l => String(l._id) === String(igPost.insertedId)), 'Une fiche complétée ne doit plus être proposée à l\'assistant', igList2);
     await db.collection('leads').deleteOne({ _id: igPost.insertedId });
+    // Décompte « pourquoi tous les prospects ne sont pas dans le mailing » : chaque fiche dans une seule case, la somme donne le total
+    const bd = await brandApi('GET', '/admin/acquisition/mailing/breakdown');
+    const sumOf = (k) => ['pushed', 'eligible', 'noEmail', 'rejected', 'lowScore', 'generic', 'known', 'registered', 'toQualify'].reduce((a, x) => a + bd.data[k][x], 0);
+    expect(bd.status === 200 && sumOf('creator') === bd.data.creator.total && sumOf('brand') === bd.data.brand.total && bd.data.creator.total === await db.collection('leads').countDocuments({ kind: 'creator' }) && bd.data.creator.pushed >= 1, 'Le décompte du mailing doit être exhaustif (somme = total) et compter les prospects envoyés', bd);
     // « Compléter les réseaux (tous) » : passe en arrière-plan, le TikTok cité dans la bio d'un prospect sans réseaux est retrouvé
     const bare = await db.collection('leads').insertOne({ kind: 'creator', source: 'manual', externalId: `bare-${RUN}`, name: `Sans Reseaux ${RUN}`, description: `Créatrice UGC. TikTok : @bare${RUN}`, status: 'qualified', createdAt: new Date(), updatedAt: new Date() });
     const enr = await brandApi('POST', '/admin/acquisition/leads/enrich-socials');

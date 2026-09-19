@@ -67,6 +67,39 @@ function SocialLinks({ socials }: { socials?: Record<string, string> }) {
   return <span className="inline-flex gap-1 flex-wrap ml-1" data-testid="lead-socials">{entries.map(([k, label]) => <a key={k} href={socials![k]} target="_blank" rel="noopener noreferrer" className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 hover:bg-primary-100 hover:text-primary-700 text-[11px]">{label}</a>)}</span>;
 }
 
+const BREAKDOWN_ROWS: [string, string, string][] = [
+  ['pushed', 'Dans l\'outil de mailing', 'Déjà envoyés vers l\'outil : c\'est le chiffre à comparer avec la liste de l\'outil'],
+  ['eligible', 'Prêts, partiront au prochain envoi', 'Email, score suffisant : ils attendent le prochain envoi (plafond quotidien) ou votre clic sur « Pousser les éligibles »'],
+  ['noEmail', 'Sans email', 'Aucune adresse trouvée : contact à la main sur les réseaux, ou bouton « Email » de la fiche'],
+  ['rejected', 'Hors cible', 'Écartés par l\'IA ou par vous (coachs, agences, hors sujet), refus, rebonds, désabonnés'],
+  ['lowScore', 'Score sous le minimum', 'Qualifiés avec email mais score trop bas : passez-les en « À contacter » pour les envoyer quand même'],
+  ['generic', 'Email générique (créateurs)', 'Adresse de type contact@ ou info@, refusée pour un créateur : « À contacter » pour forcer'],
+  ['known', 'Déjà connus ou contactés à la main', 'Dans l\'annuaire des créateurs référencés, doublon d\'un même créateur, ou contacté hors outil'],
+  ['registered', 'Déjà inscrits sur NeedCreator', 'Ils ont un compte : inutile de les prospecter'],
+  ['toQualify', 'En attente de qualification IA', 'Avec email mais pas encore qualifiés : traités à la prochaine exécution'],
+];
+/** Pourquoi l'application compte plus de prospects que l'outil de mailing : chaque fiche dans une seule case, la somme donne le total */
+function MailingBreakdown() {
+  const { data: b, isLoading } = useQuery({ queryKey: ['acq-mailing-breakdown'], queryFn: async () => (await api.get('/admin/acquisition/mailing/breakdown')).data, staleTime: 30000 });
+  if (isLoading || !b) return <p className="text-xs text-neutral-500 mt-3">Calcul du décompte…</p>;
+  return (
+    <div className="mt-3 overflow-x-auto" data-testid="mailing-breakdown">
+      <table className="text-xs w-full max-w-2xl">
+        <thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3 font-medium">Où sont les prospects</th><th className="py-1 px-3 font-medium text-right">Créateurs</th><th className="py-1 px-3 font-medium text-right">Marques</th></tr></thead>
+        <tbody>
+          {BREAKDOWN_ROWS.map(([k, label, help]) => (
+            <tr key={k} className={`border-t border-neutral-100 ${k === 'pushed' ? 'font-semibold text-neutral-900' : 'text-neutral-700'}`} title={help}>
+              <td className="py-1 pr-3">{label}</td><td className="py-1 px-3 text-right">{b.creator[k]}</td><td className="py-1 px-3 text-right">{b.brand[k]}</td>
+            </tr>
+          ))}
+          <tr className="border-t-2 border-neutral-300 font-semibold text-neutral-900"><td className="py-1 pr-3">Total dans l&apos;application</td><td className="py-1 px-3 text-right">{b.creator.total}</td><td className="py-1 px-3 text-right">{b.brand.total}</td></tr>
+        </tbody>
+      </table>
+      <p className="text-[11px] text-neutral-500 mt-1">Chaque prospect est compté dans une seule ligne, la somme donne le total. Score minimum : {b.minScore} · plafond : {b.dailyLimit} contacts par jour. Parmi ceux envoyés : {b.creator.replied + b.brand.replied} réponse(s), {b.creator.left + b.brand.left} rebond(s) ou désabonnement(s). Survolez une ligne pour l&apos;explication. Si l&apos;outil affiche moins de contacts que la première ligne, il a lui-même écarté des adresses invalides ou en double.</p>
+    </div>
+  );
+}
+
 /** Import groupé : une ligne par prospect, colonnes libres (nom ; lien ; email ; bio ; site), dédoublonné, qualifié à la suite */
 function ImportForm({ kind, onDone }: { kind: 'creator' | 'brand'; onDone: () => void }) {
   const [text, setText] = useState('');
@@ -137,6 +170,7 @@ export default function AcquisitionTool() {
   const pushNow = useMutation({ mutationFn: async (body: any) => (await api.post('/admin/acquisition/mailing/push', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSelected([]); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const syncNow = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/mailing/sync')).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const [showDash, setShowDash] = useState(false);
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
@@ -249,8 +283,10 @@ export default function AcquisitionTool() {
             <span className={ml.settings.autoReply ? 'text-green-700' : 'text-neutral-600'}>Réponse automatique aux intéressés : {ml.settings.autoReply ? 'activée' : 'désactivée (à relire dans la liste)'}</span>
             <span>Éligibles : {ml.eligible} · poussés aujourd&apos;hui : {ml.pushedToday} · au total : {ml.pushedTotal} · réponses : {ml.replied}</span>
             {ml.lists?.map((l: any) => <span key={l.kind}>{l.name} : {l.id ? `${l.contacts} contact(s)` : 'sera créée au premier envoi'}</span>)}
+            <button type="button" onClick={() => setShowBreakdown(!showBreakdown)} className="underline text-primary-700" title="Explique l'écart entre le nombre de prospects dans l'application et le nombre de contacts dans l'outil de mailing" data-testid="breakdown-toggle">{showBreakdown ? 'Masquer le décompte' : 'Pourquoi tous les prospects ne sont pas dans le mailing ?'}</button>
           </div>
         )}
+        {showBreakdown && <MailingBreakdown />}
         <div className="border-t border-neutral-100 my-4" />
         <div className="flex items-center gap-2 flex-wrap mb-3">
           {(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-3 py-1.5 rounded-lg text-sm ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'} ({Object.values(ov?.counts?.[k] || {}).reduce((a: number, c: any) => a + c.n, 0)})</button>)}
