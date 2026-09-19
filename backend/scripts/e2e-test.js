@@ -2549,6 +2549,18 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const igList2 = await brandApi('GET', '/admin/acquisition/leads?kind=creator&source=instagram&noHandle=1&limit=60');
     expect(!igList2.data.leads.some(l => String(l._id) === String(igPost.insertedId)), 'Une fiche complétée ne doit plus être proposée à l\'assistant', igList2);
     await db.collection('leads').deleteOne({ _id: igPost.insertedId });
+    // Créateur sans email avec un profil Instagram : remis une seule fois à l'assistant, puis la ligne importée ajoute l'email à la fiche existante
+    const ne = await db.collection('leads').insertOne({ kind: 'creator', source: 'youtube', externalId: `noemail-${RUN}`, name: `Sans Email ${RUN}`, url: `https://www.youtube.com/@sansemail${RUN}`, socials: { instagram: `https://www.instagram.com/sansemail${RUN}/` }, description: 'Créatrice UGC', status: 'qualified', score: 99, createdAt: new Date(), updatedAt: new Date() });
+    const batch = await brandApi('POST', '/admin/acquisition/leads/assistant-batch', { limit: 60 });
+    expect(batch.status === 200 && batch.data.links.includes(`https://www.instagram.com/sansemail${RUN}/`), 'Le profil sans email doit être remis à l\'assistant', batch);
+    const batch2 = await brandApi('POST', '/admin/acquisition/leads/assistant-batch', { limit: 60 });
+    expect(!batch2.data.links.includes(`https://www.instagram.com/sansemail${RUN}/`), 'Un profil déjà remis ne doit pas être redonné avant 30 jours', batch2);
+    const addMail = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/sansemail${RUN}/ ; sansemail-${RUN}@needcreator-test.com ; UGC beauté, Lyon – 2 300 abonnés ; https://linktr.ee/sansemail${RUN}` });
+    const neDoc = await db.collection('leads').findOne({ _id: ne.insertedId });
+    expect(addMail.status === 201 && addMail.data.emailsAdded === 1 && addMail.data.created === 0 && neDoc.email === `sansemail-${RUN}@needcreator-test.com` && neDoc.status === 'qualified' && neDoc.source === 'youtube' && /UGC beauté, Lyon/.test(neDoc.description), 'L\'email doit être ajouté à la fiche existante, sans nouvelle fiche', { status: addMail.status, data: { res: addMail.data, neDoc } });
+    const same = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/sansemail${RUN}/ ; sansemail-${RUN}@needcreator-test.com ; UGC beauté, Lyon – 2 300 abonnés ; https://linktr.ee/sansemail${RUN}` });
+    expect(same.data.created === 0 && same.data.emailsAdded === 0 && same.data.duplicates === 1, 'Réimporter la même ligne ne change rien', same);
+    await db.collection('leads').deleteOne({ _id: ne.insertedId });
     // Décompte « pourquoi tous les prospects ne sont pas dans le mailing » : chaque fiche dans une seule case, la somme donne le total
     const bd = await brandApi('GET', '/admin/acquisition/mailing/breakdown');
     const sumOf = (k) => ['pushed', 'eligible', 'noEmail', 'rejected', 'lowScore', 'generic', 'known', 'registered', 'toQualify'].reduce((a, x) => a + bd.data[k][x], 0);

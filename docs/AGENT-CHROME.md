@@ -49,6 +49,29 @@ Coller le résultat dans « Import groupé », onglet Créateurs. Comme chaque l
 **complète la fiche existante** (pseudo, profil, email, bio) au lieu d'en créer une nouvelle, puis la requalifie avec ces informations.
 Le message indique « N fiche(s) complétée(s) ». Recommencez avec le bouton pour les 60 suivantes.
 
+## 2 bis. Créateurs sans email : lire le bouton « E-mail » et la bio
+
+La moitié des créateurs trouvés n'ont pas d'email public lisible par le serveur (YouTube le cache derrière un captcha, Instagram derrière
+le bouton « E-mail »). L'assistant, lui, le voit.
+
+**Où trouver les profils** : Admin → Prospection → onglet Créateurs → bouton **« Copier les profils sans email »** (60 au plus, les mieux
+notés d'abord ; un profil remis n'est pas redonné avant 30 jours). Si le bouton répond qu'il n'y a rien, cliquez d'abord
+« Compléter les réseaux (tous) » : il faut un profil Instagram ou TikTok sur la fiche.
+
+```
+Utilise Claude in Chrome avec mes comptes Instagram et TikTok secondaires déjà connectés. Voici des profils de créateurs (un par ligne) :
+<coller les profils>
+Pour chaque profil : ouvre-le, relève l'email s'il est dans la bio ou derrière le bouton « E-mail » ou « Contact », ouvre le lien de bio
+(Linktree, Canva, site) et relève un email s'il y en a un, note la bio en une phrase et le nombre d'abonnés.
+Règles : 5 à 10 secondes entre deux pages, pas de like, pas de commentaire, pas de message, pas d'abonnement. Au plus 60 profils.
+Sortie : une ligne par profil, séparateur « ; » : lien du profil (tel que fourni) ; email ; bio courte + abonnés ; site ou lien de bio.
+Ne saute aucun profil : s'il n'y a pas d'email, laisse le champ vide.
+```
+
+Coller le résultat dans « Import groupé », onglet Créateurs. Comme chaque ligne commence par le lien du profil déjà connu, NeedCreator
+**ajoute l'email à la fiche existante** (message « N email(s) ajouté(s) à des fiches existantes ») ; les fiches déjà qualifiées deviennent
+aussitôt éligibles au mailing.
+
 ## 3. Créateurs TikTok par hashtags (seule voie propre pour TikTok)
 
 ```

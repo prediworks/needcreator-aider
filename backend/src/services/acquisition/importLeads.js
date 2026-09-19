@@ -56,7 +56,7 @@ export function parseLeadLines(text) {
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
 export async function importLeads({ kind, text, niche, origin }) {
   const rows = parseLeadLines(text);
-  const result = { total: rows.length, created: 0, updated: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
+  const result = { total: rows.length, created: 0, updated: 0, emailsAdded: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
     if (r.error) { result.invalid++; result.errors.push(`${r.line.slice(0, 60)} : ${r.error}`); continue; }
     // Fiche existante trouvée par hashtag (lien de publication sans auteur) : on la complète au lieu de créer un doublon
@@ -81,6 +81,23 @@ export async function importLeads({ kind, text, niche, origin }) {
         if (['rejected', 'qualified', 'new'].includes(existing.status)) existing.status = 'new'; // requalifié avec la bio et l'auteur
         await existing.save();
         result.updated = (result.updated || 0) + 1; result.ids.push(existing._id);
+        continue;
+      }
+    }
+    // Profil déjà en base (créateur trouvé sur YouTube dont on a relevé l'Instagram ou le TikTok, fiche sans email…) : on complète la fiche au lieu de la rejeter comme doublon
+    const profileKeys = Object.entries(r.socials || {}).filter(([k, v]) => v && ['instagram', 'tiktok', 'youtube'].includes(k));
+    if (profileKeys.length) {
+      const known = await Lead.findOne({ $or: [...profileKeys.map(([k, v]) => ({ [`socials.${k}`]: v })), { url: { $in: profileKeys.map(([, v]) => v) } }] });
+      if (known) {
+        let changed = false;
+        if (r.email && !known.email) { known.email = r.email; known.emailSource = 'import'; changed = true; }
+        if (r.website && !known.website) { known.website = r.website; changed = true; }
+        if (r.subscribers != null && known.source !== 'youtube') { known.stats = { ...(known.stats?.toObject?.() || known.stats || {}), subscribers: r.subscribers }; changed = true; }
+        const cur = known.socials?.toObject?.() || known.socials || {};
+        const merged = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) };
+        if (Object.keys(merged).length > Object.values(cur).filter(Boolean).length) { known.socials = merged; changed = true; }
+        if (r.description && !(known.description || '').includes(r.description.slice(0, 40))) { known.description = `${known.description || ''}\n${r.description}`.trim().slice(0, 2000); changed = true; }
+        if (changed) { await known.save(); result.updated = (result.updated || 0) + 1; if (r.email) result.emailsAdded = (result.emailsAdded || 0) + 1; } else result.duplicates++;
         continue;
       }
     }

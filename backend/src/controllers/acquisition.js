@@ -262,7 +262,7 @@ export async function importLeadsBulk(req, res) {
     if (lines > 500) return res.status(400).json({ error: 'Au plus 500 lignes par import' });
     if (req.query.preview === '1') return res.json({ rows: parseLeadLines(text).map(r => ({ name: r.name, url: r.url, website: r.website, email: r.email, socials: r.socials, description: r.description, error: r.error })) });
     const result = await importLeads({ kind, text, niche: String(niche || '').trim().toLowerCase() || null, origin: String(origin || '').trim() });
-    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.updated ? `, ${result.updated} fiche(s) complétée(s)${result.twins ? ` dont ${result.twins} doublon(s) d'un même créateur mis de côté` : ''}` : ''}${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
+    res.status(201).json({ message: `${result.created} prospect(s) importé(s), ${result.duplicates} doublon(s), ${result.invalid} ligne(s) ignorée(s)${result.emailsAdded ? `, ${result.emailsAdded} email(s) ajouté(s) à des fiches existantes` : ''}${result.updated ? `, ${result.updated} fiche(s) complétée(s)${result.twins ? ` dont ${result.twins} doublon(s) d'un même créateur mis de côté` : ''}` : ''}${result.suppressed ? `, ${result.suppressed} en liste d'exclusion` : ''}`, ...result });
   } catch (error) {
     logger.error('importLeadsBulk failed:', error);
     res.status(500).json({ error: `Import impossible : ${error.message}` });
@@ -333,4 +333,25 @@ export async function enrichLeadEmails(req, res) {
 export async function mailingBreakdownView(req, res) {
   try { res.json(await mailingBreakdown()); }
   catch (error) { logger.error('mailingBreakdown failed:', error); res.status(500).json({ error: 'Décompte indisponible' }); }
+}
+
+/**
+ * Lot de profils à donner à l'assistant Chrome : créateurs sans email qui ont un profil Instagram ou TikTok.
+ * Les profils remis sont mémorisés 30 jours pour ne pas être redonnés ; ?preview=1 compte sans mémoriser.
+ */
+export async function assistantBatch(req, res) {
+  try {
+    const since = new Date(Date.now() - 30 * 86400000);
+    const filter = { kind: 'creator', email: { $in: [null, ''] }, status: { $nin: ['rejected', 'excluded', 'registered'] }, $and: [{ $or: [{ 'socials.instagram': { $nin: [null, ''] } }, { 'socials.tiktok': { $nin: [null, ''] } }] }, { $or: [{ 'enrich.assistantAt': { $exists: false } }, { 'enrich.assistantAt': null }, { 'enrich.assistantAt': { $lt: since } }] }] };
+    const total = await Lead.countDocuments(filter);
+    const noProfile = await Lead.countDocuments({ kind: 'creator', email: { $in: [null, ''] }, status: { $nin: ['rejected', 'excluded', 'registered'] }, 'socials.instagram': { $in: [null, ''] }, 'socials.tiktok': { $in: [null, ''] } });
+    if (req.query.preview === '1') return res.json({ total, noProfile, links: [] });
+    const leads = await Lead.find(filter).sort({ score: -1 }).limit(Math.min(60, parseInt(req.body?.limit, 10) || 60)).select('socials').lean();
+    const links = leads.map(l => l.socials.instagram || l.socials.tiktok);
+    if (leads.length) await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.assistantAt': new Date() } });
+    res.json({ links, total, remaining: Math.max(0, total - links.length), noProfile });
+  } catch (error) {
+    logger.error('assistantBatch failed:', error);
+    res.status(500).json({ error: 'Lot indisponible' });
+  }
 }
