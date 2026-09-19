@@ -180,7 +180,14 @@ export default function AcquisitionTool() {
   const copyNoEmailProfiles = async () => {
     try {
       const d = (await api.post('/admin/acquisition/leads/assistant-batch', { limit: 60 })).data;
-      if (!d.links?.length) { toast.info(`Aucun profil à confier à l'assistant pour l'instant${d.noProfile ? ` : ${d.noProfile} créateur(s) sans email n'ont ni Instagram ni TikTok connu (lancez « Compléter les réseaux »)` : ''}.`, { duration: 9000 }); return; }
+      if (!d.links?.length) {
+        // Plus de profil Instagram ou TikTok à confier : on passe aux chaînes YouTube sans réseau connu (consigne 2 ter)
+        const y = (await api.post('/admin/acquisition/leads/assistant-batch', { type: 'youtube', limit: 40 })).data;
+        if (!y.links?.length) { toast.info(`Rien à confier à l'assistant pour l'instant : tous les créateurs sans email lui ont déjà été remis il y a moins de 30 jours${d.noProfile ? ` (${d.noProfile} sans Instagram ni TikTok connu)` : ''}.`, { duration: 9000 }); return; }
+        await navigator.clipboard.writeText(y.links.join('\n'));
+        toast.success(`${y.links.length} chaîne(s) YouTube copiée(s)${y.remaining ? `, ${y.remaining} restante(s)` : ''} : ces créateurs n'ont ni Instagram ni TikTok connu. Collez-les dans la consigne « 2 ter » de l'assistant Chrome, qui cherche leur Instagram et leur email.`, { duration: 12000 });
+        return;
+      }
       await navigator.clipboard.writeText(d.links.join('\n'));
       toast.success(`${d.links.length} profil(s) copié(s)${d.remaining ? `, ${d.remaining} restant(s) pour la prochaine fois` : ''}. Collez-les dans la consigne « Créateurs sans email » de l'assistant Chrome.`, { duration: 9000 });
     } catch (e: any) { toast.error(getErrorMessage(e)); }

@@ -72,6 +72,29 @@ Coller le résultat dans « Import groupé », onglet Créateurs. Comme chaque l
 **ajoute l'email à la fiche existante** (message « N email(s) ajouté(s) à des fiches existantes ») ; les fiches déjà qualifiées deviennent
 aussitôt éligibles au mailing.
 
+## 2 ter. Créateurs YouTube sans aucun réseau connu : retrouver leur Instagram et leur email
+
+Quand « Copier les profils sans email » n'a plus de profil Instagram ou TikTok à donner, il copie à la place des **chaînes YouTube**
+(40 au plus), une par ligne, sous la forme `lien de la chaîne ; nom`. Ces créateurs n'affichent aucun lien sur leur chaîne, mais ils ont
+presque toujours un compte Instagram au même pseudo, avec leur email en bio.
+
+```
+Utilise Claude in Chrome avec mes comptes YouTube et Instagram secondaires connectés. Voici des chaînes YouTube de créateurs UGC (lien ; nom) :
+<coller les chaînes>
+Pour chaque chaîne :
+1. Ouvre la chaîne, onglet ou fenêtre « À propos » : relève les liens affichés et l'email s'il est visible. S'il est derrière un bouton avec
+   un captcha, ne le résous pas, passe à la suite.
+2. Cherche sur Instagram le même pseudo ou le même nom (par exemple via la recherche Instagram). Ne retiens le compte que si la photo, le nom
+   ou la bio montrent clairement que c'est la même personne ; dans le doute, laisse vide.
+3. Si tu as trouvé le compte Instagram : relève l'email de la bio ou du bouton « E-mail », ouvre le lien de bio et relève un email s'il y en a un.
+Règles : 5 à 10 secondes entre deux pages, pas de like, commentaire, message ni abonnement. Au plus 40 chaînes.
+Sortie : une ligne par chaîne, séparateur « ; » : lien de la chaîne YouTube (tel que fourni) ; lien du profil Instagram ; email ; bio courte + abonnés Instagram ; site ou lien de bio.
+Ne saute aucune chaîne : laisse vides les champs introuvables.
+```
+
+Coller le résultat dans « Import groupé », onglet Créateurs : la chaîne YouTube étant déjà connue, NeedCreator ajoute l'Instagram, l'email et
+la bio à la fiche existante. Un créateur dont l'Instagram est retrouvé mais pas l'email pourra être contacté à la main.
+
 ## 3. Créateurs TikTok par hashtags (seule voie propre pour TikTok)
 
 ```

@@ -2561,6 +2561,14 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const same = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.instagram.com/sansemail${RUN}/ ; sansemail-${RUN}@needcreator-test.com ; UGC beauté, Lyon – 2 300 abonnés ; https://linktr.ee/sansemail${RUN}` });
     expect(same.data.created === 0 && same.data.emailsAdded === 0 && same.data.duplicates === 1, 'Réimporter la même ligne ne change rien', same);
     await db.collection('leads').deleteOne({ _id: ne.insertedId });
+    // Chaîne YouTube sans aucun réseau connu : second lot pour l'assistant, puis la ligne importée (casse différente) ajoute Instagram et email à la fiche
+    const yt = await db.collection('leads').insertOne({ kind: 'creator', source: 'youtube', externalId: `ytonly-${RUN}`, name: `Chaine Seule ${RUN}`, url: `https://www.youtube.com/@chaineseule${RUN}`, socials: { youtube: `https://www.youtube.com/@chaineseule${RUN}` }, description: 'Créatrice UGC', status: 'qualified', score: 98, stats: { subscribers: 40 }, createdAt: new Date(), updatedAt: new Date() });
+    const ytBatch = await brandApi('POST', '/admin/acquisition/leads/assistant-batch', { type: 'youtube', limit: 60 });
+    expect(ytBatch.status === 200 && ytBatch.data.type === 'youtube' && ytBatch.data.links.some(l => l.startsWith(`https://www.youtube.com/@chaineseule${RUN} ; `)), 'La chaîne sans réseau doit être remise à l\'assistant (lien ; nom)', ytBatch);
+    const ytImp = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: `https://www.youtube.com/@ChaineSeule${RUN}/ ; https://www.instagram.com/chaineseule.ig${RUN}/ ; chaineseule-${RUN}@needcreator-test.com ; UGC food Nantes – 850 abonnés ; https://linktr.ee/chaineseule${RUN}` });
+    const ytDoc = await db.collection('leads').findOne({ _id: yt.insertedId });
+    expect(ytImp.status === 201 && ytImp.data.created === 0 && ytImp.data.emailsAdded === 1 && ytDoc.email === `chaineseule-${RUN}@needcreator-test.com` && ytDoc.socials.instagram === `https://www.instagram.com/chaineseule.ig${RUN}/` && ytDoc.stats.subscribers === 40, 'Instagram et email attendus sur la fiche YouTube existante, abonnés YouTube conservés', { status: ytImp.status, data: { res: ytImp.data, ytDoc } });
+    await db.collection('leads').deleteOne({ _id: yt.insertedId });
     // Décompte « pourquoi tous les prospects ne sont pas dans le mailing » : chaque fiche dans une seule case, la somme donne le total
     const bd = await brandApi('GET', '/admin/acquisition/mailing/breakdown');
     const sumOf = (k) => ['pushed', 'eligible', 'noEmail', 'rejected', 'lowScore', 'generic', 'known', 'registered', 'toQualify'].reduce((a, x) => a + bd.data[k][x], 0);

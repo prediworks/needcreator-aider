@@ -87,7 +87,9 @@ export async function importLeads({ kind, text, niche, origin }) {
     // Profil déjà en base (créateur trouvé sur YouTube dont on a relevé l'Instagram ou le TikTok, fiche sans email…) : on complète la fiche au lieu de la rejeter comme doublon
     const profileKeys = Object.entries(r.socials || {}).filter(([k, v]) => v && ['instagram', 'tiktok', 'youtube'].includes(k));
     if (profileKeys.length) {
-      const known = await Lead.findOne({ $or: [...profileKeys.map(([k, v]) => ({ [`socials.${k}`]: v })), { url: { $in: profileKeys.map(([, v]) => v) } }] });
+      // Comparaison sans tenir compte de la casse ni de la barre finale (« youtube.com/@MarieUGC » et « youtube.com/@marieugc/ » désignent la même chaîne)
+      const rx = (v) => ({ $regex: `^${String(v).replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, $options: 'i' });
+      const known = await Lead.findOne({ $or: [...profileKeys.map(([k, v]) => ({ [`socials.${k}`]: rx(v) })), ...profileKeys.map(([, v]) => ({ url: rx(v) }))] });
       if (known) {
         let changed = false;
         if (r.email && !known.email) { known.email = r.email; known.emailSource = 'import'; changed = true; }

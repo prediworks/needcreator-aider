@@ -346,6 +346,14 @@ export async function assistantBatch(req, res) {
     const total = await Lead.countDocuments(filter);
     const noProfile = await Lead.countDocuments({ kind: 'creator', email: { $in: [null, ''] }, status: { $nin: ['rejected', 'excluded', 'registered'] }, 'socials.instagram': { $in: [null, ''] }, 'socials.tiktok': { $in: [null, ''] } });
     if (req.query.preview === '1') return res.json({ total, noProfile, links: [] });
+    // Second lot : chaînes YouTube sans aucun réseau connu. L'assistant ouvre la chaîne et cherche le même pseudo sur Instagram.
+    if (req.body?.type === 'youtube') {
+      const ytFilter = { kind: 'creator', source: 'youtube', url: { $regex: '^https?://' }, email: { $in: [null, ''] }, status: { $nin: ['rejected', 'excluded', 'registered'] }, 'socials.instagram': { $in: [null, ''] }, 'socials.tiktok': { $in: [null, ''] }, $or: [{ 'enrich.assistantYtAt': { $exists: false } }, { 'enrich.assistantYtAt': null }, { 'enrich.assistantYtAt': { $lt: since } }] };
+      const ytTotal = await Lead.countDocuments(ytFilter);
+      const yts = await Lead.find(ytFilter).sort({ score: -1 }).limit(Math.min(60, parseInt(req.body?.limit, 10) || 40)).select('url name').lean();
+      if (yts.length) await Lead.updateMany({ _id: { $in: yts.map(l => l._id) } }, { $set: { 'enrich.assistantYtAt': new Date() } });
+      return res.json({ type: 'youtube', links: yts.map(l => `${l.url} ; ${String(l.name || '').replace(/[;\n]/g, ' ')}`), total: ytTotal, remaining: Math.max(0, ytTotal - yts.length), noProfile });
+    }
     const leads = await Lead.find(filter).sort({ score: -1 }).limit(Math.min(60, parseInt(req.body?.limit, 10) || 60)).select('socials').lean();
     const links = leads.map(l => l.socials.instagram || l.socials.tiktok);
     if (leads.length) await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.assistantAt': new Date() } });

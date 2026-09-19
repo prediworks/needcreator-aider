@@ -16,7 +16,7 @@ const leadSchema = new mongoose.Schema({
   url: String,
   website: String,
   socials: { instagram: String, tiktok: String, youtube: String, linkedin: String, facebook: String },
-  enrich: { emailSearchedAt: Date, socialsSearchedAt: Date, noSite: Boolean, assistantAt: Date }, // mémoire des passes de recherche : un même prospect n'est pas revisité avant 30 jours // profils trouvés dans la bio, le lien de bio ou le site
+  enrich: { emailSearchedAt: Date, socialsSearchedAt: Date, noSite: Boolean, assistantAt: Date, assistantYtAt: Date }, // mémoire des passes de recherche : un même prospect n'est pas revisité avant 30 jours // profils trouvés dans la bio, le lien de bio ou le site
   country: String,
   language: String,
   description: String,
