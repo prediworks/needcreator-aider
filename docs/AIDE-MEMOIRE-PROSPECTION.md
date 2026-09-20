@@ -69,6 +69,21 @@ Après la semaine 6, reprendre à la semaine 1 : de nouvelles marques auront lan
 
 ---
 
+## Chaque jour · dix minutes de messages privés
+
+**But** : joindre les créateurs qui n'ont pas d'email, et tous les autres tant que le domaine d'envoi est trop jeune pour l'email.
+
+1. Admin → Prospection → carte **« À contacter aujourd'hui »**, tout en haut.
+2. **« Copier et ouvrir Instagram »** : le message est copié, le profil s'ouvre. Si vous n'avez jamais échangé avec ce créateur, laissez d'abord
+   un commentaire sincère sur une publication récente, puis écrivez.
+3. Coller le message, l'adapter d'une phrase si quelque chose vous frappe sur le profil, envoyer.
+4. Retour dans l'admin : **« Contacté, suivant »**. « Passer » si ce n'est pas le moment (il revient dans 7 jours), « Hors cible » si le profil ne convient pas.
+5. S'arrêter quand la barre est pleine : 15 par jour. Au-delà, Instagram et TikTok restreignent les comptes.
+
+Utiliser le compte NeedCreator pour écrire (c'est lui que le créateur doit voir), mais **jamais** pour la navigation de l'assistant Chrome.
+
+---
+
 ## Une fois par semaine : le coup d'œil de contrôle
 
 Dans Admin → Prospection :

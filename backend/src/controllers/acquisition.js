@@ -1,6 +1,7 @@
 import { extractSocials, enrichLeadFromSite } from '../services/acquisition/enrich.js';
 import { channelLinks } from '../services/acquisition/youtube.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
+import { getSetting, SETTINGS } from '../models/Setting.js';
 import { suppressLead } from '../models/LeadSuppression.js';
 import { importLeads, parseLeadLines } from '../services/acquisition/importLeads.js';
 import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, metaTokenInfo } from '../services/acquisition/index.js';
@@ -149,7 +150,8 @@ function cleanSocials(obj = {}) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip } = req.body || {};
+  if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
   if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
@@ -391,5 +393,27 @@ export async function offerBriefToLead(req, res) {
   } catch (error) {
     logger.error('offerBriefToLead failed:', error);
     res.status(500).json({ error: `Préparation impossible : ${error.message}` });
+  }
+}
+
+/**
+ * File « À contacter aujourd'hui » : prospects à joindre en message privé, à la main. Qualifiés ou validés, avec un profil Instagram ou TikTok,
+ * jamais encore contactés (ni par email ni à la main), non reportés depuis moins de 7 jours ; les mieux notés d'abord.
+ */
+export async function dailyQueue(req, res) {
+  try {
+    const kind = ['creator', 'brand'].includes(req.query.kind) ? req.query.kind : 'creator';
+    const goal = Math.min(40, Math.max(1, Number(await getSetting(SETTINGS.manualDailyGoal.key, 15)) || 15));
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+    const doneToday = await Lead.countDocuments({ kind, contactedAt: { $gte: startOfDay }, contactedVia: { $in: ['instagram', 'tiktok', 'linkedin', 'facebook', 'youtube'] } });
+    const filter = { kind, status: { $in: ['qualified', 'to_contact'] }, 'mailing.pushedAt': null, $and: [{ $or: [{ 'socials.instagram': { $nin: [null, ''] } }, { 'socials.tiktok': { $nin: [null, ''] } }, ...(kind === 'brand' ? [{ 'socials.linkedin': { $nin: [null, ''] } }] : [])] }, { $or: [{ 'enrich.skippedAt': { $exists: false } }, { 'enrich.skippedAt': null }, { 'enrich.skippedAt': { $lt: new Date(Date.now() - 7 * 86400000) } }] }] };
+    const waiting = await Lead.countDocuments(filter);
+    const left = Math.max(0, goal - doneToday);
+    // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1 } }]) : [];
+    res.json({ kind, goal, doneToday, left, waiting, leads });
+  } catch (error) {
+    logger.error('dailyQueue failed:', error);
+    res.status(500).json({ error: 'File du jour indisponible' });
   }
 }

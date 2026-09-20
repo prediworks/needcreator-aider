@@ -2422,7 +2422,7 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const ov = await brandApi('GET', '/admin/acquisition');
     expect(ov.status === 200 && ov.data.settings && ov.data.counts && Array.isArray(ov.data.statuses), 'Vue d\'ensemble prospection attendue', ov);
     const leadEmail = `e2e-lead-${RUN}@needcreator-test.com`;
-    await db.collection('leads').deleteMany({ $or: [{ email: /^e2e-lead-/ }, { handle: /^@leavlog/ }, { handle: /^@rebond/ }, { name: 'Maison Soleil' }, { name: 'Marque Répond' }] });
+    await db.collection('leads').deleteMany({ $or: [{ email: /^e2e-lead-/ }, { handle: /^@leavlog/ }, { handle: /^@rebond/ }, { name: 'Maison Soleil' }, { name: 'Marque Répond' }, { email: /@needcreator-test\.com$/ }, { name: { $in: ['Import Une', 'Import Deux', 'Import Inscrite'] } }, { externalId: /^(dq[123]|bare|noemail|ytonly|igpost2?|shot)-/ }] });
     const bad = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: '' });
     expect(bad.status === 400, 'Prospect sans nom refusé', bad);
     const c = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Léa Vlog', handle: `@leavlog${RUN}`, url: `https://www.youtube.com/@leavlog${RUN}`, email: leadEmail, description: `Créatrice UGC beauté à Lyon : routines skincare, tests de sérums et unboxings pour des marques de cosmétiques. TikTok : @leavlog${RUN}. Collaborations : contact par email.`, niche: 'beauty', stats: { subscribers: 12000 }, socials: { instagram: `https://www.instagram.com/leavlog${RUN}/` } });
@@ -2524,8 +2524,8 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const impB = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted, niche: 'food', origin: 'test' });
     expect(impB.status === 201 && impB.data.created === 3 && impB.data.duplicates === 1 && impB.data.invalid === 1 && impB.data.known === 1, 'Import groupé : 3 créés, 1 doublon, 1 invalide, 1 déjà inscrit', impB);
     const impList = await brandApi('GET', `/admin/acquisition/leads?kind=creator&q=Import`);
-    const one = impList.data.leads.find(l => l.name === 'Import Une');
-    const registered = impList.data.leads.find(l => l.name === 'Import Inscrite');
+    const one = impList.data.leads.find(l => l.name === 'Import Une' && l.email === `imp1-${RUN}@needcreator-test.com`); // l'email porte l'identifiant du lancement : insensible aux résidus d'un lancement interrompu
+    const registered = impList.data.leads.find(l => l.name === 'Import Inscrite' && l.email === brandEmail);
     expect(one && one.socials?.instagram && one.socials?.tiktok && one.niche === 'food' && one.keyword === 'import:test' && registered?.status === 'registered', 'Prospects importés avec réseaux, niche par défaut, origine et compte inscrit marqué', { status: 200, data: { one, registered } });
     const again = await brandApi('POST', '/admin/acquisition/leads/import', { kind: 'creator', text: pasted });
     expect(again.status === 201 && again.data.created === 0 && again.data.duplicates + again.data.unchanged === 4, 'Un second import identique ne crée rien', again);
@@ -2594,6 +2594,25 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const ytDoc = await db.collection('leads').findOne({ _id: yt.insertedId });
     expect(ytImp.status === 201 && ytImp.data.created === 0 && ytImp.data.emailsAdded === 1 && ytDoc.email === `chaineseule-${RUN}@needcreator-test.com` && ytDoc.socials.instagram === `https://www.instagram.com/chaineseule.ig${RUN}/` && ytDoc.stats.subscribers === 40, 'Instagram et email attendus sur la fiche YouTube existante, abonnés YouTube conservés', { status: ytImp.status, data: { res: ytImp.data, ytDoc } });
     await db.collection('leads').deleteOne({ _id: yt.insertedId });
+    // File « À contacter aujourd'hui » : sans email d'abord, puis par score ; « Contacté » et « Passer » font avancer la file
+    const dq = await db.collection('leads').insertMany([
+      { kind: 'creator', source: 'manual', externalId: `dq1-${RUN}`, name: `File Avec Email ${RUN}`, email: `dq1-${RUN}@needcreator-test.com`, socials: { instagram: `https://www.instagram.com/dq1${RUN}/` }, message: 'Bonjour, message un.', status: 'qualified', score: 1000, createdAt: new Date(), updatedAt: new Date() },
+      { kind: 'creator', source: 'manual', externalId: `dq2-${RUN}`, name: `File Sans Email ${RUN}`, socials: { instagram: `https://www.instagram.com/dq2${RUN}/` }, message: 'Bonjour, message deux.', status: 'qualified', score: 999, createdAt: new Date(), updatedAt: new Date() },
+      { kind: 'creator', source: 'manual', externalId: `dq3-${RUN}`, name: `File Sans Reseau ${RUN}`, message: 'Bonjour, message trois.', status: 'qualified', score: 1001, createdAt: new Date(), updatedAt: new Date() },
+    ]);
+    const [dq1, dq2, dq3] = Object.values(dq.insertedIds);
+    const q1 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
+    expect(q1.status === 200 && q1.data.goal === 15 && q1.data.left >= 1 && String(q1.data.leads[0]._id) === String(dq2) && !q1.data.leads.some(l => String(l._id) === String(dq3)), 'File du jour : le prospect sans email passe en premier, celui sans réseau n\'y figure pas', q1);
+    const done = await brandApi('PATCH', `/admin/acquisition/leads/${dq2}`, { status: 'contacted', contactedVia: 'instagram' });
+    expect(done.status === 200 && done.data.lead.status === 'contacted' && done.data.lead.contactedVia === 'instagram', 'Marquer « Contacté » depuis la file attendu', done);
+    const q2 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
+    expect(q2.data.doneToday === q1.data.doneToday + 1 && !q2.data.leads.some(l => String(l._id) === String(dq2)) && q2.data.waiting === q1.data.waiting - 1, 'La file avance (le prospect contacté en sort) et le compteur du jour augmente', { status: 200, data: { doneToday: q2.data.doneToday, waiting: q2.data.waiting } });
+    const iE = q2.data.leads.findIndex(l => l.email), iN = q2.data.leads.map(l => !l.email).lastIndexOf(true);
+    expect(iE === -1 || iN < iE, 'Les prospects sans email passent avant ceux qui en ont un', { status: 200, data: q2.data.leads.map(l => !!l.email) });
+    const skipped = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { skip: true });
+    const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
+    expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);
+    await db.collection('leads').deleteMany({ _id: { $in: [dq1, dq2, dq3] } });
     // Décompte « pourquoi tous les prospects ne sont pas dans le mailing » : chaque fiche dans une seule case, la somme donne le total
     const bd = await brandApi('GET', '/admin/acquisition/mailing/breakdown');
     const sumOf = (k) => ['pushed', 'eligible', 'noEmail', 'rejected', 'lowScore', 'generic', 'known', 'registered', 'toQualify'].reduce((a, x) => a + bd.data[k][x], 0);

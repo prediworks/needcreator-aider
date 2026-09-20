@@ -69,6 +69,65 @@ function SocialLinks({ socials }: { socials?: Record<string, string> }) {
   return <span className="inline-flex gap-1 flex-wrap ml-1" data-testid="lead-socials">{entries.map(([k, label]) => <a key={k} href={socials![k]} target="_blank" rel="noopener noreferrer" className="px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-700 hover:bg-primary-100 hover:text-primary-700 text-[11px]">{label}</a>)}</span>;
 }
 
+/**
+ * File « À contacter aujourd'hui » : les prospects à joindre en message privé, présentés un par un.
+ * Ouvrir le profil copie le message ; « Contacté » passe au suivant ; l'objectif quotidien borne la file (réglage Prospection).
+ */
+function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
+  const queryClient = useQueryClient();
+  const { data: q, isLoading } = useQuery({ queryKey: ['acq-daily-queue', kind], queryFn: async () => (await api.get(`/admin/acquisition/daily-queue?kind=${kind}`)).data, staleTime: 15000 });
+  const [via, setVia] = useState<string>('');
+  const act = useMutation({
+    mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, body)).data,
+    onSuccess: () => { setVia(''); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-mailing-breakdown'] }); },
+    onError: (e: any) => toast.error(getErrorMessage(e)),
+  });
+  if (isLoading || !q) return null;
+  const l = q.leads?.[0];
+  const pct = Math.min(100, Math.round((q.doneToday / q.goal) * 100));
+  const open = async (net: string, url: string) => {
+    if (l?.message) { try { await navigator.clipboard.writeText(l.message); toast.success('Message copié : collez-le dans la conversation', { duration: 5000 }); } catch { /* presse-papiers indisponible */ } }
+    setVia(net);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+  return (
+    <Card className="p-6" data-testid="daily-queue">
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary-500" /> À contacter aujourd&apos;hui · messages privés à la main</h2>
+        <span className="text-sm text-neutral-600" data-testid="daily-progress">{q.doneToday} / {q.goal} aujourd&apos;hui · {q.waiting} en attente</span>
+      </div>
+      <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden mb-4"><div className="h-full bg-primary-500" style={{ width: `${pct}%` }} /></div>
+      {q.left === 0 ? (
+        <p className="text-sm text-green-700">Objectif du jour atteint. Au-delà de {q.goal} messages par jour, Instagram et TikTok restreignent les comptes : reprenez demain.</p>
+      ) : !l ? (
+        <p className="text-sm text-neutral-600">Personne à contacter pour l&apos;instant : il faut des prospects qualifiés avec un profil Instagram ou TikTok. Lancez une recherche, « Compléter les réseaux (tous) », ou la routine de l&apos;assistant.</p>
+      ) : (
+        <div>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <div className="font-semibold text-neutral-900">{l.name}{l.handle && l.handle !== l.name ? <span className="text-neutral-500 font-normal"> · {l.handle}</span> : null}</div>
+              <div className="text-xs text-neutral-500">{l.niche || '?'} · score {l.score ?? '?'}{l.stats?.subscribers ? ` · ${l.stats.subscribers.toLocaleString('fr-FR')} abonnés` : ''}{l.email ? ' · a aussi un email (partira par le mailing si vous passez)' : ' · pas d\'email : seul canal possible'}</div>
+              {l.aiSummary && <p className="text-sm text-neutral-700 mt-1">{l.aiSummary}</p>}
+              {l.signals?.length > 0 && <p className="text-xs text-neutral-500 mt-0.5">{l.signals.join(' · ')}</p>}
+            </div>
+          </div>
+          <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.'}</div>
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            {l.socials?.instagram && <Button size="sm" onClick={() => open('instagram', l.socials.instagram)} title="Copie le message et ouvre le profil Instagram dans un nouvel onglet. Commentez une publication récente avant d'écrire si vous ne l'avez jamais fait : le message passe mieux." data-testid="daily-open-instagram"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}
+            {l.socials?.tiktok && <Button size="sm" variant={l.socials?.instagram ? 'outline' : 'primary'} onClick={() => open('tiktok', l.socials.tiktok)} title="Copie le message et ouvre le profil TikTok dans un nouvel onglet"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
+            {kind === 'brand' && l.socials?.linkedin && <Button size="sm" variant="outline" onClick={() => open('linkedin', l.socials.linkedin)} title="Copie le message et ouvre la page LinkedIn"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
+            <span className="text-neutral-300">|</span>
+            <Button size="sm" variant="outline" onClick={() => act.mutate({ id: l._id, status: 'contacted', contactedVia: via || (l.socials?.instagram ? 'instagram' : l.socials?.tiktok ? 'tiktok' : 'linkedin') })} isLoading={act.isPending} title="Message envoyé : le prospect passe en « Contacté » (il ne recevra pas l'email de prospection) et la file affiche le suivant" data-testid="daily-done">Contacté, suivant</Button>
+            <Button size="sm" variant="ghost" onClick={() => act.mutate({ id: l._id, skip: true })} isLoading={act.isPending} title="Pas maintenant : ce prospect ne reviendra pas dans la file avant 7 jours. S'il a un email, il partira par le mailing." data-testid="daily-skip">Passer</Button>
+            <Button size="sm" variant="ghost" onClick={() => act.mutate({ id: l._id, status: 'rejected' })} isLoading={act.isPending} title="Profil hors sujet : il sort de toutes les files">Hors cible</Button>
+          </div>
+          <p className="text-[11px] text-neutral-500 mt-2">Un message à la fois, écrit et envoyé par vous. Jamais d&apos;envoi automatique : c&apos;est ce qui fait suspendre les comptes. Objectif quotidien réglable dans Réglages → Prospection.</p>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 const BREAKDOWN_ROWS: [string, string, string][] = [
   ['pushed', 'Dans l\'outil de mailing', 'Déjà envoyés vers l\'outil : c\'est le chiffre à comparer avec la liste de l\'outil'],
   ['eligible', 'Prêts, partiront au prochain envoi', 'Email, score suffisant : ils attendent le prochain envoi (plafond quotidien) ou votre clic sur « Pousser les éligibles »'],
@@ -176,7 +235,7 @@ export default function AcquisitionTool() {
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
-  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
+  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); };
   const patch = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, body)).data, onSuccess: () => refresh(), onError: (e: any) => toast.error(getErrorMessage(e)) });
   const bulk = useMutation({ mutationFn: async (body: any) => (await api.patch('/admin/acquisition/leads/bulk', body)).data, onSuccess: (d) => { toast.success(d.message); setSelected([]); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const copyNoEmailProfiles = async () => {
@@ -223,6 +282,7 @@ export default function AcquisitionTool() {
   const daysLeft = ov?.meta?.expiresAt ? Math.ceil((new Date(ov.meta.expiresAt).getTime() - Date.now()) / 86400000) : null;
   return (
     <div className="space-y-4">
+      <DailyQueue kind={kind} />
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
           <div>

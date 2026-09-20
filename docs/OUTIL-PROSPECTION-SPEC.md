@@ -135,7 +135,7 @@ de prix ; public prioritaire (marques qui cherchent des créateurs, ou l'inverse
 
 ### 4.3 Application web
 
-Écrans minimaux : définition d'une **cible** (texte libre traduit par l'IA en mots-clés, hashtags et critères) ; **files** par statut ; fiche
+Écran éprouvé à reprendre : une **file quotidienne de contact manuel** (un prospect à la fois, message copié à l'ouverture du profil, « contacté, suivant », « passer » avec retour à 7 jours, objectif quotidien plafonné), qui rend le message privé praticable sans l'automatiser. Écrans minimaux : définition d'une **cible** (texte libre traduit par l'IA en mots-clés, hashtags et critères) ; **files** par statut ; fiche
 prospect avec sources, réseaux, score, signaux, message et paragraphe ; **tableau « où sont mes prospects »** (une seule case par prospect, la
 somme donne le total) ; boîte de réponses ; réglages (sources, plafonds, connecteurs). Règles d'ergonomie éprouvées : infobulle sur chaque
 bouton, onglet conservé dans l'adresse, filtres conservés au rafraîchissement, messages d'import en clair.
@@ -357,3 +357,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 20/09/2026 | Domaine d'envoi distinct vérifié (SPF, DKIM, DMARC, redirection 301 vers le site) ; **les deux séquences d'emails sont lancées** sur 88 créateurs et 63 marques : début de l'étape 0 « Preuve », mesures attendues sous une semaine (envois, rebonds, réponses, inscriptions) |
 | 20/09/2026 | Premier rendement réel : **4 inscriptions de créateurs sur 38 emails** (prospects Instagram par hashtag, complétés dans le navigateur) contre 0 résultat sur 432 emails d'une liste extérieure non triée, arrêtée ; l'outil de mailing n'affiche que les réponses rattachées à un contact de campagne : prévoir une redirection des boîtes d'envoi vers une boîte lue ; brief offert généré automatiquement à la réponse positive d'une marque |
 | 20/09/2026 | Délivrabilité : emails en indésirables chez Gmail et Outlook malgré une configuration parfaite ; cause unique, l'âge du domaine (créé le 12/09) ; volume réduit à 3 par jour et par adresse avec chauffe, reprise visée mi-octobre ; le message privé manuel prend le relais entre-temps |
+| 20/09/2026 | File « À contacter aujourd'hui » : messages privés à la main, un prospect à la fois, 15 par jour, sans email d'abord ; devient le canal principal pendant la maturation du domaine d'envoi |
