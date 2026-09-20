@@ -28,6 +28,8 @@ function Funnel({ title, f }: { title: string; f: any }) {
 function ReplyBox({ lead, onSent }: { lead: any; onSent: () => void }) {
   const [text, setText] = useState(lead.mailing?.replySuggestion || '');
   const [open, setOpen] = useState(false);
+  // La proposition peut être enrichie après coup (brief offert) : on la recharge tant que la zone de saisie n'est pas ouverte
+  useEffect(() => { if (!open) setText(lead.mailing?.replySuggestion || ''); }, [lead.mailing?.replySuggestion]); // eslint-disable-line react-hooks/exhaustive-deps
   const send = useMutation({ mutationFn: async () => (await api.post(`/admin/acquisition/leads/${lead._id}/reply`, { text })).data, onSuccess: (d) => { toast.success(d.message); setOpen(false); onSent(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const reclass = useMutation({ mutationFn: async () => (await api.post(`/admin/acquisition/leads/${lead._id}/reclassify`)).data, onSuccess: (d) => { toast.success(d.message); onSent(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const m = lead.mailing || {};
@@ -201,6 +203,7 @@ export default function AcquisitionTool() {
       toast.success(`${links.length} lien(s) copié(s)${d.total > links.length ? ` sur ${d.total} : recommencez après l'import pour les suivants` : ''}. Collez-les dans la consigne Instagram de l'assistant Chrome.`, { duration: 8000 });
     } catch (e: any) { toast.error(getErrorMessage(e)); }
   };
+  const offerBrief = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/leads/${id}/offer-brief`)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }) });
   const enrichEmails = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-emails', { kind })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const enrichSocials = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-socials')).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const requalify = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/leads/${id}/requalify`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -354,6 +357,7 @@ export default function AcquisitionTool() {
                       {embedProvider(l.url) && <div className="mt-2 max-w-xl"><SocialEmbed url={l.url} compact onAuthor={(a) => { if (l.source === 'instagram' && !l.handle && a.name) patch.mutate({ id: l._id, handle: a.name, socials: { instagram: `https://www.instagram.com/${String(a.name).replace(/^@/, '')}/` } }); }} /></div>}
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                       {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}
+                      {l.offeredBriefId && <div className="text-xs text-primary-700 mt-1">Brief offert préparé : <a href={`/brief-depuis-url?id=${l.offeredBriefId}`} target="_blank" rel="noopener noreferrer" className="underline">le voir</a> (le lien est dans la réponse proposée)</div>}
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                     </div>
                     <div className="flex gap-1 flex-wrap justify-end shrink-0">
@@ -361,6 +365,7 @@ export default function AcquisitionTool() {
                       {l.message && <button type="button" onClick={() => copy(l.message)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Copier le message"><Copy className="w-4 h-4" /></button>}
                       <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Relance la qualification IA : score, signaux, message, paragraphe email, et complète les réseaux depuis la bio ou la chaîne YouTube"><RefreshCw className="w-4 h-4" /></button>
                       <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs" aria-label="Statut" title="Changer le statut du prospect à la main">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                      {l.kind === 'brand' && <button type="button" onClick={() => offerBrief.mutate(l._id)} disabled={offerBrief.isPending} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600 disabled:opacity-50" title="Prépare le brief promis dans le troisième email (« répondez oui ») : trouve une fiche produit sur le site de la marque, génère angles, format, budget et consignes, puis ajoute le lien à la réponse proposée. Fait automatiquement quand une marque répond positivement. Environ 30 secondes, une seule génération par marque.">{l.offeredBriefId ? 'Brief offert ✓' : 'Brief offert'}</button>}
                       <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Ajouter une note interne sur ce prospect">Note</button>
                       <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer)', l.socials?.tiktok || ''); if (tt === null) return; patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt } }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Saisir ou corriger les liens Instagram et TikTok du prospect">Réseaux</button>
                       {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Renseigner un email trouvé à la main : le prospect devient éligible au mailing">Email</button>}

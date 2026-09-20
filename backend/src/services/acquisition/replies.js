@@ -5,6 +5,8 @@ import Lead from '../../models/Lead.js';
 import { getFeePercents } from '../../models/Setting.js';
 import { notify } from '../notifications.js';
 import { config } from '../../config/index.js';
+import { buildProductBrief, findProductPage } from '../productBrief.js';
+import ProductBrief from '../../models/ProductBrief.js';
 import logger from '../../utils/logger.js';
 
 export const REPLY_INTENTS = ['interested', 'question', 'not_now', 'refusal', 'unsubscribe', 'out_of_office', 'other'];
@@ -59,4 +61,26 @@ export async function createDraftCampaignFromLead(brand, lead) {
     logger.warn(`createDraftCampaignFromLead failed: ${err.message}`);
     return null;
   }
+}
+
+/**
+ * Brief offert (troisième email de la séquence marques : « répondez oui, je vous prépare un brief ») : généré depuis une fiche produit du site
+ * de la marque. Retourne { brief, text } où text est le paragraphe à ajouter à la réponse, ou null si le site est illisible ou inconnu.
+ * Une seule génération par prospect : le brief existant est réutilisé.
+ */
+export async function prepareOfferedBrief(lead) {
+  if (lead.kind !== 'brand' || !aiConfig().configured) return null;
+  let pb = lead.offeredBriefId ? await ProductBrief.findById(lead.offeredBriefId).catch(() => null) : null;
+  if (!pb) {
+    if (!lead.website) return null;
+    try {
+      const page = await findProductPage(lead.website);
+      pb = await buildProductBrief(page, { ip: 'prospection' });
+      lead.offeredBriefId = pb._id;
+    } catch (err) { logger.warn(`Offered brief for lead ${lead._id}: ${err.message}`); return null; }
+  }
+  const view = `${config.cors.origin}/brief-depuis-url?id=${pb._id}`;
+  const signup = `${config.cors.origin}/register?role=brand&lead=${lead._id}&brief=${pb._id}&email=${encodeURIComponent(lead.email || '')}&company=${encodeURIComponent(lead.name || '')}`;
+  const text = `Comme promis, voici le brief que j'ai préparé${pb.product?.name ? ` pour « ${pb.product.name} »` : ''} : trois angles créatifs avec leur accroche, un format recommandé, un budget estimé et les consignes détaillées.\n${view}\n\nIl est à vous, que vous l'utilisiez chez nous ou ailleurs. Pour le publier auprès de nos créateurs, ce lien crée votre compte avec la campagne déjà prête en brouillon : ${signup}`;
+  return { brief: pb, text };
 }

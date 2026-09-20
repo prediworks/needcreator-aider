@@ -373,3 +373,23 @@ export async function assistantBatch(req, res) {
     res.status(500).json({ error: 'Lot indisponible' });
   }
 }
+
+/** Prépare (ou retrouve) le brief offert d'une marque et l'ajoute à la réponse proposée. Utile quand la réponse n'a pas été classée « intéressé » ou pour une marque contactée à la main. */
+export async function offerBriefToLead(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    if (lead.kind !== 'brand') return res.status(400).json({ error: 'Le brief offert concerne les marques' });
+    if (!lead.website && !lead.offeredBriefId) return res.status(400).json({ error: 'Il manque : le site web de la marque (renseignez-le sur la fiche)' });
+    const { prepareOfferedBrief } = await import('../services/acquisition/replies.js');
+    const offer = await prepareOfferedBrief(lead);
+    if (!offer) return res.status(422).json({ error: 'Brief impossible à préparer : site illisible (protection anti-robot) ou IA indisponible. Préparez-le à la main sur /brief-depuis-url avec la description du produit.' });
+    const cur = String(lead.mailing?.replySuggestion || '').trim();
+    if (!cur.includes(String(offer.brief._id))) lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), replySuggestion: `${cur ? `${cur}\n\n` : 'Bonjour,\n\n'}${offer.text}`.slice(0, 2400) };
+    await lead.save();
+    res.json({ message: `Brief préparé${offer.brief.product?.name ? ` pour « ${offer.brief.product.name} »` : ''} et ajouté à la réponse proposée`, briefId: offer.brief._id, lead });
+  } catch (error) {
+    logger.error('offerBriefToLead failed:', error);
+    res.status(500).json({ error: `Préparation impossible : ${error.message}` });
+  }
+}

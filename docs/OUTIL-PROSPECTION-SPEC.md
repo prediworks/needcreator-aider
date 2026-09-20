@@ -240,6 +240,7 @@ snake_case, 500 par appel), `blocklist`, `replies`, `stats`, `removeFromSequence
   suit : sur le prototype, la limite est le nombre de prospects, pas la capacité d'envoi. L'outil devra afficher ce diagnostic à l'utilisateur.
 - Garde-fous : plafond quotidien, score minimum, pause automatique au-delà de 5 % de rebonds sur 7 jours, retrait de la séquence dès qu'un
   prospect répond, se désinscrit ou se convertit.
+- **Promesse tenue automatiquement** : quand la séquence promet quelque chose sur simple réponse (ici un brief offert), le livrable est généré dès que la réponse est classée « intéressé » et joint à la réponse proposée, avec un lien d'inscription qui reprend le livrable. Une seule génération par prospect, action manuelle de secours, repli propre si la source est illisible.
 - Réponses : classement IA (intéressé, question, pas maintenant, refus, ne plus écrire, absence), réponse proposée, envoi dans le même fil
   après relecture ; réponse automatique réservée aux « intéressés », et désactivée par défaut.
 
@@ -350,3 +351,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 18/09/2026 | Liste d'exclusion par empreintes, purge à 24 mois, politique de confidentialité détaillée ; affichage intégré des publications (condition de la revue oEmbed) ; répartition du plafond entre sources ; recherche d'email sur les sites ; mémoire de 30 jours |
 | 19/09/2026 | Site sans `https://` reconnu (0 → 67 emails sur 100 marques) ; complétion des fiches par publication, par profil et par chaîne ; doublons d'un même créateur ; tableau « où sont les prospects » ; messages d'import en clair ; prénom sûr et champ `greeting` ; séquences d'emails ; **idée de l'outil autonome cadrée, ce document créé** |
 | 20/09/2026 | Domaine d'envoi distinct vérifié (SPF, DKIM, DMARC, redirection 301 vers le site) ; **les deux séquences d'emails sont lancées** sur 88 créateurs et 63 marques : début de l'étape 0 « Preuve », mesures attendues sous une semaine (envois, rebonds, réponses, inscriptions) |
+| 20/09/2026 | Premier rendement réel : **4 inscriptions de créateurs sur 38 emails** (prospects Instagram par hashtag, complétés dans le navigateur) contre 0 résultat sur 432 emails d'une liste extérieure non triée, arrêtée ; l'outil de mailing n'affiche que les réponses rattachées à un contact de campagne : prévoir une redirection des boîtes d'envoi vers une boîte lue ; brief offert généré automatiquement à la réponse positive d'une marque |

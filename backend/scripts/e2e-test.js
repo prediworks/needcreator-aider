@@ -23,6 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const API = process.env.E2E_API_URL || `http://localhost:${process.env.PORT || 3002}/api`;
 const CLEAN = process.argv.includes('--clean');
 const RUN = Date.now().toString(36);
+const extraClosers = []; // serveurs locaux ouverts par certaines étapes, fermés en fin d'exécution
 
 // Clé API Firebase web (lue dans frontend/.env.local) pour échanger un custom token contre un ID token
 function readFrontendEnv() {
@@ -2453,7 +2454,12 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(ms.status === 200 && ms.data.settings && typeof ms.data.eligible === 'number', 'État du mailing attendu', ms);
     let mailingNote = 'mailing non testé (fournisseur réel ou absent)';
     if (ms.data.settings.provider === 'mock') {
-      const rl = await brandApi('POST', '/admin/acquisition/leads', { kind: 'brand', name: 'Marque Répond', website: `https://marque-repond-${RUN}.example.com`, email: `e2e-lead-${RUN}+reply@needcreator-test.com`, description: 'Marque de bougies parfumées vendues en ligne.', niche: 'maison', qualify: false });
+      // Site factice de la marque : page d'accueil avec un lien vers une fiche produit (brief offert préparé à la réponse « intéressé »)
+      const offerPage = `<!doctype html><html><head><title>Bougie Ambre 200 g</title><script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: 'Bougie parfumée Ambre 200 g', brand: { '@type': 'Brand', name: 'Marque Répond' }, description: 'Bougie parfumée à la cire de soja, mèche en coton, 45 heures de combustion, fabriquée en France.', offers: { '@type': 'Offer', price: '24.90', priceCurrency: 'EUR' } })}</script></head><body><h1>Bougie parfumée Ambre 200 g</h1><p>Cire de soja, mèche coton, 45 heures, fabriquée en France.</p></body></html>`;
+      const offerSite = http.createServer((rq, rs) => { rs.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); rs.end(rq.url.startsWith('/products/') ? offerPage : '<html><body><h1>Marque Répond</h1><a href="/collections/all">Tout</a> <a href="/products/bougie-ambre-200g">Bougie Ambre</a> <a href="/cart">Panier</a></body></html>'); });
+      await new Promise(r => offerSite.listen(0, '127.0.0.1', r));
+      extraClosers.push(() => offerSite.close());
+      const rl = await brandApi('POST', '/admin/acquisition/leads', { kind: 'brand', name: 'Marque Répond', website: `http://127.0.0.1:${offerSite.address().port}`, email: `e2e-lead-${RUN}+reply@needcreator-test.com`, description: 'Marque de bougies parfumées vendues en ligne.', niche: 'maison', qualify: false });
       const bl = await brandApi('POST', '/admin/acquisition/leads', { kind: 'creator', name: 'Créateur Rebond', handle: `@rebond${RUN}`, url: `https://www.youtube.com/@rebond${RUN}`, email: `e2e-lead-${RUN}+bounce@needcreator-test.com`, description: 'Créateur UGC tech.', niche: 'tech', qualify: false });
       const push = await brandApi('POST', '/admin/acquisition/mailing/push', { ids: [c.data.lead._id, rl.data.lead._id, bl.data.lead._id] });
       expect(push.status === 200 && push.data.pushed === 3, 'Poussée de 3 prospects vers le mailing attendue', push);
@@ -2477,13 +2483,32 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       const ds = await brandApi('GET', '/admin/acquisition/dashboard');
       expect(ds.status === 200 && ds.data.total.brand.replied >= 1 && ds.data.last30.creator.contacted >= 1 && Array.isArray(ds.data.byNiche), 'Tableau de bord : entonnoirs attendus', ds);
       // Marque intéressée qui s'inscrit avec le lien du prospect : prospect « inscrit », campagne brouillon préparée
+      // Brief offert : joint à la réponse proposée, une seule génération, bouton manuel réservé aux marques
+      let offeredId = null;
+      if (aiOn) {
+        const withOffer = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(rlead._id) });
+        offeredId = withOffer.offeredBriefId ? String(withOffer.offeredBriefId) : null;
+        expect(offeredId && withOffer.mailing.replySuggestion.includes(`/brief-depuis-url?id=${offeredId}`) && withOffer.mailing.replySuggestion.includes(`&brief=${offeredId}`), 'La réponse proposée à une marque intéressée doit contenir le brief offert et le lien d\'inscription rattaché', { status: 200, data: withOffer.mailing });
+        const pbDoc = await db.collection('productbriefs').findOne({ _id: withOffer.offeredBriefId });
+        expect(pbDoc && pbDoc.product.name === 'Bougie parfumée Ambre 200 g' && /\/products\/bougie-ambre-200g$/.test(pbDoc.url), 'Le brief offert doit partir de la fiche produit trouvée sur le site', { status: 200, data: pbDoc && { url: pbDoc.url, product: pbDoc.product } });
+        const againOffer = await brandApi('POST', `/admin/acquisition/leads/${rlead._id}/offer-brief`);
+        expect(againOffer.status === 200 && String(againOffer.data.briefId) === offeredId && (againOffer.data.lead.mailing.replySuggestion.match(/brief-depuis-url\?id=/g) || []).length === 1, 'Redemander le brief offert réutilise le même brief, sans le répéter dans la réponse', againOffer);
+      }
+      const notBrand = await brandApi('POST', `/admin/acquisition/leads/${c.data.lead._id}/offer-brief`);
+      expect(notBrand.status === 400, 'Le brief offert est réservé aux marques', notBrand);
       const leadBrandEmail = `e2e-lead-${RUN}+reply@needcreator-test.com`;
       const fuLead = await firebaseUser(leadBrandEmail);
-      const regLead = await client(fuLead.idToken)('POST', '/auth/register/brand', { acceptTerms: true, email: leadBrandEmail, companyName: 'Marque Répond', country: 'FR', language: 'fr', leadId: rlead._id });
+      const regLead = await client(fuLead.idToken)('POST', '/auth/register/brand', { acceptTerms: true, email: leadBrandEmail, companyName: 'Marque Répond', country: 'FR', language: 'fr', leadId: rlead._id, ...(offeredId ? { briefId: offeredId } : {}) });
       expect(regLead.status === 201, 'Inscription marque depuis un prospect échouée', regLead);
       let draft = null;
       for (let i = 0; i < 40 && !draft; i++) { draft = await db.collection('campaigns').findOne({ brandId: new mongoose.Types.ObjectId(regLead.data.user.id), status: 'draft' }); if (!draft) await new Promise(r => setTimeout(r, 1000)); }
       expect(draft && draft.title && draft.description.length > 50, 'Campagne brouillon préparée pour la marque inscrite', { status: 200, data: draft });
+      if (offeredId) {
+        await new Promise(r => setTimeout(r, 4000)); // laisse le temps à un éventuel second brouillon (il ne doit pas y en avoir)
+        const drafts = await db.collection('campaigns').find({ brandId: new mongoose.Types.ObjectId(regLead.data.user.id) }).toArray();
+        expect(drafts.length === 1 && /bougie/i.test(drafts[0].brief.productDescription || '') && String(regLead.data.briefCampaignId) === String(drafts[0]._id), 'Inscription avec brief offert : une seule campagne brouillon, issue du brief', { status: 200, data: drafts.map(d => d.title) });
+        await db.collection('productbriefs').deleteOne({ _id: new mongoose.Types.ObjectId(offeredId) });
+      }
       const leadAfter = await db.collection('leads').findOne({ _id: new mongoose.Types.ObjectId(rlead._id) });
       expect(leadAfter.status === 'registered' && String(leadAfter.registeredUserId) === regLead.data.user.id && String(leadAfter.draftCampaignId) === String(draft._id), 'Le prospect doit être « inscrit » et lié à la campagne brouillon', { status: 200, data: leadAfter });
       await db.collection('campaigns').deleteMany({ brandId: new mongoose.Types.ObjectId(regLead.data.user.id) });
@@ -2662,6 +2687,7 @@ if (CLEAN) {
   });
 }
 
+for (const close of extraClosers) { try { close(); } catch { /* déjà fermé */ } }
 await mongoose.disconnect().catch(() => {});
 
 console.log(`\n=== Résultat : ${results.length - failed}/${results.length} étapes OK ===\n`);

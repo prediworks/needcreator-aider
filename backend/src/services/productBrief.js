@@ -65,6 +65,30 @@ async function fetchProductPage(url) {
   } finally { clearTimeout(t); }
 }
 
+/**
+ * Trouve une fiche produit sur le site d'une marque à partir de sa page d'accueil (liens /products/, /produit/, /product/, /p/…).
+ * Sert au brief offert : on part du site connu du prospect, pas d'un lien fourni. Retourne l'adresse de la fiche, ou le site lui-même à défaut.
+ */
+export async function findProductPage(siteUrl) {
+  const base = await assertPublicUrl(siteUrl);
+  let html;
+  try { html = await fetchProductPage(base.href); } catch { return base.href; }
+  const seen = new Set(); const found = [];
+  for (const m of html.matchAll(/href=["']([^"'#]+)["']/gi)) {
+    let u; try { u = new URL(m[1], base.href); } catch { continue; }
+    if (u.hostname.replace(/^www\./, '') !== base.hostname.replace(/^www\./, '')) continue;
+    const path = u.pathname.toLowerCase();
+    if (!/\/(products|produits?|product|shop|boutique|p|article|articles)\/[^/]+/.test(path)) continue;
+    if (/\.(jpg|jpeg|png|webp|svg|css|js|json|xml)$/.test(path) || /\/(cart|panier|account|compte|search|recherche|collections?\/?$)/.test(path)) continue;
+    const clean = `${u.origin}${u.pathname}`;
+    if (seen.has(clean)) continue; seen.add(clean);
+    found.push({ url: clean, score: (/\/products\//.test(path) ? 3 : 1) + (path.split('/').filter(Boolean).pop().length > 8 ? 1 : 0) });
+    if (found.length >= 40) break;
+  }
+  found.sort((a, b) => b.score - a.score);
+  return found[0]?.url || base.href;
+}
+
 /** Lit une fiche produit : JSON-LD Product, Open Graph, balises meta, texte principal */
 export async function extractProduct(url) {
   const html = await fetchProductPage(url);

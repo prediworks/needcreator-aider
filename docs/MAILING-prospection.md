@@ -208,8 +208,10 @@ Vous recevez ce message sur l'adresse de contact publique de {{ company_name }},
 1. « Synchroniser » (ou la tâche nocturne) ramène la réponse dans Admin → Prospection, pastille « A répondu ».
 2. L'IA la classe (intéressé, question, pas maintenant, refus, ne plus écrire, absence) et propose une réponse.
 3. Vous relisez et cliquez « Relire et envoyer » : la réponse part depuis l'expéditeur de l'outil, dans le même fil.
-4. Un « oui » à l'email 3 des marques : répondez avec le lien `https://needcreator.com/brief-depuis-url` pré-rempli par vos soins, ou préparez le brief
-   dans l'admin. Si la marque s'inscrit avec le lien d'inscription de votre réponse, une campagne en brouillon l'attend déjà.
+4. Un « oui » à l'email 3 des marques : **le brief est préparé automatiquement** depuis une fiche produit du site de la marque, et la réponse
+   proposée contient déjà son lien, plus un lien d'inscription qui crée le compte avec la campagne en brouillon. Vous n'avez qu'à relire et envoyer.
+   Si le site est illisible (protection anti-robot) ou inconnu, la réponse proposée ne contient pas le brief : renseignez le site sur la fiche et
+   cliquez « Brief offert », ou préparez-le sur `https://needcreator.com/brief-depuis-url` avec la description du produit.
 5. « Non merci » et « ne plus écrire » : le prospect passe en Hors cible et sort de la séquence, sans intervention.
 
 ## À vérifier avant le premier envoi

@@ -4,7 +4,7 @@ import { getSetting, setSetting, SETTINGS } from '../../models/Setting.js';
 import { mailingProvider, mailingConfig } from '../mailing/index.js';
 import { config } from '../../config/index.js';
 import { notifyAdmins } from '../adminAlerts.js';
-import { classifyReply } from './replies.js';
+import { classifyReply, prepareOfferedBrief } from './replies.js';
 import logger from '../../utils/logger.js';
 
 export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
@@ -76,6 +76,11 @@ export async function handleReply(lead, provider, s, out = {}) {
     const c = await classifyReply(lead, lead.mailing.replyText);
     if (!c) return lead;
     lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply;
+    // Marque intéressée : le brief promis dans la séquence est préparé depuis son site et joint à la réponse proposée
+    if (lead.kind === 'brand' && c.intent === 'interested') {
+      const offer = await prepareOfferedBrief(lead).catch(() => null);
+      if (offer) { c.reply = `${c.reply.trim()}\n\n${offer.text}`.slice(0, 2400); lead.mailing.replySuggestion = c.reply; out.briefs = (out.briefs || 0) + 1; }
+    }
     if (['refusal', 'unsubscribe'].includes(c.intent)) { lead.status = 'rejected'; lead.notes = [lead.notes, c.intent === 'unsubscribe' ? 'Demande de ne plus écrire' : 'A refusé'].filter(Boolean).join(' · '); }
     if (c.intent === 'out_of_office') lead.status = lead.mailing.pushedAt ? 'contacted' : lead.status;
     if (!lead.mailing.replyMessageId) lead.mailing.replyMessageId = await provider.findThread(lead.email).catch(() => null);

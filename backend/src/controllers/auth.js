@@ -237,8 +237,11 @@ export async function registerBrand(req, res) {
       const lead = await Lead.findOne({ _id: leadId, kind: 'brand' });
       if (lead) {
         lead.status = 'registered'; lead.registeredUserId = user._id; await lead.save();
-        const { createDraftCampaignFromLead } = await import('../services/acquisition/replies.js');
-        setImmediate(() => createDraftCampaignFromLead(user, lead).catch(() => {}));
+        // Avec un brief offert (lien d'inscription portant aussi « brief= »), la campagne brouillon vient du brief : pas de second brouillon générique
+        if (!(briefId && /^[a-f0-9]{24}$/i.test(String(briefId)))) {
+          const { createDraftCampaignFromLead } = await import('../services/acquisition/replies.js');
+          setImmediate(() => createDraftCampaignFromLead(user, lead).catch(() => {}));
+        }
       }
     }
 
@@ -250,6 +253,7 @@ export async function registerBrand(req, res) {
       if (pb) {
         const { createDraftCampaignFromProductBrief } = await import('../services/productBrief.js');
         briefCampaignId = await createDraftCampaignFromProductBrief(user, pb).then(c => c?._id || null).catch(err => { logger.warn(`Product brief not attached: ${err.message}`); return null; });
+        if (briefCampaignId && leadId && /^[a-f0-9]{24}$/i.test(String(leadId))) { const LeadM = (await import('../models/Lead.js')).default; await LeadM.updateOne({ _id: leadId }, { $set: { draftCampaignId: briefCampaignId } }).catch(() => {}); }
       }
     }
 
