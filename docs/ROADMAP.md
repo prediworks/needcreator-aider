@@ -159,6 +159,8 @@ Le reste est couvert par les 80 étapes du test automatique et les 17 du test d'
 - ~~5. Invitation d'un créateur extérieur par une marque~~ depuis sa campagne (email, lien d'inscription, rattachement automatique).
 - ~~6. Widget « Créateur vérifié NeedCreator »~~ Livré le 13/09/2026 (SVG `/c/<slug>/widget` + code HTML dans le kit média).
 
+Kit de démarrage livré le 21/09/2026 : `docs/KIT-RESEAUX-SOCIAUX.md` (profils, charte Canva, calendrier, douze publications avec visuels, légendes, hashtags et versions TikTok, tirées de l'Académie et du calculateur). À publier avant de commencer les messages privés : neuf publications remplissent la grille Instagram.
+
 ## 5. Questions pour l'expert-comptable
 
 1. **Mandat de facturation** : NeedCreator émet les factures des créateurs en leur nom (mandat accepté dans les informations administratives). Formulation et mentions à valider.
