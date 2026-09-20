@@ -4,3 +4,7 @@ scripts/ui-screenshots/
 # pnpm (installation locale, non utilisée par le projet)
 pnpm-lock.yaml
 pnpm-workspace.yaml
+
+# Notes personnelles du propriétaire, propres à chaque machine : jamais suivies (un fichier suivi bloquerait « git pull » sur le serveur)
+docs/idees.txt
+docs/statistiques.txt

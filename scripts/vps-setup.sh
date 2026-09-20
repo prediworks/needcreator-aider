@@ -52,7 +52,17 @@ fi
 if [[ "${1:-}" == "--finish" ]]; then
   log "Mise à jour du dépôt"
   sudo -u "$DEPLOY_USER" git -C "$APP_DIR" checkout -- backend/package-lock.json frontend/package-lock.json 2>/dev/null || true
-  sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only || warn "git pull impossible : vérifiez les modifications locales dans $APP_DIR"
+  BEFORE=$(sudo -u "$DEPLOY_USER" git -C "$APP_DIR" rev-parse --short HEAD)
+  if ! sudo -u "$DEPLOY_USER" git -C "$APP_DIR" pull --ff-only; then
+    echo
+    echo "ARRÊT : la mise à jour du code a échoué, rien n'a été déployé (le site continue de tourner sur la version $BEFORE)."
+    echo "Cause habituelle : un fichier présent sur le serveur bloque la mise à jour. Fichiers concernés :"
+    sudo -u "$DEPLOY_USER" git -C "$APP_DIR" status --short | head -20
+    echo "Correction : déplacez ou supprimez le fichier indiqué par Git ci-dessus, puis relancez : bash vps-setup.sh --finish"
+    exit 1
+  fi
+  AFTER=$(sudo -u "$DEPLOY_USER" git -C "$APP_DIR" rev-parse --short HEAD)
+  if [[ "$BEFORE" == "$AFTER" ]]; then log "Code déjà à jour ($AFTER) : reconstruction et redémarrage"; else log "Code mis à jour : $BEFORE → $AFTER ($(sudo -u "$DEPLOY_USER" git -C "$APP_DIR" log --oneline -1 | cut -c9-80))"; fi
 
   log "Installation des dépendances"
   sudo -u "$DEPLOY_USER" bash -c "cd $APP_DIR/backend && npm install --omit=dev --no-audit --no-fund"
