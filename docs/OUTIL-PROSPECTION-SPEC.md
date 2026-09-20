@@ -231,6 +231,13 @@ snake_case, 500 par appel), `blocklist`, `replies`, `stats`, `removeFromSequence
   `/unsubscribe`, `/replies`, `/analytics/lead-stats`, `/sequences/{id}/leads/{leadId}/unsubscribe`, `/inbox/{messageId}/reply`.
   **Piège** : les contacts arrivent dans la liste, mais rien ne part tant qu'une séquence n'y est pas rattachée.
 - À prévoir : lemlist, Brevo, ou envoi direct par boîte connectée (Gmail, Outlook) pour les petits volumes.
+- **Infrastructure d'envoi, apprise sur le prototype** : envoyer depuis un **domaine distinct** du domaine de service (ici `needcreator.net` pour
+  la prospection, `needcreator.com` pour les emails transactionnels), afin qu'une mauvaise réputation de prospection ne touche ni les
+  confirmations d'inscription ni les factures. SPF, DKIM et DMARC sur ce domaine ; un sous-domaine de suivi en CNAME vers l'outil. Le domaine
+  d'envoi doit mener à un vrai site : une redirection **visible et permanente (301)** vers le site principal, jamais une page « en
+  construction » ni une redirection « invisible » par cadre (signal de domaine jetable). La règle de volume vaut **par adresse** : 20 à 30
+  emails par jour, après deux à trois semaines de chauffe ; démarrer à 10 à 15. Multiplier les adresses n'aide que si le stock de prospects
+  suit : sur le prototype, la limite est le nombre de prospects, pas la capacité d'envoi. L'outil devra afficher ce diagnostic à l'utilisateur.
 - Garde-fous : plafond quotidien, score minimum, pause automatique au-delà de 5 % de rebonds sur 7 jours, retrait de la séquence dès qu'un
   prospect répond, se désinscrit ou se convertit.
 - Réponses : classement IA (intéressé, question, pas maintenant, refus, ne plus écrire, absence), réponse proposée, envoi dans le même fil
@@ -289,6 +296,13 @@ qualifié, davantage si l'IA lit des pages entières), moteur de recherche par A
     ont chacun provoqué une incompréhension. Rédiger chaque message pour quelqu'un qui n'a pas vu le code.
 11. DuckDuckGo bloque à la deuxième requête automatisée ; DataDome et Akamai bloquent toute lecture serveur des grandes enseignes.
 12. Retrouver un compte Instagram à partir d'un nom de chaîne YouTube ne fonctionne pas (1 sur 28).
+13. Chez OVH, une redirection web se compose de deux pièces indissociables : l'entrée « redirection visible permanente » (TXT `4|cible`) et
+    l'entrée A vers `213.186.33.5`. Supprimer l'entrée A rend le domaine muet. L'espace client affiche des erreurs de suppression alors que
+    l'opération a réussi : vérifier l'état réel en interrogeant les serveurs de noms faisant autorité, pas l'interface. La redirection gratuite
+    ne répond qu'en http.
+14. Un serveur protégé par un pare-feu « Cloudflare uniquement » ne peut pas recevoir un second domaine géré hors de Cloudflare : ni le trafic
+    ni la validation du certificat ne passent. Ne pas ajouter un tel domaine à la configuration du serveur : la demande de certificat échouerait
+    pour tous les domaines.
 
 ---
 
@@ -335,3 +349,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 17/09/2026 | Réseaux des prospects (bio, rubrique « Liens » YouTube, lien de bio, site) ; import groupé ; consignes pour l'assistant Chrome ; décision : pas de scrapers serveur ni d'extension agentique pour l'audit publicitaire |
 | 18/09/2026 | Liste d'exclusion par empreintes, purge à 24 mois, politique de confidentialité détaillée ; affichage intégré des publications (condition de la revue oEmbed) ; répartition du plafond entre sources ; recherche d'email sur les sites ; mémoire de 30 jours |
 | 19/09/2026 | Site sans `https://` reconnu (0 → 67 emails sur 100 marques) ; complétion des fiches par publication, par profil et par chaîne ; doublons d'un même créateur ; tableau « où sont les prospects » ; messages d'import en clair ; prénom sûr et champ `greeting` ; séquences d'emails ; **idée de l'outil autonome cadrée, ce document créé** |
+| 20/09/2026 | Domaine d'envoi distinct vérifié (SPF, DKIM, DMARC, redirection 301 vers le site) ; **les deux séquences d'emails sont lancées** sur 88 créateurs et 63 marques : début de l'étape 0 « Preuve », mesures attendues sous une semaine (envois, rebonds, réponses, inscriptions) |
