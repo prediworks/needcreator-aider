@@ -586,10 +586,20 @@ function SettingText({ setting, onSave }: { setting: any; onSave: (value: string
   const [value, setValue] = useState<string>(String(setting.value ?? setting.default ?? ''));
   useEffect(() => { setValue(String(setting.value ?? setting.default ?? '')); }, [setting.value, setting.default]);
   const changed = value.trim() !== String(setting.value ?? setting.default ?? '').trim();
+  // Listes « une ligne par niche » ou séparées par des points-virgules : zone de texte sur plusieurs lignes
+  const multiline = /une ligne par|séparés par des points-virgules/i.test(setting.label || '');
+  // Exemple affiché en gris dans un champ vide : propre à chaque réglage, jamais une valeur enregistrée
+  const placeholder = /backup/i.test(setting.key) ? '/home/needcreator/needcreator-backups'
+    : setting.key === 'acquisitionCreatorKeywords' ? 'Vide = liste par défaut. Exemple :\nbeauty: créatrice UGC beauté ; routine skincare avis\nfood: créatrice UGC food ; test recette'
+    : setting.key === 'acquisitionBrandKeywords' ? 'Vide = liste par défaut. Exemple :\ncosmétiques: sérum ; crème visage\nmode: robe été ; sneakers'
+    : setting.key === 'acquisitionInstagramHashtags' ? 'Vide = liste par défaut. Exemple : ugcfrance ; createurugc ; creatriceugc'
+    : /email/i.test(setting.key) ? 'contact@exemple.fr' : 'Vide = valeur par défaut';
   return (
-    <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); if (changed) onSave(value.trim()); }}>
-      <input type="text" value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder="/home/needcreator/needcreator-backups" className="w-72 px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
-      <Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>
+    <form className={`flex gap-2 ${multiline ? 'flex-col items-stretch w-full md:w-[28rem]' : 'items-center'}`} onSubmit={(e) => { e.preventDefault(); if (changed) onSave(value.trim()); }}>
+      {multiline
+        ? <textarea value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder={placeholder} rows={4} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
+        : <input type="text" value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder={placeholder} className="w-72 px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />}
+      <div className="flex items-center gap-2"><Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>{!value.trim() && <span className="text-xs text-neutral-500">Champ vide : valeur par défaut utilisée</span>}</div>
     </form>
   );
 }
