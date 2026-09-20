@@ -9,6 +9,7 @@ Séquence de trois emails destinée aux créateurs importés dans l'annuaire (Ad
 - **Volume** : 50 à 100 envois par jour la première semaine, puis doublement si le taux de plaintes reste sous 0,1 %.
 - **Jours et heures** : mardi ou jeudi, 10 h à 12 h, ou 18 h.
 - **Forme** : texte simple, pas de bannière, un seul lien d'action par email, signature courte. Pas de pièce jointe.
+- **Coller du texte brut dans l'outil de mailing.** Les corps d'email ci-dessous ne contiennent volontairement ni gras, ni flèche, ni emoji : collés tels quels, les marqueurs de gras apparaissent sous forme d'astérisques (`**`) et les caractères spéciaux deviennent des « ? » chez le destinataire (constaté le 20/09/2026). Si vous voulez du gras, appliquez-le avec l'éditeur de l'outil. Traduisez aussi le lien de désinscription de l'outil (« Click Here to Unsubscribe » par défaut) en « Se désinscrire ».
 - **Mentions obligatoires** dans chaque email : d'où vient l'adresse, lien de désinscription (celui de l'outil de mailing), et le lien de retrait de la fiche (colonne `retrait` du CSV).
 - **Après chaque envoi** : réimporter les désabonnés dans l'admin (« Marquer comme retirés »), pour que la plateforme et l'outil restent alignés.
 - **Prérequis** : au moins une campagne réelle publiée avant le premier envoi. Les campagnes publiées sont visibles sans connexion sur https://needcreator.com/campagnes : c'est la preuve à montrer.
@@ -51,16 +52,16 @@ Les chiffres cités (commission 10 %, Ambassadeur 8 %, validation sous 7 jours, 
 > Je suis tombé sur votre profil @{{ username }} en préparant le lancement, et votre univers {{ niche }} correspond à ce que nos premières marques recherchent.
 >
 > Ce qui change avec NeedCreator :
-> - **Vous fixez votre prix.** Chaque campagne, vous envoyez un devis ; la marque accepte ou non. Un calculateur vous donne une fourchette si vous hésitez.
-> - **Vous êtes payé, c'est garanti.** Le montant est bloqué par la marque avant que vous tourniez. Vous recevez 90 % de votre devis dès validation, ou automatiquement sous 7 jours si la marque ne répond pas.
-> - **Un contrat clair.** Durée, supports et exclusivité sont écrits dans un contrat généré à chaque mission, et vous êtes prévenu quand les droits expirent : la marque vous rachète une prolongation.
-> - **Zéro paperasse.** Vos factures sont émises en votre nom, avec un relevé mensuel pour votre comptable.
+> - Vous fixez votre prix. Chaque campagne, vous envoyez un devis ; la marque accepte ou non. Un calculateur vous donne une fourchette si vous hésitez.
+> - Vous êtes payé, c'est garanti. Le montant est bloqué par la marque avant que vous tourniez. Vous recevez 90 % de votre devis dès validation, ou automatiquement sous 7 jours si la marque ne répond pas.
+> - Un contrat clair. Durée, supports et exclusivité sont écrits dans un contrat généré à chaque mission, et vous êtes prévenu quand les droits expirent : la marque vous rachète une prolongation.
+> - Zéro paperasse. Vos factures sont émises en votre nom, avec un relevé mensuel pour votre comptable.
 >
 > Des campagnes sont déjà ouvertes, vous pouvez les voir sans compte : https://needcreator.com/campagnes
 >
 > L'inscription est gratuite et prend cinq minutes : trois vidéos de portfolio suffisent.
 >
-> → Créer mon profil créateur : https://needcreator.com/register?role=creator&from={{ username }}
+> Créer mon profil créateur : https://needcreator.com/register?role=creator&from={{ username }}
 >
 > Si vous avez une question, répondez simplement à cet email, je lis tout.
 >
@@ -86,15 +87,15 @@ L'angle change : on ne vend plus des missions, on offre des outils utiles dès a
 >
 > Je vous ai écrit la semaine dernière au sujet de NeedCreator. Aujourd'hui, un autre angle : même si vous ne prenez aucune mission chez nous, votre compte vous donne des outils gratuits pour votre activité actuelle.
 >
-> - **Devis et contrat en un clic.** Un client vous contacte en direct ? Vous décrivez la mission, NeedCreator génère le devis PDF et le contrat de cession de droits, et les envoie au client. Il peut payer via la plateforme : le montant est bloqué avant que vous tourniez et vous est versé à la validation. Fini les factures impayées. S'il paie en direct, rien à payer, vous facturez vous-même.
-> - **Suivi de prospection.** Les marques que vous démarchez, avec une relance à date : vous êtes prévenu le jour même.
-> - **Registre de vos droits et exclusivités.** Tout ce que vous avez cédé, ici ou ailleurs, avec un rappel 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.
-> - **Revenus et seuils micro-entreprise.** Vos revenus NeedCreator et les autres au même endroit, franchise de TVA et plafond calculés sur le total.
-> - **Calculateur de tarif.** Une fourchette selon le type de vidéo, les droits, les supports et l'exclusivité, à partir des devis réellement acceptés. Essayez-le sans compte : https://needcreator.com/calculateur-tarif-ugc
+> - Devis et contrat en un clic. Un client vous contacte en direct ? Vous décrivez la mission, NeedCreator génère le devis PDF et le contrat de cession de droits, et les envoie au client. Il peut payer via la plateforme : le montant est bloqué avant que vous tourniez et vous est versé à la validation. Fini les factures impayées. S'il paie en direct, rien à payer, vous facturez vous-même.
+> - Suivi de prospection. Les marques que vous démarchez, avec une relance à date : vous êtes prévenu le jour même.
+> - Registre de vos droits et exclusivités. Tout ce que vous avez cédé, ici ou ailleurs, avec un rappel 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.
+> - Revenus et seuils micro-entreprise. Vos revenus NeedCreator et les autres au même endroit, franchise de TVA et plafond calculés sur le total.
+> - Calculateur de tarif. Une fourchette selon le type de vidéo, les droits, les supports et l'exclusivité, à partir des devis réellement acceptés. Essayez-le sans compte : https://needcreator.com/calculateur-tarif-ugc
 >
 > Tout est inclus, sans abonnement. La commission de 10 % ne s'applique que si un client choisit de payer via NeedCreator.
 >
-> → Créer mon profil (5 minutes) : https://needcreator.com/register?role=creator&from={{ username }}
+> Créer mon profil (5 minutes) : https://needcreator.com/register?role=creator&from={{ username }}
 >
 > {{name_of_sender}}
 > NeedCreator
@@ -118,17 +119,17 @@ L'angle change : on ne vend plus des missions, on offre des outils utiles dès a
 >
 > Depuis mon premier message, [N] créateurs se sont inscrits et [N] campagnes ont été publiées. Un exemple parmi celles qui sont ouvertes :
 >
-> **[Titre de la campagne]** — [nom de la marque]
+> [Titre de la campagne] — [nom de la marque]
 > [Nombre] vidéo(s) [type], [durée] secondes, [budget indicatif ou « devis libre »], droits [durée] sur [supports].
-> → Voir la campagne : https://needcreator.com/campagnes/[id]
+> Voir la campagne : https://needcreator.com/campagnes/[id]
 >
 > Deux choses à savoir avant de décider :
-> - **Une académie gratuite** de cinq guides courts (lire un brief, lumière, son, les trois premières secondes, rédiger un devis). Trois quiz réussis vous donnent le badge Formé, un coup de pouce dans le classement des candidatures, et un badge à partager sur vos réseaux.
-> - **Le programme Ambassadeur.** Publiez sur vos réseaux une vidéo sincère sur ce que NeedCreator vous apporte : votre commission passe à 8 % au lieu de 10 %, vous voyez chaque campagne 24 heures avant tout le monde, vos devis remontent en tête chez les marques, et votre lien de parrainage vous rapporte 10 € par créateur inscrit qui livre sa première mission.
+> - Une académie gratuite de cinq guides courts (lire un brief, lumière, son, les trois premières secondes, rédiger un devis). Trois quiz réussis vous donnent le badge Formé, un coup de pouce dans le classement des candidatures, et un badge à partager sur vos réseaux.
+> - Le programme Ambassadeur. Publiez sur vos réseaux une vidéo sincère sur ce que NeedCreator vous apporte : votre commission passe à 8 % au lieu de 10 %, vous voyez chaque campagne 24 heures avant tout le monde, vos devis remontent en tête chez les marques, et votre lien de parrainage vous rapporte 10 € par créateur inscrit qui livre sa première mission.
 >
 > Si le moment n'est pas le bon, aucun souci. Sinon, votre profil est prêt à être créé en cinq minutes, et votre premier devis peut partir le jour même.
 >
-> → https://needcreator.com/register?role=creator&from={{ username }}
+> https://needcreator.com/register?role=creator&from={{ username }}
 >
 > Merci pour votre attention, et bonne continuation pour @{{ username }}.
 >
