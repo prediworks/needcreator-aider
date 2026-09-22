@@ -61,7 +61,7 @@ function NewCampaignForm() {
   const [description, setDescription] = useState('');
   const [videoType, setVideoType] = useState('testimonial');
   const [duration, setDuration] = useState('30');
-  const [deliverables, setDeliverables] = useState('3');
+  const [deliverables, setDeliverables] = useState('1');
   const [requirements, setRequirements] = useState(BRIEF_TEMPLATE);
   const [budget, setBudget] = useState('');
   const [niches, setNiches] = useState<string[]>([]);
