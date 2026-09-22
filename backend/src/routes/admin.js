@@ -20,7 +20,7 @@ import {
   restoreBackupAdmin,
   getAdminCampaigns,
   getAdminDeliveries,
-  getUserDetail,
+  getUserDetail, reprocessPortfolioVideo,
   getPendingAmbassadors,
   reviewAmbassador,
   getPendingBusinesses,
@@ -48,6 +48,7 @@ router.post('/creators/:userId/reject', rejectCreator);
 // User management
 router.get('/users', getUsers);
 router.get('/users/:userId', getUserDetail);
+router.post('/users/:userId/portfolio/:videoId/reprocess', reprocessPortfolioVideo); // réencodage d'une vidéo de portfolio (aperçu + version lisible partout)
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
 router.post('/users/:userId/verify-email', markEmailVerified); // adresse confirmée sans passer par l'email

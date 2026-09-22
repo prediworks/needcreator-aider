@@ -19,7 +19,8 @@ export async function getUserDetail(req, res) {
     const user = await User.findById(req.params.userId).select('-__v').lean();
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.profile?.portfolio?.length) {
-      user.profile.portfolio = await resolveUrlsIn(user.profile.portfolio);
+      const { portfolioForAdmin } = await import('../services/watermark.js');
+      user.profile.portfolio = await resolveUrlsIn(portfolioForAdmin(user.profile.portfolio));
     }
     res.json({ user: { ...user, id: user._id } });
   } catch (error) {
@@ -686,5 +687,22 @@ export async function reactivateUser(req, res) {
   } catch (error) {
     logger.error('Failed to reactivate user:', error);
     res.status(500).json({ error: 'Failed to reactivate user' });
+  }
+}
+
+/** Relance le traitement d'une vidéo de portfolio (aperçu filigrané + version lisible partout), par exemple après un échec ou pour une vidéo ancienne */
+export async function reprocessPortfolioVideo(req, res) {
+  try {
+    const user = await User.findById(req.params.userId).select('profile.portfolio');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const v = (user.profile?.portfolio || []).find(x => String(x._id) === String(req.params.videoId));
+    if (!v) return res.status(404).json({ error: 'Vidéo introuvable' });
+    await User.updateOne({ _id: user._id, 'profile.portfolio._id': v._id }, { $set: { 'profile.portfolio.$.watermarkAttempts': 0, 'profile.portfolio.$.watermarkedAt': null, 'profile.portfolio.$.watermarkError': null } });
+    const { watermarkPortfolioVideo } = await import('../services/watermark.js');
+    setImmediate(() => watermarkPortfolioVideo(user._id, v.videoUrl).catch(() => {}));
+    res.json({ message: 'Réencodage lancé : comptez une à deux minutes selon la durée de la vidéo, puis rechargez la page' });
+  } catch (error) {
+    logger.error('reprocessPortfolioVideo failed:', error);
+    res.status(500).json({ error: 'Relance impossible' });
   }
 }

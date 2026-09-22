@@ -10,6 +10,7 @@ import logger from '../utils/logger.js';
 const require = createRequire(import.meta.url);
 const ffmpegPath = require('ffmpeg-static');
 const ffprobePath = require('ffprobe-static').path;
+export { ffprobePath };
 const run = promisify(execFile);
 
 /**
@@ -175,6 +176,13 @@ export async function processVideo(sourceUrl, options, folder = 'ready-pack') {
 /**
  * Génère une petite vidéo de test valide (mire + bip) — utilisée par les tests
  */
+/** Vidéo de test encodée comme un original iPhone (HEVC dans un .mov) : sert à vérifier le réencodage lisible partout */
+export async function makeSampleHevcVideo(seconds = 2) {
+  const file = path.join(os.tmpdir(), `nc-sample-${Date.now()}.mov`);
+  await run(ffmpegPath, ['-y', '-f', 'lavfi', '-i', `testsrc=size=720x1280:rate=25:duration=${seconds}`, '-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`, '-c:v', 'libx265', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '64k', file]);
+  return file;
+}
+
 export async function makeSampleVideo(seconds = 2) {
   const file = path.join(os.tmpdir(), `nc-sample-${Date.now()}.mp4`);
   await run(ffmpegPath, ['-y', '-f', 'lavfi', '-i', `testsrc=size=640x360:rate=25:duration=${seconds}`, '-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', file]);

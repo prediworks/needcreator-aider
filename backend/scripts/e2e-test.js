@@ -1115,7 +1115,35 @@ await step('Filigrane : aperçu de portfolio marqué pour les marques, original 
   expect(ownItem && !/\/previews\//.test(ownItem.videoUrl) && !ownItem.protected, 'Le créateur doit voir son original', own);
   const del = await creatorApi('DELETE', `/portfolio/${item._id}`);
   expect(del.status === 200, 'Suppression de la vidéo test échouée', del);
-  return 'aperçu filigrané servi aux marques, original conservé';
+  // Original iPhone (HEVC) : version H.264 lisible partout pour le créateur et l'admin, aperçu filigrané pour les visiteurs, bouton « Réencoder »
+  const { makeSampleHevcVideo } = await import('../src/services/video.js');
+  const hevc = await makeSampleHevcVideo(2);
+  const f2 = new FormData();
+  f2.append('video', new File([fs.readFileSync(hevc)], 'iphone.mov', { type: 'video/quicktime' }));
+  f2.append('title', 'Vidéo iPhone'); f2.append('videoType', 'demo');
+  const up2 = await creatorApi('POST', '/portfolio/upload', f2, { form: true });
+  expect(up2.status === 201, 'Upload portfolio (vidéo HEVC) échoué', up2);
+  let hv = null;
+  for (let i = 0; i < 60; i++) { const prof = await creatorApi('GET', '/auth/profile'); hv = (prof.data.user.profile.portfolio || []).find(v => v.title === 'Vidéo iPhone'); if (hv?.previewUrl || hv?.watermarkError) break; await sleep(1000); }
+  expect(hv && hv.previewUrl && hv.playableUrl && /\/playable\//.test(hv.playableUrl) && hv.sourceCodec === 'hevc', `Vidéo HEVC : aperçu filigrané et version lisible attendus (${hv?.watermarkError || 'non générés'})`, { status: 200, data: hv });
+  const own2 = await creatorApi('GET', `/portfolio/creator/${creatorUser.id}`);
+  const ownHevc = (own2.data.creator.profile.portfolio || []).find(v => v.title === 'Vidéo iPhone');
+  expect(ownHevc && /\/playable\//.test(ownHevc.videoUrl) && !ownHevc.protected, 'Le créateur doit recevoir la version H.264 lisible, sans filigrane', ownHevc);
+  const db = mongoose.connection.db;
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const adm = await brandApi('GET', `/admin/users/${creatorUser.id}`);
+    const admHevc = (adm.data.user.profile.portfolio || []).find(v => v.title === 'Vidéo iPhone');
+    expect(adm.status === 200 && admHevc && /\/playable\//.test(admHevc.videoUrl) && admHevc.processing === 'ok' && admHevc.sourceCodec === 'hevc' && admHevc.originalUrl && !/\/playable\//.test(admHevc.originalUrl), 'L\'admin doit recevoir la version lisible, l\'état du traitement et le lien de l\'original', admHevc);
+    const re = await brandApi('POST', `/admin/users/${creatorUser.id}/portfolio/${admHevc._id}/reprocess`);
+    expect(re.status === 200 && /Réencodage lancé/.test(re.data.message), 'Relance du réencodage attendue', re);
+    let re2 = null;
+    for (let i = 0; i < 60; i++) { const prof = await creatorApi('GET', '/auth/profile'); re2 = (prof.data.user.profile.portfolio || []).find(v => v.title === 'Vidéo iPhone'); if (re2?.watermarkedAt) break; await sleep(1000); }
+    expect(re2?.previewUrl && re2?.playableUrl && !re2.watermarkError, 'Le réencodage relancé doit aboutir', re2);
+  } finally { await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const del2 = await creatorApi('DELETE', `/portfolio/${hv._id}`);
+  expect(del2.status === 200, 'Suppression de la vidéo HEVC échouée', del2);
+  return 'aperçu filigrané servi aux marques, original conservé ; HEVC réencodé en H.264 pour le créateur et l\'admin, relance OK';
 });
 
 await step('Marque : annuaire des créateurs (filtres) et collaborateurs', async () => {

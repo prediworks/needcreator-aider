@@ -1,8 +1,9 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api, { getErrorMessage } from '@/lib/api';
+import { toast } from 'sonner';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useApproveCreator, useRejectCreator, useResetStripeConnect } from '@/hooks/useAdmin';
 import Card from '@/components/ui/Card';
@@ -10,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
-import { ArrowLeft, CheckCircle, XCircle, CreditCard, Trash2 } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, CreditCard, Trash2, RefreshCw } from 'lucide-react';
 import { NICHES, VIDEO_TYPES, USER_STATUS } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
 
@@ -23,6 +24,8 @@ export default function AdminCreatorPage() {
   const reject = useRejectCreator();
   const resetConnect = useResetStripeConnect();
 
+  const queryClient = useQueryClient();
+  const reprocess = useMutation({ mutationFn: async (videoId: string) => (await api.post(`/admin/users/${userId}/portfolio/${videoId}/reprocess`)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); setTimeout(() => queryClient.invalidateQueries({ queryKey: ['admin', 'user', userId] }), 90000); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const { data, isLoading } = useQuery({
     queryKey: ['admin', 'user', userId],
     queryFn: async () => (await api.get(`/admin/users/${userId}`)).data.user,
@@ -114,7 +117,15 @@ export default function AdminCreatorPage() {
                   <VideoPlayer src={v.videoUrl} title={v.title} className="rounded-none" />
                   <div className="p-3">
                     <div className="font-medium">{v.title}</div>
-                    <div className="text-xs text-neutral-500">{VIDEO_TYPES[v.videoType] || v.videoType}</div>
+                    <div className="text-xs text-neutral-500">{VIDEO_TYPES[v.videoType] || v.videoType}{v.sourceCodec ? ` · fichier d'origine : ${v.sourceCodec === 'h264' ? 'H.264, lisible partout' : `${v.sourceCodec.toUpperCase()}, réencodé pour la lecture`}` : ''}</div>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap text-xs">
+                      {v.processing === 'ok' && <span className="text-green-700">Aperçu filigrané prêt</span>}
+                      {v.processing === 'pending' && <span className="text-neutral-500">Traitement en attente (quelques minutes après l&apos;envoi)</span>}
+                      {v.processing === 'retry' && <span className="text-orange-700" title={v.watermarkError}>Échec du traitement, nouvel essai automatique</span>}
+                      {v.processing === 'failed' && <span className="text-red-700" title={v.watermarkError}>Échec du traitement après 3 essais : fichier probablement corrompu ou format non pris en charge</span>}
+                      <button type="button" onClick={() => reprocess.mutate(v._id)} disabled={reprocess.isPending} className="inline-flex items-center gap-1 text-primary-700 hover:underline disabled:opacity-50" title="Relance le réencodage : aperçu filigrané pour les visiteurs et version lisible dans tous les navigateurs. Utile si l'image reste noire avec le son (vidéo iPhone en HEVC) ou après un échec."><RefreshCw className="w-3 h-3" /> Réencoder</button>
+                      {v.originalUrl && v.originalUrl !== v.videoUrl && <a href={v.originalUrl} target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:underline" title="Fichier tel qu'envoyé par le créateur (peut ne pas se lire dans ce navigateur)">fichier d&apos;origine</a>}
+                    </div>
                   </div>
                 </div>
               ))}

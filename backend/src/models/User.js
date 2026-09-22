@@ -43,8 +43,11 @@ const userSchema = new mongoose.Schema({
       kind: { type: String, enum: PORTFOLIO_KINDS, default: 'video' }, // vidéo (défaut), image, audio
       videoUrl: String, // URL du média (nom historique, quel que soit le type)
       previewUrl: String,      // aperçu filigrané montré aux marques (l'original reste pour le créateur)
+      playableUrl: String,     // même vidéo réencodée en H.264 sans filigrane, lisible dans tous les navigateurs (originaux iPhone en HEVC) : servie au créateur et à l'admin
+      sourceCodec: String,     // codec du fichier d'origine (h264, hevc…)
       watermarkedAt: Date,
       watermarkError: String,
+      watermarkAttempts: { type: Number, default: 0 },
       thumbnail: String,
       title: String,
       description: String,

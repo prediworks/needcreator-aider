@@ -29,24 +29,56 @@ export async function watermarkVideoBuffer(input, workDir) {
   return out;
 }
 
-/** Génère et enregistre l'aperçu filigrané d'une vidéo de portfolio */
+/** Codec vidéo du fichier (h264, hevc, vp9…) ; null si illisible */
+export async function videoCodec(file) {
+  try {
+    const { ffprobePath } = await import('./video.js');
+    const { stdout } = await run(ffprobePath, ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', file]);
+    return String(stdout).trim().split('\n')[0] || null;
+  } catch { return null; }
+}
+
+/** Réencode en H.264 + AAC sans filigrane : lisible dans tous les navigateurs (les originaux iPhone sont en HEVC, image noire sous Chrome et Edge) */
+export async function transcodePlayable(input, workDir) {
+  const out = path.join(workDir, 'playable.mp4');
+  await run(ffmpegPath, ['-y', '-i', input, '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
+  return out;
+}
+
+const MAX_ATTEMPTS = 3;
+
+/**
+ * Traite une vidéo de portfolio : aperçu filigrané pour les visiteurs, et version H.264 lisible partout quand l'original ne l'est pas
+ * (HEVC, MOV…). Les échecs sont mémorisés et réessayés au plus 3 fois par la tâche planifiée.
+ */
 export async function watermarkPortfolioVideo(userId, videoUrl) {
   const key = keyFromUrl(videoUrl);
   if (!key) return null;
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncwm-'));
+  const match = { _id: userId, 'profile.portfolio.videoUrl': videoUrl };
   try {
     const input = path.join(workDir, 'input' + (path.extname(key) || '.mp4'));
     fs.writeFileSync(input, await downloadFile(key));
-    const out = await watermarkVideoBuffer(input, workDir);
+    const codec = await videoCodec(input);
     const base = path.basename(key, path.extname(key));
+    const set = { 'profile.portfolio.$.sourceCodec': codec || 'inconnu' };
+    // Original non lisible dans tous les navigateurs : version H.264 sans filigrane pour le créateur et l'admin
+    if (codec !== 'h264') {
+      const playable = await transcodePlayable(input, workDir);
+      const up = await uploadFile(fs.readFileSync(playable), `play-${base}.mp4`, 'video/mp4', `videos/${userId}/playable`);
+      set['profile.portfolio.$.playableUrl'] = up.url;
+    }
+    const out = await watermarkVideoBuffer(input, workDir);
     const { url } = await uploadFile(fs.readFileSync(out), `wm-${base}.mp4`, 'video/mp4', `videos/${userId}/previews`);
-    const r = await User.updateOne({ _id: userId, 'profile.portfolio.videoUrl': videoUrl }, { $set: { 'profile.portfolio.$.previewUrl': url, 'profile.portfolio.$.watermarkedAt': new Date(), 'profile.portfolio.$.watermarkError': null } });
-    logger.info(`Watermarked portfolio video for ${userId}: ${key} (matched ${r.matchedCount}, modified ${r.modifiedCount})`);
+    Object.assign(set, { 'profile.portfolio.$.previewUrl': url, 'profile.portfolio.$.watermarkedAt': new Date(), 'profile.portfolio.$.watermarkError': null });
+    const r = await User.updateOne(match, { $set: set });
+    logger.info(`Portfolio video processed for ${userId}: ${key} (codec ${codec}, playable ${codec !== 'h264' ? 'oui' : 'inutile'}, matched ${r.matchedCount})`);
     return url;
   } catch (err) {
     const raw = [err?.message, err?.stderr].filter(Boolean).join(' | ') || String(err);
     const msg = raw.replace(/\s+/g, ' ').trim().slice(-400) || 'erreur inconnue';
-    const r = await User.updateOne({ _id: userId, 'profile.portfolio.videoUrl': videoUrl }, { $set: { 'profile.portfolio.$.watermarkError': msg, 'profile.portfolio.$.watermarkedAt': new Date() } }).catch((e) => ({ error: e.message }));
+    // watermarkedAt reste vide : la tâche planifiée réessaie, jusqu'à MAX_ATTEMPTS
+    const r = await User.updateOne(match, { $set: { 'profile.portfolio.$.watermarkError': msg }, $inc: { 'profile.portfolio.$.watermarkAttempts': 1 } }).catch((e) => ({ error: e.message }));
     logger.warn(`Watermark failed for ${userId} ${key}: ${msg} (matched ${r?.matchedCount ?? r?.error})`);
     return null;
   } finally {
@@ -56,11 +88,11 @@ export async function watermarkPortfolioVideo(userId, videoUrl) {
 
 /** Tâche planifiée : filigrane les vidéos de portfolio qui n'en ont pas encore (anciennes ou après erreur transitoire) */
 export async function watermarkBacklog(limit = 3) {
-  const users = await User.find({ role: 'creator', 'profile.portfolio': { $elemMatch: { previewUrl: null, watermarkedAt: null, $or: [{ kind: 'video' }, { kind: { $exists: false } }] } } }).select('profile.portfolio').limit(limit).lean();
+  const users = await User.find({ role: 'creator', 'profile.portfolio': { $elemMatch: { previewUrl: null, watermarkedAt: null, $or: [{ kind: 'video' }, { kind: { $exists: false } }], $and: [{ $or: [{ watermarkAttempts: { $exists: false } }, { watermarkAttempts: { $lt: MAX_ATTEMPTS } }] }] } } }).select('profile.portfolio').limit(limit).lean();
   let n = 0;
   for (const u of users) {
     for (const v of u.profile.portfolio || []) {
-      if (v.previewUrl || v.watermarkedAt || (v.kind && v.kind !== 'video')) continue;
+      if (v.previewUrl || v.watermarkedAt || (v.kind && v.kind !== 'video') || (v.watermarkAttempts || 0) >= MAX_ATTEMPTS) continue;
       await watermarkPortfolioVideo(u._id, v.videoUrl);
       n++;
       if (n >= limit) return n;
@@ -77,8 +109,21 @@ export function portfolioForViewer(portfolio = [], { owner = false } = {}) {
   return (portfolio || []).map((v) => {
     const o = typeof v.toObject === 'function' ? v.toObject() : { ...v };
     if (!owner && o.previewUrl) o.videoUrl = o.previewUrl;
+    else if (o.playableUrl) o.videoUrl = o.playableUrl; // propriétaire (ou pas encore d'aperçu) : version H.264 lisible partout plutôt que l'original HEVC
     o.protected = !owner && !!o.previewUrl;
-    delete o.previewUrl; delete o.watermarkError;
+    delete o.previewUrl; delete o.playableUrl; delete o.watermarkError; delete o.watermarkAttempts;
+    return o;
+  });
+}
+
+/** Version « admin » : la vidéo lisible partout (H.264), sans filigrane, avec l'état du traitement pour diagnostiquer */
+export function portfolioForAdmin(portfolio = []) {
+  return (portfolio || []).map((v) => {
+    const o = typeof v.toObject === 'function' ? v.toObject() : { ...v };
+    o.originalUrl = o.videoUrl;
+    if (o.playableUrl) o.videoUrl = o.playableUrl;
+    else if (o.previewUrl && o.sourceCodec && o.sourceCodec !== 'h264') o.videoUrl = o.previewUrl;
+    o.processing = o.previewUrl ? 'ok' : o.watermarkError ? ((o.watermarkAttempts || 0) >= MAX_ATTEMPTS ? 'failed' : 'retry') : 'pending';
     return o;
   });
 }
