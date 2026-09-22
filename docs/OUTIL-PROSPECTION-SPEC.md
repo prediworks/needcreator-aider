@@ -50,6 +50,11 @@ décision assumée, « le fournisseur de pioches ».
 | 5 | Organisateurs de salons ; sport et bien-être | exposants, intervenants ; influenceurs locaux, ambassadeurs | saisonnier ou très social ; à valider une fois les cibles paramétrables éprouvées |
 
 **Produit d'entrée envisagé** : « quelles marques ont commencé à faire de la publicité vidéo cette semaine, dans mon secteur, dans mon pays ».
+**Limites de la bibliothèque publicitaire Meta à intégrer dès la conception** (relevé du 22/09/2026, à revérifier avant de construire) :
+accès nominatif, réservé à un usage propre, données non revendables ni redistribuables ; plafond de requêtes par application (de l'ordre de
+200 par heure, ~100 publicités par page) ; couverture complète des publicités en Union européenne seulement (hors UE : politiques et sociales).
+Hypothèse de travail : **chaque client connecte son propre accès Meta** (vérification d'identité à sa charge, jeton en son nom) ; l'outil vend
+le logiciel, jamais la donnée. À mesurer dès la validation de l'identité NeedCreator : requêtes et durée pour couvrir un secteur sur un pays.
 Simple, lisible, utile à quiconque vend aux marques ; ne demande que l'API Meta. Peut précéder l'outil complet.
 
 **Principe directeur.** Tout ce qui peut passer par une API officielle passe par le serveur. Ce qui n'a pas d'API passe par le navigateur
