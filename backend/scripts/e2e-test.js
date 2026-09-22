@@ -382,7 +382,25 @@ await step('Avant-première : un créateur non ambassadeur ne voit pas encore un
   expect(!visible, 'La campagne vient d\'être publiée : elle devrait être réservée aux Ambassadeurs pendant 24 h', res);
   const detail = await creatorApi('GET', `/campaigns/${earlyCampaign._id}`);
   expect(detail.status === 403 && /avant-première/i.test(detail.data.error), 'Le détail devrait expliquer l\'avant-première', detail);
-  return 'campagne masquée, message explicatif';
+  // Pas encore Ambassadeur : aucune notification de nouvelle campagne dans la cloche pendant l'avant-première
+  const bellEarly = await creatorApi('GET', '/notifications');
+  expect(bellEarly.status === 200 && !(bellEarly.data.notifications || []).some(n => n.type === 'campaign' && n.href === `/campaigns/${earlyCampaign._id}`), 'Un non-Ambassadeur ne doit pas être notifié pendant l\'avant-première', bellEarly);
+  // Seconde vague : la tâche planifiée prévient les autres créateurs une fois l'avant-première écoulée (email enrichi + cloche)
+  const db = mongoose.connection.db;
+  await db.collection('campaigns').updateOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) }, { $set: { 'timeline.publishedAt': new Date(Date.now() - 25 * 3600000) } });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try { const jobs = await brandApi('POST', '/admin/jobs/run'); expect(jobs.status === 200, 'Tâches planifiées injoignables', jobs); }
+  finally { await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const bellLate = await creatorApi('GET', '/notifications');
+  const notif = (bellLate.data.notifications || []).find(n => n.type === 'campaign' && n.href === `/campaigns/${earlyCampaign._id}`);
+  expect(notif && /Nouvelle campagne/.test(notif.title) && /1 vidéo démonstration/.test(notif.text) && /100 €/.test(notif.text) && /beauté/.test(notif.text), 'Après l\'avant-première, la cloche doit annoncer la campagne avec format, budget et niche', { status: 200, data: notif || bellLate.data });
+  const { campaignSummary } = await import('../src/services/email.js');
+  const camp = await db.collection('campaigns').findOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) });
+  const sum = campaignSummary(camp, 'Marque Test');
+  expect(sum.rows.some(r => r[0] === 'Marque' && r[1] === 'Marque Test') && sum.rows.some(r => r[0] === 'Rémunération' && /Budget 100 €/.test(r[1])) && sum.rows.some(r => r[0] === 'Candidatures' && /jusqu'au/.test(r[1])), 'Le résumé de campagne pour l\'email doit donner marque, rémunération et délai', { status: 200, data: sum });
+  // On remet la campagne en avant-première pour les étapes suivantes (l'Ambassadeur doit encore la voir en avance)
+  await db.collection('campaigns').updateOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) }, { $set: { 'timeline.publishedAt': new Date() } });
+  return 'campagne masquée, message explicatif ; après 24 h, notification enrichie dans la cloche';
 });
 
 await step('Limites nouvelle marque : 2 campagnes ouvertes max, puis coordonnées masquées dans les messages', async () => {

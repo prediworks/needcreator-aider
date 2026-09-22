@@ -2,7 +2,7 @@ import Campaign from '../models/Campaign.js';
 import Delivery from '../models/Delivery.js';
 import User from '../models/User.js';
 import {
-  sendNewCampaignNotification,
+  sendNewCampaignNotification, campaignSummary,
   sendApplicationReceived,
   sendApplicationAccepted,
   sendCampaignInvitation,
@@ -216,15 +216,15 @@ export async function publishCampaign(req, res) {
     campaign.set(earlyAccess ? 'notifications.ambassadorsNotifiedAt' : 'notifications.allNotifiedAt', new Date());
     await campaign.save();
 
+    const publishedBrandName = brand.profile?.companyName || brand.profile?.name || '';
+    const { short: campaignShort } = campaignSummary(campaign, publishedBrandName);
     Promise.allSettled(
-      matchingCreators.map(creator =>
-        sendNewCampaignNotification(
-          creator.email,
-          creator.profile.name,
-          campaign.title,
-          campaign._id
-        ).catch(err => logger.error('Failed to send notification:', err.message))
-      )
+      matchingCreators.map(creator => Promise.all([
+        sendNewCampaignNotification(creator.email, creator.profile.name, campaign.title, campaign._id, campaign, publishedBrandName)
+          .catch(err => logger.error('Failed to send notification:', err.message)),
+        // Cloche de l'application : le créateur qui ne lit pas ses emails voit quand même la campagne
+        notify(creator._id, { type: 'campaign', title: earlyAccess ? `Avant-première Ambassadeur : ${campaign.title}` : `Nouvelle campagne : ${campaign.title}`, text: campaignShort, href: `/campaigns/${campaign._id}` }),
+      ]))
     );
 
     // Invités non encore prévenus (reconduction) : email + notification à la publication

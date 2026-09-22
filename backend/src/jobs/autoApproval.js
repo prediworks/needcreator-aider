@@ -2,7 +2,7 @@ import Delivery from '../models/Delivery.js';
 import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { sendNewCampaignNotification } from '../services/email.js';
+import { sendNewCampaignNotification, campaignSummary } from '../services/email.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
 import { sendContentExpiryReminders } from '../controllers/contents.js';
 import { runScheduledBackup } from '../services/backup.js';
@@ -128,7 +128,7 @@ export async function notifyAfterEarlyAccess() {
     status: 'active',
     'timeline.publishedAt': { $lte: limit },
     'notifications.allNotifiedAt': { $exists: false },
-  }).select('title matching.niches');
+  }).populate('brandId', 'profile.companyName profile.name');
   let sent = 0;
   for (const campaign of campaigns) {
     const creators = await User.find({
@@ -137,10 +137,13 @@ export async function notifyAfterEarlyAccess() {
       'profile.niches': { $in: campaign.matching.niches },
       'profile.ambassador.status': { $ne: 'approved' },
     }).select('email profile.name').limit(200);
-    await Promise.allSettled(creators.map(c =>
-      sendNewCampaignNotification(c.email, c.profile.name, campaign.title, campaign._id)
-        .catch(err => logger.error('Failed to send notification:', err.message))
-    ));
+    const brandName = campaign.brandId?.profile?.companyName || campaign.brandId?.profile?.name || '';
+    const { short } = campaignSummary(campaign, brandName);
+    await Promise.allSettled(creators.map(c => Promise.all([
+      sendNewCampaignNotification(c.email, c.profile.name, campaign.title, campaign._id, campaign, brandName)
+        .catch(err => logger.error('Failed to send notification:', err.message)),
+      notify(c._id, { type: 'campaign', title: `Nouvelle campagne : ${campaign.title}`, text: short, href: `/campaigns/${campaign._id}` }),
+    ])));
     campaign.set('notifications.allNotifiedAt', new Date());
     await campaign.save();
     sent += creators.length;

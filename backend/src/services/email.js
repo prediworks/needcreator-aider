@@ -210,16 +210,49 @@ export async function sendCreatorApproved(email, name) {
 /**
  * New campaign notification for creators
  */
-export async function sendNewCampaignNotification(email, name, campaignTitle, campaignId) {
+const CAMPAIGN_VIDEO_TYPES = { testimonial: 'témoignage', unboxing: 'unboxing', demo: 'démonstration', tutorial: 'tutoriel', review: 'avis produit', comparison: 'comparatif', lifestyle: 'lifestyle', 'behind-the-scenes': 'coulisses', interview: 'interview', challenge: 'challenge', haul: 'haul', vlog: 'vlog' };
+const CAMPAIGN_NICHES = { beauty: 'beauté', fashion: 'mode', tech: 'tech', food: 'food', travel: 'voyage', fitness: 'fitness', gaming: 'gaming', lifestyle: 'lifestyle', parenting: 'parentalité', pets: 'animaux', home: 'maison', business: 'business', education: 'éducation', health: 'santé' };
+const CAMPAIGN_PLATFORMS = { tiktok: 'TikTok', instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn', facebook: 'Facebook', x: 'X', website: 'site web', other: 'autre' };
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const money = (n) => `${Number(n).toLocaleString('fr-FR')} €`;
+
+/** Résumé d'une campagne pour l'email et la notification (marque, format, budget, délai, envoi de produit) */
+export function campaignSummary(campaign, brandName) {
+  const b = campaign.brief || {};
+  const n = b.deliverables || 1;
+  const rows = [
+    ['Marque', brandName || null],
+    ['Format', `${n} vidéo${n > 1 ? 's' : ''} ${CAMPAIGN_VIDEO_TYPES[b.videoType] || b.videoType || ''}${b.duration ? ` · ${b.duration} s` : ''}`.trim()],
+    ['Rémunération', campaign.type === 'gifting'
+      ? `Produit offert${campaign.gifting?.productName ? ` : ${campaign.gifting.productName}` : ''}${campaign.gifting?.productValue ? ` (${money(campaign.gifting.productValue)})` : ''}`
+      : campaign.budget?.total ? `Budget ${money(campaign.budget.total)}${n > 1 && campaign.budget.perVideo ? ` (${money(campaign.budget.perVideo)} par vidéo)` : ''}` : 'Devis libre : vous proposez votre prix'],
+    ['Niches', (campaign.matching?.niches || []).map(k => CAMPAIGN_NICHES[k] || k).join(', ') || null],
+    ['Diffusion', (b.platforms || []).map(k => CAMPAIGN_PLATFORMS[k] || k).join(', ') || null],
+    ['Produit', b.productShipping ? 'envoyé chez vous avant le tournage' : null],
+    ['Candidatures', campaign.timeline?.applicationDeadline ? `jusqu'au ${new Date(campaign.timeline.applicationDeadline).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : null],
+  ];
+  const short = [rows[1][1], rows[2][1], rows[3][1] ? `niche ${rows[3][1]}` : null].filter(Boolean).join(' · ');
+  return { rows, short };
+}
+
+/**
+ * Nouvelle campagne dans les niches du créateur : marque, format, rémunération, délai, et un lien direct.
+ * `campaign` peut être le document complet ; à défaut (anciens appels), seul le titre est affiché.
+ */
+export async function sendNewCampaignNotification(email, name, campaignTitle, campaignId, campaign = null, brandName = '') {
   const subject = `Nouvelle campagne : ${campaignTitle}`;
+  const { rows } = campaign ? campaignSummary(campaign, brandName) : { rows: [] };
+  const intro = campaign?.description ? `<p style="color:#374151">${esc(String(campaign.description).slice(0, 280))}${campaign.description.length > 280 ? '…' : ''}</p>` : '';
   const html = `
-    <h1>Bonjour ${name} !</h1>
-    <p>Une nouvelle campagne correspond à votre profil :</p>
-    <h2>${campaignTitle}</h2>
-    <p><a href="${config.cors.origin}/campaigns/${campaignId}">Voir la campagne et candidater</a></p>
+    <h1>Bonjour ${esc(name)},</h1>
+    <p>Une nouvelle campagne correspond à vos niches :</p>
+    <h2 style="margin:8px 0 4px">${esc(campaignTitle)}</h2>
+    ${intro}
+    ${rows.length ? summary(rows.map(([k, v]) => [k, v == null ? v : esc(v)])) : ''}
+    ${button(`${config.cors.origin}/campaigns/${campaignId}`, 'Voir la campagne et envoyer mon devis')}
+    <p style="color:#6b7280;font-size:13px">Les premiers devis sont vus en premier par la marque. Vous ne recevez ces emails que pour vos niches : modifiables dans votre profil, ainsi que la désactivation des notifications.</p>
   `;
-  
-  return sendEmail(email, subject, html);
+  return sendEmail(email, subject, html, null, { preheader: rows.length ? campaignSummary(campaign, brandName).short : campaignTitle });
 }
 
 /**
