@@ -300,6 +300,153 @@ On ouvre avec un petit groupe de créateurs, validés un par un. Si vous lisez c
 
 ---
 
+## 4 bis. Découpage des douze vidéos TikTok, pour CapCut
+
+Réglages communs : format 1080 × 1920, fond uni vert clair `#E6FAF6` sauf indication, texte presque noir `#1A202C`, un mot fort en corail `#FF6B6B` par plan,
+police Poppins gras 90 points pour les titres et 64 pour le texte courant, le logo en bas à partir du plan 2, une musique douce à 20 % du volume.
+La voix off est celle de CapCut en français, ou la vôtre. Les sous-titres automatiques sont activés sur toutes les vidéos face caméra.
+Chaque vidéo se termine par le même plan de deux secondes : « Des missions UGC payées. Vous fixez votre prix. Lien en bio. » sur fond vert `#05DDB2`.
+
+### Vidéo 1 · Qui sommes-nous · 25 s · face caméra
+
+Filmée par vous, téléphone à hauteur des yeux, face à une fenêtre. Le texte à l'écran reprend les mots-clés de ce que vous dites.
+
+| Plan | Durée | Texte à l'écran | Ce que vous dites |
+|---|---|---|---|
+| 1 | 0 à 3 s | Marre qu'on t'impose un tarif ? | « Tu fais de l'UGC et tu en as marre qu'on t'impose un tarif ? » |
+| 2 | 3 à 8 s | NeedCreator | « On lance NeedCreator. » |
+| 3 | 8 à 13 s | Tu envoies **ton** devis | « Tu envoies ton devis, la marque accepte ou pas. » |
+| 4 | 13 à 18 s | Paiement bloqué **avant** le tournage | « Le paiement est bloqué avant que tu tournes. » |
+| 5 | 18 à 22 s | Pas besoin d'abonnés | « Et tu n'as pas besoin d'abonnés, les marques regardent ton portfolio. » |
+| 6 | 22 à 25 s | Gratuit · lien en bio | « C'est gratuit, lien en bio. » |
+
+### Vidéo 2 · Combien facturer · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 3 s | Combien facturer une vidéo UGC ? | question à l'oral ; fond vert `#05DDB2`, texte blanc |
+| 2 | 3 à 7 s | Témoignage · **80 à 150 €** | « Un témoignage ou un unboxing : 80 à 150 euros. » |
+| 3 | 7 à 11 s | Démo · **100 à 200 €** / Tuto · **120 à 250 €** | « Une démo, 100 à 200. Un tuto, 120 à 250. » |
+| 4 | 11 à 15 s | Pub payante : **+30 %** | « Si la marque veut l'utiliser en pub payante, ajoute 30 %. » |
+| 5 | 15 à 18 s | Droits illimités : **+60 %** | « Droits illimités : 60 % de plus. » |
+| 6 | 18 à 20 s | Calculateur gratuit · lien en bio | « Calculateur gratuit, lien en bio. » |
+
+### Vidéo 3 · Les trois premières secondes · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 3 s | Tu as **3 secondes** | « Trois accroches qui marchent en UGC. » ; fond vert, texte blanc |
+| 2 | 3 à 7 s | 1 · Le problème | « Un : le problème. "J'avais la peau qui tirait tout l'hiver." » |
+| 3 | 7 à 11 s | 2 · La promesse | « Deux : la promesse. "Voilà ce qui a changé en dix jours." » |
+| 4 | 11 à 15 s | 3 · La curiosité | « Trois : la curiosité. "Personne ne m'avait dit ça sur les crèmes." » |
+| 5 | 15 à 18 s | ~~Bonjour, aujourd'hui je vais vous parler de~~ | « Et surtout, jamais "bonjour, aujourd'hui je vais vous parler de". » ; texte barré en corail |
+| 6 | 18 à 20 s | Lien en bio | plan de fin |
+
+### Vidéo 4 · Comment ça marche · 25 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 3 s | Une mission, en 5 étapes | « Comment se passe une mission chez NeedCreator. » ; fond vert, texte blanc |
+| 2 | 3 à 7 s | **1** · La marque publie son brief | « La marque publie son brief. » |
+| 3 | 7 à 11 s | **2** · Tu envoies ton devis | « Tu envoies ton devis. » |
+| 4 | 11 à 15 s | **3** · Elle te choisit · l'argent est bloqué | « Elle te choisit, et l'argent est bloqué tout de suite. » |
+| 5 | 15 à 19 s | **4** · Tu tournes, tu livres | « Tu tournes, tu livres. » |
+| 6 | 19 à 23 s | **5** · Elle valide · tu es payé | « Elle valide, tu es payé. Sans réponse en 7 jours, c'est validé automatiquement. » |
+| 7 | 23 à 25 s | Lien en bio | plan de fin |
+
+### Vidéo 5 · Lumière et cadrage · 20 s · démonstration filmée
+
+Deux prises de vous, cinq secondes chacune, dans la même pièce : dos à la fenêtre, puis face à la fenêtre. Puis deux prises : téléphone posé sur la table, puis à hauteur des yeux.
+
+| Plan | Durée | Texte à l'écran | Image |
+|---|---|---|---|
+| 1 | 0 à 3 s | Une belle image, **sans matériel** | fond vert, texte blanc |
+| 2 | 3 à 7 s | ✗ Dos à la fenêtre | votre prise à contre-jour, visage sombre |
+| 3 | 7 à 11 s | ✓ Face à la fenêtre | votre prise éclairée |
+| 4 | 11 à 14 s | ✗ Posé sur la table | prise en contre-plongée |
+| 5 | 14 à 18 s | ✓ À hauteur des yeux | prise droite |
+| 6 | 18 à 20 s | En vertical · lien en bio | plan de fin |
+
+Pas de voix off : la comparaison parle seule. Le ✗ en corail, le ✓ en vert.
+
+### Vidéo 6 · Les droits · 25 s · face caméra ou texte
+
+| Plan | Durée | Texte à l'écran | Voix off |
+|---|---|---|---|
+| 1 | 0 à 4 s | Ta vidéo tourne en pub depuis **2 ans** ? | « Ta vidéo UGC tourne en pub depuis deux ans, et tu as été payée une fois ? » |
+| 2 | 4 à 8 s | 3 choses à écrire **avant** de tourner | « Trois choses à écrire avant de tourner. » |
+| 3 | 8 à 11 s | La durée | « La durée. » |
+| 4 | 11 à 14 s | Les supports | « Les supports. » |
+| 5 | 14 à 17 s | L'exclusivité | « L'exclusivité. » |
+| 6 | 17 à 23 s | Contrat généré · rappel avant expiration | « Sur NeedCreator, le contrat est généré tout seul, et tu es prévenue quand les droits expirent. » |
+| 7 | 23 à 25 s | Lien en bio | plan de fin |
+
+### Vidéo 7 · Le devis qui se vend · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 4 s | Ton devis dit juste **« 120 € »** ? | « Ton devis UGC dit juste 120 euros ? Normal que ça paraisse cher. » ; fond vert, texte blanc |
+| 2 | 4 à 8 s | ✗ 120 € | seul, au centre, en corail |
+| 3 | 8 à 15 s | ✓ 120 € · 2 vidéos de 30 s · tournées chez moi · livrées sous 5 jours | « Écris ce qui est inclus : deux vidéos de 30 secondes, livrées sous 5 jours. » ; les lignes apparaissent une à une |
+| 4 | 15 à 18 s | Même prix. Ça se comprend. | « Même prix, et là ça se comprend. » |
+| 5 | 18 à 20 s | Lien en bio | plan de fin |
+
+### Vidéo 8 · Un son propre · 15 s · démonstration sonore
+
+Enregistrez la même phrase deux fois : dans la salle de bain, puis dans le salon. Pas de voix off ajoutée.
+
+| Plan | Durée | Texte à l'écran | Image et son |
+|---|---|---|---|
+| 1 | 0 à 3 s | Même téléphone. Même voix. | fond vert, texte blanc |
+| 2 | 3 à 8 s | ✗ Salle de bain | votre prise qui résonne |
+| 3 | 8 à 13 s | ✓ Une pièce avec des tissus | votre prise nette |
+| 4 | 13 à 15 s | Le son fait la moitié de la vidéo · lien en bio | plan de fin |
+
+### Vidéo 9 · Payé, c'est garanti · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 4 s | « La marque ne m'a jamais payée » | « Une marque qui ne paie pas, ça t'est déjà arrivé ? » ; fond vert, texte blanc |
+| 2 | 4 à 9 s | L'argent est bloqué **avant** que tu tournes | « Chez NeedCreator, l'argent est bloqué avant que tu tournes. » |
+| 3 | 9 à 14 s | Tu livres · elle valide · tu es payé | « Tu livres, elle valide, tu es payé. » |
+| 4 | 14 à 18 s | Pas de réponse ? Validé sous **7 jours** | « Et si la marque ne répond pas, c'est validé tout seul au bout de 7 jours. » |
+| 5 | 18 à 20 s | Lien en bio | plan de fin |
+
+### Vidéo 10 · Lire un brief · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 3 s | 4 raisons de refaire ta vidéo | « Quatre raisons pour lesquelles une marque te demande de refaire ta vidéo. » ; fond vert, texte blanc |
+| 2 | 3 à 7 s | **1** · La durée | « La durée. » |
+| 3 | 7 à 11 s | **2** · Le format | « Le format. » |
+| 4 | 11 à 15 s | **3** · Le produit jamais nommé | « Le produit jamais nommé. » |
+| 5 | 15 à 18 s | **4** · Un logo concurrent derrière toi | « Et le logo d'un concurrent derrière toi. » |
+| 6 | 18 à 20 s | Lien en bio | plan de fin |
+
+### Vidéo 11 · Pas besoin d'abonnés · 20 s · face caméra
+
+| Plan | Durée | Texte à l'écran | Ce que vous dites |
+|---|---|---|---|
+| 1 | 0 à 4 s | Il faut combien d'abonnés ? **Zéro.** | « Non, tu n'as pas besoin d'abonnés pour faire de l'UGC. » |
+| 2 | 4 à 9 s | La marque achète ta **vidéo**, pas ton audience | « La marque achète ta vidéo, pas ton audience. » |
+| 3 | 9 à 13 s | Elle la diffuse sur **ses** comptes | « Elle la diffuse chez elle. » |
+| 4 | 13 à 18 s | Ce qu'elle regarde : ton portfolio · 3 vidéos suffisent | « Ce qu'elle regarde, c'est ton portfolio. Trois vidéos suffisent. » |
+| 5 | 18 à 20 s | Lien en bio | plan de fin |
+
+### Vidéo 12 · Ambassadeur · 20 s · texte à l'écran
+
+| Plan | Durée | Texte à l'écran | Voix off et fond |
+|---|---|---|---|
+| 1 | 0 à 4 s | Les premiers inscrits ne sont pas traités comme les autres | « On ouvre NeedCreator avec un petit groupe de créateurs. » ; fond vert, texte blanc |
+| 2 | 4 à 9 s | Statut **Ambassadeur** | « Les premiers ont le statut Ambassadeur. » |
+| 3 | 9 à 13 s | Commission **8 %** au lieu de 10 % | « Moins de commission. » |
+| 4 | 13 à 18 s | Les campagnes **24 h avant** tout le monde | « Et les campagnes 24 heures avant les autres. » |
+| 5 | 18 à 20 s | Lien en bio | plan de fin |
+
+**Ordre de tournage conseillé** : d'abord les six vidéos « texte à l'écran » (2, 4, 7, 9, 10, 12), une heure dans CapCut avec un seul modèle dupliqué ;
+puis les deux démonstrations (5, 8), vingt minutes avec votre téléphone ; enfin les trois face caméra (1, 6, 11), dans la même séance, même tenue,
+même lumière. La vidéo 1 est celle à épingler en tête du profil.
+
 ## 5. Les règles pour que ça serve la prospection
 
 - **Publier avant d'écrire.** Neuf publications d'abord, les messages privés ensuite. Un créateur vérifie toujours le compte qui lui écrit.
