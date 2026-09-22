@@ -25,9 +25,32 @@ outils généralistes (Waalaxy, lemlist, PhantomBuster, Apollo, Clay) centrés s
 5. **Envoi** (périmètre à décider, voir § 9) : emails par un outil de mailing ; messages privés seulement assistés.
 6. **Suivi** : réponses classées par IA, réponse proposée, entonnoir de conversion.
 
-**Différenciation.** Vertical et francophone : l'économie des créateurs et des marques e-commerce. Sources que les généralistes n'ont pas :
-publicités vidéo actives (bibliothèque Meta), hashtags UGC, portfolios Canva et Linktree, chaînes YouTube de créateurs débutants. Deux publics
-possibles : marques et agences qui cherchent des créateurs ; créateurs et agences qui cherchent des marques.
+**Portée (décidée le 22/09/2026).** Projet à part entière, distinct de NeedCreator, qui en est le premier client et le terrain de preuve.
+Interface **en anglais par défaut**, français en seconde langue ; **multi-pays par conception** : pays, langue, mots-clés, hashtags et sources
+sont des réglages par cible, jamais des valeurs en dur (chez NeedCreator, « FR », « regionCode FR » et les hashtags UGC français le sont).
+Les messages générés par l'IA sont écrits dans la langue du **prospect**, détectée depuis sa bio, pas dans celle de l'utilisateur.
+
+**Différenciation.** Construit large, vendu étroit au début. Techniquement généraliste ; commercialement, l'outil se vend d'abord aux métiers
+dont la prospection **passe par les réseaux sociaux**, là où les généralistes (Apollo, Clay, lemlist, PhantomBuster, centrés sur LinkedIn et
+les fichiers B2B) ne vont pas. Sources que ces généralistes n'ont pas : publicités vidéo actives (bibliothèque Meta), hashtags, portfolios
+Canva et Linktree, chaînes YouTube de créateurs débutants, fiches produit des boutiques.
+
+**Ce que l'outil n'est pas** : un catalogue de créateurs. Les plateformes UGC exposent leur base d'inscrits ; l'outil trouve et contacte des
+personnes et des entreprises **inscrites nulle part**. Il alimente les plateformes et les agences, y compris les concurrents de NeedCreator :
+décision assumée, « le fournisseur de pioches ».
+
+**Clients visés, par ordre** (le vrai client est celui dont la prospection est le métier ; pas les marques, qui passent par une plateforme ou une agence) :
+
+| Ordre | Client | Ce qu'il cherche | Pourquoi |
+|---|---|---|---|
+| 1 | Plateformes UGC et agences d'influence | créateurs sur Instagram, TikTok, YouTube ; marques qui font de la publicité | cas NeedCreator : tout est construit et prouvé, aucune adaptation ; plus d'une centaine d'acteurs en Europe au même stade |
+| 2 | Agences de publicité et de contenu, freelances marketing | marques qui diffusent déjà des publicités, donc qui ont un budget | source bibliothèque Meta inexploitée ; le brief offert depuis le site de la marque est un accroche-client tout fait |
+| 3 | Éditeurs d'applications Shopify | boutiques par secteur, taille, publicités actives | lecture des fiches produit existante, sites détectables sans API |
+| 4 | Recrutement de talents créatifs (mannequins, studios, casting) | profils Instagram et TikTok par ville et style | même mécanique, autre vocabulaire |
+| 5 | Organisateurs de salons ; sport et bien-être | exposants, intervenants ; influenceurs locaux, ambassadeurs | saisonnier ou très social ; à valider une fois les cibles paramétrables éprouvées |
+
+**Produit d'entrée envisagé** : « quelles marques ont commencé à faire de la publicité vidéo cette semaine, dans mon secteur, dans mon pays ».
+Simple, lisible, utile à quiconque vend aux marques ; ne demande que l'API Meta. Peut précéder l'outil complet.
 
 **Principe directeur.** Tout ce qui peut passer par une API officielle passe par le serveur. Ce qui n'a pas d'API passe par le navigateur
 **de l'utilisateur**, dans sa session, à vitesse humaine, via notre propre extension. Jamais de ferme de navigateurs, de comptes jetables ni de proxys.
@@ -45,10 +68,13 @@ possibles : marques et agences qui cherchent des créateurs ; créateurs et agen
 | Messages privés automatiques | Non, assistés uniquement | C'est ce qui fait suspendre les comptes ; l'utilisateur clique Envoyer |
 | Compte vitrine de l'utilisateur | Jamais utilisé pour naviguer | Un blocage serait visible de tous ; compte secondaire obligatoire |
 | Recherche de site par moteur gratuit (DuckDuckGo) | Non | Bloque dès la deuxième requête ; prévoir une API payante à bas coût (Brave, Serper) |
-| Positionnement | Vertical créateurs et marques, francophone | Marché généraliste saturé |
+| Positionnement | Construit large (langue, pays, sources paramétrables), vendu étroit au lancement : plateformes UGC et agences d'influence, puis agences de publicité | Marché généraliste saturé ; les sources sociales sont l'avantage |
+| Langue et pays | Anglais par défaut, français en second ; multi-pays par conception ; messages dans la langue du prospect | Projet à part entière, pas limité à la France |
+| Vendre aux concurrents de NeedCreator | Oui | NeedCreator est le premier client, pas le seul ; l'outil est un produit à part |
 
-**Questions ouvertes** (à trancher avec le propriétaire) : inclusion de l'envoi d'emails dans l'outil ou branchement sur un outil tiers ; modèle
-de prix ; public prioritaire (marques qui cherchent des créateurs, ou l'inverse) ; nom du produit ; hébergement des données en Union européenne.
+**Questions ouvertes** (à trancher avec le propriétaire) : nom du produit ; première liste de cinq plateformes ou agences à qui montrer l'outil ;
+inclusion de l'envoi d'emails dans l'outil ou branchement sur un outil tiers ; modèle de prix ; jusqu'où vont les messages privés assistés ;
+hébergement des données en Union européenne ; le produit d'entrée « nouvelles publicités vidéo » précède-t-il l'outil complet.
 
 ---
 
@@ -255,6 +281,9 @@ snake_case, 500 par appel), `blocklist`, `replies`, `stats`, `removeFromSequence
 - **Rôle RGPD.** Dans NeedCreator, l'éditeur prospecte pour son propre compte (responsable de traitement, intérêt légitime). Vendu à des tiers,
   l'outil fait de l'éditeur un **sous-traitant** : contrat de sous-traitance, registre, mesures de sécurité, assistance aux demandes des
   personnes, localisation des données. Chaque client reste responsable de sa base légale et de ses envois.
+- **Multi-pays** : le RGPD reste la règle la plus exigeante, s'y conformer couvre l'Union européenne. Les États-Unis sont plus permissifs pour
+  l'email B2B (CAN-SPAM : désinscription et adresse postale), le Canada l'est moins (LCAP : consentement ou relation d'affaires). Les mentions
+  de pied d'email doivent dépendre du pays du prospect ; chaque client reste responsable de sa base légale.
 - **Prospection par email en France** : entre professionnels, sans consentement préalable si le message est en rapport avec la fonction ; vers un
   particulier, consentement requis. Un créateur individuel est une zone grise : adresse professionnelle publique, message en rapport avec son
   activité, désinscription en un clic, mention de l'origine de l'adresse. Ces mentions figurent dans chaque modèle d'email.
@@ -358,3 +387,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 20/09/2026 | Premier rendement réel : **4 inscriptions de créateurs sur 38 emails** (prospects Instagram par hashtag, complétés dans le navigateur) contre 0 résultat sur 432 emails d'une liste extérieure non triée, arrêtée ; l'outil de mailing n'affiche que les réponses rattachées à un contact de campagne : prévoir une redirection des boîtes d'envoi vers une boîte lue ; brief offert généré automatiquement à la réponse positive d'une marque |
 | 20/09/2026 | Délivrabilité : emails en indésirables chez Gmail et Outlook malgré une configuration parfaite ; cause unique, l'âge du domaine (créé le 12/09) ; volume réduit à 3 par jour et par adresse avec chauffe, reprise visée mi-octobre ; le message privé manuel prend le relais entre-temps |
 | 20/09/2026 | File « À contacter aujourd'hui » : messages privés à la main, un prospect à la fois, 15 par jour, sans email d'abord ; devient le canal principal pendant la maturation du domaine d'envoi |
+| 22/09/2026 | Portée élargie et décidée : projet à part entière, anglais par défaut, multi-pays par conception, vendu d'abord aux plateformes UGC et agences d'influence puis aux agences de publicité, y compris aux concurrents de NeedCreator ; produit d'entrée envisagé « nouvelles publicités vidéo par secteur et pays » ; vidéos iPhone (HEVC) réencodées en H.264 dans NeedCreator, sans lien avec l'outil mais à retenir pour tout traitement de médias |
