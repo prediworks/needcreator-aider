@@ -2659,6 +2659,15 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);
     await db.collection('leads').deleteMany({ _id: { $in: [dq1, dq2, dq3] } });
+    // Réponse reçue en message privé, collée à la main : email « collab » relevé et ajouté à la fiche, statut « A répondu », intention
+    const dm = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `dm-${RUN}`, name: `Marque DM ${RUN}`, website: 'https://exemple.fr', description: 'bougies', status: 'contacted', contactedVia: 'instagram', socials: { instagram: `https://www.instagram.com/marquedm${RUN}/` }, createdAt: new Date(), updatedAt: new Date() });
+    const dmPasted = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/paste-reply`, { via: 'instagram', text: `Hello, merci pour ton message ! Pour tout ce qui concerne les collaborations et l'UGC, écris-nous à influence-${RUN}@needcreator-test.com ou remplis https://exemple.fr/pages/collab 🙏` });
+    const dmDoc = await db.collection('leads').findOne({ _id: dm.insertedId });
+    expect(dmPasted.status === 200 && dmDoc.status === 'replied' && dmDoc.email === `influence-${RUN}@needcreator-test.com` && /réponse instagram/.test(dmDoc.emailSource) && /pages\/collab/.test(dmDoc.notes || '') && dmDoc.mailing?.replyVia === 'instagram' && /email ajouté/.test(dmPasted.data.message), 'Réponse collée : email relevé, formulaire noté, statut « A répondu »', { status: dmPasted.status, data: { message: dmPasted.data.message, dmDoc } });
+    if (aiOn) expect(dmDoc.mailing?.replyIntent === 'redirect' && dmDoc.mailing?.replySuggestion, 'Une réponse « écrivez-nous à… » doit être classée « renvoie vers un autre canal »', dmDoc.mailing);
+    const tooShort = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/paste-reply`, { text: 'ok' });
+    expect(tooShort.status === 400, 'Une réponse vide doit être refusée', tooShort);
+    await db.collection('leads').deleteOne({ _id: dm.insertedId });
     // Décompte « pourquoi tous les prospects ne sont pas dans le mailing » : chaque fiche dans une seule case, la somme donne le total
     const bd = await brandApi('GET', '/admin/acquisition/mailing/breakdown');
     const sumOf = (k) => ['pushed', 'eligible', 'noEmail', 'rejected', 'lowScore', 'generic', 'known', 'registered', 'toQualify'].reduce((a, x) => a + bd.data[k][x], 0);

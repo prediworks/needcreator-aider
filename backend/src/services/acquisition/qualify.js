@@ -72,7 +72,7 @@ Réponds avec :
 - fit : 0 à 100, adéquation avec l'UGC (produit montrable en vidéo, publicité active, grand public)
 - signals : 1 à 4 constats factuels courts
 - summary : une phrase sur ce que vend la marque
-- message : message LinkedIn de 300 caractères maximum, personnalisé (cite le produit), qui explique qu'on trouve des créateurs UGC vérifiés pour ses publicités, au prix du devis ; pas d'emoji, pas de lien
+- message : message privé (Instagram ou LinkedIn) de 300 caractères maximum, en trois phrases courtes, écrit par une personne de NeedCreator sans donner de prénom (« Bonjour, je vous écris de la part de NeedCreator »). Objectif : obtenir une RÉPONSE et le bon interlocuteur, pas une inscription. Constat de terrain : les marques lisent ces messages comme une demande de collaboration venant d'un créateur et répondent par un refus type ou une adresse « collab » ; il faut donc préciser en une phrase que ce n'est pas une demande de collaboration mais une plateforme où des créateurs vérifiés tournent des vidéos pour ses publicités, payées seulement si elles lui conviennent. Phrase 1 : un élément concret vu chez la marque (produit, publicité). Phrase 2, à imiter : « Ce n'est pas une demande de collaboration : NeedCreator est une plateforme où des créateurs vérifiés tournent des vidéos pour vos publicités, payées seulement si elles vous conviennent. » Phrase 3, OBLIGATOIRE et finale, mot pour mot : « À quelle adresse puis-je vous envoyer une proposition pour vos vidéos UGC ? ». Pas d'emoji, pas de lien, pas de liste d'avantages, aucun texte entre accolades
 - emailParagraph : paragraphe de 2 phrases pour un email, personnalisé de la même façon`;
   return generateJson({ system: SYSTEM, prompt, schema: brandSchema, normalize: normalizeCommon });
 }

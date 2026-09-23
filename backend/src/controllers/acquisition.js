@@ -417,3 +417,25 @@ export async function dailyQueue(req, res) {
     res.status(500).json({ error: 'File du jour indisponible' });
   }
 }
+
+/** Réponse reçue en message privé (Instagram, TikTok, LinkedIn) collée à la main : classée par l'IA, email ou formulaire relevés, statut « A répondu » */
+export async function pasteReply(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    const text = String(req.body?.text || '').trim();
+    if (text.length < 5) return res.status(400).json({ error: 'Il manque : le texte de la réponse' });
+    const via = ['instagram', 'tiktok', 'linkedin', 'facebook', 'email'].includes(req.body?.via) ? req.body.via : 'instagram';
+    const { recordReply } = await import('../services/acquisition/replies.js');
+    const { extracted, intent } = await recordReply(lead, text, { via });
+    const parts = [
+      intent === 'redirect' ? 'La marque renvoie vers un autre canal' : intent === 'interested' ? 'Réponse classée « intéressé »' : intent === 'refusal' ? 'Refus : prospect écarté' : intent === 'question' ? 'Question posée : réponse proposée' : 'Réponse enregistrée',
+      extracted.email ? `email ${lead.email === extracted.email ? 'ajouté à la fiche' : 'relevé'} : ${extracted.email}${lead.email === extracted.email ? ' (partira par le mailing)' : ''}` : null,
+      extracted.form ? 'formulaire noté sur la fiche' : null,
+    ].filter(Boolean);
+    res.json({ message: `${parts.join(' · ')}.`, lead, extracted, intent });
+  } catch (error) {
+    logger.error('pasteReply failed:', error);
+    res.status(500).json({ error: `Enregistrement impossible : ${error.message}` });
+  }
+}
