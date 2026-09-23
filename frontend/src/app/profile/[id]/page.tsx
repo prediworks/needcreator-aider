@@ -11,13 +11,14 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import PortfolioMedia from '@/components/PortfolioMedia';
 import { Stars } from '@/components/ReviewForm';
 import LevelBadges from '@/components/LevelBadges';
+import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
 import SocialIcons, { PlatformIcon, formatFollowers } from '@/components/SocialIcons';
 import InviteCreatorButton from '@/components/InviteCreatorButton';
 import ReportButton from '@/components/ReportButton';
 import { ArrowLeft, Star, Briefcase, Video, Clock, Users, Link2 } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, VIDEO_TYPES, PLATFORMS } from '@/lib/labels';
-import { formatDate, cn } from '@/lib/utils';
+import { formatDate, cn, shortUrl } from '@/lib/utils';
 
 const PAGE_SIZE = 12;
 
@@ -194,17 +195,20 @@ export default function PublicProfilePage() {
                   <>
                     <div className="grid sm:grid-cols-2 gap-3">
                       {pageItems.map((r: any, i: number) => (
-                        <a key={r._id || i} href={r.url} target="_blank" rel="noopener noreferrer" className="border border-neutral-200 rounded-lg p-3 hover:border-primary-500 transition flex items-start gap-3">
-                          <PlatformIcon platform={r.platform} className="text-xl" />
-                          <div className="min-w-0">
-                            <div className="font-medium text-neutral-900 truncate">{r.title || r.url}</div>
-                            <div className="text-xs text-neutral-500">
-                              {r.brandName ? `${r.brandName} · ` : ''}{PLATFORMS[r.platform] || r.platform}
-                              {r.source === 'delivery' ? ' · via NeedCreator' : ''}{r.isPublic === false ? ' · privé' : ''}
-                              {r.date ? ` · ${formatDate(r.date)}` : ''}
+                        <div key={r._id || i} className="border border-neutral-200 rounded-lg p-3 hover:border-primary-500 transition">
+                          <a href={r.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3">
+                            <PlatformIcon platform={r.platform} className="text-xl" />
+                            <div className="min-w-0">
+                              <div className="font-medium text-neutral-900 truncate" title={r.url}>{r.title || shortUrl(r.url)}</div>
+                              <div className="text-xs text-neutral-500">
+                                {r.brandName ? `${r.brandName} · ` : ''}{PLATFORMS[r.platform] || r.platform}
+                                {r.source === 'delivery' ? ' · via NeedCreator' : ''}{r.isPublic === false ? ' · privé' : ''}
+                                {r.date ? ` · ${formatDate(r.date)}` : ''}
+                              </div>
                             </div>
-                          </div>
-                        </a>
+                          </a>
+                          {embedProvider(r.url) && <div className="mt-3"><SocialEmbed url={r.url} compact /></div>}
+                        </div>
                       ))}
                     </div>
                     {pages > 1 && (

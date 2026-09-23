@@ -394,6 +394,17 @@ await step('Avant-première : un créateur non ambassadeur ne voit pas encore un
   const bellLate = await creatorApi('GET', '/notifications');
   const notif = (bellLate.data.notifications || []).find(n => n.type === 'campaign' && n.href === `/campaigns/${earlyCampaign._id}`);
   expect(notif && /Nouvelle campagne/.test(notif.title) && /1 vidéo démonstration/.test(notif.text) && /100 €/.test(notif.text) && /beauté/.test(notif.text), 'Après l\'avant-première, la cloche doit annoncer la campagne avec format, budget et niche', { status: 200, data: notif || bellLate.data });
+  // Email regroupé : une trace d'alerte par créateur et par campagne, marquée envoyée par la tâche ; ciblage réseaux et pays
+  const creatorDoc = await db.collection('users').findOne({ email: creatorEmail });
+  const alert = await db.collection('campaignalerts').findOne({ userId: creatorDoc._id, campaignId: new mongoose.Types.ObjectId(earlyCampaign._id) });
+  expect(alert && alert.wave === 'all' && alert.sentAt, 'L\'email de nouvelle campagne doit être tracé et marqué envoyé après la tâche planifiée', { status: 200, data: alert });
+  const { creatorMatchesCampaign, campaignCountries } = await import('../src/services/campaignAlerts.js');
+  const fakeCamp = { brief: { platforms: ['tiktok'] }, matching: { targetAudience: { location: ['France', 'BE'] } } };
+  expect(campaignCountries(fakeCamp).join() === 'FR,BE', 'Les pays cibles doivent être convertis en codes ISO', { status: 200, data: campaignCountries(fakeCamp) });
+  expect(creatorMatchesCampaign({ country: 'BE', profile: { socials: [{ network: 'tiktok' }] } }, fakeCamp) === true, 'Créateur belge sur TikTok : ciblé', {});
+  expect(creatorMatchesCampaign({ country: 'CH', profile: { socials: [{ network: 'tiktok' }] } }, fakeCamp) === false, 'Créateur suisse hors pays cibles : exclu', {});
+  expect(creatorMatchesCampaign({ country: 'FR', profile: { socials: [{ network: 'youtube' }] } }, fakeCamp) === false, 'Créateur YouTube seul pour une campagne TikTok : exclu', {});
+  expect(creatorMatchesCampaign({ country: 'FR', profile: { socials: [] } }, fakeCamp) === true, 'Créateur sans réseau déclaré : gardé (filtre souple)', {});
   const { campaignSummary } = await import('../src/services/email.js');
   const camp = await db.collection('campaigns').findOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) });
   const sum = campaignSummary(camp, 'Marque Test');

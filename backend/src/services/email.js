@@ -255,6 +255,24 @@ export async function sendNewCampaignNotification(email, name, campaignTitle, ca
   return sendEmail(email, subject, html, null, { preheader: rows.length ? campaignSummary(campaign, brandName).short : campaignTitle });
 }
 
+/** Plusieurs nouvelles campagnes en attente pour un même créateur : un seul email récapitulatif */
+export async function sendCampaignDigest(email, name, items) {
+  const n = items.length;
+  const subject = `${n} nouvelles campagnes dans vos niches`;
+  const blocks = items.map(({ campaign, brandName }) => {
+    const { short } = campaignSummary(campaign, brandName);
+    return `<div style="margin:14px 0;padding:12px 16px;background:#f3f7f6;border-radius:8px"><div style="font-weight:600;color:#111827">${esc(campaign.title)}</div><div style="font-size:14px;color:#374151;margin:4px 0">${esc(brandName ? `${brandName} · ` : '')}${esc(short)}</div><a href="${config.cors.origin}/campaigns/${campaign._id}" style="font-size:14px;color:#0f9d84;font-weight:600">Voir la campagne</a></div>`;
+  }).join('');
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    <p>${n} nouvelles campagnes correspondent à vos niches :</p>
+    ${blocks}
+    ${button(`${config.cors.origin}/campaigns`, 'Voir toutes les campagnes ouvertes')}
+    <p style="color:#6b7280;font-size:13px">Les premiers devis sont vus en premier par la marque. Niches et notifications se règlent dans votre profil.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: items.map(i => i.campaign.title).join(' · ').slice(0, 120) });
+}
+
 /**
  * Application received notification for brand
  */

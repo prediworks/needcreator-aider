@@ -2,7 +2,7 @@ import Campaign from '../models/Campaign.js';
 import Delivery from '../models/Delivery.js';
 import User from '../models/User.js';
 import {
-  sendNewCampaignNotification, campaignSummary,
+  sendNewCampaignNotification,
   sendApplicationReceived,
   sendApplicationAccepted,
   sendCampaignInvitation,
@@ -17,6 +17,7 @@ import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions, getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
+import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAlerts.js';
 import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import logger from '../utils/logger.js';
@@ -203,29 +204,14 @@ export async function publishCampaign(req, res) {
     campaign.timeline.publishedAt = new Date();
     await campaign.save();
 
-    // Notify matching creators (en arrière-plan, sans bloquer la réponse)
-    // Avec l'avant-première, seuls les ambassadeurs sont prévenus tout de suite ; les autres par la tâche planifiée
+    // Créateurs concernés : cloche tout de suite, email regroupé ; avec l'avant-première, seuls les Ambassadeurs maintenant, les autres par la tâche planifiée
     const earlyAccess = config.badges.earlyAccessHours > 0;
-    const matchingCreators = campaign.visibility === 'private' ? [] : await User.find({
-      role: 'creator',
-      status: 'active',
-      'preferences.emailNotifications': { $ne: false },
-      'profile.niches': { $in: campaign.matching.niches },
-      ...(earlyAccess && { 'profile.ambassador.status': 'approved' }),
-    }).select('email profile.name').limit(100);
     campaign.set(earlyAccess ? 'notifications.ambassadorsNotifiedAt' : 'notifications.allNotifiedAt', new Date());
     await campaign.save();
-
     const publishedBrandName = brand.profile?.companyName || brand.profile?.name || '';
-    const { short: campaignShort } = campaignSummary(campaign, publishedBrandName);
-    Promise.allSettled(
-      matchingCreators.map(creator => Promise.all([
-        sendNewCampaignNotification(creator.email, creator.profile.name, campaign.title, campaign._id, campaign, publishedBrandName)
-          .catch(err => logger.error('Failed to send notification:', err.message)),
-        // Cloche de l'application : le créateur qui ne lit pas ses emails voit quand même la campagne
-        notify(creator._id, { type: 'campaign', title: earlyAccess ? `Avant-première Ambassadeur : ${campaign.title}` : `Nouvelle campagne : ${campaign.title}`, text: campaignShort, href: `/campaigns/${campaign._id}` }),
-      ]))
-    );
+    const { queued, userIds } = await queueCampaignAlerts(campaign, publishedBrandName, { wave: earlyAccess ? 'ambassadors' : 'all' }).catch(err => { logger.error('queueCampaignAlerts:', err.message); return { queued: 0, userIds: [] }; });
+    if (userIds.length) setImmediate(() => flushCampaignAlerts({ userIds }).catch(err => logger.error('flushCampaignAlerts:', err.message)));
+    const matchingCreators = { length: queued };
 
     // Invités non encore prévenus (reconduction) : email + notification à la publication
     const pendingInvites = (campaign.invitations || []).filter(i => !i.notifiedAt);

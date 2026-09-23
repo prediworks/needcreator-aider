@@ -2,7 +2,7 @@ import Delivery from '../models/Delivery.js';
 import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
-import { sendNewCampaignNotification, campaignSummary } from '../services/email.js';
+import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAlerts.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
 import { sendContentExpiryReminders } from '../controllers/contents.js';
 import { runScheduledBackup } from '../services/backup.js';
@@ -122,33 +122,21 @@ export async function sendAutoApprovalReminders() {
  */
 export async function notifyAfterEarlyAccess() {
   const hours = config.badges.earlyAccessHours;
-  if (hours <= 0) return 0;
-  const limit = new Date(Date.now() - hours * 3600 * 1000);
-  const campaigns = await Campaign.find({
-    status: 'active',
-    'timeline.publishedAt': { $lte: limit },
-    'notifications.allNotifiedAt': { $exists: false },
-  }).populate('brandId', 'profile.companyName profile.name');
-  let sent = 0;
-  for (const campaign of campaigns) {
-    const creators = await User.find({
-      role: 'creator', status: 'active',
-      'preferences.emailNotifications': { $ne: false },
-      'profile.niches': { $in: campaign.matching.niches },
-      'profile.ambassador.status': { $ne: 'approved' },
-    }).select('email profile.name').limit(200);
-    const brandName = campaign.brandId?.profile?.companyName || campaign.brandId?.profile?.name || '';
-    const { short } = campaignSummary(campaign, brandName);
-    await Promise.allSettled(creators.map(c => Promise.all([
-      sendNewCampaignNotification(c.email, c.profile.name, campaign.title, campaign._id, campaign, brandName)
-        .catch(err => logger.error('Failed to send notification:', err.message)),
-      notify(c._id, { type: 'campaign', title: `Nouvelle campagne : ${campaign.title}`, text: short, href: `/campaigns/${campaign._id}` }),
-    ])));
-    campaign.set('notifications.allNotifiedAt', new Date());
-    await campaign.save();
-    sent += creators.length;
+  let queued = 0;
+  if (hours > 0) {
+    const limit = new Date(Date.now() - hours * 3600 * 1000);
+    const campaigns = await Campaign.find({ status: 'active', 'timeline.publishedAt': { $lte: limit }, 'notifications.allNotifiedAt': { $exists: false } }).populate('brandId', 'profile.companyName profile.name');
+    for (const campaign of campaigns) {
+      const brandName = campaign.brandId?.profile?.companyName || campaign.brandId?.profile?.name || '';
+      const r = await queueCampaignAlerts(campaign, brandName, { wave: 'all' }).catch(err => { logger.error('queueCampaignAlerts:', err.message); return { queued: 0 }; });
+      queued += r.queued;
+      campaign.set('notifications.allNotifiedAt', new Date());
+      await campaign.save();
+    }
   }
-  return sent;
+  // Un email par créateur : récapitulatif si plusieurs campagnes attendent (aussi les restes d'un envoi immédiat interrompu)
+  await flushCampaignAlerts().catch(err => logger.error('flushCampaignAlerts:', err.message));
+  return queued;
 }
 
 /**
