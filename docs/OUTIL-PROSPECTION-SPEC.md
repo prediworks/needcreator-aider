@@ -308,6 +308,15 @@ snake_case, 500 par appel), `blocklist`, `replies`, `stats`, `removeFromSequence
 |---|---|---|
 | **0. Preuve** (en cours) | Prospection NeedCreator avec l'assistant Chrome de Claude et l'import groupé | Taux de réponse et d'inscription mesurés sur 2 à 3 mois |
 | **1. Extension interne** | Extension et file de tâches, branchées sur NeedCreator ; types `read_post_author`, `read_profile`, `list_ad_library` | Les deux routines hebdomadaires se font sans copier-coller |
+
+**Décision du 23/09/2026 : l'étape 1 se construit dans le dépôt NeedCreator**, pas dans un projet séparé (qui aurait exigé de recréer prospects,
+qualification, mailing et écrans avant la première ligne utile). Impacts acceptés : code en plus dans le dépôt (dossier `extension/`, un modèle et
+des routes de tâches), une porte d'entrée de plus sur le serveur de production (réservée aux administrateurs, à écrire avec soin), un peu de charge
+IA, et une migration d'une journée le jour du projet séparé. Trois conditions à tenir : 1) tout ce qui touche à l'extension est **isolé** (dossier,
+modèle, routes à part, rien mélangé aux fonctions existantes) ; 2) **rien de spécifique à NeedCreator dans l'extension**, pour que le déplacement
+soit un copier-coller ; 3) la **suite de tests couvre la file de tâches**. À la fin de l'étape 1, décision explicite : outil interne ou projet séparé.
+Le produit final aura son propre dépôt (serveur, application web et extension en trois sous-dossiers), sa base, son domaine ; NeedCreator y sera un
+client par API.
 | **2. Socle autonome** | Dépôt séparé, multi-locataire, cibles en langage courant, sources API, import, qualification, files, tableau de répartition | Un utilisateur externe obtient 100 prospects qualifiés en une heure |
 | **3. Envoi et réponses** | Connecteurs, garde-fous, boîte de réponses | Une campagne complète menée dans l'outil |
 | **4. Produit** | Comptes, facturation, quotas IA, pages légales, fiche du Web Store | Premier client payant |
@@ -393,3 +402,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 20/09/2026 | Délivrabilité : emails en indésirables chez Gmail et Outlook malgré une configuration parfaite ; cause unique, l'âge du domaine (créé le 12/09) ; volume réduit à 3 par jour et par adresse avec chauffe, reprise visée mi-octobre ; le message privé manuel prend le relais entre-temps |
 | 20/09/2026 | File « À contacter aujourd'hui » : messages privés à la main, un prospect à la fois, 15 par jour, sans email d'abord ; devient le canal principal pendant la maturation du domaine d'envoi |
 | 22/09/2026 | Portée élargie et décidée : projet à part entière, anglais par défaut, multi-pays par conception, vendu d'abord aux plateformes UGC et agences d'influence puis aux agences de publicité, y compris aux concurrents de NeedCreator ; produit d'entrée envisagé « nouvelles publicités vidéo par secteur et pays » ; vidéos iPhone (HEVC) réencodées en H.264 dans NeedCreator, sans lien avec l'outil mais à retenir pour tout traitement de médias |
+| 23/09/2026 | Décision : l'étape 1 (extension et file de tâches) se construit dans le dépôt NeedCreator, sous trois conditions d'isolement ; le projet séparé viendra après. Messages Instagram aux marques commencés à la main avec les textes de l'admin : prochaine amélioration, consigne IA plus courte orientée réponse et fiche de réponses par objection |
