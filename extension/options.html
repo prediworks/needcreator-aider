@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Prospecting Assistant · options</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 560px; margin: 32px auto; padding: 0 16px; color: #111827; }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; }
+  input { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; }
+  .hint { color: #6b7280; font-size: 12px; }
+  button { margin-top: 18px; padding: 9px 16px; border: 0; border-radius: 6px; background: #0f9d84; color: #fff; font-size: 14px; cursor: pointer; }
+  #msg { margin-left: 10px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+</style></head>
+<body>
+  <h1>Prospecting Assistant · options</h1>
+  <label for="serverUrl">Server API URL</label>
+  <input id="serverUrl" placeholder="https://api.example.com/api/browser-tasks">
+  <div class="hint">The base of the task queue API. The extension calls <code>/ext/next</code> and <code>/ext/{id}/result</code> under it.</div>
+  <label for="token">Extension token</label>
+  <input id="token" placeholder="paste the token from the admin screen">
+  <div class="grid">
+    <div><label for="minDelay">Minimum pause between pages (s)</label><input id="minDelay" type="number" min="5" max="60"></div>
+    <div><label for="maxDelay">Maximum pause (s)</label><input id="maxDelay" type="number" min="5" max="120"></div>
+    <div><label for="sessionCap">Pages per session</label><input id="sessionCap" type="number" min="1" max="100"></div>
+    <div><label for="dayCap">Pages per day</label><input id="dayCap" type="number" min="1" max="300"></div>
+  </div>
+  <div class="hint">Floors are enforced: never under 5 s between pages, never more than 100 pages per session or 300 per day.</div>
+  <button id="save">Save</button><span id="msg"></span>
+  <button id="test" style="background:#374151">Test connection</button>
+  <script src="options.js"></script>
+</body></html>

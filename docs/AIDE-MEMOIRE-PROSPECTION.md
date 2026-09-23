@@ -6,6 +6,18 @@ Matériel : l'application Claude sur le PC, l'extension Chrome active, vos compt
 
 ---
 
+## Avec l'extension Chrome (depuis le 23/09/2026) : les deux routines sans copier-coller
+
+Une fois pour toutes : charger le dossier `extension/` dans Chrome (`chrome://extensions` → mode développeur → « Charger l'extension non empaquetée »),
+ouvrir ses options, coller l'adresse et le jeton affichés dans Admin → Prospection → « Extension Chrome : lots de tâches », « Test connection ».
+Ce profil Chrome doit être connecté avec vos comptes **secondaires**.
+
+Ensuite, à chaque routine : dans l'admin, cliquer « Lot : publications sans auteur », « Lot : profils sans email », ou saisir les mots-clés de la
+semaine et « Lot : marques » ; puis, dans Chrome, cliquer l'icône de l'extension → **Start**. Elle lit les pages une par une (5 à 10 s entre deux,
+60 par session) et les fiches se complètent toutes seules ; le tableau des lots montre l'avancement. Si elle s'arrête sur « login », « captcha » ou
+« consent », ouvrir l'onglet qu'elle utilise, régler la page à la main (se connecter, accepter les cookies), puis Start à nouveau.
+Les consignes ci-dessous restent le plan B (assistant Claude) tant que l'extension n'a pas été éprouvée sur Instagram et la bibliothèque Meta.
+
 ## Routine créateurs · deux ou trois fois par semaine
 
 **But** : donner un auteur et un email aux publications Instagram que l'agent trouve chaque nuit par hashtag.

@@ -2744,6 +2744,78 @@ await step('Marque : invite un créateur extérieur par email, rattaché à la c
   return 'invitation extérieure → inscription rattachée ; créateur existant invité directement';
 });
 
+await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur → profil → fiche, bibliothèque publicitaire), blocage', async () => {
+  const db = mongoose.connection.db;
+  const users = db.collection('users');
+  await db.collection('leads').deleteMany({ $or: [{ handle: { $in: ['@e2e.extcreator', '@e2eextbrand'] } }, { name: /^E2E Ext / }, { url: /instagram\.com\/p\/E2EEXT/ }] });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const batchIds = [];
+  try {
+    // Jeton : absent au départ ou ancien ; régénéré ; l'extension s'authentifie avec
+    const rot = await brandApi('POST', '/browser-tasks/token');
+    expect(rot.status === 200 && rot.data.token?.length > 20, 'Le jeton d\'extension doit être généré', rot);
+    const token = rot.data.token;
+    const ext = async (method, url, body) => { const r = await fetch(API + '/browser-tasks/ext' + url, { method, headers: { 'X-Extension-Token': token, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, data: await r.json().catch(() => ({})) }; };
+    const bad = await fetch(API + '/browser-tasks/ext/next', { headers: { 'X-Extension-Token': 'mauvais' } });
+    expect(bad.status === 401, 'Un mauvais jeton doit être refusé', { status: bad.status });
+    const empty = await ext('GET', '/next');
+    expect(empty.status === 200 && empty.data.task === null, 'Sans lot, l\'extension ne reçoit aucune tâche', empty);
+    // Fiche « publication seule » trouvée par hashtag : le lot « publications sans auteur » la reprend (vérifié par son contenu, puis annulé :
+    // la base peut contenir d'autres publications réelles) ; le déroulé se teste sur un lot personnalisé ne contenant qu'elle
+    const ins = await db.collection('leads').insertOne({ kind: 'creator', source: 'instagram', externalId: `E2EEXT1-${RUN}`, url: 'https://www.instagram.com/p/E2EEXT1/', status: 'new', score: 50, createdAt: new Date(), updatedAt: new Date() });
+    const lot = await brandApi('POST', '/browser-tasks/batches', { preset: 'posts_without_author', limit: 100 });
+    expect(lot.status === 201 && lot.data.batch.counts.total >= 1, 'Le lot « publications sans auteur » doit se créer', lot);
+    batchIds.push(lot.data.batch._id);
+    const lotDetail = await brandApi('GET', `/browser-tasks/batches/${lot.data.batch._id}`);
+    expect(lotDetail.status === 200 && lotDetail.data.tasks.some(x => x.input?.url === 'https://www.instagram.com/p/E2EEXT1/' && x.type === 'read_post_author'), 'Le lot doit contenir la publication sans auteur', lotDetail);
+    await brandApi('POST', `/browser-tasks/batches/${lot.data.batch._id}/cancel`);
+    const custom = await brandApi('POST', '/browser-tasks/batches', { preset: 'custom', label: 'E2E lot personnalisé', kind: 'creator', items: [{ type: 'read_post_author', url: 'https://www.instagram.com/p/E2EEXT1/', leadId: String(ins.insertedId), postUrl: 'https://www.instagram.com/p/E2EEXT1/' }] });
+    expect(custom.status === 201 && custom.data.batch.counts.total === 1, 'Un lot personnalisé doit accepter des tâches explicites', custom);
+    batchIds.push(custom.data.batch._id);
+    const t = (await ext('GET', '/next')).data.task;
+    expect(t && t.type === 'read_post_author' && t.input.url === 'https://www.instagram.com/p/E2EEXT1/', 'L\'extension doit recevoir la tâche « lire l\'auteur »', t);
+    // Résultat brut d'une page de publication : titre Instagram et liens → tâche fille « lire le profil »
+    const r1 = await ext('POST', `/${t.id}/result`, { url: t.input.url, title: 'E2E Ext Créatrice (@e2e.extcreator) • Instagram photos and videos', text: 'e2e.extcreator Vidéo UGC skincare', links: [{ href: 'https://www.instagram.com/explore/', text: 'Explorer' }, { href: 'https://www.instagram.com/e2e.extcreator/', text: 'e2e.extcreator' }] });
+    expect(r1.status === 200 && /@e2e\.extcreator/.test(r1.data.outcome), 'L\'auteur doit être lu depuis le titre de la page', r1);
+    const t2 = (await ext('GET', '/next')).data.task;
+    expect(t2 && t2.type === 'read_profile' && t2.input.url === 'https://www.instagram.com/e2e.extcreator/' && t2.input.postUrl === 'https://www.instagram.com/p/E2EEXT1/', 'La tâche fille « lire le profil » doit suivre, avec la publication d\'origine', t2);
+    const r2 = await ext('POST', `/${t2.id}/result`, { url: t2.input.url, title: 'E2E Ext Créatrice (@e2e.extcreator)', text: 'e2e.extcreator 12,4 k abonnés Créatrice UGC beauté et skincare, Lyon. Contact : e2e-ext-creator@needcreator-test.com', links: [{ href: 'https://l.instagram.com/?u=https%3A%2F%2Fexample.org%2Fportfolio', text: 'example.org/portfolio' }] });
+    expect(r2.status === 200 && /email trouvé/.test(r2.data.outcome), 'Le profil doit donner l\'email', r2);
+    const lead = await db.collection('leads').findOne({ url: 'https://www.instagram.com/p/E2EEXT1/' });
+    expect(lead && lead.handle === '@e2e.extcreator' && lead.email === 'e2e-ext-creator@needcreator-test.com' && lead.stats?.subscribers === 12400 && lead.socials?.instagram === 'https://www.instagram.com/e2e.extcreator/', 'La fiche « publication seule » doit être complétée : auteur, email, abonnés, profil', lead);
+    // Bibliothèque publicitaire : mot-clé → annonceurs relevés → marques importées
+    const lot2 = await brandApi('POST', '/browser-tasks/batches', { preset: 'ad_library', keywords: ['bougie e2e'], count: 10 });
+    batchIds.push(lot2.data.batch._id);
+    expect(lot2.status === 201 && lot2.data.batch.kind === 'brand' && lot2.data.batch.origin === 'bibliothèque Meta', 'Le lot bibliothèque doit être une recherche marques', lot2);
+    const t3 = (await ext('GET', '/next')).data.task;
+    expect(t3 && t3.type === 'list_ad_library' && /facebook\.com\/ads\/library/.test(t3.input.url) && /bougie/.test(t3.input.url), 'La tâche bibliothèque doit ouvrir la recherche du mot-clé', t3);
+    const r3 = await ext('POST', `/${t3.id}/result`, { url: t3.input.url, title: 'Bibliothèque publicitaire', text: 'E2E Ext Bougies Sponsorisé Bougies parfumées artisanales fabriquées en France e2eextbougies.example', links: [{ href: 'https://www.facebook.com/e2eextbrand/', text: 'E2E Ext Bougies' }, { href: 'https://www.facebook.com/ads/library/', text: 'Bibliothèque' }] });
+    expect(r3.status === 200 && /1 annonceur|annonceur\(s\) relevé/.test(r3.data.outcome), 'L\'annonceur doit être relevé depuis les liens de pages', r3);
+    const brandLead = await db.collection('leads').findOne({ kind: 'brand', socials: { $exists: true }, 'socials.facebook': /e2eextbrand/ });
+    expect(brandLead && brandLead.name === 'E2E Ext Bougies', 'La marque relevée doit être importée comme prospect marque', brandLead);
+    // Blocage : page de connexion → tâche redonnée plus tard, lot marqué bloqué
+    await db.collection('leads').insertOne({ kind: 'creator', source: 'instagram', externalId: `E2EEXT2-${RUN}`, url: 'https://www.instagram.com/p/E2EEXT2/', status: 'new', score: 40, createdAt: new Date(), updatedAt: new Date() });
+    const lot3 = await brandApi('POST', '/browser-tasks/batches', { preset: 'custom', label: 'E2E lot bloqué', kind: 'creator', items: [{ type: 'read_post_author', url: 'https://www.instagram.com/p/E2EEXT2/', postUrl: 'https://www.instagram.com/p/E2EEXT2/' }] });
+    batchIds.push(lot3.data.batch._id);
+    const t4 = (await ext('GET', '/next')).data.task;
+    const r4 = await ext('POST', `/${t4.id}/result`, { url: t4.input.url, blocked: 'login', text: '', links: [] });
+    expect(r4.status === 200 && r4.data.blocked === true, 'Un blocage doit être signalé', r4);
+    const det = await brandApi('GET', `/browser-tasks/batches/${lot3.data.batch._id}`);
+    expect(det.status === 200 && det.data.batch.blockedReason === 'page de connexion' && det.data.tasks[0].status === 'pending', 'Le lot doit porter la raison du blocage et la tâche rester à faire', det);
+    const cancel = await brandApi('POST', `/browser-tasks/batches/${lot3.data.batch._id}/cancel`);
+    expect(cancel.status === 200 && /1 tâche/.test(cancel.data.message), 'L\'annulation du lot doit retirer sa tâche', cancel);
+    const list = await brandApi('GET', '/browser-tasks/batches');
+    expect(list.status === 200 && list.data.batches.length >= 3, 'La liste des lots doit être visible dans l\'admin', list);
+    return 'jeton, lot, tâche fille, fiche complétée avec email, marque importée, blocage et annulation';
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+    await db.collection('leads').deleteMany({ $or: [{ handle: { $in: ['@e2e.extcreator', '@e2eextbrand'] } }, { name: /^E2E Ext / }, { url: /instagram\.com\/p\/E2EEXT/ }] });
+    const ids = batchIds.map(id => new mongoose.Types.ObjectId(id));
+    await db.collection('browsertasks').deleteMany({ batchId: { $in: ids } });
+    await db.collection('browsertaskbatches').deleteMany({ _id: { $in: ids } });
+  }
+});
+
 if (CLEAN) {
   await step('Nettoyage des données de test', async () => {
     const db = mongoose.connection.db;

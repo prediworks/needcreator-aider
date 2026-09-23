@@ -32,6 +32,7 @@ import creatorContentsRoutes from './routes/creatorContents.js';
 import externalIncomesRoutes from './routes/externalIncomes.js';
 import prospectsRoutes from './routes/prospects.js';
 import productBriefRoutes from './routes/productBriefs.js';
+import browserTaskRoutes from './routes/browserTasks.js';
 import embedRoutes from './routes/embeds.js';
 import contactRoutes from './routes/contact.js';
 import academyRoutes from './routes/academy.js';
@@ -45,10 +46,16 @@ app.use(cors({
   origin: (origin, callback) => {
     // Autorise les requêtes sans origine (curl, tests) et les origines listées
     if (!origin || config.cors.origins.includes(origin)) return callback(null, true);
+    // Extension Chrome de prospection : origine « chrome-extension:// », cantonnée ensuite à sa file de tâches
+    if (/^chrome-extension:\/\//.test(origin)) return callback(null, true);
     return callback(new Error(`Origine non autorisée par CORS : ${origin}`));
   },
   credentials: true,
 }));
+app.use((req, res, next) => {
+  if (/^chrome-extension:\/\//.test(req.get('Origin') || '') && !req.path.startsWith('/api/browser-tasks/ext')) return res.status(403).json({ error: 'Origine extension limitée à la file de tâches' });
+  next();
+});
 
 // Webhooks Stripe : doivent recevoir le corps brut (avant express.json)
 app.use('/api/webhooks', webhookRoutes);
@@ -104,6 +111,7 @@ app.use('/api/academy', academyRoutes);
 app.use('/api/contact', contactRoutes); // formulaire « Nous contacter » (public)
 app.use('/api/embeds', embedRoutes); // aperçu intégré des publications (oEmbed)
 app.use('/api/product-briefs', productBriefRoutes); // brief depuis une URL produit (public)
+app.use('/api/browser-tasks', browserTaskRoutes); // file de tâches de l'extension Chrome de prospection (extension/)
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler

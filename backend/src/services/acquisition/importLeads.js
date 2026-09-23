@@ -54,8 +54,8 @@ export function parseLeadLines(text) {
 }
 
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
-export async function importLeads({ kind, text, niche, origin }) {
-  const rows = parseLeadLines(text);
+export async function importLeads({ kind, text, rows: givenRows, niche, origin }) {
+  const rows = givenRows || parseLeadLines(text); // rows : lignes déjà structurées (extension Chrome), même forme que parseLeadLines
   const result = { total: rows.length, created: 0, updated: 0, unchanged: 0, emailsAdded: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
     if (r.error) { result.invalid++; result.errors.push(`${r.line.slice(0, 60)} : ${r.error}`); continue; }

@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
 import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, shortUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
 
@@ -168,6 +168,72 @@ function MailingBreakdown() {
   );
 }
 
+/** Extension Chrome de prospection : jeton, lots de tâches, avancement. Remplace le copier-coller des consignes de l'assistant. */
+function ExtensionPanel() {
+  const queryClient = useQueryClient();
+  const [keywords, setKeywords] = useState('');
+  const [hashtags, setHashtags] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+  const { data: tok } = useQuery({ queryKey: ['ext-token'], queryFn: async () => (await api.get('/browser-tasks/token')).data });
+  const { data: lots } = useQuery({ queryKey: ['ext-batches'], queryFn: async () => (await api.get('/browser-tasks/batches')).data, refetchInterval: (q) => ((q.state.data?.pending || 0) + (q.state.data?.running || 0) > 0 ? 5000 : 30000) });
+  const { data: detail } = useQuery({ queryKey: ['ext-batch', openId], queryFn: async () => (await api.get(`/browser-tasks/batches/${openId}`)).data, enabled: !!openId, refetchInterval: 5000 });
+  const refresh = () => { queryClient.invalidateQueries({ queryKey: ['ext-batches'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
+  const rotate = useMutation({ mutationFn: async () => (await api.post('/browser-tasks/token')).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['ext-token'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const create = useMutation({ mutationFn: async (body: any) => (await api.post('/browser-tasks/batches', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const cancel = useMutation({ mutationFn: async (id: string) => (await api.post(`/browser-tasks/batches/${id}/cancel`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const copyToken = async () => { if (!tok?.token) return; await navigator.clipboard.writeText(tok.token); toast.success('Jeton copié : collez-le dans les options de l\'extension.'); };
+  const apiBase = typeof window !== 'undefined' ? `${(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')}/browser-tasks` : '';
+  return (
+    <div className="mt-3 space-y-3" data-testid="extension-panel">
+      <div className="text-xs text-neutral-600 flex gap-2 flex-wrap items-center">
+        <span>Adresse à mettre dans l&apos;extension : <code className="bg-neutral-100 px-1 rounded">{apiBase}</code></span>
+        <span>· Jeton : {tok?.token ? <code className="bg-neutral-100 px-1 rounded">{tok.token.slice(0, 6)}…</code> : <span className="text-orange-700">aucun, générez-le</span>}</span>
+        {tok?.token && <Button size="sm" variant="outline" onClick={copyToken} title="Copie le jeton d'accès de l'extension (à coller dans ses options, avec l'adresse ci-contre)"><Copy className="w-4 h-4 mr-1" /> Copier le jeton</Button>}
+        <Button size="sm" variant="outline" onClick={() => { if (!tok?.token || confirm('Générer un nouveau jeton ? L\'ancien ne fonctionnera plus dans l\'extension.')) rotate.mutate(); }} title="Génère un nouveau jeton ; l'ancien cesse de fonctionner" isLoading={rotate.isPending}>{tok?.token ? 'Régénérer' : 'Générer le jeton'}</Button>
+      </div>
+      <div className="flex gap-2 flex-wrap items-end">
+        <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'posts_without_author', limit: 60 })} isLoading={create.isPending} title="Publications Instagram trouvées par hashtag dont l'auteur reste à lire (60 au plus). L'extension ouvre chaque publication, puis le profil de l'auteur, et la fiche est complétée avec email, abonnés et lien de bio." data-testid="ext-batch-posts">Lot : publications sans auteur</Button>
+        <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'profiles_without_email', limit: 60 })} isLoading={create.isPending} title="Créateurs sans email ayant un profil Instagram ou TikTok (60 au plus, mémorisés 30 jours). L'extension lit le profil et le lien de bio ; l'email est cherché sur le site." data-testid="ext-batch-profiles">Lot : profils sans email</Button>
+        <div className="flex gap-1 items-end">
+          <Input label="Bibliothèque publicitaire : mots-clés" value={keywords} onChange={(e: any) => setKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" />
+          <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'ad_library', keywords: keywords.split(/[,\n;]/).map(k => k.trim()).filter(Boolean), count: 15 })} isLoading={create.isPending} disabled={!keywords.trim()} title="Une tâche par mot-clé : l'extension ouvre la bibliothèque publicitaire Meta (France, publicités vidéo actives), relève les annonceurs, et ils sont importés comme marques avec recherche d'email sur leur site" data-testid="ext-batch-ads">Lot : marques</Button>
+        </div>
+        <div className="flex gap-1 items-end">
+          <Input label="Hashtags Instagram" value={hashtags} onChange={(e: any) => setHashtags(e.target.value)} placeholder="ugcfrance, createurugc" className="w-56" />
+          <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'hashtags', hashtags: hashtags.split(/[,\n;\s]/).map(k => k.trim()).filter(Boolean), count: 20 })} isLoading={create.isPending} disabled={!hashtags.trim()} title="Une tâche par hashtag : 20 publications récentes, puis auteur et profil de chacune (sans passer par l'API Meta)" data-testid="ext-batch-hashtags">Lot : hashtags</Button>
+        </div>
+      </div>
+      {lots && (
+        <div className="text-xs">
+          <p className="text-neutral-600 mb-1">{lots.pending + lots.running > 0 ? <span className="text-green-700">{lots.pending} tâche(s) en attente{lots.running ? `, ${lots.running} en cours` : ''} : lancez l&apos;extension dans Chrome (bouton Start).</span> : 'Aucune tâche en attente.'}</p>
+          {lots.batches?.length > 0 && (
+            <table className="w-full max-w-4xl">
+              <thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3 font-medium">Lot</th><th className="py-1 px-2 font-medium">Avancement</th><th className="py-1 px-2 font-medium">Fiches</th><th className="py-1 px-2 font-medium">État</th><th></th></tr></thead>
+              <tbody>
+                {lots.batches.map((b: any) => (
+                  <tr key={b._id} className="border-t border-neutral-100 text-neutral-700 align-top">
+                    <td className="py-1 pr-3"><button type="button" className="underline text-left" onClick={() => setOpenId(openId === b._id ? null : b._id)} title="Détail des tâches du lot">{b.label}</button><div className="text-neutral-400">{formatDateTime(b.createdAt)}</div></td>
+                    <td className="py-1 px-2">{b.counts.done} / {b.counts.total}{b.counts.failed ? ` · ${b.counts.failed} échec(s)` : ''}</td>
+                    <td className="py-1 px-2">{b.imported.created} nouvelle(s), {b.imported.updated} complétée(s), {b.imported.emailsAdded} email(s)</td>
+                    <td className="py-1 px-2">{b.blockedReason && !b.closedAt ? <span className="text-red-700">bloqué : {b.blockedReason}</span> : b.closedAt ? 'terminé' : 'en cours'}</td>
+                    <td className="py-1 px-2">{!b.closedAt && <button type="button" className="text-red-700 underline" onClick={() => cancel.mutate(b._id)} title="Annule les tâches restantes de ce lot">Annuler</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {openId && detail?.tasks && (
+            <ul className="mt-2 max-h-64 overflow-auto bg-neutral-50 rounded p-2 space-y-0.5" data-testid="ext-batch-detail">
+              {detail.tasks.map((t: any) => <li key={t._id} className={t.status === 'failed' ? 'text-red-700' : t.status === 'done' ? 'text-neutral-700' : 'text-neutral-500'}>{t.type} · <a href={t.input?.url} target="_blank" rel="noreferrer" className="underline">{shortUrl(t.input?.url || t.input?.query || '')}</a> · {t.outcome || t.status}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+      <p className="text-[11px] text-neutral-500">L&apos;extension (dossier <code>extension/</code> du dépôt, à charger dans Chrome en mode développeur) lit les pages une par une dans votre session, avec 5 à 10 s entre deux pages, 60 pages par session, et s&apos;arrête seule sur une page de connexion ou un captcha. Utilisez un compte secondaire, jamais @need.creator.</p>
+    </div>
+  );
+}
+
 /** Import groupé : une ligne par prospect, colonnes libres (nom ; lien ; email ; bio ; site), dédoublonné, qualifié à la suite */
 function ImportForm({ kind, onDone }: { kind: 'creator' | 'brand'; onDone: () => void }) {
   const [text, setText] = useState('');
@@ -239,6 +305,7 @@ export default function AcquisitionTool() {
   const syncNow = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/mailing/sync')).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const [showDash, setShowDash] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showExt, setShowExt] = useState(false);
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
@@ -373,6 +440,8 @@ export default function AcquisitionTool() {
           </div>
         )}
         {showBreakdown && <MailingBreakdown />}
+        <div className="mt-3 text-xs"><button type="button" onClick={() => setShowExt(!showExt)} className="underline text-primary-700" title="Extension Chrome : lots de tâches (publications sans auteur, profils sans email, bibliothèque publicitaire, hashtags) exécutés dans votre navigateur, résultats importés automatiquement" data-testid="extension-toggle">{showExt ? 'Masquer l\'extension Chrome' : 'Extension Chrome : lots de tâches'}</button></div>
+        {showExt && <ExtensionPanel />}
         <div className="border-t border-neutral-100 my-4" />
         <div className="flex items-center gap-2 flex-wrap mb-3">
           {(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-3 py-1.5 rounded-lg text-sm ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'} ({Object.values(ov?.counts?.[k] || {}).reduce((a: number, c: any) => a + c.n, 0)})</button>)}
