@@ -66,6 +66,7 @@ Simple, lisible, utile à quiconque vend aux marques ; ne demande que l'API Meta
 
 | Sujet | Décision | Pourquoi |
 |---|---|---|
+| Accès à la bibliothèque publicitaire pour un client | Deux chemins : **par défaut, l'extension lit le site public de la bibliothèque** dans le navigateur du client (aucun jeton, aucune vérification d'identité, résultats en dix minutes) ; **en option « volume », l'API Meta** avec un bouton « Connecter Meta » (connexion Facebook, jeton conservé et renouvelé par l'outil), la vérification d'identité de la personne restant à sa charge, guidée pas à pas et détectée par l'outil. Proposer l'API seulement après les premiers résultats | La configuration Meta est lourde (application, jeton, identité) : la valeur d'abord, l'effort ensuite. Décidé le 24/09/2026, à confirmer à l'étape 2 |
 | Séquence de construction | 1) éprouver sur NeedCreator 2 à 3 mois, 2) extension pour notre usage interne, 3) décider du produit | La preuve de conversion vendra l'outil ; l'étape 2 a de la valeur seule |
 | Extensions Claude ou ChatGPT comme socle | Non | Pilotées par conversation, aucune interface pour recevoir une tâche ni rendre un résultat : le copier-coller est structurel |
 | Navigateurs cloud, proxys, comptes jetables | Non | Bannissements, coût, exposition juridique |
