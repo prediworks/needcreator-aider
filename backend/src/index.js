@@ -157,6 +157,7 @@ async function startServer() {
     // Exécutées au démarrage puis toutes les N minutes (JOBS_INTERVAL_MINUTES, 60 par défaut)
     if (config.env !== 'test') {
       const intervalMs = config.business.jobsIntervalMinutes * 60 * 1000;
+      import('./services/acquisition/index.js').then(m => m.closeInterruptedRuns()).catch(err => logger.error('closeInterruptedRuns:', err.message));
       setTimeout(() => runScheduledJobs(), 10000);
       setInterval(() => runScheduledJobs(), intervalMs);
       logger.info(`⏰ Scheduled jobs configured (every ${config.business.jobsIntervalMinutes} min)`);

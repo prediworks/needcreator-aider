@@ -1,6 +1,5 @@
 import logger from '../../utils/logger.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
-import { findEmailOnSite } from './enrich.js';
 
 const API = 'https://graph.facebook.com/v21.0';
 export async function metaToken() { return (await getSetting(SETTINGS.metaAccessToken.key, '')) || process.env.META_ACCESS_TOKEN || ''; }
@@ -22,7 +21,7 @@ export async function searchBrands(keyword, { limit = 50 } = {}) {
   url.searchParams.set('limit', String(Math.min(100, limit)));
   url.searchParams.set('fields', 'page_id,page_name,ad_creative_link_captions,ad_creative_link_titles,ad_creative_bodies,ad_snapshot_url,publisher_platforms');
   url.searchParams.set('access_token', token);
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
   const data = await res.json();
   if (data.error) { const e = new Error(`Meta ads_archive: ${data.error.message}`); e.code = data.error.code; throw e; }
   const byPage = new Map();
@@ -34,14 +33,13 @@ export async function searchBrands(keyword, { limit = 50 } = {}) {
     if (!cur.description && ad.ad_creative_bodies?.[0]) cur.description = String(ad.ad_creative_bodies[0]).slice(0, 600);
     byPage.set(ad.page_id, cur);
   }
+  // L'email est cherché sur le site plus tard, seulement pour les marques retenues (sinon 50 sites visités par mot-clé, plus d'une heure par recherche)
   const out = [];
   for (const b of byPage.values()) {
     const website = [...b.domains][0] || null;
-    let email = null, emailSource = null;
-    if (website) { const r = await findEmailOnSite(`https://${website}`); if (r) { email = r.email; emailSource = r.source; } }
     delete b.domains;
-    out.push({ ...b, website: website ? `https://${website}` : null, email, emailSource });
+    out.push({ ...b, website: website ? `https://${website}` : null, email: null, emailSource: null });
   }
-  logger.info(`Meta « ${keyword} » : ${(data.data || []).length} annonces, ${out.length} marques, ${out.filter(o => o.email).length} avec email`);
+  logger.info(`Meta « ${keyword} » : ${(data.data || []).length} annonces, ${out.length} marques`);
   return out;
 }

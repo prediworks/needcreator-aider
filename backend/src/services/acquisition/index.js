@@ -5,7 +5,7 @@ import ExternalCreator from '../../models/ExternalCreator.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
 import { searchCreators, youtubeConfigured, channelLinks } from './youtube.js';
 import { searchBrands, metaConfigured } from './meta.js';
-import { extractSocials } from './enrich.js';
+import { extractSocials, findEmailOnSite } from './enrich.js';
 import { isSuppressed } from '../../models/LeadSuppression.js';
 import { searchHashtag, instagramConfigured, oembedBlocked } from './instagram.js';
 import { qualifyLead } from './qualify.js';
@@ -39,6 +39,13 @@ async function alreadyKnown(cand) {
     if (ec) return { externalCreatorId: ec._id };
   }
   return null;
+}
+
+/** Au démarrage du serveur : les exécutions restées « en cours » ont été coupées par un redémarrage ; on les clôture avec ce motif */
+export async function closeInterruptedRuns() {
+  const r = await LeadRun.updateMany({ finishedAt: null }, { $set: { finishedAt: new Date() }, $push: { issues: 'Interrompue par un redémarrage du serveur (déploiement) avant la fin : les prospects déjà trouvés sont conservés, relancez la recherche' } });
+  if (r.modifiedCount) logger.warn(`${r.modifiedCount} exécution(s) de prospection clôturée(s) comme interrompues`);
+  return r.modifiedCount;
 }
 
 /** Enregistre un candidat s'il est nouveau ; retourne le document créé ou null */
@@ -119,6 +126,7 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
               if (budget <= 0) break;
               const doc = await upsertCandidate({ ...b, niche: sector }, runId);
               if (!doc) continue;
+              if (doc.status === 'new' && doc.website && !doc.email) { const r = await findEmailOnSite(doc.website).catch(() => null); if (r) { doc.email = r.email; doc.emailSource = r.source; await doc.save(); } }
               sources.meta.new++; if (doc.email) sources.meta.withEmail++;
               if (doc.status === 'new') { created.push(doc); budget--; }
             }
