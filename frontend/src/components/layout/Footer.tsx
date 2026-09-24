@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { COMPANY } from '@/lib/legal';
+import { COMPANY, SOCIAL_LINKS } from '@/lib/legal';
 
 export default function Footer() {
   return (
@@ -40,6 +40,10 @@ export default function Footer() {
           <ul className="space-y-2 text-neutral-600">
             <li><Link href="/contact" className="hover:text-primary-600">Nous contacter</Link></li>
             <li><Link href="/login" className="hover:text-primary-600">Connexion</Link></li>
+          </ul>
+          <h3 className="font-semibold text-neutral-900 mb-3 mt-6">Suivez-nous</h3>
+          <ul className="space-y-2 text-neutral-600">
+            {SOCIAL_LINKS.filter(s => s.visible).map(s => <li key={s.network}><a href={s.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary-600">{s.label}</a></li>)}
           </ul>
         </div>
       </div>

@@ -35,6 +35,7 @@ const transporter = smtpTransporter || sendgridTransporter;
 const SITE = () => config.cors.origin;
 const COMPANY = { legalName: 'PREDIWORKS SAS', address: '17 Rue Coysevox, Paris', contact: 'contact@needcreator.com' };
 const BRAND_COLOR = '#05ddb2';
+const SOCIAL_LINKS = [{ label: 'Instagram', url: 'https://www.instagram.com/need.creator/' }, { label: 'Facebook', url: 'https://www.facebook.com/profile.php?id=61594278248651' }]; // TikTok à ajouter dès les premières vidéos
 
 /**
  * Bouton d'action (un seul par email de préférence)
@@ -81,6 +82,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1
   <tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 28px 20px">${body}</td></tr>
   <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9ca3af;text-align:center">
     <a href="${SITE()}/dashboard" style="color:#6b7280;text-decoration:underline">Mon compte</a> &nbsp;·&nbsp; <a href="${SITE()}/how-it-works" style="color:#6b7280;text-decoration:underline">Comment ça marche</a> &nbsp;·&nbsp; <a href="mailto:${COMPANY.contact}" style="color:#6b7280;text-decoration:underline">${COMPANY.contact}</a><br>
+    Suivez-nous : ${SOCIAL_LINKS.map(l => `<a href="${l.url}" style="color:#6b7280;text-decoration:underline">${l.label}</a>`).join(' &nbsp;·&nbsp; ')}<br>
     Vous recevez cet email parce que vous avez un compte NeedCreator.<br>
     © ${year} NeedCreator · ${COMPANY.legalName}, ${COMPANY.address}
   </td></tr>

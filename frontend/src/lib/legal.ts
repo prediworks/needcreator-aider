@@ -4,6 +4,13 @@
  */
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://needcreator.com';
 
+/** Comptes officiels NeedCreator. `visible: false` : compte créé mais encore vide, non affiché (TikTok en attente des premières vidéos ; LinkedIn à créer). */
+export const SOCIAL_LINKS: { network: string; label: string; url: string; visible: boolean }[] = [
+  { network: 'instagram', label: 'Instagram', url: 'https://www.instagram.com/need.creator/', visible: true },
+  { network: 'facebook', label: 'Facebook', url: 'https://www.facebook.com/profile.php?id=61594278248651', visible: true },
+  { network: 'tiktok', label: 'TikTok', url: 'https://www.tiktok.com/@need.creator', visible: false },
+];
+
 export const COMPANY = {
   brand: 'NeedCreator',
   legalName: 'PREDIWORKS',
