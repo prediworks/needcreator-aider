@@ -28,6 +28,8 @@ const resultSchema = Joi.object({
   links: Joi.array().items(Joi.object({ href: Joi.string().max(2000).allow(''), text: Joi.string().max(500).allow('') })).max(2000),
   blocked: Joi.string().valid('login', 'captcha', 'restricted', 'consent', 'error').allow(null),
   error: Joi.string().max(500).allow(''),
+  meta: Joi.object({ description: Joi.string().max(2000).allow(''), ogTitle: Joi.string().max(500).allow(''), ogDescription: Joi.string().max(2000).allow('') }).unknown(true),
+  self: Joi.string().max(40).allow('', null),
 }).unknown(true);
 
 export async function taskResult(req, res) {

@@ -127,13 +127,30 @@ const followersFromText = (text) => {
 };
 const externalLinks = (links, hosts) => (links || []).map(l => unwrapRedirect(l.href)).filter(h => /^https?:\/\//i.test(h) && !hosts.some(x => linkHost(h).endsWith(x)));
 
-/** Auteur d'une publication Instagram : titre « Nom (@pseudo) • Instagram », sinon premier lien de profil de la page */
+/**
+ * Auteur d'une publication Instagram. Dans l'ordre : description de la page (« 12 likes, 3 comments - pseudo on May 3, 2026: … »),
+ * titre « Nom (@pseudo) • Instagram », puis liens de profil de la page, en écartant le compte connecté (menu latéral) et en préférant
+ * un lien dont le texte est le pseudo lui-même (en-tête de la publication).
+ */
 export function extractPostAuthor(result) {
-  const title = String(result?.title || '');
+  const self = String(result?.self || '').toLowerCase();
+  const ok = (h) => h && !IG_RESERVED.has(h.toLowerCase()) && h.toLowerCase() !== self;
+  const desc = `${result?.meta?.description || ''}\n${result?.meta?.ogDescription || ''}`;
+  const fromDesc = (desc.match(/[-–]\s*([A-Za-z0-9_.]{2,30})\s+(?:on|le|am|el|il|op|em)\s+\S+\s*\d/i) || desc.match(/[-–]\s*([A-Za-z0-9_.]{2,30})\s*:/) || [])[1];
+  if (ok(fromDesc)) return `https://www.instagram.com/${fromDesc}/`;
+  const title = `${result?.title || ''}\n${result?.meta?.ogTitle || ''}`;
   const fromTitle = (title.match(/\(@([A-Za-z0-9_.]{2,30})\)/) || [])[1] || (title.match(/^([A-Za-z0-9_.]{2,30}) on Instagram/) || [])[1];
-  if (fromTitle && !IG_RESERVED.has(fromTitle.toLowerCase())) return `https://www.instagram.com/${fromTitle}/`;
-  for (const l of result?.links || []) { const p = igProfileFromHref(l.href); if (p) return p; }
-  return null;
+  if (ok(fromTitle)) return `https://www.instagram.com/${fromTitle}/`;
+  const candidates = [];
+  for (const l of result?.links || []) {
+    const p = igProfileFromHref(l.href); if (!p) continue;
+    const h = p.replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, '');
+    if (!ok(h)) continue;
+    candidates.push({ h, named: String(l.text || '').trim().toLowerCase() === h.toLowerCase() });
+  }
+  const best = candidates.find(c => c.named) || (candidates.length && !self ? null : candidates[0]);
+  // Sans compte connecté identifié, un premier lien non nommé est trop risqué (menu) : on exige un lien portant le pseudo
+  return best ? `https://www.instagram.com/${best.h}/` : null;
 }
 
 /** Fiche de profil (Instagram ou TikTok) : email, abonnés, lien de bio, bio courte (IA si disponible, sinon début du texte) */
@@ -212,7 +229,7 @@ export async function submitTaskResult(id, result) {
   if (!task) throw Object.assign(new Error('Tâche introuvable'), { status: 404 });
   if (task.status !== 'running') throw Object.assign(new Error(`Tâche ${task.status}, résultat ignoré`), { status: 409 });
   const batch = await BrowserTaskBatch.findById(task.batchId);
-  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 400).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null };
+  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 400).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
   task.result = slim;
   if (slim.blocked) {
     const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;

@@ -24,5 +24,16 @@
     links.push({ href: href.slice(0, 500), text: (a.innerText || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 120) });
     if (links.length >= MAX_LINKS) break;
   }
-  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, scrollHeight: document.documentElement.scrollHeight };
+  // Page metadata (description often names the author of a post) and the logged-in account, so the server never takes it for an author
+  const metaOf = (sel) => document.querySelector(sel)?.getAttribute('content') || '';
+  const meta = { description: metaOf('meta[name="description"]').slice(0, 1000), ogTitle: metaOf('meta[property="og:title"]').slice(0, 300), ogDescription: metaOf('meta[property="og:description"]').slice(0, 1000) };
+  let self = null;
+  for (const a of document.querySelectorAll('nav a[href], [role="navigation"] a[href], header a[href]')) {
+    const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+    const img = a.querySelector('img[alt]');
+    if (/^(profile|profil|perfil|profilo)$/i.test(t) || (img && /profile picture|photo de profil|foto del perfil|immagine del profilo/i.test(img.alt))) {
+      const m = a.getAttribute('href')?.match(/^\/(?:@)?([A-Za-z0-9_.]{2,30})\/?$/); if (m) { self = m[1]; break; }
+    }
+  }
+  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, scrollHeight: document.documentElement.scrollHeight };
 })();
