@@ -9,6 +9,9 @@ import { resolveUrlsIn } from '../services/storage.js';
 import { stripe, cancelOrRefundPaymentIntent } from '../services/stripe.js';
 import Conversation from '../models/Conversation.js';
 import Report from '../models/Report.js';
+import ExternalQuote from '../models/ExternalQuote.js';
+import Prospect from '../models/Prospect.js';
+import CreatorContent from '../models/CreatorContent.js';
 import { config } from '../config/index.js';
 
 /**
@@ -277,8 +280,26 @@ export async function getDashboardStats(req, res) {
         { $group: { _id: null, total: { $sum: '$payment.platformFee' } } },
       ]),
     ]);
+    // Outils créateurs (devis clients, suivi de prospection, registre des droits) : combien s'en servent, et ce que ça rapporte en marques
+    const [quoteCreators, prospectCreators, contentCreators, quotesByStatus, prospectsByStatus, brandsViaQuotes] = await Promise.all([
+      ExternalQuote.distinct('creatorId'),
+      Prospect.distinct('creatorId'),
+      CreatorContent.distinct('creatorId', { source: 'external' }),
+      ExternalQuote.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
+      Prospect.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
+      ExternalQuote.distinct('brandId', { status: 'accepted_needcreator', brandId: { $ne: null } }),
+    ]);
+    const byKey = (rows) => Object.fromEntries(rows.map(r => [r._id, r.n]));
+    const q = byKey(quotesByStatus); const p = byKey(prospectsByStatus);
+    const tools = {
+      creators: { quotes: quoteCreators.length, prospects: prospectCreators.length, contents: contentCreators.length, any: new Set([...quoteCreators, ...prospectCreators, ...contentCreators].map(String)).size },
+      quotes: { total: Object.values(q).reduce((a, b) => a + b, 0), draft: q.draft || 0, sent: q.sent || 0, acceptedNeedcreator: q.accepted_needcreator || 0, acceptedDirect: q.accepted_direct || 0, declined: q.declined || 0, expired: q.expired || 0 },
+      prospects: { total: Object.values(p).reduce((a, b) => a + b, 0), toContact: p.to_contact || 0, contacted: p.contacted || 0, replied: p.replied || 0, quoteSent: p.quote_sent || 0, won: p.won || 0, lost: p.lost || 0 },
+      brandsViaQuotes: brandsViaQuotes.length,
+    };
     
     res.json({
+      tools,
       users: {
         total: totalUsers,
         creators: totalCreators,

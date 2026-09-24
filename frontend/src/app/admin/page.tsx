@@ -145,6 +145,20 @@ export default function AdminPage() {
             <div className="text-2xl font-bold">{formatCurrency(stats?.revenue?.total || 0)}</div>
           </Card>
         </div>
+        {stats?.tools && (
+          <Card className="p-5 mb-8" data-testid="tools-usage">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm text-neutral-600" title="Créateurs qui se servent des outils hors plateforme : devis clients, suivi de prospection, registre des droits. Chaque devis envoyé met NeedCreator sous les yeux d'une marque ; « marques venues par un devis » compte celles qui se sont inscrites en acceptant un devis.">Outils créateurs : qui s&apos;en sert</span>
+            </div>
+            <div className="text-2xl font-bold">{stats.tools.creators.any} <span className="text-sm font-normal text-neutral-500">créateur(s) sur {stats?.users?.creators ?? 0}</span></div>
+            <div className="text-xs text-neutral-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              <span title="Créateurs ayant créé au moins un devis client">Devis clients : {stats.tools.creators.quotes} créateur(s), {stats.tools.quotes.total} devis ({stats.tools.quotes.sent} envoyés, {stats.tools.quotes.acceptedNeedcreator + stats.tools.quotes.acceptedDirect} acceptés dont {stats.tools.quotes.acceptedNeedcreator} payés via NeedCreator, {stats.tools.quotes.declined} refusés)</span>
+              <span title="Créateurs ayant au moins un prospect dans leur suivi">Prospection : {stats.tools.creators.prospects} créateur(s), {stats.tools.prospects.total} prospects ({stats.tools.prospects.contacted + stats.tools.prospects.replied + stats.tools.prospects.quoteSent} en cours, {stats.tools.prospects.won} gagnés, {stats.tools.prospects.lost} perdus)</span>
+              <span title="Créateurs ayant enregistré au moins un contenu externe dans leur registre des droits">Registre des droits : {stats.tools.creators.contents} créateur(s)</span>
+              <span className="font-semibold text-neutral-700" title="Marques inscrites en acceptant un devis d'un créateur">Marques venues par un devis : {stats.tools.brandsViaQuotes}</span>
+            </div>
+          </Card>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
