@@ -28,9 +28,18 @@ Dans la file « À contacter aujourd'hui » ou sur la fiche du prospect (bouton 
 | « Remplissez ce formulaire » | porte ouverte, mais tri en 8 jours | coller la réponse ; remplir le formulaire avec le paragraphe email de la fiche et le lien du brief offert (bouton « Brief offert ») |
 | « Nous ne cherchons pas de collaboration en ce moment » | vous avez été classé « créateur » | une seule relance, courte : « Compris. Pour être clair, je ne propose pas une collaboration : NeedCreator met des créateurs vérifiés au service de vos publicités, payés seulement si la vidéo vous convient. Si un jour vous cherchez des vidéos UGC, à quelle adresse vous écrire ? » Puis « Passer ». |
 | « C'est quoi ? » ou toute question | intérêt réel | répondre en une ligne à la question, et proposer le brief offert : « Donnez-moi le lien d'un de vos produits, je vous prépare un brief gratuit avec trois angles vidéo. » |
-| « Ça coûte combien ? » | intérêt réel | « Le créateur propose son prix par devis, la plupart entre 80 et 250 € la vidéo selon le format et les droits. Vous ne payez qu'à la validation. Sans budget, vous pouvez aussi payer en produit. » |
+| « Ça coûte combien ? » | intérêt réel | « Le créateur propose son prix par devis, la plupart entre 80 et 250 € la vidéo selon le format et les droits. Vous ne payez qu'à la validation. Et pour une première campagne, vous pouvez ne payer que le produit : vous l'expédiez, le créateur tourne, nous ne prenons rien. » |
+| « Pas de budget pour ça » | porte entrouverte | « Justement : une première campagne au produit offert ne coûte que l'envoi. Donnez-moi le lien d'un produit, je vous prépare le brief, vous n'avez qu'à valider. » |
 | « On a déjà des créateurs » | pas un refus | « Parfait. Savez-vous jusqu'à quand vous avez le droit de diffuser leurs vidéos ? Notre registre des droits est gratuit, même pour des vidéos achetées ailleurs. » |
 | Réponse automatique « nous reviendrons vers vous ici » | attente | rien à faire, « Passer » ; la fiche revient dans 7 jours |
+
+## L'offre de première campagne : au produit offert
+
+Tant que la plateforme n'a pas de campagne, chaque marque intéressée se voit proposer la même chose : **une première campagne payée en
+produit**. La marque expédie, le créateur tourne pour le produit, NeedCreator ne prend rien, contrat et droits identiques. C'est la
+barrière la plus basse possible et la campagne sert de preuve pour les suivantes. À proposer dès qu'une marque pose une question, et en
+priorité aux fiches qui ont déjà donné un canal (Franklin, La Bonne Brosse). Le brief offert se prépare avec le bouton de la fiche ; à
+l'inscription, la campagne en brouillon est à passer en « produit offert » avant publication.
 
 ## Ce qu'il ne faut pas faire
 

@@ -81,7 +81,7 @@ export async function prepareOfferedBrief(lead) {
   }
   const view = `${config.cors.origin}/brief-depuis-url?id=${pb._id}`;
   const signup = `${config.cors.origin}/register?role=brand&lead=${lead._id}&brief=${pb._id}&email=${encodeURIComponent(lead.email || '')}&company=${encodeURIComponent(lead.name || '')}`;
-  const text = `Comme promis, voici le brief que j'ai préparé${pb.product?.name ? ` pour « ${pb.product.name} »` : ''} : trois angles créatifs avec leur accroche, un format recommandé, un budget estimé et les consignes détaillées.\n${view}\n\nIl est à vous, que vous l'utilisiez chez nous ou ailleurs. Pour le publier auprès de nos créateurs, ce lien crée votre compte avec la campagne déjà prête en brouillon : ${signup}`;
+  const text = `Comme promis, voici le brief que j'ai préparé${pb.product?.name ? ` pour « ${pb.product.name} »` : ''} : trois angles créatifs avec leur accroche, un format recommandé, un budget estimé et les consignes détaillées.\n${view}\n\nIl est à vous, que vous l'utilisiez chez nous ou ailleurs. Pour le publier auprès de nos créateurs, ce lien crée votre compte avec la campagne déjà prête en brouillon : ${signup}\n\nPour une première campagne, vous pouvez ne payer que le produit : vous l'expédiez au créateur, il tourne, nous ne prenons rien. Contrat et droits identiques.`;
   return { brief: pb, text };
 }
 

@@ -189,6 +189,8 @@ Dernier message de ma part.
 
 Si vous me répondez simplement « oui », je vous prépare moi-même un brief de campagne pour l'un de vos produits : angle, accroche des trois premières secondes, format, budget indicatif. Vous le recevez sous 48 heures, il est à vous, que vous l'utilisiez chez nous ou ailleurs.
 
+Et pour une première campagne, vous pouvez ne payer que le produit : vous l'expédiez au créateur, il tourne la vidéo, NeedCreator ne prend rien. Le contrat et les droits sont les mêmes qu'avec un paiement.
+
 Et si vous préférez avancer seul, votre compte marque se crée ici : {{ signup_link }}
 
 Si le sujet n'est pas d'actualité, répondez « plus tard » et je reviens vers vous dans quelques mois ; « non merci » et je n'insiste pas.
