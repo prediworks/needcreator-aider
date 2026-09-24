@@ -16,7 +16,7 @@ import logger from '../utils/logger.js';
 
 const CLAIM_TIMEOUT_MS = 10 * 60 * 1000; // tâche « en cours » sans résultat depuis 10 min : redonnée
 const MAX_ATTEMPTS = 3;
-const IG_RESERVED = new Set(['p', 'reel', 'reels', 'tv', 'explore', 'accounts', 'direct', 'stories', 'about', 'legal', 'developer', 'privacy', 'terms', 'web', 'api', 'ar', 'lite']);
+const IG_RESERVED = new Set(['p', 'reel', 'reels', 'tv', 'explore', 'accounts', 'direct', 'stories', 'about', 'legal', 'developer', 'privacy', 'terms', 'web', 'api', 'ar', 'lite', 'popular', 'locations', 'directory', 'emails', 'challenge', 'oauth', 'session', 'nametag', 'igtv', 'guide', 'guides', 'press', 'blog', 'help', 'instagram', 'meta', 'threads', 'download', 'business', 'creators', 'community', 'safety', 'topics', 'hashtag', 'tags', 'audio', 'music', 'shop', 'shopping', 'ads', 'login', 'signup', 'share', 'invites', 'static', 'graphql', 'embed', 'your_activity', 'settings', 'notifications', 'archive', 'saved', 'tagged', 'channel']);
 
 /* ---------- Jeton de l'extension ---------- */
 
@@ -148,8 +148,10 @@ export function extractPostAuthor(result) {
     if (!ok(h)) continue;
     candidates.push({ h, named: String(l.text || '').trim().toLowerCase() === h.toLowerCase() });
   }
-  const best = candidates.find(c => c.named) || (candidates.length && !self ? null : candidates[0]);
-  // Sans compte connecté identifié, un premier lien non nommé est trop risqué (menu) : on exige un lien portant le pseudo
+  // Lien nommé par son pseudo (en-tête de la publication), sinon pseudo cité dans le texte de la page, sinon premier lien si le compte connecté est connu
+  const text = String(result?.text || '');
+  const cited = (h) => new RegExp(`(^|[^A-Za-z0-9_.])@?${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_.])`, 'i').test(text);
+  const best = candidates.find(c => c.named) || candidates.find(c => cited(c.h)) || (self ? candidates[0] : null);
   return best ? `https://www.instagram.com/${best.h}/` : null;
 }
 
@@ -246,7 +248,7 @@ export async function submitTaskResult(id, result) {
     if (!slim.text.trim() && (/\b404\b|not found|introuvable|page isn.t available|page n.est pas disponible/i.test(slim.title) || !slim.links.length)) throw new Error('page vide ou introuvable');
     if (task.type === 'read_post_author') {
       const profile = extractPostAuthor(slim);
-      if (!profile) throw new Error('auteur introuvable sur la page');
+      if (!profile) throw new Error(`auteur introuvable sur la page (titre « ${slim.title.slice(0, 60)} », ${slim.text.length} caractères, ${slim.links.length} liens${slim.self ? `, compte ${slim.self}` : ', compte connecté non identifié'})`);
       task.extracted = { profile };
       await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_profile', input: { url: profile, leadId: task.input.leadId, postUrl: task.input.postUrl || task.input.url } });
       if (batch) { batch.counts.total += 1; }
