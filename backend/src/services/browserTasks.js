@@ -194,7 +194,8 @@ export function extractPostAuthor(result) {
 /** Fiche de profil (Instagram ou TikTok) : email, abonnés, lien de bio, bio courte (IA si disponible, sinon début du texte) */
 export async function extractProfile(result, url) {
   const text = String(result?.text || '');
-  const email = pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' ')));
+  // Texte visible d'abord, puis liens mailto, puis emails trouvés dans le code de la page (bouton « E-mail », données intégrées)
+  const email = pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' '))) || pickEmail(extractEmails((result?.emails || []).join(' ')));
   const followers = followersFromText(text);
   const site = externalLinks(result?.links, ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'spotify.com', 'cloudflare.com']).find(h => !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h)) || null;
   let bio = '';
@@ -267,7 +268,7 @@ export async function submitTaskResult(id, result) {
   if (!task) throw Object.assign(new Error('Tâche introuvable'), { status: 404 });
   if (task.status !== 'running') throw Object.assign(new Error(`Tâche ${task.status}, résultat ignoré`), { status: 409 });
   const batch = await BrowserTaskBatch.findById(task.batchId);
-  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 400).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
+  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 400).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
   task.result = slim;
   if (slim.blocked) {
     const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;

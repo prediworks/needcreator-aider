@@ -30,6 +30,7 @@ const resultSchema = Joi.object({
   error: Joi.string().max(500).allow(''),
   meta: Joi.object({ description: Joi.string().max(2000).allow(''), ogTitle: Joi.string().max(500).allow(''), ogDescription: Joi.string().max(2000).allow('') }).unknown(true),
   self: Joi.string().max(40).allow('', null),
+  emails: Joi.array().items(Joi.string().max(120)).max(20),
 }).unknown(true);
 
 export async function taskResult(req, res) {

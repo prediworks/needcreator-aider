@@ -35,5 +35,17 @@
       const m = a.getAttribute('href')?.match(/^\/(?:@)?([A-Za-z0-9_.]{2,30})\/?$/); if (m) { self = m[1]; break; }
     }
   }
-  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, scrollHeight: document.documentElement.scrollHeight };
+  // Emails present in the page source but not in the visible text (contact button, embedded data): candidates for the server, at most 10
+  const emails = [];
+  try {
+    const src = document.documentElement.outerHTML;
+    const seenE = new Set();
+    for (const m of src.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+      const e = m[0].toLowerCase();
+      if (seenE.has(e) || /\.(png|jpg|jpeg|gif|svg|webp|js|css)$/.test(e) || /@(instagram|facebook|fbcdn|cdninstagram|tiktok|tiktokcdn|example|sentry|w3|schema)\./.test(e) || /^[0-9a-f]{8,}@/.test(e)) continue;
+      seenE.add(e); emails.push(e);
+      if (emails.length >= 10) break;
+    }
+  } catch { /* page source unreadable */ }
+  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, emails, scrollHeight: document.documentElement.scrollHeight };
 })();
