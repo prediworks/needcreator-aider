@@ -8,7 +8,7 @@
 const DEFAULTS = { serverUrl: '', token: '', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 const LIST_TYPES = { list_hashtag: 4, list_ad_library: 6 }; // number of scrolls for list pages
 
-const state = { running: false, paused: false, busy: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
+const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
 
 async function settings() { return { ...DEFAULTS, ...(await chrome.storage.local.get(Object.keys(DEFAULTS))) }; }
 async function loadState() {
@@ -73,7 +73,8 @@ async function tick() {
     if (state.day >= s.dayCap) { state.running = false; log(`Daily cap reached (${s.dayCap} pages). Stopped.`); await saveState(); return; }
     const next = await api('/ext/next');
     state.queue = { pending: next.pending || 0, running: next.running || 0 };
-    if (!next.task) { log('No task waiting. Polling again shortly.'); state.lastTask = null; return; }
+    if (!next.task) { log('No task waiting. Polling again in a moment.'); state.lastTask = null; state.idle = true; return; }
+    state.idle = false;
     const task = next.task;
     state.lastTask = { type: task.type, url: task.input.url };
     log(`Reading ${task.type}: ${task.input.url}`);
@@ -96,7 +97,7 @@ async function tick() {
     if (/token|401/i.test(err.message)) { state.running = false; await saveState(); }
   } finally {
     state.busy = false;
-    if (state.running && !state.paused) setTimeout(tick, 500); // chain tasks while there is work; alarm covers idle polling
+    if (state.running && !state.paused && !state.idle) setTimeout(tick, 500); // chain tasks while there is work; when the queue is empty the alarm polls every pollSeconds
   }
 }
 

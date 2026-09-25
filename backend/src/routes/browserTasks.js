@@ -10,7 +10,7 @@ import { extensionAuth, nextTask, taskResult, extensionStatus, tokenView, tokenR
  */
 const router = express.Router();
 
-const extLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false, message: { error: 'Trop de requêtes' } });
+const extLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, message: { error: 'Trop de requêtes' } });
 router.get('/ext/status', extLimiter, extensionAuth, extensionStatus);
 router.get('/ext/next', extLimiter, extensionAuth, nextTask);
 router.post('/ext/:id/result', extLimiter, extensionAuth, taskResult);
