@@ -5,7 +5,7 @@ import ExternalCreator from '../../models/ExternalCreator.js';
 import { getSetting, SETTINGS } from '../../models/Setting.js';
 import { searchCreators, youtubeConfigured, channelLinks } from './youtube.js';
 import { searchBrands, metaConfigured } from './meta.js';
-import { extractSocials, findEmailOnSite } from './enrich.js';
+import { extractSocials, enrichLeadFromSite } from './enrich.js';
 import { isSuppressed } from '../../models/LeadSuppression.js';
 import { searchHashtag, instagramConfigured, oembedBlocked } from './instagram.js';
 import { qualifyLead } from './qualify.js';
@@ -126,7 +126,8 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
               if (budget <= 0) break;
               const doc = await upsertCandidate({ ...b, niche: sector }, runId);
               if (!doc) continue;
-              if (doc.status === 'new' && doc.website && !doc.email) { const r = await findEmailOnSite(doc.website).catch(() => null); if (r) { doc.email = r.email; doc.emailSource = r.source; await doc.save(); } }
+              // Site de la marque : email et réseaux (Instagram, TikTok, LinkedIn…) en une visite, mémorisée 30 jours
+              if (doc.status === 'new' && doc.website) { await enrichLeadFromSite(doc).catch(() => false); doc.enrich = { ...(doc.enrich?.toObject?.() || doc.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() }; await doc.save(); }
               sources.meta.new++; if (doc.email) sources.meta.withEmail++;
               if (doc.status === 'new') { created.push(doc); budget--; }
             }

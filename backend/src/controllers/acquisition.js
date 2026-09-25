@@ -1,4 +1,4 @@
-import { extractSocials, enrichLeadFromSite } from '../services/acquisition/enrich.js';
+import { findEmailOnSite, extractSocials, enrichLeadFromSite } from '../services/acquisition/enrich.js';
 import { channelLinks } from '../services/acquisition/youtube.js';
 import Lead, { LeadRun, LEAD_STATUSES } from '../models/Lead.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
@@ -288,7 +288,7 @@ export async function enrichLeadSocials(req, res) {
   const sinceS = new Date(Date.now() - 30 * 86400000);
   const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }, { $or: [{ 'enrich.socialsSearchedAt': { $exists: false } }, { 'enrich.socialsSearchedAt': null }, { 'enrich.socialsSearchedAt': { $lt: sinceS } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
   socialsJob = { running: true, total: leads.length, done: 0, found: 0, startedAt: new Date() };
-  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours', ...socialsJob });
+  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube et cinq à quinze par site de marque, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours', ...socialsJob });
   setImmediate(async () => {
     for (const { _id } of leads) {
       try {
@@ -297,6 +297,8 @@ export async function enrichLeadSocials(req, res) {
         const cur = lead.socials?.toObject?.() || lead.socials || {};
         let soc = { ...extractSocials(`${lead.description || ''} ${lead.url || ''} ${lead.website || ''}`), ...cur };
         if (lead.source === 'youtube' && lead.url && !soc.instagram && !soc.tiktok) { soc = { ...(await channelLinks(lead.url)), ...soc }; await new Promise(r => setTimeout(r, 1200)); }
+        // Marque avec un site mais sans réseau connu : les liens Instagram, TikTok, LinkedIn sont sur le site (pied de page, page contact)
+        if (lead.kind === 'brand' && lead.website && !soc.instagram && !soc.tiktok && !soc.linkedin) { const r = await findEmailOnSite(lead.website, { maxPages: 3 }).catch(() => null); soc = { ...(r?.socials || {}), ...soc }; if (r?.email && !lead.email) { lead.email = r.email; lead.emailSource = r.source; } }
         if (soc.instagram || soc.tiktok || Object.keys(soc).length > Object.keys(cur).length) { lead.socials = soc; if (soc.instagram || soc.tiktok) socialsJob.found++; }
         lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), socialsSearchedAt: new Date() }; // pas revisité avant 30 jours
         await lead.save();
