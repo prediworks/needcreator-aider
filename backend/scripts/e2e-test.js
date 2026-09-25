@@ -2783,7 +2783,27 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
     expect(logsAfter === logsBefore + 1 && (bell2.data.notifications || []).some(n => n.title === 'E2E annonce générale'), 'Le créateur doit être tracé et notifié une fois', { status: 200, data: { logsBefore, logsAfter } });
     const ov2 = await brandApi('GET', '/admin/member-messages');
     expect(ov2.data.broadcasts.some(b => b.subject === 'E2E annonce générale' && b.count >= 1), 'L\'annonce doit figurer dans l\'historique avec son nombre d\'envois', ov2);
-    return 'message 1 à J+3 (une fois), messages 2 et 3 en attente, aperçu, annonce tracée et notifiée';
+    // Rappel de confirmation d'adresse : créateur non confirmé côté Firebase et en base, inscrit depuis 3 jours → rappel J+1 envoyé, pas encore le J+4
+    const fu = await admin.auth().getUserByEmail(creatorEmail);
+    await admin.auth().updateUser(fu.uid, { emailVerified: false });
+    await users.updateOne({ _id: creatorDoc._id }, { $set: { 'verification.email': false } });
+    try {
+      const j = await brandApi('POST', '/admin/jobs/run');
+      expect(j.status === 200 && typeof j.data.verifyReminders === 'number', 'La tâche planifiée doit exécuter les rappels de confirmation', j);
+      const vlogs = await db.collection('membermessagelogs').find({ userId: creatorDoc._id, key: /^verifyReminder/ }).toArray();
+      expect(vlogs.some(l => l.key === 'verifyReminder1') && !vlogs.some(l => l.key === 'verifyReminder2'), 'Le rappel J+1 doit être envoyé à J+3, pas encore le J+4', { status: 200, data: vlogs });
+      // Adresse confirmée entre-temps côté Firebase : la base est mise à jour et aucun rappel de plus ne part
+      await admin.auth().updateUser(fu.uid, { emailVerified: true });
+      await users.updateOne({ _id: creatorDoc._id }, { $set: { createdAt: new Date(Date.now() - 5 * 86400000) } });
+      await brandApi('POST', '/admin/jobs/run');
+      const synced = await users.findOne({ _id: creatorDoc._id });
+      const vlogs2 = await db.collection('membermessagelogs').countDocuments({ userId: creatorDoc._id, key: 'verifyReminder2' });
+      expect(synced.verification?.email === true && vlogs2 === 0, 'Une adresse confirmée chez Firebase doit être reportée en base sans rappel J+4', { status: 200, data: { email: synced.verification?.email, vlogs2 } });
+    } finally {
+      await admin.auth().updateUser(fu.uid, { emailVerified: true });
+      await users.updateOne({ _id: creatorDoc._id }, { $set: { 'verification.email': true } });
+    }
+    return 'message 1 à J+3 (une fois), messages 2 et 3 en attente, aperçu, annonce tracée et notifiée, rappel de confirmation J+1 puis synchronisation Firebase';
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
     await db.collection('memberbroadcasts').deleteMany({ subject: /E2E annonce/ });

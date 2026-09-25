@@ -720,6 +720,19 @@ export async function sendVerificationLink(email, name, link) {
   return sendEmail(email, subject, html);
 }
 
+/** Rappel de confirmation d'adresse (J+1, puis J+4 : dernier rappel) */
+export async function sendVerificationReminder(email, name, link, last = false) {
+  const subject = last ? 'Dernier rappel : votre adresse email n\'est pas confirmée' : 'Votre adresse email attend une confirmation';
+  const html = `
+    <h1>Bonjour ${name || ''},</h1>
+    <p>Votre compte NeedCreator est créé, mais votre adresse email n'est pas encore confirmée. Sans cette confirmation, vous ne recevez ni les nouvelles campagnes, ni les messages des marques, ni les rappels de vos outils.</p>
+    ${button(link, 'Confirmer mon adresse')}
+    <p style="color:#666;font-size:13px">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>${link}</p>
+    <p style="color:#666;font-size:13px">${last ? 'C\'est notre dernier rappel : sans confirmation, votre compte reste en sommeil, sans autre message de notre part.' : 'Vous n\'êtes pas à l\'origine de cette inscription ? Ignorez simplement cet email.'}</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: 'Un clic pour activer les campagnes et les messages.' });
+}
+
 /**
  * Réinitialisation du mot de passe (lien Firebase, envoyé par notre SMTP)
  */

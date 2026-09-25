@@ -77,7 +77,7 @@ export async function handleReply(lead, provider, s, out = {}) {
     if (!c) return lead;
     lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply;
     // Marque intéressée : le brief promis dans la séquence est préparé depuis son site et joint à la réponse proposée
-    if (lead.kind === 'brand' && c.intent === 'interested') {
+    if (lead.kind === 'brand' && ['interested', 'question'].includes(c.intent)) { // une question d'une marque appelle aussi le brief offert (il répond à « comment ça marche ? »)
       const offer = await prepareOfferedBrief(lead).catch(() => null);
       if (offer) { c.reply = `${c.reply.trim()}\n\n${offer.text}`.slice(0, 2400); lead.mailing.replySuggestion = c.reply; out.briefs = (out.briefs || 0) + 1; }
     }
