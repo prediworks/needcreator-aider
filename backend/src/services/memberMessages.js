@@ -21,14 +21,17 @@ const firstName = (user) => String(user?.profile?.name || '').trim().split(/\s+/
 /** {{prenom}} et {{nom}} ; texte brut → paragraphes, lignes « - » → liste, liens en clair conservés */
 export function renderMemberBody(body, user) {
   const text = String(body || '').replace(/\{\{\s*prenom\s*\}\}/gi, firstName(user)).replace(/\{\{\s*nom\s*\}\}/gi, String(user?.profile?.name || ''));
+  const plain = text.replace(/\*\*/g, '');
   const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
   const html = blocks.map(b => {
     const lines = b.split('\n');
-    if (lines.every(l => /^\s*-\s+/.test(l))) return `<ul style="margin:0 0 12px 18px;padding:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#374151">${lines.map(l => `<li>${linkify(esc(l.replace(/^\s*-\s+/, '')))}</li>`).join('')}</ul>`;
-    return `<p>${lines.map(l => linkify(esc(l))).join('<br>')}</p>`;
+    // Liste : « Nom de l'outil : explication » → nom en gras ; partout : **gras** accepté
+    if (lines.every(l => /^\s*-\s+/.test(l))) return `<ul style="margin:0 0 12px 18px;padding:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#374151">${lines.map(l => `<li style="margin:0 0 6px">${emphasize(linkify(esc(l.replace(/^\s*-\s+/, ''))).replace(/^([^:<]{2,60}) : /, '<strong style="color:#111827">$1</strong> : '))}</li>`).join('')}</ul>`;
+    return `<p>${lines.map(l => emphasize(linkify(esc(l)))).join('<br>')}</p>`;
   }).join('');
-  return { html, text };
+  return { html, text: plain };
 }
+const emphasize = (s) => s.replace(/\*\*([^*]+)\*\*/g, '<strong style="color:#111827">$1</strong>');
 const linkify = (s) => s.replace(/(https?:\/\/[^\s<]+)/g, (m) => `<a href="${m}">${m.replace(/^https?:\/\/(www\.)?/, '')}</a>`);
 
 /** Public d'une annonce ou d'un message d'accueil */
