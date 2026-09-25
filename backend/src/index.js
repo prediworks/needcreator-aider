@@ -69,7 +69,8 @@ const limiter = rateLimit({
   max: config.security.rateLimitMaxRequests,
   message: 'Too many requests from this IP, please try again later.',
 });
-app.use('/api/', limiter);
+// La file de l'extension Chrome a son propre plafond (routes ext) : elle ne doit jamais consommer le quota global de l'adresse IP de l'utilisateur
+app.use('/api/', (req, res, next) => (req.path.startsWith('/browser-tasks/ext') ? next() : limiter(req, res, next)));
 
 // Health check
 app.get('/health', (req, res) => {
