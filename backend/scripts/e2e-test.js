@@ -2872,7 +2872,17 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r4.status === 200 && r4.data.blocked === true, 'Un blocage doit être signalé', r4);
     const det = await brandApi('GET', `/browser-tasks/batches/${lot3.data.batch._id}`);
     expect(det.status === 200 && det.data.batch.blockedReason === 'page de connexion' && det.data.tasks[0].status === 'pending', 'Le lot doit porter la raison du blocage et la tâche rester à faire', det);
-    const cancel = await brandApi('POST', `/browser-tasks/batches/${lot3.data.batch._id}/cancel`);
+    // Tâche à bout de tentatives (résultats jamais reçus) : passe en échec et le lot se ferme
+    const lot4 = await brandApi('POST', '/browser-tasks/batches', { preset: 'custom', label: 'E2E lot épuisé', kind: 'creator', items: [{ type: 'read_post_author', url: 'https://www.instagram.com/p/E2EEXT3/', postUrl: 'https://www.instagram.com/p/E2EEXT3/' }] });
+    batchIds.push(lot4.data.batch._id);
+    await brandApi('POST', `/browser-tasks/batches/${lot3.data.batch._id}/cancel`); // ne laisser que la tâche du lot 4 en file
+    for (let i = 0; i < 3; i++) { const n = (await ext('GET', '/next')).data.task; expect(n && /E2EEXT3/.test(n.input.url), 'La tâche du lot épuisé doit être redonnée jusqu\'à 3 fois', n); await ext('POST', `/${n.id}/result`, { url: n.input.url, blocked: 'error', error: 'onglet fermé', text: '', links: [] }); }
+    const none = await ext('GET', '/next');
+    const lot4After = await brandApi('GET', `/browser-tasks/batches/${lot4.data.batch._id}`);
+    expect(none.data.task === null && lot4After.data.tasks[0].status === 'failed' && /abandonnée après 3 tentatives/.test(lot4After.data.tasks[0].outcome) && lot4After.data.batch.closedAt && lot4After.data.batch.counts.failed === 1, 'Après 3 tentatives sans résultat, la tâche est en échec et le lot fermé', { status: 200, data: lot4After.data });
+    const lot3Again = await brandApi('POST', '/browser-tasks/batches', { preset: 'custom', label: 'E2E lot bloqué bis', kind: 'creator', items: [{ type: 'read_post_author', url: 'https://www.instagram.com/p/E2EEXT2/', postUrl: 'https://www.instagram.com/p/E2EEXT2/' }] });
+    batchIds.push(lot3Again.data.batch._id);
+    const cancel = await brandApi('POST', `/browser-tasks/batches/${lot3Again.data.batch._id}/cancel`);
     expect(cancel.status === 200 && /1 tâche/.test(cancel.data.message), 'L\'annulation du lot doit retirer sa tâche', cancel);
     const list = await brandApi('GET', '/browser-tasks/batches');
     expect(list.status === 200 && list.data.batches.length >= 3, 'La liste des lots doit être visible dans l\'admin', list);

@@ -288,7 +288,8 @@ export async function enrichLeadSocials(req, res) {
   const sinceS = new Date(Date.now() - 30 * 86400000);
   const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }, { $or: [{ 'enrich.socialsSearchedAt': { $exists: false } }, { 'enrich.socialsSearchedAt': null }, { 'enrich.socialsSearchedAt': { $lt: sinceS } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
   socialsJob = { running: true, total: leads.length, done: 0, found: 0, startedAt: new Date() };
-  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube et cinq à quinze par site de marque, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours', ...socialsJob });
+  const socialsPass = socialsJob?.finishedAt ? ` Dernière passe (${new Date(socialsJob.finishedAt).toLocaleString('fr-FR')}) : ${socialsJob.found} prospect(s) avec Instagram ou TikTok trouvé(s) sur ${socialsJob.total}.` : '';
+  res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube et cinq à quinze par site de marque, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours' + socialsPass, ...socialsJob });
   setImmediate(async () => {
     for (const { _id } of leads) {
       try {

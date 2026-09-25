@@ -87,10 +87,28 @@ export async function cancelBatch(id) {
 
 /* ---------- Remise des tâches ---------- */
 
+/** Tâches en attente ayant épuisé leurs tentatives (résultats jamais reçus, blocages répétés) : passées en échec, lots fermés si complets */
+export async function failExhaustedTasks(workspaceId = 'default') {
+  const exhausted = await BrowserTask.find({ workspaceId, status: 'pending', attempts: { $gte: MAX_ATTEMPTS } }).select('_id batchId').lean();
+  if (!exhausted.length) return 0;
+  await BrowserTask.updateMany({ _id: { $in: exhausted.map(t => t._id) } }, { $set: { status: 'failed', finishedAt: new Date(), outcome: `abandonnée après ${MAX_ATTEMPTS} tentatives sans résultat` } });
+  const byBatch = new Map();
+  for (const t of exhausted) byBatch.set(String(t.batchId), (byBatch.get(String(t.batchId)) || 0) + 1);
+  for (const [batchId, n] of byBatch) {
+    const batch = await BrowserTaskBatch.findById(batchId);
+    if (!batch) continue;
+    batch.counts.failed += n;
+    if (!batch.closedAt && batch.counts.done + batch.counts.failed >= batch.counts.total) batch.closedAt = new Date();
+    await batch.save();
+  }
+  return exhausted.length;
+}
+
 /** Prochaine tâche pour l'extension (la plus ancienne en attente ; une tâche en cours depuis trop longtemps est redonnée) */
 export async function claimNextTask({ workspaceId = 'default' } = {}) {
   const stale = new Date(Date.now() - CLAIM_TIMEOUT_MS);
   await BrowserTask.updateMany({ workspaceId, status: 'running', claimedAt: { $lt: stale } }, { $set: { status: 'pending' } });
+  await failExhaustedTasks(workspaceId);
   const task = await BrowserTask.findOneAndUpdate(
     { workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS } },
     { $set: { status: 'running', claimedAt: new Date() }, $inc: { attempts: 1 } },
@@ -101,6 +119,7 @@ export async function claimNextTask({ workspaceId = 'default' } = {}) {
 }
 
 export async function queueStatus({ workspaceId = 'default' } = {}) {
+  await failExhaustedTasks(workspaceId).catch(() => 0);
   const [pending, running] = await Promise.all([
     BrowserTask.countDocuments({ workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS } }),
     BrowserTask.countDocuments({ workspaceId, status: 'running' }),
@@ -235,12 +254,19 @@ export async function submitTaskResult(id, result) {
   task.result = slim;
   if (slim.blocked) {
     const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;
-    task.status = task.attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
+    const exhausted = task.attempts >= MAX_ATTEMPTS;
+    task.status = exhausted ? 'failed' : 'pending';
     task.error = String(result?.error || '').slice(0, 500) || undefined;
-    task.outcome = slim.blocked === 'error' ? `page illisible${task.error ? ` : ${task.error}` : ''}` : `bloqué : ${reason}`;
+    const why = slim.blocked === 'error' ? `page illisible${task.error ? ` : ${task.error}` : ''}` : `bloqué : ${reason}`;
+    task.outcome = exhausted ? `abandonnée après ${MAX_ATTEMPTS} tentatives (${why})` : why;
+    if (exhausted) task.finishedAt = new Date();
     await task.save();
-    // Une erreur de lecture (page trop lente, onglet fermé) n'est pas un blocage du réseau : le lot n'est pas marqué bloqué
-    if (batch && slim.blocked !== 'error') { batch.blockedAt = new Date(); batch.blockedReason = reason; await batch.save(); }
+    if (batch) {
+      // Une erreur de lecture (page trop lente, onglet fermé) n'est pas un blocage du réseau : le lot n'est pas marqué bloqué
+      if (slim.blocked !== 'error') { batch.blockedAt = new Date(); batch.blockedReason = reason; }
+      if (exhausted) { batch.counts.failed += 1; if (batch.counts.done + batch.counts.failed >= batch.counts.total) batch.closedAt = new Date(); }
+      await batch.save();
+    }
     return { outcome: task.outcome, blocked: true };
   }
   let outcome = '';

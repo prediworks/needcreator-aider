@@ -67,7 +67,7 @@ export async function importLeads({ kind, text, rows: givenRows, niche, origin }
         if (handle && handle !== '@undefined') { existing.handle = handle; existing.name = handle; }
         const cur = existing.socials?.toObject?.() || existing.socials || {};
         existing.socials = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) , ...(r.socials.instagram ? { instagram: r.socials.instagram } : {}) };
-        if (r.email && !existing.email) { existing.email = r.email; existing.emailSource = 'import'; }
+        if (r.email && !existing.email) { existing.email = r.email; existing.emailSource = 'import'; result.emailsAdded = (result.emailsAdded || 0) + 1; }
         if (r.website && !existing.website) existing.website = r.website;
         if (r.subscribers != null) existing.stats = { ...(existing.stats?.toObject?.() || existing.stats || {}), subscribers: r.subscribers };
         if (r.description) existing.description = `${r.description}\n${existing.description || ''}`.slice(0, 2000);
