@@ -20,16 +20,17 @@ import Spinner from '@/components/ui/Spinner';
 import ExternalCreatorsImport from '@/components/admin/ExternalCreatorsImport';
 import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
+import MemberMessages from '@/components/admin/MemberMessages';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'acquisition' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'acquisition' | 'messages' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
-  const TAB_KEYS: Tab[] = ['pending', 'ambassadors', 'businesses', 'reports', 'disputes', 'invoices', 'users', 'campaigns', 'deliveries', 'external', 'seed', 'acquisition', 'settings'];
+  const TAB_KEYS: Tab[] = ['pending', 'ambassadors', 'businesses', 'reports', 'disputes', 'invoices', 'users', 'campaigns', 'deliveries', 'external', 'seed', 'acquisition', 'messages', 'settings'];
   const [tab, setTabState] = useState<Tab>('pending');
   // L'onglet vit dans l'adresse (?tab=…) : conservé au rafraîchissement, partageable, et le bouton Précédent du navigateur fonctionne
   useEffect(() => {
@@ -95,6 +96,7 @@ export default function AdminPage() {
     { key: 'external', title: 'Annuaire public des créateurs référencés (import xlsx ou csv, séquence email)', label: 'Créateurs référencés' },
     { key: 'seed', title: 'Campagnes d’amorçage générées par l’IA pour remplir la place de marché au lancement', label: 'Amorçage' },
     { key: 'acquisition', title: 'Agents de prospection : recherche de créateurs et de marques, qualification IA, mailing, réponses, import groupé', label: 'Prospection' },
+    { key: 'messages', title: 'Annonces aux inscrits (email et notification) et suivi de la séquence d’accueil', label: 'Messages aux inscrits' },
     { key: 'settings', title: 'Réglages de la plateforme par groupe (commissions, délais, IA, prospection, mailing…)', label: 'Réglages' },
   ];
 
@@ -357,6 +359,7 @@ export default function AdminPage() {
         {tab === 'external' && <ExternalCreatorsImport />}
         {tab === 'seed' && <SeedTool />}
         {tab === 'acquisition' && <AcquisitionTool />}
+        {tab === 'messages' && <MemberMessages />}
 
         {tab === 'settings' && (<>
           <Card className="p-6 mb-6">
@@ -601,7 +604,7 @@ function SettingText({ setting, onSave }: { setting: any; onSave: (value: string
   useEffect(() => { setValue(String(setting.value ?? setting.default ?? '')); }, [setting.value, setting.default]);
   const changed = value.trim() !== String(setting.value ?? setting.default ?? '').trim();
   // Listes « une ligne par niche » ou séparées par des points-virgules : zone de texte sur plusieurs lignes
-  const multiline = /une ligne par|séparés par des points-virgules/i.test(setting.label || '');
+  const multiline = /une ligne par|séparés par des points-virgules/i.test(setting.label || '') || /Body$/.test(setting.key || '');
   // Exemple affiché en gris dans un champ vide : propre à chaque réglage, jamais une valeur enregistrée
   const placeholder = /backup/i.test(setting.key) ? '/home/needcreator/needcreator-backups'
     : setting.key === 'acquisitionCreatorKeywords' ? 'Vide = liste par défaut. Exemple :\nbeauty: créatrice UGC beauté ; routine skincare avis\nfood: créatrice UGC food ; test recette'
@@ -611,7 +614,7 @@ function SettingText({ setting, onSave }: { setting: any; onSave: (value: string
   return (
     <form className={`flex gap-2 ${multiline ? 'flex-col items-stretch w-full md:w-[28rem]' : 'items-center'}`} onSubmit={(e) => { e.preventDefault(); if (changed) onSave(value.trim()); }}>
       {multiline
-        ? <textarea value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder={placeholder} rows={4} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
+        ? <textarea value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder={placeholder} rows={/Body$/.test(setting.key || '') ? 12 : 4} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />
         : <input type="text" value={value} onChange={(e) => setValue(e.target.value)} aria-label={setting.label} placeholder={placeholder} className="w-72 px-3 py-2 border border-neutral-300 rounded-lg text-sm font-mono" />}
       <div className="flex items-center gap-2"><Button type="submit" size="sm" disabled={!changed}>Enregistrer</Button>{!value.trim() && <span className="text-xs text-neutral-500">Champ vide : valeur par défaut utilisée</span>}</div>
     </form>

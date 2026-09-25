@@ -12,6 +12,7 @@ import Report from '../models/Report.js';
 import ExternalQuote from '../models/ExternalQuote.js';
 import Prospect from '../models/Prospect.js';
 import CreatorContent from '../models/CreatorContent.js';
+import { memberMessagesOverview, broadcastMemberMessage } from '../services/memberMessages.js';
 import { config } from '../config/index.js';
 
 /**
@@ -725,5 +726,29 @@ export async function reprocessPortfolioVideo(req, res) {
   } catch (error) {
     logger.error('reprocessPortfolioVideo failed:', error);
     res.status(500).json({ error: 'Relance impossible' });
+  }
+}
+
+/* ---------- Messages aux inscrits (annonces) ---------- */
+export async function memberMessagesView(req, res) {
+  try { res.json(await memberMessagesOverview()); }
+  catch (error) { logger.error('memberMessagesView failed:', error); res.status(500).json({ error: 'Messages indisponibles' }); }
+}
+
+export async function memberMessagesSend(req, res) {
+  try {
+    const audience = req.body?.audience === 'brands' ? 'brands' : 'creators';
+    const subject = String(req.body?.subject || '').trim().slice(0, 150);
+    const body = String(req.body?.body || '').trim().slice(0, 6000);
+    if (subject.length < 5 || body.length < 20) return res.status(400).json({ error: 'Il manque : un objet (5 caractères au moins) et un texte (20 caractères au moins)' });
+    if (req.query.preview === '1') {
+      const r = await broadcastMemberMessage({ audience, subject, body, sentBy: req.user._id, previewTo: req.user._id });
+      return res.json({ message: `Aperçu envoyé à ${r.to}`, preview: true });
+    }
+    const r = await broadcastMemberMessage({ audience, subject, body, sentBy: req.user._id });
+    res.json({ message: `Message envoyé à ${r.count} ${audience === 'brands' ? 'marque(s)' : 'créateur(s)'} (${r.emailed} email(s), notification pour tous)`, count: r.count, emailed: r.emailed, broadcastId: r.broadcast._id });
+  } catch (error) {
+    if (error.status === 502) return res.status(502).json({ error: error.message });
+    logger.error('memberMessagesSend failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` });
   }
 }

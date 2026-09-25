@@ -3,6 +3,7 @@ import Campaign from '../models/Campaign.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAlerts.js';
+import { runMemberOnboarding } from '../services/memberMessages.js';
 import { finalizeApproval } from '../controllers/deliveries.js';
 import { sendContentExpiryReminders } from '../controllers/contents.js';
 import { runScheduledBackup } from '../services/backup.js';
@@ -253,9 +254,10 @@ export async function runScheduledJobs() {
     const prospectReminders = await sendProspectFollowUpReminders().catch(err => { logger.error('sendProspectFollowUpReminders:', err); return 0; });
     const acquisition = await runScheduledAcquisition().catch(err => ({ ran: false, error: err.message }));
     const outreach = await runScheduledOutreach().catch(err => ({ ran: false, error: err.message }));
+    const memberMessages = await runMemberOnboarding().catch(err => { logger.error('runMemberOnboarding:', err); return 0; });
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

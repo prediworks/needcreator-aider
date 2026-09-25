@@ -27,6 +27,7 @@ import {
   reviewBusiness,
   getSettings,
   updateSetting,
+  memberMessagesView, memberMessagesSend,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
 import { listDisputes, resolveDispute } from '../controllers/disputes.js';
@@ -62,6 +63,8 @@ router.post('/ambassadors/:userId/approve', reviewAmbassador);
 router.post('/ambassadors/:userId/reject', reviewAmbassador);
 
 // Réglages
+router.get('/member-messages', memberMessagesView); // annonces aux inscrits : publics, historique, séquence d'accueil
+router.post('/member-messages', memberMessagesSend); // ?preview=1 : aperçu à l'administrateur
 router.get('/settings', getSettings);
 router.put('/settings/:key', updateSetting);
 

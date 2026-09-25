@@ -2745,6 +2745,49 @@ await step('Marque : invite un créateur extérieur par email, rattaché à la c
   return 'invitation extérieure → inscription rattachée ; créateur existant invité directement';
 });
 
+await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche planifiée (une seule fois), aperçu et annonce depuis l\'admin', async () => {
+  const db = mongoose.connection.db;
+  const users = db.collection('users');
+  const creatorDoc = await users.findOne({ email: creatorEmail });
+  await db.collection('membermessagelogs').deleteMany({ userId: creatorDoc._id });
+  await db.collection('memberbroadcasts').deleteMany({ subject: /E2E annonce/ });
+  // Créateur inscrit depuis 3 jours : message 1 (J+2) dû, message 2 (J+7) et 3 (J+14) pas encore
+  await users.updateOne({ _id: creatorDoc._id }, { $set: { createdAt: new Date(Date.now() - 3 * 86400000) } });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const jobs = await brandApi('POST', '/admin/jobs/run');
+    expect(jobs.status === 200 && typeof jobs.data.memberMessages === 'number', 'La tâche planifiée doit exécuter la séquence d\'accueil', jobs);
+    const logs = await db.collection('membermessagelogs').find({ userId: creatorDoc._id }).toArray();
+    expect(logs.some(l => l.key === 'onboarding1') && !logs.some(l => l.key === 'onboarding2' || l.key === 'onboarding3'), 'Le message 1 doit être envoyé à J+3, pas les messages 2 et 3', { status: 200, data: logs });
+    const bell = await creatorApi('GET', '/notifications');
+    expect((bell.data.notifications || []).some(n => /dès aujourd'hui sur NeedCreator/.test(n.title) && n.href === '/dashboard'), 'Le message 1 doit aussi arriver dans la cloche', bell);
+    const again = await brandApi('POST', '/admin/jobs/run');
+    const logs2 = await db.collection('membermessagelogs').countDocuments({ userId: creatorDoc._id, key: 'onboarding1' });
+    expect(again.status === 200 && logs2 === 1, 'Un second passage ne renvoie pas le message 1', { status: 200, data: { logs2 } });
+    // Annonce : aperçu à l'administrateur seul, puis envoi au public « créateurs »
+    const ov = await brandApi('GET', '/admin/member-messages');
+    expect(ov.status === 200 && ov.data.audiences.creators >= 1 && typeof ov.data.onboarding.onboarding1 === 'number', 'L\'admin doit voir les publics et les envois d\'accueil', ov);
+    const short = await brandApi('POST', '/admin/member-messages', { audience: 'creators', subject: 'E2E', body: 'trop court' });
+    expect(short.status === 400, 'Objet ou texte trop courts : refusés', short);
+    const prev = await brandApi('POST', '/admin/member-messages?preview=1', { audience: 'creators', subject: 'E2E annonce aperçu', body: 'Bonjour {{prenom}},\n\n- un outil\n- un autre\n\nVoir https://needcreator.com/quotes' });
+    // Adresse de test inexistante : le serveur SMTP peut refuser ; l'aperçu doit alors répondre par une erreur claire, jamais une erreur générique
+    expect((prev.status === 200 && prev.data.preview === true && /Aperçu envoyé/.test(prev.data.message)) || (prev.status === 502 && /Aperçu non envoyé à/.test(prev.data.error)), 'L\'aperçu doit partir à l\'administrateur, ou expliquer pourquoi il n\'est pas parti', prev);
+    const logsBefore = await db.collection('membermessagelogs').countDocuments({ key: /^broadcast:/ , userId: creatorDoc._id });
+    const sent = await brandApi('POST', '/admin/member-messages', { audience: 'creators', subject: 'E2E annonce générale', body: 'Bonjour {{prenom}},\n\nUne annonce de test envoyée à tous les créateurs inscrits.' });
+    expect(sent.status === 200 && sent.data.count >= 1 && sent.data.broadcastId, 'L\'annonce doit être envoyée aux créateurs actifs', sent);
+    const logsAfter = await db.collection('membermessagelogs').countDocuments({ key: /^broadcast:/, userId: creatorDoc._id });
+    const bell2 = await creatorApi('GET', '/notifications');
+    expect(logsAfter === logsBefore + 1 && (bell2.data.notifications || []).some(n => n.title === 'E2E annonce générale'), 'Le créateur doit être tracé et notifié une fois', { status: 200, data: { logsBefore, logsAfter } });
+    const ov2 = await brandApi('GET', '/admin/member-messages');
+    expect(ov2.data.broadcasts.some(b => b.subject === 'E2E annonce générale' && b.count >= 1), 'L\'annonce doit figurer dans l\'historique avec son nombre d\'envois', ov2);
+    return 'message 1 à J+3 (une fois), messages 2 et 3 en attente, aperçu, annonce tracée et notifiée';
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+    await db.collection('memberbroadcasts').deleteMany({ subject: /E2E annonce/ });
+    await db.collection('membermessagelogs').deleteMany({ $or: [{ userId: creatorDoc._id }, { key: { $regex: '^broadcast:' } }] });
+  }
+});
+
 await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur → profil → fiche, bibliothèque publicitaire), blocage', async () => {
   const db = mongoose.connection.db;
   const users = db.collection('users');
