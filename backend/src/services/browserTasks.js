@@ -76,7 +76,24 @@ export async function batchFromHashtags({ hashtags, count = 20, createdBy } = {}
 }
 
 export async function listBatches({ limit = 20 } = {}) {
+  await reconcileOpenBatches().catch(() => 0);
   return BrowserTaskBatch.find().sort({ createdAt: -1 }).limit(limit).lean();
+}
+
+/** Lots ouverts : compteurs recalculés depuis leurs tâches (total, faites, échecs, emails relevés), fermés si tout est fini */
+export async function reconcileOpenBatches() {
+  const open = await BrowserTaskBatch.find({ closedAt: null }).select('_id counts imported').lean();
+  for (const b of open) {
+    const rows = await BrowserTask.aggregate([{ $match: { batchId: b._id } }, { $group: { _id: '$status', n: { $sum: 1 }, emails: { $sum: { $cond: [{ $gt: [{ $strLenCP: { $ifNull: ['$extracted.email', ''] } }, 0] }, 1, 0] } } } }]);
+    const by = Object.fromEntries(rows.map(r => [r._id, r.n]));
+    const total = rows.reduce((a, r) => a + r.n, 0);
+    const done = by.done || 0, failed = (by.failed || 0) + (by.cancelled || 0);
+    const emails = rows.reduce((a, r) => a + r.emails, 0);
+    const set = { 'counts.total': total, 'counts.done': done, 'counts.failed': failed, 'imported.emailsAdded': Math.max(b.imported?.emailsAdded || 0, emails) };
+    if (total > 0 && done + failed >= total) set.closedAt = new Date();
+    await BrowserTaskBatch.updateOne({ _id: b._id }, { $set: set });
+  }
+  return open.length;
 }
 
 export async function cancelBatch(id) {

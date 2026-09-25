@@ -288,7 +288,11 @@ export async function enrichLeadSocials(req, res) {
   const sinceS = new Date(Date.now() - 30 * 86400000);
   const leads = await Lead.find({ $and: [{ $or: [{ 'socials.instagram': { $in: [null, ''] } }, { 'socials.instagram': { $exists: false } }] }, { $or: [{ 'socials.tiktok': { $in: [null, ''] } }, { 'socials.tiktok': { $exists: false } }] }, { $or: [{ 'enrich.socialsSearchedAt': { $exists: false } }, { 'enrich.socialsSearchedAt': null }, { 'enrich.socialsSearchedAt': { $lt: sinceS } }] }], status: { $nin: ['excluded'] } }).select('_id').limit(1000).lean();
   socialsJob = { running: true, total: leads.length, done: 0, found: 0, startedAt: new Date() };
-  const socialsPass = socialsJob?.finishedAt ? ` Dernière passe (${new Date(socialsJob.finishedAt).toLocaleString('fr-FR')}) : ${socialsJob.found} prospect(s) avec Instagram ou TikTok trouvé(s) sur ${socialsJob.total}.` : '';
+  // Bilan de la dernière passe, lu en base (survit aux redémarrages) : prospects visités depuis 24 h et ceux qui ont maintenant Instagram ou TikTok
+  const since24h = new Date(Date.now() - 86400000);
+  const visited = await Lead.countDocuments({ 'enrich.socialsSearchedAt': { $gte: since24h } });
+  const withNet = visited ? await Lead.countDocuments({ 'enrich.socialsSearchedAt': { $gte: since24h }, $or: [{ 'socials.instagram': { $nin: [null, ''] } }, { 'socials.tiktok': { $nin: [null, ''] } }] }) : 0;
+  const socialsPass = visited ? ` Dernière passe (24 h) : ${visited} prospect(s) visité(s), ${withNet} avec Instagram ou TikTok.` : '';
   res.json({ message: leads.length ? `Recherche des réseaux lancée pour ${leads.length} prospect(s) : comptez une à deux secondes par chaîne YouTube et cinq à quinze par site de marque, rechargez la page dans quelques minutes` : 'Rien à chercher : les prospects sans Instagram ni TikTok ont déjà été visités il y a moins de 30 jours' + socialsPass, ...socialsJob });
   setImmediate(async () => {
     for (const { _id } of leads) {

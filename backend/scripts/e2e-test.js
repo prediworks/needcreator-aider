@@ -2886,6 +2886,9 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(cancel.status === 200 && /1 tâche/.test(cancel.data.message), 'L\'annulation du lot doit retirer sa tâche', cancel);
     const list = await brandApi('GET', '/browser-tasks/batches');
     expect(list.status === 200 && list.data.batches.length >= 3, 'La liste des lots doit être visible dans l\'admin', list);
+    // Recomptage des lots ouverts depuis leurs tâches : le lot personnalisé (auteur + profil faits) est fermé avec 1 email relevé
+    const customRow = list.data.batches.find(b => String(b._id) === String(custom.data.batch._id));
+    expect(customRow && customRow.closedAt && customRow.counts.total === 2 && customRow.counts.done === 2 && customRow.imported.emailsAdded >= 1, 'Le lot doit être recompté depuis ses tâches et fermé, avec l\'email relevé', { status: 200, data: customRow });
     return 'jeton, lot, tâche fille, fiche complétée avec email, marque importée, blocage et annulation';
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
