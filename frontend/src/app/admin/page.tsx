@@ -123,6 +123,7 @@ export default function AdminPage() {
             </div>
             <div className="text-2xl font-bold">{stats?.users?.total ?? '—'}</div>
             <div className="text-xs text-neutral-500">{stats?.users?.creators ?? 0} créateurs · {stats?.users?.brands ?? 0} marques</div>
+            {stats?.users?.creatorsByStatus && <div className="text-[11px] text-neutral-500" title="Créateurs par statut : validés, en attente (profil incomplet ou non encore validé), suspendus, supprimés">créateurs : {stats.users.creatorsByStatus.active || 0} validés · {stats.users.creatorsByStatus.pending || 0} en attente{stats.users.creatorsByStatus.suspended ? ` · ${stats.users.creatorsByStatus.suspended} suspendus` : ''}{stats.users.creatorsByStatus.deleted ? ` · ${stats.users.creatorsByStatus.deleted} supprimés` : ''}</div>}
           </Card>
           <Card className="p-5">
             <div className="flex items-center justify-between mb-1">
@@ -477,7 +478,7 @@ export default function AdminPage() {
                       <td className="py-2 pr-4 font-medium">{u.profile?.companyName || u.profile?.name}</td>
                       <td className="py-2 pr-4 text-neutral-600">{u.email}</td>
                       <td className="py-2 pr-4">{u.role === 'creator' ? 'Créateur' : u.role === 'brand' ? 'Marque' : 'Admin'}</td>
-                      <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} /></td>
+                      <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} />{u.role === 'creator' && u.status === 'pending' && <div className="text-[11px] text-orange-700 mt-0.5" title="Ce qui manque pour que le profil soit complet et validable">{u.missing?.length ? `manque : ${u.missing.join(', ')}` : 'profil complet, à valider'}</div>}</td>
                       <td className="py-2 pr-4 text-neutral-600">{formatDate(u.createdAt)}</td>
                       <td className="py-2 text-right whitespace-nowrap">
                         {u.role === 'creator' && (

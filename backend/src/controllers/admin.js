@@ -299,6 +299,7 @@ export async function getDashboardStats(req, res) {
       brandsViaQuotes: brandsViaQuotes.length,
     };
     
+    const creatorsByStatus = Object.fromEntries((await User.aggregate([{ $match: { role: 'creator' } }, { $group: { _id: '$status', n: { $sum: 1 } } }])).map(r => [r._id, r.n]));
     res.json({
       tools,
       users: {
@@ -306,6 +307,7 @@ export async function getDashboardStats(req, res) {
         creators: totalCreators,
         brands: totalBrands,
         pendingCreators,
+        creatorsByStatus, // active, pending, suspended, deleted
       },
       // À traiter (compteurs des onglets admin)
       todo: { pendingCreators, pendingAmbassadors, pendingBusinesses, openReports, openDisputes },
@@ -438,6 +440,19 @@ export async function rejectCreator(req, res) {
 /**
  * Get all users with filters
  */
+/** Ce qui manque à un créateur pour que son profil soit complet (même règles que l'inscription et le contrat) */
+function creatorMissing(u) {
+  const out = [];
+  if (!u.verification?.email) out.push('email non confirmé');
+  const videos = (u.profile?.portfolio || []).length;
+  if (videos < 3) out.push(`${videos}/3 vidéos`);
+  if (!(u.profile?.niches || []).length) out.push('niches non renseignées');
+  const li = u.legalInfo || {}; const addr = li.address || {};
+  const base = li.firstName && li.lastName && li.status && addr.line1 && addr.postalCode && addr.city && li.billingMandateAcceptedAt && (li.status === 'individual' ? li.individualAcknowledged : li.siret);
+  if (!base) out.push('informations administratives');
+  return out;
+}
+
 export async function getUsers(req, res) {
   try {
     const { role, status, search, origin, verified, plan, ambassador, page = 1, limit = 20 } = req.query;
@@ -473,6 +488,7 @@ export async function getUsers(req, res) {
       User.countDocuments(query),
     ]);
     
+    for (const u of users) if (u.role === 'creator') u.missing = creatorMissing(u);
     res.json({
       users,
       pagination: {

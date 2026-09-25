@@ -334,6 +334,9 @@ await step('Admin : validation du créateur', async () => {
   const res = await adminApi('POST', `/admin/creators/${creatorUser.id}/approve`);
   expect(res.status === 200 && res.data.user.status === 'active', 'Validation créateur échouée', res);
   const stats = await adminApi('GET', '/admin/stats');
+  expect(stats.status === 200 && stats.data.users.creatorsByStatus && typeof stats.data.users.creatorsByStatus.active === 'number', 'Les statistiques admin doivent donner les créateurs par statut', stats);
+  const pendingList = await adminApi('GET', '/admin/users?role=creator&status=pending&limit=5');
+  expect(pendingList.status === 200 && (pendingList.data.users || []).every(u => Array.isArray(u.missing)), 'La liste des créateurs en attente doit dire ce qui manque à chacun', pendingList);
   expect(stats.status === 200 && stats.data.tools && typeof stats.data.tools.creators.any === 'number' && typeof stats.data.tools.quotes.sent === 'number' && typeof stats.data.tools.brandsViaQuotes === 'number', 'Les statistiques admin doivent donner l\'usage des outils créateurs (devis, prospection, registre)', stats);
   expect(stats.status === 200, 'Stats admin inaccessibles', stats);
   await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
