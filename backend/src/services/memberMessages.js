@@ -37,7 +37,8 @@ const linkify = (s) => s.replace(/(https?:\/\/[^\s<]+)/g, (m) => `<a href="${m}"
 /** Public d'une annonce ou d'un message d'accueil */
 export function audienceFilter(audience) {
   if (audience === 'brands') return { role: 'brand', status: 'active' };
-  return { role: 'creator', status: 'active' };
+  // Créateurs : profil validé ou encore en attente de validation (ils ont accès aux outils et ont le plus besoin d'une raison de revenir)
+  return { role: 'creator', status: { $in: ['active', 'pending'] } };
 }
 
 /** Envoie un message à une personne (email si non désactivé, cloche toujours) et le trace ; retourne false si déjà envoyé */
