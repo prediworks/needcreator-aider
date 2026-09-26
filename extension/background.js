@@ -8,7 +8,7 @@
 const DEFAULTS = { serverUrl: '', token: '', role: 'reader', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 // role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
-const LIST_TYPES = { list_hashtag: 4, list_ad_library: 6 }; // number of scrolls for list pages
+const LIST_TYPES = { list_hashtag: 4, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
 
 const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
 

@@ -6,6 +6,7 @@ import { getSetting, setSetting } from '../models/Setting.js';
 import { extractEmails, pickEmail, extractSocials } from './acquisition/enrich.js';
 import { importLeads } from './acquisition/importLeads.js';
 import { generateJson, aiConfig } from './ai.js';
+import { searchBrands, metaConfigured } from './acquisition/meta.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -39,7 +40,7 @@ export async function createBatch({ label, kind = 'creator', origin, niche, item
   const valid = (items || []).filter(i => TASK_TYPES.includes(i.type) && (i.url || i.query));
   if (!valid.length) throw new Error('Aucune tâche valide dans le lot');
   const batch = await BrowserTaskBatch.create({ label, kind, origin, niche, createdBy, workspaceId, counts: { total: valid.length } });
-  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl } })));
+  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
   return batch;
 }
 
@@ -73,6 +74,23 @@ export async function batchFromHashtags({ hashtags, count = 20, createdBy } = {}
   const tags = [...new Set((hashtags || []).map(h => String(h).trim().replace(/^#/, '')).filter(Boolean))].slice(0, 10);
   if (!tags.length) return null;
   return createBatch({ label: `Hashtags Instagram · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'creator', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/` })) });
+}
+
+export const PARTNERSHIP_HASHTAGS = ['partenariat', 'collab', 'collaboration', 'ugcfrance', 'ugccreator', 'sponsorise', 'adfrance'];
+
+/** Lot « marques taguées par les créateurs » : hashtags de partenariat, publications lues pour la marque citée (pas pour l'auteur) */
+export async function batchFromPartnershipHashtags({ hashtags, count = 20, createdBy } = {}) {
+  const tags = [...new Set((hashtags && hashtags.length ? hashtags : PARTNERSHIP_HASHTAGS).map(h => String(h).trim().replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 10);
+  if (!tags.length) return null;
+  return createBatch({ label: `Marques taguées par les créateurs · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'brand', origin: 'créateurs UGC (tag)', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/`, purpose: 'brands' })) });
+}
+
+/** Lot « TikTok Creative Center » : meilleures publicités par mot-clé (page publique, sans compte), annonceurs relevés par l'IA */
+export async function batchFromTiktokAds({ keywords, count = 15, country = 'FR', createdBy } = {}) {
+  const kws = [...new Set((keywords || []).map(k => String(k).trim()).filter(Boolean))].slice(0, 12);
+  if (!kws.length) return null;
+  const items = kws.map(q => ({ type: 'list_tiktok_ads', query: q, count, url: `https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/fr?region=${encodeURIComponent(country)}&period=30&keyword=${encodeURIComponent(q)}` }));
+  return createBatch({ label: `TikTok Creative Center · ${kws.join(', ')}`.slice(0, 160), kind: 'brand', origin: 'TikTok Creative Center', createdBy, items });
 }
 
 export async function listBatches({ limit = 20 } = {}) {
@@ -266,6 +284,60 @@ export async function extractAdvertisers(result, count = 15) {
   return advertisers.slice(0, Math.max(count, 15));
 }
 
+/**
+ * Marques taguées dans une publication : « Partenariat rémunéré avec X » / « Paid partnership with X » (sûr), puis @mentions du texte,
+ * puis liens de profil dont le pseudo est cité ; l'auteur, le compte connecté et les chemins réservés sont écartés.
+ */
+export function extractPostBrands(result) {
+  const text = String(result?.text || '');
+  const self = String(result?.self || '').toLowerCase();
+  const author = (extractPostAuthor(result) || '').replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, '').toLowerCase();
+  const out = new Map();
+  const add = (h, paid) => { const k = String(h || '').replace(/^@/, '').replace(/[.,;:!?)]+$/, '').toLowerCase(); if (!/^[a-z0-9_.]{2,30}$/.test(k) || IG_RESERVED.has(k) || k === self || k === author) return; if (!out.has(k) || paid) out.set(k, { handle: k, paid: !!paid || (out.get(k)?.paid ?? false) }); };
+  for (const m of text.matchAll(/(?:partenariat r[ée]mun[ée]r[ée] avec|paid partnership with|en partenariat avec|in partnership with|sponsoris[ée] par|sponsored by)\s*@?([A-Za-z0-9_.]{2,30})/gi)) add(m[1], true);
+  for (const m of text.matchAll(/(?:^|[^A-Za-z0-9_.])@([A-Za-z0-9_.]{2,30})/g)) add(m[1], false);
+  for (const l of result?.links || []) { const p = igProfileFromHref(l.href); if (!p) continue; const h = p.replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, ''); if (new RegExp(`@${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_.])`, 'i').test(text)) add(h, false); }
+  return [...out.values()];
+}
+
+/** Site et publicités d'une marque connue par son pseudo ou son nom : recherche dans la bibliothèque Meta (serveur, sans page de plus dans le navigateur) */
+export async function lookupBrandOnMeta(nameOrHandle) {
+  if (!(await metaConfigured().catch(() => false))) return null;
+  const q = String(nameOrHandle || '').replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (q.length < 3) return null;
+  try {
+    const found = await searchBrands(q, { limit: 25 });
+    const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = norm(q);
+    const hit = found.find(b => norm(b.name) === target) || found.find(b => norm(b.name).includes(target) || target.includes(norm(b.name)) && norm(b.name).length >= 4);
+    return hit ? { website: hit.website || null, ads: hit.stats?.ads || 0, pageUrl: hit.url || null } : null;
+  } catch (err) { logger.warn(`lookupBrandOnMeta ${q}: ${err.message}`); return null; }
+}
+
+/** Annonceurs d'une page TikTok Creative Center : liens de profils TikTok (@marque) et IA sur le texte */
+export async function extractTiktokAdvertisers(result, count = 15) {
+  const text = String(result?.text || '');
+  const advertisers = []; const seen = new Set();
+  for (const l of result?.links || []) {
+    const p = ttProfileFromHref(l.href); if (!p) continue;
+    const h = p.replace(/^https:\/\/www\.tiktok\.com\/@/, '').toLowerCase();
+    if (seen.has(h) || /^(tiktok|tiktokforbusiness|tiktokcreators|tiktok_france)$/.test(h)) continue; seen.add(h);
+    advertisers.push({ name: String(l.text || h).trim().slice(0, 100), tiktok: p, website: '', description: '' });
+  }
+  if (aiConfig().configured && text.length > 200) {
+    try {
+      const out = await generateJson({
+        system: 'Tu lis le texte visible d\'une page « Top Ads » du TikTok Creative Center. Réponds en JSON strict.',
+        prompt: `Texte :\n"""\n${text.slice(0, 12000)}\n"""\nRelève jusqu\'à ${count} annonceurs distincts (marques, pas les libellés de l\'interface). Pour chacun : name (nom de la marque tel qu\'affiché), description (une phrase sur ce qu\'elle vend d\'après l\'annonce, vide si inconnu), website (vide sauf si un site est écrit).`,
+        schema: z.object({ advertisers: z.array(z.object({ name: z.string(), description: z.string().default(''), website: z.string().default('') })).default([]) }),
+      });
+      const byName = new Map(advertisers.map(a => [a.name.toLowerCase(), a]));
+      for (const a of out.advertisers) { const cur = byName.get(a.name.toLowerCase()); if (cur) { cur.description = cur.description || a.description; cur.website = cur.website || a.website; } else advertisers.push({ name: a.name.slice(0, 100), tiktok: '', website: a.website, description: a.description }); }
+    } catch (err) { logger.warn(`extractTiktokAdvertisers AI: ${err.message}`); }
+  }
+  return advertisers.slice(0, Math.max(count, 15));
+}
+
 /** Publications d'une page hashtag : liens /p/ et /reel/ distincts */
 export function extractPosts(result, count = 20) {
   const out = []; const seen = new Set();
@@ -343,14 +415,40 @@ export async function submitTaskResult(id, result) {
       task.extracted = { prefilled: !!result?.prefilled, copied: !!result?.copied };
       outcome = result?.prefilled ? 'message collé dans la conversation, à relire et envoyer' : result?.copied ? 'messagerie introuvable : message copié, à coller à la main' : `préparation impossible${result?.error ? ` : ${String(result.error).slice(0, 120)}` : ''}`;
       if (!result?.prefilled && !result?.copied) throw new Error(outcome);
+    } else if (task.type === 'read_post_brands') {
+      const brands = extractPostBrands(slim);
+      task.extracted = { brands };
+      const rows = [];
+      for (const b of brands) {
+        const meta = await lookupBrandOnMeta(b.handle);
+        const desc = [`Marque taguée dans une publication UGC (#${task.input.query || 'partenariat'})`, b.paid ? 'partenariat rémunéré déclaré' : 'compte cité dans la légende', meta?.ads ? `${meta.ads} publicité(s) Meta active(s)` : ''].filter(Boolean).join(' · ');
+        rows.push({ line: `${b.handle} ; https://www.instagram.com/${b.handle}/ ; ; ${desc} ; ${meta?.website || ''}`, postCode: null, subscribers: null, name: b.handle, handle: `@${b.handle}`, url: `https://www.instagram.com/${b.handle}/`, website: meta?.website || null, email: null, socials: { instagram: `https://www.instagram.com/${b.handle}/`, ...(meta?.pageUrl ? { facebook: meta.pageUrl } : {}) }, description: desc });
+      }
+      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'créateurs UGC (tag)' }) : { created: 0, updated: 0, emailsAdded: 0 };
+      if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
+      outcome = brands.length ? `${brands.length} marque(s) taguée(s)${brands.some(b => b.paid) ? ' (partenariat rémunéré)' : ''} : ${imp.created} nouvelle(s), ${imp.emailsAdded} email(s)` : 'aucune marque taguée dans cette publication';
+    } else if (task.type === 'list_tiktok_ads') {
+      const advertisers = await extractTiktokAdvertisers(slim, task.input.count || 15);
+      task.extracted = { advertisers };
+      const rows = [];
+      for (const a of advertisers) {
+        const meta = a.website ? null : await lookupBrandOnMeta(a.name);
+        const website = a.website || meta?.website || null;
+        const desc = [clean(a.description), 'publicité TikTok active (Creative Center)', meta?.ads ? `${meta.ads} publicité(s) Meta active(s)` : ''].filter(Boolean).join(' · ');
+        rows.push({ line: `${a.name} ; ${a.tiktok || ''} ; ; ${desc} ; ${website || ''}`, postCode: null, subscribers: null, name: clean(a.name).slice(0, 120), handle: a.tiktok ? `@${a.tiktok.replace(/^https:\/\/www\.tiktok\.com\/@/, '')}` : null, url: a.tiktok || website, website, email: null, socials: { ...(a.tiktok ? { tiktok: a.tiktok } : {}), ...(meta?.pageUrl ? { facebook: meta.pageUrl } : {}) }, description: desc });
+      }
+      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'TikTok Creative Center' }) : { created: 0, updated: 0, emailsAdded: 0 };
+      if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
+      outcome = `${advertisers.length} annonceur(s) relevé(s), ${imp.created} nouvelle(s) marque(s), ${imp.emailsAdded} email(s)`;
     } else if (task.type === 'list_hashtag') {
       const posts = extractPosts(slim, task.input.count || 20);
       task.extracted = { posts };
       if (posts.length) {
-        await BrowserTask.insertMany(posts.map(u => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_post_author', input: { url: u, postUrl: u } })));
+        const childType = task.input.purpose === 'brands' ? 'read_post_brands' : 'read_post_author';
+        await BrowserTask.insertMany(posts.map(u => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: childType, input: { url: u, postUrl: u, query: task.input.query } })));
         if (batch) batch.counts.total += posts.length;
       }
-      outcome = `${posts.length} publication(s) : auteurs à lire`;
+      outcome = `${posts.length} publication(s) : ${task.input.purpose === 'brands' ? 'marques taguées à lire' : 'auteurs à lire'}`;
     }
     task.status = 'done';
     task.outcome = outcome;

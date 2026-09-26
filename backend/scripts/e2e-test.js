@@ -2897,6 +2897,32 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     batchIds.push(lot3Again.data.batch._id);
     const cancel = await brandApi('POST', `/browser-tasks/batches/${lot3Again.data.batch._id}/cancel`);
     expect(cancel.status === 200 && /1 tâche/.test(cancel.data.message), 'L\'annulation du lot doit retirer sa tâche', cancel);
+    // Marques taguées par les créateurs : hashtag → publications → marque citée (partenariat rémunéré) créée en prospect marque avec son Instagram
+    await db.collection('leads').deleteMany({ handle: { $in: ['@e2eextbrandtag', '@e2eexttiktokbrand'] } });
+    const lot5 = await brandApi('POST', '/browser-tasks/batches', { preset: 'partnerships', hashtags: ['e2epartenariat'], count: 5 });
+    expect(lot5.status === 201 && lot5.data.batch.kind === 'brand' && /Marques taguées/.test(lot5.data.batch.label), 'Le lot « marques taguées » doit se créer sur le hashtag donné', lot5);
+    batchIds.push(lot5.data.batch._id);
+    const t5 = (await ext('GET', '/next')).data.task;
+    expect(t5 && t5.type === 'list_hashtag' && t5.input.purpose === 'brands', 'La tâche hashtag doit porter le but « marques »', t5);
+    const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }] });
+    expect(r5.status === 200 && /marques taguées à lire/.test(r5.data.outcome), 'Les publications doivent donner des tâches « marques taguées »', r5);
+    const t6 = (await ext('GET', '/next')).data.task;
+    expect(t6 && t6.type === 'read_post_brands' && /E2EEXTTAG1/.test(t6.input.url), 'La tâche fille lit la marque taguée de la publication', t6);
+    const r6 = await ext('POST', `/${t6.id}/result`, { url: t6.input.url, title: 'Marie (@e2e.extcreator) • Instagram', text: 'e2e.extcreator Partenariat rémunéré avec e2eextbrandtag Ma routine avec @e2eextbrandtag #e2epartenariat', links: [{ href: 'https://www.instagram.com/moncompte.secondaire/', text: 'Profil' }, { href: 'https://www.instagram.com/e2e.extcreator/', text: 'e2e.extcreator' }, { href: 'https://www.instagram.com/e2eextbrandtag/', text: 'e2eextbrandtag' }], self: 'moncompte.secondaire' });
+    expect(r6.status === 200 && /1 marque\(s\) taguée\(s\) \(partenariat rémunéré\)/.test(r6.data.outcome), 'La marque en partenariat rémunéré doit être relevée, pas l\'auteur', r6);
+    const tagLead = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
+    expect(tagLead && tagLead.kind === 'brand' && tagLead.socials?.instagram === 'https://www.instagram.com/e2eextbrandtag/' && /partenariat rémunéré/.test(tagLead.description), 'La marque taguée doit exister en prospect marque avec son Instagram et le contexte', tagLead);
+    // TikTok Creative Center : annonceurs relevés depuis les liens de profils TikTok
+    const lot6 = await brandApi('POST', '/browser-tasks/batches', { preset: 'tiktok_ads', keywords: ['bougie e2e'], count: 10 });
+    expect(lot6.status === 201 && lot6.data.batch.origin === 'TikTok Creative Center', 'Le lot TikTok doit se créer', lot6);
+    batchIds.push(lot6.data.batch._id);
+    const t7 = (await ext('GET', '/next')).data.task;
+    expect(t7 && t7.type === 'list_tiktok_ads' && /creativecenter/.test(t7.input.url), 'La tâche TikTok ouvre le Creative Center', t7);
+    const r7 = await ext('POST', `/${t7.id}/result`, { url: t7.input.url, title: 'Top Ads', text: 'E2E Ext TikTok Brand bougies parfumées', links: [{ href: 'https://www.tiktok.com/@e2eexttiktokbrand', text: 'E2E Ext TikTok Brand' }] });
+    expect(r7.status === 200 && /annonceur\(s\) relevé\(s\)/.test(r7.data.outcome), 'Les annonceurs TikTok doivent être relevés', r7);
+    const ttLead = await db.collection('leads').findOne({ handle: '@e2eexttiktokbrand' });
+    expect(ttLead && ttLead.kind === 'brand' && ttLead.socials?.tiktok === 'https://www.tiktok.com/@e2eexttiktokbrand', 'L\'annonceur TikTok doit exister en prospect marque avec son TikTok', ttLead);
+    await db.collection('leads').deleteMany({ handle: { $in: ['@e2eextbrandtag', '@e2eexttiktokbrand'] } });
     // Préparation de message : créée depuis la file du jour, jamais donnée au rôle « lecture », donnée au rôle « messages », résultat collé
     const dmLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTDM-${RUN}`, name: 'E2E Ext Marque DM', status: 'qualified', score: 70, message: 'Bonjour, message de test E2E.', socials: { instagram: 'https://www.instagram.com/e2eextbrand.dm/' }, createdAt: new Date(), updatedAt: new Date() });
     const pre = await brandApi('POST', `/admin/acquisition/leads/${dmLead.insertedId}/prefill`, { network: 'instagram' });
@@ -2920,7 +2946,7 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     return 'jeton, lot, tâche fille, fiche complétée avec email, marque importée, blocage et annulation';
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
-    await db.collection('leads').deleteMany({ $or: [{ handle: { $in: ['@e2e.extcreator', '@e2eextbrand'] } }, { name: /^E2E Ext / }, { url: /instagram\.com\/p\/E2EEXT/ }] });
+    await db.collection('leads').deleteMany({ $or: [{ handle: { $in: ['@e2e.extcreator', '@e2eextbrand', '@e2eextbrandtag', '@e2eexttiktokbrand'] } }, { name: /^E2E Ext / }, { url: /instagram\.com\/p\/E2EEXT/ }] });
     const ids = batchIds.map(id => new mongoose.Types.ObjectId(id));
     await db.collection('browsertasks').deleteMany({ batchId: { $in: ids } });
     await db.collection('browsertaskbatches').deleteMany({ _id: { $in: ids } });

@@ -175,6 +175,8 @@ function ExtensionPanel() {
   const queryClient = useQueryClient();
   const [keywords, setKeywords] = useState('');
   const [hashtags, setHashtags] = useState('');
+  const [partnerTags, setPartnerTags] = useState('partenariat, collab, collaboration, ugcfrance, ugccreator');
+  const [tiktokKeywords, setTiktokKeywords] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const { data: tok } = useQuery({ queryKey: ['ext-token'], queryFn: async () => (await api.get('/browser-tasks/token')).data });
   const { data: lots } = useQuery({ queryKey: ['ext-batches'], queryFn: async () => (await api.get('/browser-tasks/batches')).data, refetchInterval: (q) => ((q.state.data?.pending || 0) + (q.state.data?.running || 0) > 0 ? 5000 : 30000) });
@@ -203,6 +205,14 @@ function ExtensionPanel() {
         <div className="flex gap-1 items-end">
           <Input label="Hashtags Instagram" value={hashtags} onChange={(e: any) => setHashtags(e.target.value)} placeholder="ugcfrance, createurugc" className="w-56" />
           <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'hashtags', hashtags: hashtags.split(/[,\n;\s]/).map(k => k.trim()).filter(Boolean), count: 20 })} isLoading={create.isPending} disabled={!hashtags.trim()} title="Une tâche par hashtag : 20 publications récentes, puis auteur et profil de chacune (sans passer par l'API Meta)" data-testid="ext-batch-hashtags">Lot : hashtags</Button>
+        </div>
+        <div className="flex gap-1 items-end">
+          <Input label="Marques taguées par les créateurs : hashtags" value={partnerTags} onChange={(e: any) => setPartnerTags(e.target.value)} className="w-80" />
+          <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'partnerships', hashtags: partnerTags.split(/[,\n;\s]/).map(k => k.trim()).filter(Boolean), count: 20 })} isLoading={create.isPending} disabled={!partnerTags.trim()} title="Publications de partenariat (#partenariat, #collab…) : la marque taguée (« Partenariat rémunéré avec … » ou compte cité) devient un prospect marque avec son Instagram ; son site et ses publicités sont cherchés dans la bibliothèque Meta par le serveur. Ces marques achètent déjà de l'UGC." data-testid="ext-batch-partnerships">Lot : marques taguées</Button>
+        </div>
+        <div className="flex gap-1 items-end">
+          <Input label="TikTok Creative Center : mots-clés" value={tiktokKeywords} onChange={(e: any) => setTiktokKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" />
+          <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'tiktok_ads', keywords: tiktokKeywords.split(/[,\n;]/).map(k => k.trim()).filter(Boolean), count: 15 })} isLoading={create.isPending} disabled={!tiktokKeywords.trim()} title="Une tâche par mot-clé : l'extension ouvre les meilleures publicités TikTok du mois (page publique, sans compte), l'IA relève les annonceurs, importés comme marques ; site cherché dans la bibliothèque Meta" data-testid="ext-batch-tiktok">Lot : pubs TikTok</Button>
         </div>
       </div>
       {lots && (

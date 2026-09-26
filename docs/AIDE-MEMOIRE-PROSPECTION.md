@@ -66,7 +66,13 @@ Sortie : une ligne par marque, séparateur « ; » : nom ; lien de la page Faceb
    **« Vérifier la lecture »** → **« Importer et qualifier »**.
 4. Rien d'autre à faire : l'email est cherché sur le site de chaque marque pendant l'import. Repère : 67 emails sur 100 marques au premier lot.
 
-### Mots-clés, semaine par semaine
+#### Deux lots de plus pour les marques, avec l'extension (rôle Reader)
+
+- **« Lot : marques taguées »** (hashtags #partenariat, #collab… pré-remplis) : les marques qui paient déjà des créateurs. Le meilleur prospect
+  possible ; une fois par semaine, 20 publications par hashtag.
+- **« Lot : pubs TikTok »** avec les mots-clés de la semaine : les annonceurs des meilleures publicités TikTok du mois.
+
+## Mots-clés, semaine par semaine
 
 | Semaine | Mots-clés à coller à la place de `<MOTS-CLÉS>` |
 |---|---|

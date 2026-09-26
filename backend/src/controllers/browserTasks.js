@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { createBatch, batchFromPostsWithoutAuthor, batchFromProfilesWithoutEmail, batchFromAdLibrary, batchFromHashtags, listBatches, batchDetail, cancelBatch, claimNextTask, submitTaskResult, queueStatus, getExtensionToken, rotateExtensionToken, checkExtensionToken } from '../services/browserTasks.js';
+import { createBatch, batchFromPostsWithoutAuthor, batchFromProfilesWithoutEmail, batchFromAdLibrary, batchFromHashtags, batchFromPartnershipHashtags, batchFromTiktokAds, listBatches, batchDetail, cancelBatch, claimNextTask, submitTaskResult, queueStatus, getExtensionToken, rotateExtensionToken, checkExtensionToken } from '../services/browserTasks.js';
 import logger from '../utils/logger.js';
 
 /* ---------- Côté extension : jeton dédié (en-tête X-Extension-Token) ---------- */
@@ -67,7 +67,7 @@ export async function tokenRotate(req, res) {
 }
 
 const batchSchema = Joi.object({
-  preset: Joi.string().valid('posts_without_author', 'profiles_without_email', 'ad_library', 'hashtags', 'custom').required(),
+  preset: Joi.string().valid('posts_without_author', 'profiles_without_email', 'ad_library', 'hashtags', 'partnerships', 'tiktok_ads', 'custom').required(),
   limit: Joi.number().integer().min(1).max(100),
   keywords: Joi.array().items(Joi.string().max(60)).max(12),
   hashtags: Joi.array().items(Joi.string().max(60)).max(10),
@@ -77,7 +77,7 @@ const batchSchema = Joi.object({
   label: Joi.string().max(160),
   kind: Joi.string().valid('creator', 'brand'),
   origin: Joi.string().max(60).allow(''),
-  items: Joi.array().items(Joi.object({ type: Joi.string().required(), url: Joi.string().uri().max(1000), query: Joi.string().max(100), count: Joi.number().integer().min(1).max(50), leadId: Joi.string().hex().length(24), postUrl: Joi.string().uri().max(1000) })).max(200),
+  items: Joi.array().items(Joi.object({ type: Joi.string().required(), url: Joi.string().uri().max(1000), query: Joi.string().max(100), count: Joi.number().integer().min(1).max(50), leadId: Joi.string().hex().length(24), postUrl: Joi.string().uri().max(1000), purpose: Joi.string().valid('creators', 'brands') })).max(200),
 });
 
 export async function createBatchView(req, res) {
@@ -90,6 +90,8 @@ export async function createBatchView(req, res) {
     else if (value.preset === 'profiles_without_email') batch = await batchFromProfilesWithoutEmail({ limit: value.limit || 60, createdBy });
     else if (value.preset === 'ad_library') batch = await batchFromAdLibrary({ keywords: value.keywords, count: value.count || 15, country: value.country || 'FR', createdBy });
     else if (value.preset === 'hashtags') batch = await batchFromHashtags({ hashtags: value.hashtags, count: value.count || 20, createdBy });
+    else if (value.preset === 'partnerships') batch = await batchFromPartnershipHashtags({ hashtags: value.hashtags, count: value.count || 20, createdBy });
+    else if (value.preset === 'tiktok_ads') batch = await batchFromTiktokAds({ keywords: value.keywords, count: value.count || 15, country: value.country || 'FR', createdBy });
     else batch = await createBatch({ label: value.label || 'Lot personnalisé', kind: value.kind, origin: value.origin, niche: value.niche, items: value.items, createdBy });
     if (!batch) return res.status(404).json({ error: 'Rien à traiter pour ce lot : aucune fiche ne correspond (ou déjà remises il y a moins de 30 jours)' });
     res.status(201).json({ batch, message: `Lot créé : ${batch.counts.total} tâche(s). Lancez l'extension dans Chrome, elle les traitera une par une.` });
