@@ -8,7 +8,7 @@ const creatorSchema = z.object({
   fit: z.number().min(0).max(100),
   signals: z.array(z.string()).max(5),
   summary: z.string().max(300),
-  message: z.string().max(320),
+  message: z.string().max(480),
   emailParagraph: z.string().max(500),
   firstName: z.string().max(40).optional().nullable(),
 });
@@ -18,7 +18,7 @@ const brandSchema = z.object({
   fit: z.number().min(0).max(100),
   signals: z.array(z.string()).max(5),
   summary: z.string().max(300),
-  message: z.string().max(320),
+  message: z.string().max(480),
   emailParagraph: z.string().max(500),
 });
 
@@ -30,7 +30,18 @@ function clip(text, max) {
   const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
   return (end > max * 0.5 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : max)).trim();
 }
-const normalizeCommon = (o) => ({ ...o, fit: Number(o.fit) || 0, signals: (o.signals || []).map(String).slice(0, 5), summary: clip(o.summary, 300), message: clip(o.message, 320), emailParagraph: clip(o.emailParagraph, 500) });
+const normalizeCommon = (o) => ({ ...o, fit: Number(o.fit) || 0, signals: (o.signals || []).map(String).slice(0, 5), summary: clip(o.summary, 300), message: clip(o.message, 420), emailParagraph: clip(o.emailParagraph, 500) });
+/** Marques : la question finale est obligatoire ; si l'IA l'a oubliée ou si elle a été coupée, on la rétablit */
+const BRAND_FINAL_QUESTION = 'À quelle adresse puis-je vous envoyer une proposition ?';
+const normalizeBrand = (o) => {
+  const base = normalizeCommon(o);
+  let msg = String(base.message || '').trim();
+  if (!/À quelle adresse puis-je vous envoyer une proposition/i.test(msg)) {
+    msg = msg.replace(/[\s.…]*$/, '').replace(/À quelle adresse[^.?!]*$/i, '').trim();
+    msg = `${msg}${msg && !/[.!?]$/.test(msg) ? '.' : ''} ${BRAND_FINAL_QUESTION}`.trim();
+  }
+  return { ...base, message: msg.slice(0, 480) };
+};
 
 const SYSTEM = `Tu aides NeedCreator, plateforme française qui met en relation des marques et des créateurs de vidéos UGC (témoignages, unboxings, démos diffusés sur les réseaux et les publicités des marques). Le créateur fixe son prix, le paiement est bloqué avant le tournage, un contrat de cession de droits est généré. Tu réponds en JSON, en français, sans flatterie ni superlatif, en tutoyant jamais : vouvoiement.`;
 
@@ -74,5 +85,5 @@ Réponds avec :
 - summary : une phrase sur ce que vend la marque
 - message : message privé (Instagram ou LinkedIn) de 300 caractères maximum, en trois phrases courtes, écrit à la première personne par la personne qui s'occupe de NeedCreator, sans prénom. Objectif : obtenir une RÉPONSE et le bon interlocuteur, pas une inscription. Constat de terrain : les marques lisent ces messages comme une demande de collaboration venant d'un créateur et répondent par un refus type ou une adresse « collab » ; il faut donc préciser en une phrase que ce n'est pas une demande de collaboration mais une plateforme où des créateurs vérifiés tournent des vidéos pour ses publicités, payées seulement si elles lui conviennent. Phrase 1 : « Bonjour, » puis UN SEUL élément concret vu chez la marque (un produit précis ou une publicité), jamais deux. Phrase 2, à imiter, formulée au positif (dire qui l'on est, pas ce que l'on n'est pas) : « Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. » Phrase 3, OBLIGATOIRE et finale, mot pour mot : « À quelle adresse puis-je vous envoyer une proposition ? ». Exemple complet : « Bonjour, j'ai vu vos publicités pour vos bougies parfumées. Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. À quelle adresse puis-je vous envoyer une proposition ? ». Pas d'emoji, pas de lien, pas de liste d'avantages, aucun texte entre accolades
 - emailParagraph : paragraphe de 2 phrases pour un email, personnalisé de la même façon`;
-  return generateJson({ system: SYSTEM, prompt, schema: brandSchema, normalize: normalizeCommon });
+  return generateJson({ system: SYSTEM, prompt, schema: brandSchema, normalize: normalizeBrand });
 }
