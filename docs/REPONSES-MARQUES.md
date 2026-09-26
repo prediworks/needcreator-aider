@@ -8,8 +8,10 @@ Constats des premiers envois Instagram (23 septembre 2026), à partir de quatre 
   parlant d'UGC en messagerie Instagram. Elles répondent avec leur réponse type « collab », souvent automatique.
 - **Trois réponses sur quatre donnent le bon canal** : une adresse « influence@ » ou « collab@ », ou un formulaire. Ce n'est pas un échec, c'est
   l'objectif : le message privé sert à obtenir l'adresse, l'argumentation se fait ensuite par email.
-- **Le message généré par l'admin** est écrit pour ça depuis le 23/09 : un élément vu chez la marque, une phrase qui dit qu'on n'est pas un créateur,
-  et une question finale : « À quelle adresse puis-je vous envoyer une proposition pour vos vidéos UGC ? ». Relisez-le avant d'envoyer, adaptez un mot.
+- **Le message généré par l'admin** est écrit pour ça depuis le 23/09, resserré le 26/09 : « Bonjour, » puis un seul détail vu chez la marque, une phrase au
+  positif (« Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées
+  seulement si elles vous conviennent »), et la question finale : « À quelle adresse puis-je vous envoyer une proposition ? ». Relisez-le avant d'envoyer,
+  adaptez un mot ; si la question finale manque, ajoutez-la.
 
 ## À chaque réponse : le bouton « Coller la réponse »
 
