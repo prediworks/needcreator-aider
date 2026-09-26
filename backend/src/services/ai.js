@@ -201,3 +201,17 @@ export async function generateBrief(variables) {
   logger.info(`AI brief generated in ${Date.now() - started} ms (${aiConfig().provider}/${aiConfig().model}, ${usage?.totalTokens ?? '?'} tokens)`);
   return brief;
 }
+
+/**
+ * Traduit un email (objet + fragment HTML) vers l'anglais, en conservant les balises, les liens et les nombres.
+ * Utilisé pour les destinataires dont la langue du compte est l'anglais. En cas d'échec, l'appelant garde le français.
+ */
+export async function translateEmail({ subject, html }, lang = 'en') {
+  if (lang !== 'en') return { subject, html };
+  const model = await getModel();
+  const system = 'You translate transactional emails from French to natural, concise English for a UGC platform (NeedCreator). Keep every HTML tag, attribute, URL, number, amount, date and proper noun exactly as is. Translate only the human-readable text. Reply with JSON only: {"subject": "...", "html": "..."}.';
+  const r = await generateText({ model, system, prompt: JSON.stringify({ subject, html }), maxRetries: 1 });
+  const out = parseJsonLoose(r.text);
+  if (!out || typeof out.subject !== 'string' || typeof out.html !== 'string' || out.html.length < html.length * 0.4) throw new Error('translation unusable');
+  return { subject: out.subject, html: out.html };
+}

@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import { User, LogOut, Menu, X, LifeBuoy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import NotificationBell from '@/components/NotificationBell';
+import LangToggle from '@/components/LangToggle';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
@@ -95,6 +96,7 @@ export default function Header() {
 
           {/* Actions */}
           <div className="hidden xl:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
+            <LangToggle />
             {loading && knownUser ? null : connected ? (
               <>
                 <NotificationBell enabled={isAuthenticated} />
@@ -132,6 +134,7 @@ export default function Header() {
 
         {open && (
           <div className="xl:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
+            <LangToggle className="self-start" />
             {links.map(navLink)}
             {isAuthenticated ? (
               <>

@@ -233,3 +233,5 @@ Source : `docs/idees.txt`. Toutes réutilisent l'existant (brief IA, lecture de 
 8. ~~**Devis UGC sans compte**~~ Livré le 26/09/2026 : page publique `/devis-ugc`, brouillon repris après inscription. Accroche pour les prospects créateurs.
 9. ~~**Bilan hebdomadaire automatique**~~ Livré le 26/09/2026 : email du lundi aux administrateurs, comparé à la semaine précédente.
 10. ~~**Accueil des marques inscrites**~~ Livré le 26/09/2026 : J+1 campagne au produit offert, J+5 sans campagne publiée.
+11. **Parcours marque en anglais** (demande d'une marque venue de Reddit, promis pour la semaine du 29/09/2026) : sélecteur FR/EN, dictionnaire d'affichage, emails traduits par l'IA. Livré en première version le 26/09/2026 ; à compléter au fil des manques signalés. Version anglaise complète (créateurs, contrats) : quand une marque étrangère paie une deuxième campagne.
+

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import LangTranslator from '@/components/LangTranslator';
 import TermsBanner from '@/components/TermsBanner';
 import EmailVerificationBanner from '@/components/EmailVerificationBanner';
 import { Providers } from './providers';
@@ -62,6 +63,7 @@ export default function RootLayout({
     <html lang="fr">
       <body className={`${inter.className} min-h-screen flex flex-col`}>
         <Providers>
+          <LangTranslator />
           <Header />
           <TermsBanner />
           <EmailVerificationBanner />

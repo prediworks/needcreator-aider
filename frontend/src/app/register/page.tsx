@@ -39,6 +39,7 @@ function RegisterForm() {
   const [companyName, setCompanyName] = useState('');
   const [country, setCountry] = useState('FR');
   const [language, setLanguage] = useState('fr');
+  useEffect(() => { try { const m = document.cookie.match(/(?:^|; )nc_lang=(fr|en)/); if (m) setLanguage(m[1]); } catch { /* cookie illisible */ } }, []);
   const referralCode = searchParams.get('ref') || '';
   const teamToken = searchParams.get('team') || '';
   const campaignInviteToken = searchParams.get('campaignInvite') || '';

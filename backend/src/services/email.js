@@ -57,7 +57,8 @@ export function summary(rows) {
  * Habille un fragment HTML (h1, p, ul, a…) dans le gabarit NeedCreator : en-tête avec logo, carte blanche, pied de page.
  * Les liens seuls dans un paragraphe deviennent des boutons.
  */
-export function renderLayout(fragment, { preheader = '' } = {}) {
+export function renderLayout(fragment, { preheader = '', lang = 'fr' } = {}) {
+  const en = lang === 'en';
   let body = String(fragment || '')
     // <p><a href="…">Libellé</a></p> → bouton (sauf si le lien est déjà stylé)
     .replace(/<p>\s*<a href="([^"]+)"(?![^>]*style=)>([^<]+)<\/a>\s*<\/p>/g, (m, url, label) => button(url, label))
@@ -81,9 +82,9 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;font-size:1
   </tr></table></a></td></tr>
   <tr><td bgcolor="#ffffff" style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;padding:28px 28px 20px">${body}</td></tr>
   <tr><td style="padding:16px 8px 0;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#9ca3af;text-align:center">
-    <a href="${SITE()}/dashboard" style="color:#6b7280;text-decoration:underline">Mon compte</a> &nbsp;·&nbsp; <a href="${SITE()}/how-it-works" style="color:#6b7280;text-decoration:underline">Comment ça marche</a> &nbsp;·&nbsp; <a href="mailto:${COMPANY.contact}" style="color:#6b7280;text-decoration:underline">${COMPANY.contact}</a><br>
-    Suivez-nous : ${SOCIAL_LINKS.map(l => `<a href="${l.url}" style="color:#6b7280;text-decoration:underline">${l.label}</a>`).join(' &nbsp;·&nbsp; ')}<br>
-    Vous recevez cet email parce que vous avez un compte NeedCreator.<br>
+    <a href="${SITE()}/dashboard" style="color:#6b7280;text-decoration:underline">${en ? 'My account' : 'Mon compte'}</a> &nbsp;·&nbsp; <a href="${SITE()}/how-it-works" style="color:#6b7280;text-decoration:underline">${en ? 'How it works' : 'Comment ça marche'}</a> &nbsp;·&nbsp; <a href="mailto:${COMPANY.contact}" style="color:#6b7280;text-decoration:underline">${COMPANY.contact}</a><br>
+    ${en ? 'Follow us' : 'Suivez-nous'} : ${SOCIAL_LINKS.map(l => `<a href="${l.url}" style="color:#6b7280;text-decoration:underline">${l.label}</a>`).join(' &nbsp;·&nbsp; ')}<br>
+    ${en ? 'You receive this email because you have a NeedCreator account.' : 'Vous recevez cet email parce que vous avez un compte NeedCreator.'}<br>
     © ${year} NeedCreator · ${COMPANY.legalName}, ${COMPANY.address}
   </td></tr>
 </table></td></tr></table></body></html>`;
@@ -108,9 +109,35 @@ export function htmlToText(html) {
 /**
  * Send email (le fragment HTML est habillé dans le gabarit ; passer raw:true pour envoyer tel quel)
  */
-export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '' } = {}) {
+/** Langue du compte destinataire ('en' seulement si le compte l'a choisie) ; une adresse inconnue reste en français */
+export async function recipientLang(to) {
   try {
-    const full = raw ? html : renderLayout(html, { preheader });
+    const first = String(to || '').split(',')[0].trim().toLowerCase();
+    if (!first) return 'fr';
+    const { default: User } = await import('../models/User.js');
+    const u = await User.findOne({ email: first }).select('preferences.language').lean();
+    return u?.preferences?.language === 'en' ? 'en' : 'fr';
+  } catch { return 'fr'; }
+}
+
+/**
+ * Destinataire anglophone : objet et texte traduits par l'IA (balises, liens et montants conservés). En cas d'échec, l'email part en français.
+ */
+async function localize(to, subject, html, { raw, lang }) {
+  const l = lang || await recipientLang(to);
+  if (l !== 'en' || raw) return { subject, html, lang: l };
+  try {
+    const { translateEmail } = await import('./ai.js');
+    const t = await translateEmail({ subject, html }, 'en');
+    return { subject: t.subject, html: t.html, lang: 'en' };
+  } catch (err) { logger.warn(`Email translation skipped for ${to}: ${err?.message || err}`); return { subject, html, lang: 'fr' }; }
+}
+
+export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '', lang = null } = {}) {
+  try {
+    const loc = await localize(to, subject, html, { raw, lang });
+    subject = loc.subject; html = loc.html;
+    const full = raw ? html : renderLayout(html, { preheader, lang: loc.lang });
     const info = await transporter.sendMail({
       from: config.email.fromEmail,
       to,
