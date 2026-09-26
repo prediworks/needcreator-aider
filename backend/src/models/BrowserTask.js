@@ -21,6 +21,7 @@ const taskSchema = new mongoose.Schema({
     text: String,      // prefill_message : le message à coller dans la conversation (jamais envoyé par l'extension)
     network: String,   // prefill_message : instagram, tiktok, linkedin
     purpose: String,   // list_hashtag : 'creators' (auteurs) ou 'brands' (marques taguées dans les publications)
+    kind: String,      // read_profile : 'brand' quand la fiche à compléter est une marque
   },
   status: { type: String, enum: TASK_STATUSES, default: 'pending', index: true },
   attempts: { type: Number, default: 0 },

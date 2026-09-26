@@ -390,6 +390,22 @@ export async function submitTaskResult(id, result) {
       await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_profile', input: { url: profile, leadId: task.input.leadId, postUrl: task.input.postUrl || task.input.url } });
       if (batch) { batch.counts.total += 1; }
       outcome = `auteur ${profile.replace(/^https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')} : profil à lire`;
+    } else if (task.type === 'read_profile' && task.input.kind === 'brand' && task.input.leadId) {
+      // Profil d'une marque : site (lien de bio), email visible, abonnés ; puis recherche de l'email sur le site
+      const p = await extractProfile(slim, task.input.url);
+      task.extracted = p;
+      const lead = await Lead.findById(task.input.leadId);
+      if (!lead) throw new Error('fiche marque introuvable');
+      let gotEmail = false;
+      if (p.site && !lead.website) lead.website = p.site;
+      if (p.email && !lead.email) { lead.email = p.email; lead.emailSource = 'bio'; gotEmail = true; }
+      if (p.followers) lead.stats = { ...(lead.stats?.toObject?.() || lead.stats || {}), subscribers: p.followers };
+      if (p.bio && !/\S{20}/.test(lead.description || '')) lead.description = `${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);
+      if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
+      lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() };
+      await lead.save();
+      if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
+      outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ' · email trouvé' : ''}`;
     } else if (task.type === 'read_profile') {
       const url = task.input.url;
       const p = await extractProfile(slim, url);
@@ -424,9 +440,15 @@ export async function submitTaskResult(id, result) {
         const desc = [`Marque taguée dans une publication UGC (#${task.input.query || 'partenariat'})`, b.paid ? 'partenariat rémunéré déclaré' : 'compte cité dans la légende', meta?.ads ? `${meta.ads} publicité(s) Meta active(s)` : ''].filter(Boolean).join(' · ');
         rows.push({ line: `${b.handle} ; https://www.instagram.com/${b.handle}/ ; ; ${desc} ; ${meta?.website || ''}`, postCode: null, subscribers: null, name: b.handle, handle: `@${b.handle}`, url: `https://www.instagram.com/${b.handle}/`, website: meta?.website || null, email: null, socials: { instagram: `https://www.instagram.com/${b.handle}/`, ...(meta?.pageUrl ? { facebook: meta.pageUrl } : {}) }, description: desc });
       }
-      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'créateurs UGC (tag)' }) : { created: 0, updated: 0, emailsAdded: 0 };
+      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'créateurs UGC (tag)' }) : { created: 0, updated: 0, emailsAdded: 0, ids: [] };
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
-      outcome = brands.length ? `${brands.length} marque(s) taguée(s)${brands.some(b => b.paid) ? ' (partenariat rémunéré)' : ''} : ${imp.created} nouvelle(s), ${imp.emailsAdded} email(s)` : 'aucune marque taguée dans cette publication';
+      // Marques nouvelles sans site : une lecture de leur profil Instagram (lien de bio → site → email), même rythme que pour les créateurs
+      const toRead = await Lead.find({ _id: { $in: imp.ids || [] }, kind: 'brand', $or: [{ website: { $in: [null, ''] } }, { email: { $in: [null, ''] } }], 'socials.instagram': { $nin: [null, ''] } }).select('socials.instagram').lean();
+      if (toRead.length) {
+        await BrowserTask.insertMany(toRead.map(l => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_profile', input: { url: l.socials.instagram, leadId: l._id, kind: 'brand' } })));
+        if (batch) batch.counts.total += toRead.length;
+      }
+      outcome = brands.length ? `${brands.length} marque(s) taguée(s)${brands.some(b => b.paid) ? ' (partenariat rémunéré)' : ''} : ${imp.created} nouvelle(s), ${imp.emailsAdded} email(s)${toRead.length ? `, ${toRead.length} profil(s) à lire` : ''}` : 'aucune marque taguée dans cette publication';
     } else if (task.type === 'list_tiktok_ads') {
       const advertisers = await extractTiktokAdvertisers(slim, task.input.count || 15);
       task.extracted = { advertisers };

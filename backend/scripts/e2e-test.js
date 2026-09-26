@@ -2912,6 +2912,13 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r6.status === 200 && /1 marque\(s\) taguée\(s\) \(partenariat rémunéré\)/.test(r6.data.outcome), 'La marque en partenariat rémunéré doit être relevée, pas l\'auteur', r6);
     const tagLead = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
     expect(tagLead && tagLead.kind === 'brand' && tagLead.socials?.instagram === 'https://www.instagram.com/e2eextbrandtag/' && /partenariat rémunéré/.test(tagLead.description), 'La marque taguée doit exister en prospect marque avec son Instagram et le contexte', tagLead);
+    // Profil de la marque taguée lu ensuite : site depuis le lien de bio et email visible reportés sur la fiche
+    const t6b = (await ext('GET', '/next')).data.task;
+    expect(t6b && t6b.type === 'read_profile' && t6b.input.kind === 'brand' && /e2eextbrandtag/.test(t6b.input.url), 'Le profil de la marque nouvelle doit être lu à la suite', t6b);
+    const r6b = await ext('POST', `/${t6b.id}/result`, { url: t6b.input.url, title: 'E2E Ext Brand Tag (@e2eextbrandtag)', text: 'e2eextbrandtag 8 200 abonnés Bougies artisanales. Contact : hello@e2eextbrandtag-test.example', links: [{ href: 'https://l.instagram.com/?u=https%3A%2F%2Fe2eextbrandtag-test.example%2F', text: 'e2eextbrandtag-test.example' }] });
+    expect(r6b.status === 200 && /site trouvé/.test(r6b.data.outcome) && /email trouvé/.test(r6b.data.outcome), 'Site et email de la marque doivent être relevés depuis son profil', r6b);
+    const tagLead2 = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
+    expect(tagLead2.website === 'https://e2eextbrandtag-test.example/' && tagLead2.email === 'hello@e2eextbrandtag-test.example', 'La fiche marque doit porter le site et l\'email', tagLead2);
     // TikTok Creative Center : annonceurs relevés depuis les liens de profils TikTok
     const lot6 = await brandApi('POST', '/browser-tasks/batches', { preset: 'tiktok_ads', keywords: ['bougie e2e'], count: 10 });
     expect(lot6.status === 201 && lot6.data.batch.origin === 'TikTok Creative Center', 'Le lot TikTok doit se créer', lot6);
