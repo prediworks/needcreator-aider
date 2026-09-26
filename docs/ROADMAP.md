@@ -229,3 +229,7 @@ Source : `docs/idees.txt`. Toutes réutilisent l'existant (brief IA, lecture de 
 
 - **13/09/2026, gifting** : ouvert à toutes les marques. Sans frais de service pour les marques Pro ; frais de service par vidéo livrée (5 € HT par défaut) pour l'offre gratuite. Figé à la création de la campagne.
 7. **Factures des missions extérieures payées en direct** : NeedCreator peut-il émettre, par mandat, des factures pour des prestations dont il ne traite pas le paiement ? Sinon, simple modèle à remplir par le créateur.
+
+8. ~~**Devis UGC sans compte**~~ Livré le 26/09/2026 : page publique `/devis-ugc`, brouillon repris après inscription. Accroche pour les prospects créateurs.
+9. ~~**Bilan hebdomadaire automatique**~~ Livré le 26/09/2026 : email du lundi aux administrateurs, comparé à la semaine précédente.
+10. ~~**Accueil des marques inscrites**~~ Livré le 26/09/2026 : J+1 campagne au produit offert, J+5 sans campagne publiée.

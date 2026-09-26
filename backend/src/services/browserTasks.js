@@ -122,12 +122,14 @@ export async function failExhaustedTasks(workspaceId = 'default') {
 }
 
 /** Prochaine tâche pour l'extension (la plus ancienne en attente ; une tâche en cours depuis trop longtemps est redonnée) */
-export async function claimNextTask({ workspaceId = 'default' } = {}) {
+export async function claimNextTask({ workspaceId = 'default', types = null } = {}) {
   const stale = new Date(Date.now() - CLAIM_TIMEOUT_MS);
   await BrowserTask.updateMany({ workspaceId, status: 'running', claimedAt: { $lt: stale } }, { $set: { status: 'pending' } });
   await failExhaustedTasks(workspaceId);
+  // Rôle de l'extension : « lecture » (compte secondaire) ne prend jamais les messages ; « messages » (compte principal) ne prend que ceux-là
+  const wanted = Array.isArray(types) && types.length ? types.filter(t => TASK_TYPES.includes(t)) : TASK_TYPES.filter(t => t !== 'prefill_message');
   const task = await BrowserTask.findOneAndUpdate(
-    { workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS } },
+    { workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS }, type: { $in: wanted } },
     { $set: { status: 'running', claimedAt: new Date() }, $inc: { attempts: 1 } },
     { sort: { createdAt: 1 }, new: true },
   ).lean();
@@ -135,13 +137,32 @@ export async function claimNextTask({ workspaceId = 'default' } = {}) {
   return { id: task._id, type: task.type, input: task.input, batchId: task.batchId };
 }
 
-export async function queueStatus({ workspaceId = 'default' } = {}) {
+export async function queueStatus({ workspaceId = 'default', types = null } = {}) {
   await failExhaustedTasks(workspaceId).catch(() => 0);
-  const [pending, running] = await Promise.all([
-    BrowserTask.countDocuments({ workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS } }),
-    BrowserTask.countDocuments({ workspaceId, status: 'running' }),
+  const wanted = Array.isArray(types) && types.length ? types.filter(t => TASK_TYPES.includes(t)) : TASK_TYPES.filter(t => t !== 'prefill_message');
+  const [pending, running, messages] = await Promise.all([
+    BrowserTask.countDocuments({ workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS }, type: { $in: wanted } }),
+    BrowserTask.countDocuments({ workspaceId, status: 'running', type: { $in: wanted } }),
+    BrowserTask.countDocuments({ workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS }, type: 'prefill_message' }),
   ]);
-  return { pending, running };
+  return { pending, running, messages };
+}
+
+/** File du jour : prépare le message d'un prospect dans le Chrome du compte principal (extension en rôle « messages ») */
+export async function queuePrefillMessage(lead, { network, createdBy } = {}) {
+  const net = ['instagram', 'tiktok', 'linkedin'].includes(network) ? network : (lead.socials?.instagram ? 'instagram' : lead.socials?.tiktok ? 'tiktok' : 'linkedin');
+  const url = lead.socials?.[net];
+  if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
+  if (!lead.message) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
+  const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;
+  let batch = await BrowserTaskBatch.findOne({ label, closedAt: null });
+  if (!batch) batch = await BrowserTaskBatch.create({ label, kind: lead.kind, createdBy, counts: { total: 0 } });
+  // Une seule préparation en attente par prospect
+  const existing = await BrowserTask.findOne({ type: 'prefill_message', status: { $in: ['pending', 'running'] }, 'input.leadId': lead._id }).lean();
+  if (existing) return { task: existing, batch, already: true };
+  const task = await BrowserTask.create({ workspaceId: 'default', batchId: batch._id, type: 'prefill_message', input: { url, text: lead.message, leadId: lead._id, network: net } });
+  batch.counts.total += 1; await batch.save();
+  return { task, batch, already: false };
 }
 
 /* ---------- Lecture des résultats ---------- */
@@ -289,7 +310,7 @@ export async function submitTaskResult(id, result) {
   }
   let outcome = '';
   try {
-    if (!slim.text.trim() && (/\b404\b|not found|introuvable|page isn.t available|page n.est pas disponible/i.test(slim.title) || !slim.links.length)) throw new Error('page vide ou introuvable');
+    if (task.type !== 'prefill_message' && !slim.text.trim() && (/\b404\b|not found|introuvable|page isn.t available|page n.est pas disponible/i.test(slim.title) || !slim.links.length)) throw new Error('page vide ou introuvable');
     if (task.type === 'read_post_author') {
       const profile = extractPostAuthor(slim);
       if (!profile) throw new Error(`auteur introuvable sur la page (titre « ${slim.title.slice(0, 60)} », ${slim.text.length} caractères, ${slim.links.length} liens${slim.self ? `, compte ${slim.self}` : ', compte connecté non identifié'})`);
@@ -317,6 +338,11 @@ export async function submitTaskResult(id, result) {
       const imp = lines ? await importLeads({ kind: 'brand', text: lines, niche: batch?.niche, origin: batch?.origin || 'bibliothèque Meta' }) : { created: 0, updated: 0, emailsAdded: 0 };
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       outcome = `${advertisers.length} annonceur(s) relevé(s), ${imp.created} nouvelle(s) marque(s), ${imp.emailsAdded} email(s)`;
+    } else if (task.type === 'prefill_message') {
+      // L'extension a ouvert la conversation et collé le texte (ou copié le texte si la messagerie était introuvable) ; l'envoi reste un geste humain
+      task.extracted = { prefilled: !!result?.prefilled, copied: !!result?.copied };
+      outcome = result?.prefilled ? 'message collé dans la conversation, à relire et envoyer' : result?.copied ? 'messagerie introuvable : message copié, à coller à la main' : `préparation impossible${result?.error ? ` : ${String(result.error).slice(0, 120)}` : ''}`;
+      if (!result?.prefilled && !result?.copied) throw new Error(outcome);
     } else if (task.type === 'list_hashtag') {
       const posts = extractPosts(slim, task.input.count || 20);
       task.extracted = { posts };

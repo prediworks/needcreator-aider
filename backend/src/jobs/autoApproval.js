@@ -16,7 +16,7 @@ import { runScheduledOutreach } from '../services/acquisition/outreach.js';
 import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
-import { sendAdminDigest } from '../services/adminAlerts.js';
+import { sendAdminDigest, sendWeeklyReport } from '../services/adminAlerts.js';
 import { runFollowUps } from './followUps.js';
 import { publishExpiredReviews } from '../controllers/reviews.js';
 import { watermarkBacklog } from '../services/watermark.js';
@@ -257,9 +257,10 @@ export async function runScheduledJobs() {
     const outreach = await runScheduledOutreach().catch(err => ({ ran: false, error: err.message }));
     const memberMessages = await runMemberOnboarding().catch(err => { logger.error('runMemberOnboarding:', err); return 0; });
     const verifyReminders = await runEmailVerificationReminders().catch(err => { logger.error('runEmailVerificationReminders:', err); return 0; });
+    const weeklyReport = await sendWeeklyReport().catch(err => ({ sent: false, error: err.message }));
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

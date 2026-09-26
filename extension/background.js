@@ -5,7 +5,9 @@
  * from the server: random 5–10 s pause between pages, per-session and per-day caps, stop on login page / captcha /
  * restriction, no engagement of any kind (the extension only reads pages).
  */
-const DEFAULTS = { serverUrl: '', token: '', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
+const DEFAULTS = { serverUrl: '', token: '', role: 'reader', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
+// role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
+const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
 const LIST_TYPES = { list_hashtag: 4, list_ad_library: 6 }; // number of scrolls for list pages
 
 const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
@@ -64,6 +66,54 @@ async function readPage(task) {
   return page;
 }
 
+/**
+ * Injected in the profile tab (Instagram, TikTok, LinkedIn): opens the conversation and pastes the text.
+ * Never clicks Send: sending is the user's gesture. Self-contained (serialized by chrome.scripting).
+ */
+async function prefillInPage(text) {
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const visible = (el) => !!el && el.offsetParent !== null;
+  const findButton = (patterns) => {
+    const els = [...document.querySelectorAll('div[role="button"], button, a[role="link"], a')];
+    return els.find(el => visible(el) && patterns.some(p => p.test((el.innerText || el.getAttribute('aria-label') || '').trim())));
+  };
+  const findEditor = () => [...document.querySelectorAll('div[role="textbox"][contenteditable="true"], textarea, div[contenteditable="true"]')].find(visible);
+  try {
+    let editor = findEditor();
+    if (!editor) {
+      // Profile page: the "Message" button opens the conversation (Instagram: « Message » / « Envoyer un message » ; TikTok/LinkedIn similar)
+      const btn = findButton([/^(message|envoyer un message|send message|contacter|nachricht senden|mensaje)$/i, /^message$/i]);
+      if (!btn) return { prefilled: false, copied: false, error: 'bouton Message introuvable sur la page' };
+      btn.click();
+      for (let i = 0; i < 20 && !editor; i++) { await sleep(500); editor = findEditor(); }
+      if (!editor) return { prefilled: false, copied: false, error: 'la conversation ne s\'est pas ouverte' };
+    }
+    editor.focus();
+    await sleep(300);
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, text); } catch { ok = false; }
+    if (!ok || !(editor.innerText || editor.value || '').includes(text.slice(0, 20))) {
+      // Editors that ignore execCommand: paste event with the text as clipboard data
+      try {
+        const dt = new DataTransfer(); dt.setData('text/plain', text);
+        editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+        await sleep(300);
+        ok = (editor.innerText || editor.value || '').includes(text.slice(0, 20));
+      } catch { ok = false; }
+    }
+    if (ok) return { prefilled: true, copied: false };
+    try { await navigator.clipboard.writeText(text); return { prefilled: false, copied: true }; } catch { return { prefilled: false, copied: false, error: 'collage impossible dans cet éditeur' }; }
+  } catch (err) { return { prefilled: false, copied: false, error: String(err && err.message || err) }; }
+}
+
+async function prefillMessage(task) {
+  const tab = await chrome.tabs.create({ url: task.input.url, active: true }); // visible: the user sends the message
+  await waitLoaded(tab.id);
+  await sleep(rand(2500, 4000));
+  const [r] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: prefillInPage, args: [task.input.text] });
+  return r?.result || { prefilled: false, copied: false, error: 'no result from the page' };
+}
+
 async function tick() {
   if (!state.running || state.paused || state.busy) return;
   state.busy = true;
@@ -71,12 +121,24 @@ async function tick() {
     const s = await settings();
     if (state.session >= s.sessionCap) { state.running = false; log(`Session cap reached (${s.sessionCap} pages). Stopped.`); await saveState(); return; }
     if (state.day >= s.dayCap) { state.running = false; log(`Daily cap reached (${s.dayCap} pages). Stopped.`); await saveState(); return; }
-    const next = await api('/ext/next');
+    const roleTypes = ROLE_TYPES[s.role] || '';
+    const next = await api(`/ext/next${roleTypes ? `?types=${roleTypes}` : ''}`);
     state.queue = { pending: next.pending || 0, running: next.running || 0 };
     if (!next.task) { log('No task waiting. Polling again in a moment.'); state.lastTask = null; state.idle = true; return; }
     state.idle = false;
     const task = next.task;
     state.lastTask = { type: task.type, url: task.input.url };
+    if (task.type === 'prefill_message') {
+      // Messenger role: open the profile in a visible tab, open the conversation, paste the text, stop there
+      log(`Preparing a message on ${task.input.url}`);
+      let r;
+      try { r = await prefillMessage(task); } catch (err) { r = { prefilled: false, copied: false, error: err.message }; }
+      const res2 = await api(`/ext/${task.id}/result`, { method: 'POST', body: { url: task.input.url, text: '', links: [], ...r } });
+      log(r.prefilled ? 'Message pasted: read it over and press Send yourself.' : r.copied ? 'Conversation not found: the message is in your clipboard, paste it by hand.' : `Could not prepare the message: ${r.error || res2.outcome}`);
+      state.session += 1; state.day += 1;
+      await saveState();
+      return;
+    }
     log(`Reading ${task.type}: ${task.input.url}`);
     let page;
     try { page = await readPage(task); }

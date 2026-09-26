@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import {
   getDashboardStats,
@@ -27,7 +27,7 @@ import {
   reviewBusiness,
   getSettings,
   updateSetting,
-  memberMessagesView, memberMessagesSend,
+  memberMessagesView, memberMessagesSend, weeklyReportNow,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
 import { listDisputes, resolveDispute } from '../controllers/disputes.js';
@@ -63,6 +63,7 @@ router.post('/ambassadors/:userId/approve', reviewAmbassador);
 router.post('/ambassadors/:userId/reject', reviewAmbassador);
 
 // Réglages
+router.post('/weekly-report', weeklyReportNow); // bilan hebdomadaire à la demande
 router.get('/member-messages', memberMessagesView); // annonces aux inscrits : publics, historique, séquence d'accueil
 router.post('/member-messages', memberMessagesSend); // ?preview=1 : aperçu à l'administrateur
 router.get('/settings', getSettings);
@@ -108,7 +109,8 @@ router.post('/seed/run', runSeed);
 // Agents de prospection : prospects créateurs et marques (sourcing nocturne, qualification IA, export mailing)
 router.get('/acquisition', acquisitionOverview);
 router.get('/acquisition/dashboard', acquisitionDashboard);
-router.get('/acquisition/daily-queue', dailyQueue); // file « À contacter aujourd'hui » (messages privés à la main)
+router.get('/acquisition/daily-queue', dailyQueue);
+router.post('/acquisition/leads/:id/prefill', prefillMessage); // file du jour : message préparé dans Chrome par l'extension (rôle « messages ») // file « À contacter aujourd'hui » (messages privés à la main)
 router.get('/acquisition/mailing', mailingStatus);
 router.get('/acquisition/mailing/breakdown', mailingBreakdownView); // pourquoi tel prospect n'est pas dans l'outil de mailing
 router.post('/acquisition/leads/:id/reply', replyToLead);

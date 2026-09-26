@@ -446,3 +446,17 @@ export async function pasteReply(req, res) {
     res.status(500).json({ error: `Enregistrement impossible : ${error.message}` });
   }
 }
+
+/** File du jour : le message du prospect est préparé dans le Chrome du compte principal par l'extension (rôle « messages ») */
+export async function prefillMessage(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    const { queuePrefillMessage } = await import('../services/browserTasks.js');
+    const r = await queuePrefillMessage(lead, { network: req.body?.network, createdBy: req.user._id });
+    res.json({ message: r.already ? 'Déjà en attente : l\'extension va ouvrir la conversation' : 'Envoyé à l\'extension : la conversation s\'ouvre dans Chrome avec le message collé, relisez et envoyez', taskId: r.task._id });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('prefillMessage failed:', error); res.status(500).json({ error: 'Préparation impossible' });
+  }
+}

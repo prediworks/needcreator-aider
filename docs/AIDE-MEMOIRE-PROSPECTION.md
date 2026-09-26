@@ -83,6 +83,12 @@ Après la semaine 6, reprendre à la semaine 1 : de nouvelles marques auront lan
 
 ## Chaque jour · dix minutes de messages privés
 
+**Avec l'extension en rôle « Messenger »** (installée une seconde fois, dans le profil Chrome du compte @need.creator, options → rôle
+« Messenger », même adresse et même jeton, puis Start) : dans la file du jour, « Préparer dans Chrome » ouvre la conversation Instagram
+avec le message déjà collé ; vous relisez, vous envoyez, puis « Contacté, suivant » dans l'admin. Sans cette installation, la méthode
+ci-dessous reste valable.
+
+
 **But** : joindre les créateurs qui n'ont pas d'email, et tous les autres tant que le domaine d'envoi est trop jeune pour l'email.
 
 1. Admin → Prospection → carte **« À contacter aujourd'hui »**, tout en haut.

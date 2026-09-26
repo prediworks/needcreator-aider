@@ -2803,11 +2803,24 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
       await admin.auth().updateUser(fu.uid, { emailVerified: true });
       await users.updateOne({ _id: creatorDoc._id }, { $set: { 'verification.email': true } });
     }
-    return 'message 1 à J+3 (une fois), messages 2 et 3 en attente, aperçu, annonce tracée et notifiée, rappel de confirmation J+1 puis synchronisation Firebase';
+    // Accueil des marques : la marque de test, inscrite depuis 2 jours et sans campagne… elle en a : message 1 dû, message 2 (sans campagne) non
+    await users.updateOne({ email: brandEmail }, { $set: { createdAt: new Date(Date.now() - 6 * 86400000), role: 'brand' } }); // la marque redevient marque le temps du passage (le compte sert d'admin dans cette étape)
+    await db.collection('membermessagelogs').deleteMany({ key: /^brandOnboarding/ });
+    const { runMemberOnboarding } = await import('../src/services/memberMessages.js');
+    await runMemberOnboarding();
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+    const brandDoc = await users.findOne({ email: brandEmail });
+    const blogs = await db.collection('membermessagelogs').find({ userId: brandDoc._id }).toArray();
+    expect(blogs.some(l => l.key === 'brandOnboarding1') && !blogs.some(l => l.key === 'brandOnboarding2'), 'La marque reçoit le message 1 ; le message 2 est réservé aux marques sans campagne', { status: 200, data: blogs });
+    // Bilan hebdomadaire à la demande
+    const weekly = await brandApi('POST', '/admin/weekly-report');
+    expect(weekly.status === 200 && weekly.data.cur && typeof weekly.data.cur.creators === 'number' && typeof weekly.data.cur.pushed === 'number' && Array.isArray(weekly.data.totals), 'Le bilan hebdomadaire doit se calculer et partir aux administrateurs', weekly);
+    await db.collection('settings').deleteOne({ key: 'adminWeeklyLastAt' });
+    return 'message 1 à J+3 (une fois), messages 2 et 3 en attente, aperçu, annonce tracée et notifiée, rappel de confirmation J+1 puis synchronisation Firebase, accueil marque, bilan hebdomadaire';
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
     await db.collection('memberbroadcasts').deleteMany({ subject: /E2E annonce/ });
-    await db.collection('membermessagelogs').deleteMany({ $or: [{ userId: creatorDoc._id }, { key: { $regex: '^broadcast:' } }] });
+    await db.collection('membermessagelogs').deleteMany({ $or: [{ userId: creatorDoc._id }, { key: { $regex: '^broadcast:|^brandOnboarding' } }] });
   }
 });
 
@@ -2884,6 +2897,21 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     batchIds.push(lot3Again.data.batch._id);
     const cancel = await brandApi('POST', `/browser-tasks/batches/${lot3Again.data.batch._id}/cancel`);
     expect(cancel.status === 200 && /1 tâche/.test(cancel.data.message), 'L\'annulation du lot doit retirer sa tâche', cancel);
+    // Préparation de message : créée depuis la file du jour, jamais donnée au rôle « lecture », donnée au rôle « messages », résultat collé
+    const dmLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTDM-${RUN}`, name: 'E2E Ext Marque DM', status: 'qualified', score: 70, message: 'Bonjour, message de test E2E.', socials: { instagram: 'https://www.instagram.com/e2eextbrand.dm/' }, createdAt: new Date(), updatedAt: new Date() });
+    const pre = await brandApi('POST', `/admin/acquisition/leads/${dmLead.insertedId}/prefill`, { network: 'instagram' });
+    expect(pre.status === 200 && pre.data.taskId, 'La file du jour doit pouvoir confier un message à l\'extension', pre);
+    const pre2 = await brandApi('POST', `/admin/acquisition/leads/${dmLead.insertedId}/prefill`, { network: 'instagram' });
+    expect(pre2.status === 200 && /Déjà en attente/.test(pre2.data.message), 'Une seule préparation en attente par prospect', pre2);
+    const reader = await ext('GET', '/next');
+    expect(reader.data.task === null && reader.data.messages >= 1, 'Le rôle lecture ne reçoit jamais une préparation de message', reader);
+    const messenger = await ext('GET', '/next?types=prefill_message');
+    expect(messenger.data.task && messenger.data.task.type === 'prefill_message' && messenger.data.task.input.text === 'Bonjour, message de test E2E.' && /e2eextbrand\.dm/.test(messenger.data.task.input.url), 'Le rôle messages reçoit la préparation avec le texte et le profil', messenger);
+    const pasted = await ext('POST', `/${messenger.data.task.id}/result`, { url: messenger.data.task.input.url, text: '', links: [], prefilled: true });
+    expect(pasted.status === 200 && /collé dans la conversation/.test(pasted.data.outcome), 'Le résultat « collé » doit être enregistré', pasted);
+    const dmBatch = await db.collection('browsertaskbatches').findOne({ _id: new mongoose.Types.ObjectId(messenger.data.task.batchId) });
+    batchIds.push(String(dmBatch._id));
+    await db.collection('leads').deleteOne({ _id: dmLead.insertedId });
     const list = await brandApi('GET', '/browser-tasks/batches');
     expect(list.status === 200 && list.data.batches.length >= 3, 'La liste des lots doit être visible dans l\'admin', list);
     // Recomptage des lots ouverts depuis leurs tâches : le lot personnalisé (auteur + profil faits) est fermé avec 1 email relevé

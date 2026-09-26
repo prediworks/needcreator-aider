@@ -19,6 +19,7 @@ export default function MemberMessages() {
   const { data } = useQuery({ queryKey: ['member-messages'], queryFn: async () => (await api.get('/admin/member-messages')).data });
   const preview = useMutation({ mutationFn: async () => (await api.post('/admin/member-messages?preview=1', { audience, subject, body })).data, onSuccess: (d) => toast.success(d.message, { duration: 8000 }), onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const send = useMutation({ mutationFn: async () => (await api.post('/admin/member-messages', { audience, subject, body })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSubject(''); setBody(''); queryClient.invalidateQueries({ queryKey: ['member-messages'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const weekly = useMutation({ mutationFn: async () => (await api.post('/admin/weekly-report')).data, onSuccess: (d) => toast.success(d.message, { duration: 8000 }), onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const count = data?.audiences?.[audience] ?? 0;
   const ready = subject.trim().length >= 5 && body.trim().length >= 20;
   return (
@@ -40,7 +41,11 @@ export default function MemberMessages() {
       </Card>
       <Card className="p-6">
         <h3 className="font-semibold mb-2">Séquence d&apos;accueil : envois effectués</h3>
-        <p className="text-sm text-neutral-600">Message 1 (les outils) : {data?.onboarding?.onboarding1 ?? 0} · Message 2 (portfolio et Ambassadeur) : {data?.onboarding?.onboarding2 ?? 0} · Message 3 (premier devis client) : {data?.onboarding?.onboarding3 ?? 0}</p>
+        <p className="text-sm text-neutral-600">Créateurs · message 1 (les outils) : {data?.onboarding?.onboarding1 ?? 0} · message 2 (portfolio et Ambassadeur) : {data?.onboarding?.onboarding2 ?? 0} · message 3 (premier devis client) : {data?.onboarding?.onboarding3 ?? 0}</p>
+        <p className="text-sm text-neutral-600">Marques · message 1 (campagne au produit offert) : {data?.onboarding?.brandOnboarding1 ?? 0} · message 2 (aucune campagne publiée) : {data?.onboarding?.brandOnboarding2 ?? 0}</p>
+        <h3 className="font-semibold mt-5 mb-2">Bilan hebdomadaire</h3>
+        <p className="text-sm text-neutral-600 mb-2">Chaque lundi, les administrateurs reçoivent les chiffres de la semaine (inscrits, prospects, mailing, réponses, messages privés, extension, campagnes, outils créateurs), comparés à la semaine précédente.</p>
+        <Button size="sm" variant="outline" onClick={() => weekly.mutate()} isLoading={weekly.isPending} title="Envoie le bilan tout de suite, sans attendre lundi" data-testid="weekly-report">M&apos;envoyer le bilan maintenant</Button>
         <h3 className="font-semibold mt-5 mb-2">Annonces envoyées</h3>
         {data?.broadcasts?.length ? (
           <ul className="text-sm text-neutral-700 space-y-1">{data.broadcasts.map((b: any) => <li key={b._id}><span className="text-neutral-500">{formatDateTime(b.sentAt)}</span> · {b.audience === 'brands' ? 'marques' : 'créateurs'} · <span className="font-medium">{b.subject}</span> · {b.count} envoi(s), {b.emailed} email(s)</li>)}</ul>

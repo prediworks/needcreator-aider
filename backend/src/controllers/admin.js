@@ -13,6 +13,7 @@ import ExternalQuote from '../models/ExternalQuote.js';
 import Prospect from '../models/Prospect.js';
 import CreatorContent from '../models/CreatorContent.js';
 import { memberMessagesOverview, broadcastMemberMessage } from '../services/memberMessages.js';
+import { sendWeeklyReport } from '../services/adminAlerts.js';
 import { config } from '../config/index.js';
 
 /**
@@ -767,4 +768,12 @@ export async function memberMessagesSend(req, res) {
     if (error.status === 502) return res.status(502).json({ error: error.message });
     logger.error('memberMessagesSend failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` });
   }
+}
+
+/** Bilan hebdomadaire envoyé tout de suite aux administrateurs (sinon chaque lundi par la tâche planifiée) */
+export async function weeklyReportNow(req, res) {
+  try {
+    const r = await sendWeeklyReport({ force: true });
+    res.json({ message: r.sent ? 'Bilan de la semaine envoyé aux administrateurs' : `Bilan non envoyé : ${r.reason || 'aucun destinataire'}`, ...r });
+  } catch (error) { logger.error('weeklyReportNow failed:', error); res.status(500).json({ error: `Bilan impossible : ${error.message}` }); }
 }

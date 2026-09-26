@@ -126,6 +126,7 @@ export default async function CreatorsPage() {
           </div>
           <div className="text-center mt-10 flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/calculateur-tarif-ugc"><Button variant="outline" className="border-white text-white hover:bg-neutral-800 w-full sm:w-auto">Essayer le calculateur de tarif</Button></Link>
+            <Link href="/devis-ugc"><Button variant="outline" className="border-white text-white hover:bg-neutral-800 w-full sm:w-auto">Faire un devis UGC sans compte</Button></Link>
             <Link href="/register?role=creator"><Button className="w-full sm:w-auto">Créer mon profil créateur</Button></Link>
           </div>
         </div>

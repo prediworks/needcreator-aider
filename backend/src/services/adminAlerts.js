@@ -1,6 +1,11 @@
 import User from '../models/User.js';
 import Delivery from '../models/Delivery.js';
 import Report from '../models/Report.js';
+import Campaign from '../models/Campaign.js';
+import Lead from '../models/Lead.js';
+import ExternalQuote from '../models/ExternalQuote.js';
+import Prospect from '../models/Prospect.js';
+import BrowserTask from '../models/BrowserTask.js';
 import { config } from '../config/index.js';
 import { getSetting, setSetting } from '../models/Setting.js';
 import logger from '../utils/logger.js';
@@ -82,4 +87,69 @@ export async function alertNewReport(report, reporter) {
     ${report.details ? `<p>${report.details}</p>` : ''}
     <p><a href="${config.cors.origin}/admin">Traiter dans l'administration</a></p>
   `);
+}
+
+const WEEKLY_KEY = 'adminWeeklyLastAt';
+
+/** Chiffres d'une fenêtre [from, to) : inscrits, prospects, mailing, messages privés, extension, campagnes, outils créateurs */
+export async function weeklyFigures(from, to) {
+  const w = { $gte: from, $lt: to };
+  const [creators, brands, leadsCreator, leadsBrand, leadsWithEmail, pushed, replies, interested, dms, extDone, extEmails, campaigns, deliveries, quotes, prospects] = await Promise.all([
+    User.countDocuments({ role: 'creator', createdAt: w }),
+    User.countDocuments({ role: 'brand', createdAt: w }),
+    Lead.countDocuments({ kind: 'creator', createdAt: w }),
+    Lead.countDocuments({ kind: 'brand', createdAt: w }),
+    Lead.countDocuments({ createdAt: w, email: { $nin: [null, ''] } }),
+    Lead.countDocuments({ 'mailing.pushedAt': w }),
+    Lead.countDocuments({ 'mailing.replyAt': w }),
+    Lead.countDocuments({ 'mailing.replyAt': w, 'mailing.replyIntent': 'interested' }),
+    Lead.countDocuments({ contactedAt: w, contactedVia: { $in: ['instagram', 'tiktok', 'linkedin'] } }),
+    BrowserTask.countDocuments({ status: 'done', finishedAt: w }),
+    BrowserTask.countDocuments({ status: 'done', finishedAt: w, 'extracted.email': { $nin: [null, ''] } }),
+    Campaign.countDocuments({ 'timeline.publishedAt': w }),
+    Delivery.countDocuments({ createdAt: w }),
+    ExternalQuote.countDocuments({ createdAt: w }),
+    Prospect.countDocuments({ createdAt: w }),
+  ]);
+  return { creators, brands, leadsCreator, leadsBrand, leadsWithEmail, pushed, replies, interested, dms, extDone, extEmails, campaigns, deliveries, quotes, prospects };
+}
+
+/**
+ * Bilan hebdomadaire envoyé aux administrateurs le lundi (au plus une fois par 7 jours), ou à la demande (force).
+ * Semaine écoulée comparée à la précédente.
+ */
+export async function sendWeeklyReport({ force = false } = {}) {
+  const last = await getSetting(WEEKLY_KEY, null);
+  const now = new Date();
+  if (!force) {
+    if (now.getDay() !== 1) return { sent: false, reason: 'pas lundi' };
+    if (last && now.getTime() - new Date(last).getTime() < 6 * 86400000) return { sent: false, reason: 'déjà envoyé cette semaine' };
+  }
+  const to = now, from = new Date(now.getTime() - 7 * 86400000), prev = new Date(now.getTime() - 14 * 86400000);
+  const [cur, before, totals] = await Promise.all([weeklyFigures(from, to), weeklyFigures(prev, from), Promise.all([
+    User.countDocuments({ role: 'creator', status: { $in: ['active', 'pending'] } }), User.countDocuments({ role: 'brand', status: 'active' }), Campaign.countDocuments({ status: 'active' }), Lead.countDocuments({ status: { $nin: ['rejected', 'excluded'] } }),
+  ])]);
+  const rows = [
+    ['Créateurs inscrits', cur.creators, before.creators], ['Marques inscrites', cur.brands, before.brands],
+    ['Prospects créateurs trouvés', cur.leadsCreator, before.leadsCreator], ['Prospects marques trouvés', cur.leadsBrand, before.leadsBrand], ['dont avec email', cur.leadsWithEmail, before.leadsWithEmail],
+    ['Envoyés au mailing', cur.pushed, before.pushed], ['Réponses reçues', cur.replies, before.replies], ['dont intéressés', cur.interested, before.interested],
+    ['Messages privés faits à la main', cur.dms, before.dms],
+    ['Pages lues par l\'extension', cur.extDone, before.extDone], ['dont emails relevés', cur.extEmails, before.extEmails],
+    ['Campagnes publiées', cur.campaigns, before.campaigns], ['Livraisons', cur.deliveries, before.deliveries],
+    ['Devis clients créés (créateurs)', cur.quotes, before.quotes], ['Prospects suivis (créateurs)', cur.prospects, before.prospects],
+  ];
+  const arrow = (a, b) => a > b ? '↑' : a < b ? '↓' : '=';
+  const html = `
+    <h1>Bilan de la semaine</h1>
+    <p>Du ${from.toLocaleDateString('fr-FR')} au ${to.toLocaleDateString('fr-FR')}, comparé à la semaine précédente.</p>
+    <table style="border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:14px">
+      <tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid #e5e7eb"></th><th style="padding:4px 8px;border-bottom:1px solid #e5e7eb">Cette semaine</th><th style="padding:4px 8px;border-bottom:1px solid #e5e7eb;color:#6b7280">Précédente</th></tr>
+      ${rows.map(([l, a, b]) => `<tr><td style="padding:4px 8px;${l.startsWith('dont') ? 'color:#6b7280;padding-left:20px' : ''}">${l}</td><td style="padding:4px 8px;text-align:center"><strong>${a}</strong> <span style="color:#9ca3af">${arrow(a, b)}</span></td><td style="padding:4px 8px;text-align:center;color:#6b7280">${b}</td></tr>`).join('')}
+    </table>
+    <p style="margin-top:16px"><strong>Où en est la plateforme</strong> : ${totals[0]} créateurs, ${totals[1]} marques, ${totals[2]} campagne(s) ouverte(s), ${totals[3]} prospects actifs.</p>
+    <p style="color:#666;font-size:13px">Envoyé chaque lundi. Les mêmes chiffres sont dans l'administration.</p>
+  `;
+  const sent = await notifyAdmins(`Bilan de la semaine : ${cur.creators + cur.brands} inscrit(s), ${cur.replies} réponse(s), ${cur.campaigns} campagne(s)`, html);
+  if (sent) await setSetting(WEEKLY_KEY, now.toISOString());
+  return { sent, cur, before, totals };
 }

@@ -16,6 +16,12 @@
   <div class="hint">The base of the task queue API. The extension calls <code>/ext/next</code> and <code>/ext/{id}/result</code> under it.</div>
   <label for="token">Extension token</label>
   <input id="token" placeholder="paste the token from the admin screen">
+  <label for="role">Role of this installation</label>
+  <select id="role" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:14px">
+    <option value="reader">Reader · secondary account: reads profiles, posts, hashtags, ad library (never opens a conversation)</option>
+    <option value="messenger">Messenger · main account: only opens a conversation and pastes the prepared text (never reads pages, never sends)</option>
+  </select>
+  <div class="hint">Install the extension twice, in two Chrome profiles: one logged in with a secondary account (Reader), one with the account the prospects should see (Messenger).</div>
   <div class="grid">
     <div><label for="minDelay">Minimum pause between pages (s)</label><input id="minDelay" type="number" min="5" max="60"></div>
     <div><label for="maxDelay">Maximum pause (s)</label><input id="maxDelay" type="number" min="5" max="120"></div>

@@ -88,6 +88,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
     onSuccess: () => { setVia(''); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-mailing-breakdown'] }); },
     onError: (e: any) => toast.error(getErrorMessage(e)),
   });
+  const prefill = useMutation({ mutationFn: async ({ id, network }: any) => (await api.post(`/admin/acquisition/leads/${id}/prefill`, { network })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   if (isLoading || !q) return null;
   const l = q.leads?.[0];
   const pct = Math.min(100, Math.round((q.doneToday / q.goal) * 100));
@@ -121,6 +122,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             {l.socials?.instagram && <Button size="sm" onClick={() => open('instagram', l.socials.instagram)} title="Copie le message et ouvre le profil Instagram dans un nouvel onglet. Commentez une publication récente avant d'écrire si vous ne l'avez jamais fait : le message passe mieux." data-testid="daily-open-instagram"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}
             {l.socials?.tiktok && <Button size="sm" variant={l.socials?.instagram ? 'outline' : 'primary'} onClick={() => open('tiktok', l.socials.tiktok)} title="Copie le message et ouvre le profil TikTok dans un nouvel onglet"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
+            {(l.socials?.instagram || l.socials?.tiktok) && <Button size="sm" variant="outline" onClick={() => { const network = l.socials?.instagram ? 'instagram' : 'tiktok'; setVia(network); prefill.mutate({ id: l._id, network }); }} isLoading={prefill.isPending} title="Envoie le message à l'extension installée dans le Chrome du compte principal (rôle « Messages ») : elle ouvre la conversation et colle le texte, vous relisez et envoyez. Sans cette extension, utilisez « Copier et ouvrir »." data-testid="prefill-message">Préparer dans Chrome</Button>}
             {kind === 'brand' && l.socials?.linkedin && <Button size="sm" variant="outline" onClick={() => open('linkedin', l.socials.linkedin)} title="Copie le message et ouvre la page LinkedIn"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
             <span className="text-neutral-300">|</span>
             <Button size="sm" variant="outline" onClick={() => act.mutate({ id: l._id, status: 'contacted', contactedVia: via || (l.socials?.instagram ? 'instagram' : l.socials?.tiktok ? 'tiktok' : 'linkedin') })} isLoading={act.isPending} title="Message envoyé : le prospect passe en « Contacté » (il ne recevra pas l'email de prospection) et la file affiche le suivant" data-testid="daily-done">Contacté, suivant</Button>

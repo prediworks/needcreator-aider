@@ -45,6 +45,7 @@ function RegisterForm() {
   const quoteToken = searchParams.get('quote') || '';
   const leadId = searchParams.get('lead') || '';
   const briefId = searchParams.get('brief') || ''; // brief généré depuis une URL produit
+  const nextPath = /^\/[a-z0-9\-/]*$/i.test(searchParams.get('next') || '') ? (searchParams.get('next') as string) : ''; // retour après inscription (ex. /quotes depuis le devis sans compte)
   const targetCampaign = searchParams.get('campaign') || '';
   const [campaignInvite, setCampaignInvite] = useState<{ email: string; name?: string; campaignId: string; campaignTitle: string; companyName: string } | null>(null);
   const [teamInfo, setTeamInfo] = useState<{ email: string; name?: string; companyName: string } | null>(null);
@@ -72,8 +73,8 @@ function RegisterForm() {
   }, [completing, firebaseUser]);
 
   useEffect(() => {
-    if (!authLoading && user) router.replace('/dashboard');
-  }, [authLoading, user, router]);
+    if (!authLoading && user) router.replace(nextPath || '/dashboard');
+  }, [authLoading, user, router, nextPath]);
 
   // Invitation à rejoindre l'équipe d'une marque : email et entreprise pré-remplis
   useEffect(() => {
@@ -142,7 +143,7 @@ function RegisterForm() {
       const invited = (res as any)?.data?.invitedCampaignId || campaignInvite?.campaignId || targetCampaign;
       const quoteDelivery = (res as any)?.data?.quoteDeliveryId;
       const briefCampaign = (res as any)?.data?.briefCampaignId;
-      router.push(quoteDelivery ? `/deliveries/${quoteDelivery}` : briefCampaign ? `/campaigns/${briefCampaign}` : invited && role === 'creator' ? `/campaigns/${invited}` : '/dashboard');
+      router.push(quoteDelivery ? `/deliveries/${quoteDelivery}` : briefCampaign ? `/campaigns/${briefCampaign}` : invited && role === 'creator' ? `/campaigns/${invited}` : nextPath || '/dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);
 

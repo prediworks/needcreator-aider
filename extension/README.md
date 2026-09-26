@@ -15,14 +15,16 @@ Header on every call: `X-Extension-Token: <token>`.
 | `POST {serverUrl}/ext/{id}/result` | send the page | body `{ url, finalUrl, title, text, links: [{ href, text }], blocked: null \| 'login' \| 'captcha' \| 'restricted' \| 'consent' \| 'error', error? }` → `{ outcome, blocked }` |
 
 Task types the extension knows: `read_post_author`, `read_profile` (one page, no scroll), `list_hashtag` (4 scrolls),
-`list_ad_library` (6 scrolls). Any other type is read as a single page.
+`list_ad_library` (6 scrolls), and `prefill_message` (opens the profile in a visible tab, opens the conversation, pastes `input.text`, stops; result `{ prefilled, copied, error }`). Any other type is read as a single page.
+
+**Roles.** The options page sets the role of an installation: `reader` (default) asks `GET /ext/next` without a filter and the server never hands it a `prefill_message`; `messenger` asks `GET /ext/next?types=prefill_message` and only prepares messages. Install the extension in two Chrome profiles: a secondary account for reading, the account prospects should see for messages.
 
 ## Guardrails (in the extension, not configurable below their floors)
 
 - Random pause between two pages: 5 to 10 s by default, never under 5 s.
 - Caps: 60 pages per session and 150 per day by default (hard ceilings 100 and 300).
 - Stops by itself on a login page, a captcha, a cookie-consent page or a restriction notice, and tells the user.
-- Reads only: no like, follow, comment, message or form submit. The only scripts injected are `extract.js` (read) and `scroll.js` (scroll down).
+- Reads only: no like, follow, comment, message or form submit. The only scripts injected are `extract.js` (read), `scroll.js` (scroll down) and, in the messenger role, the paste function (opens the conversation, pastes, never sends).
 - A dedicated background tab the user can watch; Pause and Stop in the popup; a log of the last actions.
 
 ## Install (developer mode)

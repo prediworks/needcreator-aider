@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
  * File de tâches pour l'extension Chrome de prospection (dossier extension/).
  * Isolé du reste : l'extension ne connaît que ce protocole (tâche → résultat brut : texte visible, liens, blocage).
  */
-export const TASK_TYPES = ['read_post_author', 'read_profile', 'list_hashtag', 'list_ad_library'];
+export const TASK_TYPES = ['read_post_author', 'read_profile', 'list_hashtag', 'list_ad_library', 'prefill_message'];
 export const TASK_STATUSES = ['pending', 'running', 'done', 'failed', 'cancelled'];
 
 const taskSchema = new mongoose.Schema({
@@ -18,6 +18,8 @@ const taskSchema = new mongoose.Schema({
     count: Number,     // nombre d'éléments à relever (listes)
     leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' }, // fiche à compléter, le cas échéant
     postUrl: String,   // publication d'origine (pour compléter la fiche « publication seule »)
+    text: String,      // prefill_message : le message à coller dans la conversation (jamais envoyé par l'extension)
+    network: String,   // prefill_message : instagram, tiktok, linkedin
   },
   status: { type: String, enum: TASK_STATUSES, default: 'pending', index: true },
   attempts: { type: Number, default: 0 },

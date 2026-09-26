@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import ExternalQuote from '../models/ExternalQuote.js';
+import Campaign from '../models/Campaign.js';
 import { MemberMessageLog, MemberBroadcast } from '../models/MemberMessage.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { sendEmail, button } from './email.js';
@@ -16,7 +17,7 @@ export const ONBOARDING_KEYS = [1, 2, 3];
 const SITE = () => config.cors.origin;
 
 const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const firstName = (user) => String(user?.profile?.name || '').trim().split(/\s+/)[0] || '';
+const firstName = (user) => String(user?.profile?.name || user?.profile?.companyName || '').trim().split(/\s+/)[0] || '';
 
 /** {{prenom}} et {{nom}} ; texte brut → paragraphes, lignes « - » → liste, liens en clair conservés */
 export function renderMemberBody(body, user) {
@@ -76,6 +77,19 @@ export async function runMemberOnboarding({ limit = 200 } = {}) {
     for (const u of users) { if (await sendMemberMessage(u, { subject, body, key })) sent++; }
     if (sent >= limit) break;
   }
+  // Marques : message 1 (première campagne au produit offert), message 2 seulement sans campagne créée
+  for (const i of [1, 2]) {
+    if (sent >= limit) break;
+    if (!(await getSetting(`memberBrandMsg${i}Enabled`, SETTINGS[`memberBrandMsg${i}Enabled`].default))) continue;
+    const days = Number(await getSetting(`memberBrandMsg${i}Days`, SETTINGS[`memberBrandMsg${i}Days`].default));
+    const subject = String(await getSetting(`memberBrandMsg${i}Subject`, '') || SETTINGS[`memberBrandMsg${i}Subject`].default);
+    const body = String(await getSetting(`memberBrandMsg${i}Body`, '') || SETTINGS[`memberBrandMsg${i}Body`].default);
+    const key = `brandOnboarding${i}`;
+    const done = await MemberMessageLog.distinct('userId', { key });
+    const excluded = i === 2 ? [...done, ...(await Campaign.distinct('brandId'))] : done;
+    const users = await User.find({ ...audienceFilter('brands'), 'seed.batch': { $in: [null] }, createdAt: { $lte: new Date(Date.now() - days * 86400000) }, _id: { $nin: excluded } }).select('email profile.name profile.companyName preferences').limit(limit - sent).lean();
+    for (const u of users) { if (await sendMemberMessage(u, { subject, body, key, href: '/campaigns/new', cta: 'Créer ma première campagne' })) sent++; }
+  }
   return sent;
 }
 
@@ -105,7 +119,7 @@ export async function memberMessagesOverview() {
     User.countDocuments(audienceFilter('creators')),
     User.countDocuments(audienceFilter('brands')),
     MemberBroadcast.find().sort({ sentAt: -1 }).limit(20).lean(),
-    MemberMessageLog.aggregate([{ $match: { key: /^onboarding/ } }, { $group: { _id: '$key', n: { $sum: 1 } } }]),
+    MemberMessageLog.aggregate([{ $match: { key: /^(onboarding|brandOnboarding)/ } }, { $group: { _id: '$key', n: { $sum: 1 } } }]),
   ]);
   return { audiences: { creators, brands }, broadcasts, onboarding: Object.fromEntries(onboarding.map(o => [o._id, o.n])) };
 }

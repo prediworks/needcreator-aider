@@ -12,10 +12,12 @@ export async function extensionAuth(req, res, next) {
   } catch (error) { next(error); }
 }
 
+const typesOf = (req) => String(req.query.types || '').split(',').map(t => t.trim()).filter(Boolean);
 export async function nextTask(req, res) {
   try {
-    const task = await claimNextTask();
-    const status = await queueStatus();
+    const types = typesOf(req);
+    const task = await claimNextTask({ types });
+    const status = await queueStatus({ types });
     res.json({ task, ...status });
   } catch (error) { logger.error('nextTask failed:', error); res.status(500).json({ error: 'File indisponible' }); }
 }
@@ -27,6 +29,8 @@ const resultSchema = Joi.object({
   text: Joi.string().max(200000).allow(''),
   links: Joi.array().items(Joi.object({ href: Joi.string().max(2000).allow(''), text: Joi.string().max(500).allow('') })).max(2000),
   blocked: Joi.string().valid('login', 'captcha', 'restricted', 'consent', 'error').allow(null),
+  prefilled: Joi.boolean(),
+  copied: Joi.boolean(),
   error: Joi.string().max(500).allow(''),
   meta: Joi.object({ description: Joi.string().max(2000).allow(''), ogTitle: Joi.string().max(500).allow(''), ogDescription: Joi.string().max(2000).allow('') }).unknown(true),
   self: Joi.string().max(40).allow('', null),
@@ -46,7 +50,7 @@ export async function taskResult(req, res) {
 }
 
 export async function extensionStatus(req, res) {
-  try { res.json({ ok: true, ...(await queueStatus()) }); }
+  try { res.json({ ok: true, ...(await queueStatus({ types: typesOf(req) })) }); }
   catch (error) { res.status(500).json({ error: 'File indisponible' }); }
 }
 
