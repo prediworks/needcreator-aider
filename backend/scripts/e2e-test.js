@@ -333,6 +333,8 @@ await step('Admin : validation du créateur', async () => {
   expect(pending.status === 200, 'Liste des créateurs en attente inaccessible', pending);
   const res = await adminApi('POST', `/admin/creators/${creatorUser.id}/approve`);
   expect(res.status === 200 && res.data.user.status === 'active', 'Validation créateur échouée', res);
+  const pub = await fetch(API + '/config/public').then(r => r.json());
+  expect(Array.isArray(pub.demoEmbedUrls) && pub.demoEmbedUrls.length >= 1 && /instagram\.com|tiktok\.com/.test(pub.demoEmbedUrls[0]), 'La configuration publique doit donner les publications de la page de démonstration', { status: 200, data: pub.demoEmbedUrls });
   const stats = await adminApi('GET', '/admin/stats');
   expect(stats.status === 200 && stats.data.users.creatorsByStatus && typeof stats.data.users.creatorsByStatus.active === 'number', 'Les statistiques admin doivent donner les créateurs par statut', stats);
   const pendingList = await adminApi('GET', '/admin/users?role=creator&status=pending&limit=5');

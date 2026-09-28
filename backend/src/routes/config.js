@@ -33,6 +33,7 @@ router.get('/public', async (req, res) => {
     giftingMaxDeliverables: config.gifting.maxDeliverables,
     giftingMaxPerMonth: config.gifting.maxPerMonth,
     publicCreatorsMinCount: await getSetting(SETTINGS.publicCreatorsMinCount.key, SETTINGS.publicCreatorsMinCount.default),
+    demoEmbedUrls: String(await getSetting(SETTINGS.demoEmbedUrls.key, SETTINGS.demoEmbedUrls.default) || '').split(';').map(u => u.trim()).filter(u => /^https?:\/\/(www\.)?(instagram|tiktok)\.com\//i.test(u)).slice(0, 4),
     publicCreatorsCount: await User.countDocuments({ role: 'creator', status: 'active', 'verification.portfolio': true, 'profile.publicConsent.site': true }),
     services: SERVICES.map(s => ({ key: s.key, label: s.label, kind: s.kind, minPortfolio: s.key === 'ugc' ? config.business.minCreatorVideos : s.minPortfolio, description: s.description })),
   });

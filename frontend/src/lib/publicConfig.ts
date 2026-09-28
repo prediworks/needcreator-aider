@@ -23,6 +23,7 @@ export interface PublicConfig {
   giftingMaxDeliverables: number;
   giftingMaxPerMonth: number;
   publicCreatorsMinCount: number;
+  demoEmbedUrls: string[];
   publicCreatorsCount: number;
 }
 
@@ -47,6 +48,7 @@ export const DEFAULT_PUBLIC_CONFIG: PublicConfig = {
   giftingMaxDeliverables: 2,
   giftingMaxPerMonth: 2,
   publicCreatorsMinCount: 6,
+  demoEmbedUrls: ['https://www.instagram.com/need.creator/'],
   publicCreatorsCount: 0,
 };
 
