@@ -18,7 +18,7 @@ export default function PublicQuotePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { data, isLoading, error } = useQuery({ queryKey: ['public-quote', token], queryFn: async () => (await api.get(`/external-quotes/public/${token}`)).data.quote, enabled: !!token });
+  const { data, isLoading, error } = useQuery({ queryKey: ['public-quote', token], queryFn: async () => { const r = (await api.get(`/external-quotes/public/${token}`)).data; return { ...r.quote, showcase: r.showcase || null }; }, enabled: !!token });
   const accept = useMutation({
     mutationFn: async () => (await api.post(`/external-quotes/public/${token}/accept`)).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); if (d.deliveryId) router.push(`/deliveries/${d.deliveryId}`); },
@@ -40,6 +40,13 @@ export default function PublicQuotePage() {
             <span className="inline-flex items-center gap-1"><Star className="w-4 h-4 text-yellow-500" /> {q.creator.totalReviews ? `${Number(q.creator.rating).toFixed(1)} / 5 (${q.creator.totalReviews} avis)` : 'Créateur NeedCreator'} · {q.creator.completedJobs} mission(s) validée(s)</span>
             {q.creator.slug && <Link href={`/c/${q.creator.slug}`} className="text-primary-600 underline">Voir son portfolio</Link>}
           </div>
+          {q.showcase && (
+            <div className="mb-4 rounded-xl border border-primary-200 bg-primary-50/40 p-4" data-testid="showcase-preview">
+              <div className="text-sm font-medium text-neutral-900 mb-2">La vidéo est déjà tournée : regardez-la ici, en filigrane. La version sans filigrane vous est livrée dès l&apos;acceptation.</div>
+              {q.showcase.previewUrl ? <video src={q.showcase.previewUrl} controls playsInline className="w-full max-h-[70vh] rounded-lg bg-black" /> : <div className="text-sm text-neutral-600">Aperçu en préparation, revenez dans quelques minutes.</div>}
+              {q.showcase.note && <p className="text-sm text-neutral-700 mt-2">{q.showcase.note}</p>}
+            </div>
+          )}
           {q.mission.description && <p className="text-neutral-700 whitespace-pre-line mb-4">{q.mission.description}</p>}
           <div className="grid sm:grid-cols-2 gap-3 text-sm mb-4">
             <div className="bg-neutral-50 rounded-lg p-3"><div className="text-neutral-500 text-xs">Livrable</div>{q.mission.deliverables} vidéo{q.mission.deliverables > 1 ? 's' : ''} · {VIDEO_TYPES[q.mission.videoType] || q.mission.videoType} · {q.mission.duration} s{q.mission.platforms?.length ? ` · ${q.mission.platforms.map((p: string) => PLATFORMS[p] || p).join(', ')}` : ''}</div>

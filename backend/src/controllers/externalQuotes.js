@@ -159,7 +159,10 @@ export async function publicExternalQuote(req, res) {
   if (!q) return res.status(404).json({ error: 'Devis introuvable' });
   if (['draft', 'sent'].includes(q.status) && q.quote.validUntil && new Date(q.quote.validUntil) < new Date()) { await ExternalQuote.updateOne({ _id: q._id }, { $set: { status: 'expired' } }); q.status = 'expired'; }
   const s = await serialize(q);
-  res.json({ quote: { id: q._id, status: q.status, client: { companyName: q.client.companyName, contactName: q.client.contactName, email: q.client.email }, mission: q.mission, quote: q.quote, pdf: s.pdf, creator: { name: q.creatorId?.profile?.name, avatar: q.creatorId?.profile?.avatar || null, slug: q.creatorId?.profile?.slug || null, completedJobs: q.creatorId?.profile?.stats?.completedJobs || 0, rating: q.creatorId?.profile?.stats?.rating || 0, totalReviews: q.creatorId?.profile?.stats?.totalReviews || 0 }, deliveryId: q.deliveryId || null } });
+  const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+  const sv = await ShowcaseVideo.findOne({ quoteId: q._id }).select('previewUrl watermarkedAt productName note status').lean();
+  if (sv && !sv.viewedAt) ShowcaseVideo.updateOne({ _id: sv._id, viewedAt: null }, { $set: { viewedAt: new Date() } }).catch(() => {});
+  res.json({ showcase: sv ? { productName: sv.productName, note: sv.note, previewUrl: sv.watermarkedAt ? sv.previewUrl : null, ready: !!sv.watermarkedAt } : null, quote: { id: q._id, status: q.status, client: { companyName: q.client.companyName, contactName: q.client.contactName, email: q.client.email }, mission: q.mission, quote: q.quote, pdf: s.pdf, creator: { name: q.creatorId?.profile?.name, avatar: q.creatorId?.profile?.avatar || null, slug: q.creatorId?.profile?.slug || null, completedJobs: q.creatorId?.profile?.stats?.completedJobs || 0, rating: q.creatorId?.profile?.stats?.rating || 0, totalReviews: q.creatorId?.profile?.stats?.totalReviews || 0 }, deliveryId: q.deliveryId || null } });
 }
 
 export async function declineExternalQuote(req, res) {
@@ -199,6 +202,19 @@ export async function convertExternalQuoteToMission(q, brand) {
   const result = await createDeliveryForCampaign(campaign, brand, q.quote.price, creator._id.toString());
   q.status = 'accepted_needcreator'; q.acceptedAt = new Date(); q.campaignId = campaign._id; q.deliveryId = result.delivery?._id; q.brandId = brand._id;
   await q.save();
+  // Vidéo vitrine : déjà tournée, elle est livrée d'office (la marque valide puis le paiement part)
+  try {
+    const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+    const sv = await ShowcaseVideo.findOne({ quoteId: q._id });
+    if (sv && result.delivery) {
+      result.delivery.files.push({ url: sv.videoUrl, type: 'video', filename: `vitrine-${sv.productName}.mp4`.replace(/\s+/g, '-'), duration: sv.duration || undefined });
+      result.delivery.submit();
+      result.delivery.notes = { ...(result.delivery.notes?.toObject?.() || result.delivery.notes || {}), creator: 'Vidéo vitrine déjà tournée, livrée à l\'acceptation du devis.' };
+      result.delivery.compliance = { status: 'pending', items: [] };
+      await result.delivery.save();
+      sv.status = 'accepted'; sv.acceptedAt = new Date(); await sv.save();
+    }
+  } catch (err) { logger.warn(`Showcase attach failed for quote ${q._id}: ${err.message}`); }
   sendExternalQuoteAccepted(creator.email, creator.profile?.name, q.client.companyName, q.mission.title, result.delivery?._id).catch(() => {});
   notify(creator._id, { type: 'selection', title: `${q.client.companyName} accepte votre devis et paie via NeedCreator`, text: q.mission.title, href: result.delivery ? `/deliveries/${result.delivery._id}` : '/quotes' }).catch(() => {});
   logger.info(`External quote ${q._id} converted to campaign ${campaign._id} / delivery ${result.delivery?._id} for brand ${brand._id}`);

@@ -33,6 +33,7 @@ import externalIncomesRoutes from './routes/externalIncomes.js';
 import prospectsRoutes from './routes/prospects.js';
 import productBriefRoutes from './routes/productBriefs.js';
 import browserTaskRoutes from './routes/browserTasks.js';
+import showcaseRoutes from './routes/showcase.js';
 import embedRoutes from './routes/embeds.js';
 import contactRoutes from './routes/contact.js';
 import academyRoutes from './routes/academy.js';
@@ -112,7 +113,8 @@ app.use('/api/academy', academyRoutes);
 app.use('/api/contact', contactRoutes); // formulaire « Nous contacter » (public)
 app.use('/api/embeds', embedRoutes); // aperçu intégré des publications (oEmbed)
 app.use('/api/product-briefs', productBriefRoutes); // brief depuis une URL produit (public)
-app.use('/api/browser-tasks', browserTaskRoutes); // file de tâches de l'extension Chrome de prospection (extension/)
+app.use('/api/browser-tasks', browserTaskRoutes);
+app.use('/api/showcase', showcaseRoutes); // vidéos vitrine : un créateur tourne avant la demande, la marque achète par devis // file de tâches de l'extension Chrome de prospection (extension/)
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 
 // 404 handler

@@ -760,6 +760,19 @@ export async function sendVerificationReminder(email, name, link, last = false) 
   return sendEmail(email, subject, html, null, { preheader: 'Un clic pour activer les campagnes et les messages.' });
 }
 
+/** Vidéo vitrine proposée à une marque prospectée : la vidéo est déjà tournée, elle se regarde et s'achète sur la page du devis */
+export async function sendShowcaseOffer(email, brandName, creatorName, productName, price, link, note = '') {
+  const subject = `Une vidéo déjà tournée pour ${productName}`;
+  const html = `
+    <h1>Bonjour,</h1>
+    <p>${esc(creatorName)}, créateur vérifié sur NeedCreator, a tourné une vidéo pour <strong>${esc(productName)}</strong>${brandName ? ` (${esc(brandName)})` : ''}, sans que personne ne le lui demande.${note ? ` ${esc(note)}` : ''}</p>
+    <p>Elle se regarde ici, en filigrane, avec le devis : <strong>${price} € HT</strong>, droits inclus (durée et supports écrits dans le devis). Si elle vous plaît, elle est à vous en un clic ; sinon, rien, et personne ne vous relancera.</p>
+    ${button(link, 'Voir la vidéo et le devis')}
+    <p style="color:#666;font-size:13px">Le paiement est bloqué à l'acceptation et versé au créateur seulement après votre validation. La version sans filigrane vous est livrée dans la minute.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.` });
+}
+
 /**
  * Réinitialisation du mot de passe (lien Firebase, envoyé par notre SMTP)
  */

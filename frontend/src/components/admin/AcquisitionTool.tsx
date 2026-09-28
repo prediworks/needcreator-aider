@@ -88,6 +88,8 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
     onSuccess: () => { setVia(''); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-mailing-breakdown'] }); },
     onError: (e: any) => toast.error(getErrorMessage(e)),
   });
+  const { data: showcase } = useQuery({ queryKey: ['acq-showcase', q?.leads?.[0]?._id], queryFn: async () => (await api.get(`/admin/acquisition/leads/${q.leads[0]._id}/showcase`)).data.showcase, enabled: !!q?.leads?.[0]?._id, staleTime: 30000 });
+  const sendShowcase = useMutation({ mutationFn: async ({ id, via }: any) => (await api.post(`/admin/acquisition/leads/${id}/showcase/send`, { via })).data, onSuccess: async (d) => { if (d.text && !/par email/.test(d.message)) { try { await navigator.clipboard.writeText(d.text); } catch { /* presse-papiers indisponible */ } } toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acq-showcase'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const prefill = useMutation({ mutationFn: async ({ id, network }: any) => (await api.post(`/admin/acquisition/leads/${id}/prefill`, { network })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   if (isLoading || !q) return null;
   const l = q.leads?.[0];
@@ -119,6 +121,17 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
             </div>
           </div>
           <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.'}</div>
+          {showcase && (
+            <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50/40 p-3 text-sm" data-testid="daily-showcase">
+              <div className="font-medium text-neutral-900">🎬 Vidéo vitrine disponible : {showcase.productName} · {showcase.price} € HT · par {showcase.creatorName}{showcase.status === 'sent' ? ` · déjà proposée${showcase.sentAt ? ` le ${formatDateTime(showcase.sentAt)}` : ''}` : ''}{!showcase.ready ? ' · filigrane en cours' : ''}</div>
+              {showcase.previewUrl && <video src={showcase.previewUrl} controls playsInline className="mt-2 max-h-64 rounded-lg bg-black" />}
+              <div className="flex gap-2 flex-wrap mt-2">
+                {l.email && <Button size="sm" onClick={() => sendShowcase.mutate({ id: l._id, via: 'email' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Envoie à la marque un email avec le lien de la page où la vidéo se regarde et s'achète">Proposer par email</Button>}
+                <Button size="sm" variant="outline" onClick={() => sendShowcase.mutate({ id: l._id, via: 'instagram' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Copie le message avec le lien de la vidéo, à coller dans la conversation Instagram, et marque la vidéo comme proposée">Copier le message vitrine</Button>
+                {showcase.link && <a href={showcase.link} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline self-center">Page vue par la marque</a>}
+              </div>
+            </div>
+          )}
           {l.hooks?.length > 0 && <div className="mt-2 text-xs text-neutral-600" data-testid="daily-hooks" title="Trois accroches de créateur pour ce produit, rédigées par l'IA d'après la publicité de la marque : la première est dans le message, les trois partent dans l'email d'ouverture"><span className="font-medium text-neutral-700">Accroches :</span> {l.hooks.map((h: string, i: number) => <span key={i} className="block">{i + 1}) {h}</span>)}</div>}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             {l.socials?.instagram && <Button size="sm" onClick={() => open('instagram', l.socials.instagram)} title="Copie le message et ouvre le profil Instagram dans un nouvel onglet. Commentez une publication récente avant d'écrire si vous ne l'avez jamais fait : le message passe mieux." data-testid="daily-open-instagram"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}

@@ -2827,6 +2827,57 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
   }
 });
 
+await step('Vidéo vitrine : dépôt par un créateur pour une marque prospectée, devis créé, aperçu sur la page publique, proposition par l\'admin, achat par la marque livré d\'office', async () => {
+  const db = mongoose.connection.db;
+  await db.collection('leads').deleteMany({ name: 'E2E Marque Vitrine' });
+  await db.collection('showcasevideos').deleteMany({ brandName: 'E2E Marque Vitrine' });
+  const lead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-vitrine-${RUN}`, name: 'E2E Marque Vitrine', website: `https://vitrine-${RUN}.example.com`, niche: 'décoration', status: 'qualified', score: 80, aiSummary: 'Bougies parfumées artisanales', hooks: ['Accroche vitrine E2E'], socials: { instagram: 'https://www.instagram.com/e2evitrine/' }, createdAt: new Date(), updatedAt: new Date() });
+  // Marques à filmer : la marque y figure avec son accroche
+  const brands = await creatorApi('GET', '/showcase/brands?q=Vitrine');
+  expect(brands.status === 200 && brands.data.brands.some(b => String(b.id) === String(lead.insertedId) && b.hooks?.[0] === 'Accroche vitrine E2E'), 'La marque prospectée doit être proposée aux créateurs avec son accroche', brands);
+  // Dépôt de la vidéo : devis créé d'office, une seule vidéo par marque à la fois
+  const form = new FormData();
+  form.append('video', fakeVideo('vitrine.mp4')); form.append('leadId', String(lead.insertedId)); form.append('productName', 'Bougie Figuier'); form.append('note', 'Unboxing et allumage, ambiance soirée.'); form.append('price', '120'); form.append('rightsDuration', '1y'); form.append('supports', 'social_organic,paid_ads'); form.append('territories', 'France');
+  const dep = await creatorApi('POST', '/showcase', form, { form: true });
+  expect(dep.status === 201 && dep.data.showcase.link && dep.data.showcase.quoteStatus === 'sent' && dep.data.showcase.price === 120, 'Le dépôt doit créer la vidéo vitrine et son devis visible par la marque', dep);
+  const form2 = new FormData();
+  form2.append('video', fakeVideo('vitrine2.mp4')); form2.append('leadId', String(lead.insertedId)); form2.append('productName', 'Bougie Cèdre'); form2.append('price', '100');
+  const dup = await creatorApi('POST', '/showcase', form2, { form: true });
+  expect(dup.status === 409, 'Une seule vidéo vitrine par marque à la fois', dup);
+  const brands2 = await creatorApi('GET', '/showcase/brands?q=Vitrine');
+  expect(!brands2.data.brands.some(b => String(b.id) === String(lead.insertedId)), 'Une marque déjà filmée sort de la liste', brands2);
+  const token = dep.data.showcase.link.split('/q/')[1];
+  // Filigrane : la vidéo factice n'est pas encodable, on simule la fin du traitement pour la suite
+  await db.collection('showcasevideos').updateOne({ _id: new mongoose.Types.ObjectId(dep.data.showcase.id) }, { $set: { watermarkedAt: new Date(), previewUrl: 'https://cdn.example.com/wm-vitrine.mp4' } });
+  const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
+  expect(pub.showcase && pub.showcase.ready && pub.showcase.previewUrl && /Vidéo vitrine : Bougie Figuier/.test(pub.quote.mission.title), 'La page publique du devis doit montrer l\'aperçu de la vidéo', pub);
+  // Admin : la vidéo est visible sur la fiche, proposée par email (adresse saisie) puis marquée proposée
+  const users = db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const sv = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/showcase`);
+    expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);
+    const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com` });
+    expect([200, 500].includes(sent.status), 'La proposition par email doit être tentée', sent); // l'adresse de test est rejetée par le serveur d'envoi selon l'environnement
+    const leadAfter = await db.collection('leads').findOne({ _id: lead.insertedId });
+    if (sent.status === 200) expect(leadAfter.status === 'contacted' && /Vidéo vitrine proposée/.test(leadAfter.notes || ''), 'Le prospect passe en contacté avec la trace de la proposition', leadAfter);
+  } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  // La marque (connectée) accepte : mission créée, vidéo livrée d'office, à valider
+  const acc = await brandApi('POST', `/external-quotes/public/${token}/accept`);
+  expect(acc.status === 200 && acc.data.deliveryId, 'La marque doit pouvoir acheter la vidéo vitrine', acc);
+  const delivery = await db.collection('deliveries').findOne({ _id: new mongoose.Types.ObjectId(acc.data.deliveryId) });
+  expect(delivery && delivery.status === 'submitted' && delivery.files?.length === 1 && /vitrine/.test(delivery.files[0].filename || ''), 'La vidéo déjà tournée doit être livrée dès l\'acceptation', { status: 200, data: { status: delivery?.status, files: delivery?.files?.length } });
+  const svAfter = await db.collection('showcasevideos').findOne({ _id: new mongoose.Types.ObjectId(dep.data.showcase.id) });
+  expect(svAfter.status === 'accepted', 'La vidéo vitrine passe « achetée »', svAfter);
+  const mine = await creatorApi('GET', '/showcase');
+  expect(mine.status === 200 && mine.data.showcases.some(x => x.id === dep.data.showcase.id && x.status === 'accepted'), 'Le créateur voit sa vidéo achetée', mine);
+  await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(acc.data.campaignId) });
+  await db.collection('deliveries').deleteOne({ _id: new mongoose.Types.ObjectId(acc.data.deliveryId) });
+  await db.collection('showcasevideos').deleteMany({ brandName: 'E2E Marque Vitrine' });
+  await db.collection('leads').deleteOne({ _id: lead.insertedId });
+  return 'marque proposée aux créateurs, vidéo déposée, devis visible avec aperçu, admin la propose, achat livré d\'office';
+});
+
 await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur → profil → fiche, bibliothèque publicitaire), blocage', async () => {
   const db = mongoose.connection.db;
   const users = db.collection('users');

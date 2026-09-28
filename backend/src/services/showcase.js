@@ -1,0 +1,68 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import ShowcaseVideo from '../models/ShowcaseVideo.js';
+import Lead from '../models/Lead.js';
+import ExternalQuote from '../models/ExternalQuote.js';
+import { downloadFile, uploadFile, keyFromUrl } from './storage.js';
+import { watermarkVideoBuffer, videoCodec, transcodePlayable } from './watermark.js';
+import logger from '../utils/logger.js';
+
+const MAX_ATTEMPTS = 3;
+
+/** Filigrane + version lisible d'une vidéo vitrine (même chaîne que le portfolio) */
+export async function processShowcaseVideo(showcaseId) {
+  const sv = await ShowcaseVideo.findById(showcaseId);
+  if (!sv || sv.watermarkedAt) return sv;
+  const key = keyFromUrl(sv.videoUrl);
+  if (!key) return sv;
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncsv-'));
+  try {
+    const input = path.join(workDir, 'input' + (path.extname(key) || '.mp4'));
+    fs.writeFileSync(input, await downloadFile(key));
+    const codec = await videoCodec(input);
+    const base = path.basename(key, path.extname(key));
+    sv.sourceCodec = codec || 'inconnu';
+    if (codec !== 'h264') { const playable = await transcodePlayable(input, workDir); const up = await uploadFile(fs.readFileSync(playable), `play-${base}.mp4`, 'video/mp4', `showcase/${sv.creatorId}/playable`); sv.playableUrl = up.url; }
+    const out = await watermarkVideoBuffer(input, workDir);
+    const { url } = await uploadFile(fs.readFileSync(out), `wm-${base}.mp4`, 'video/mp4', `showcase/${sv.creatorId}/previews`);
+    sv.previewUrl = url; sv.watermarkedAt = new Date(); sv.watermarkError = undefined;
+  } catch (err) {
+    sv.watermarkAttempts = (sv.watermarkAttempts || 0) + 1;
+    sv.watermarkError = String(err?.message || err).slice(-300);
+    logger.warn(`Showcase ${showcaseId} watermark failed (${sv.watermarkAttempts}): ${sv.watermarkError}`);
+  } finally { fs.rmSync(workDir, { recursive: true, force: true }); }
+  await sv.save();
+  return sv;
+}
+
+/** Tâche planifiée : vidéos vitrine non filigranées (échec ou redémarrage), quelques-unes par passage */
+export async function showcaseBacklog(limit = 2) {
+  const todo = await ShowcaseVideo.find({ watermarkedAt: null, watermarkAttempts: { $lt: MAX_ATTEMPTS } }).select('_id').limit(limit).lean();
+  let n = 0;
+  for (const { _id } of todo) { await processShowcaseVideo(_id).catch(() => null); n++; }
+  return n;
+}
+
+/** Marques que les créateurs peuvent filmer : prospects marques actifs, une vidéo vitrine par marque à la fois */
+export async function brandsForShowcase({ niche, q, limit = 200 } = {}) {
+  const taken = await ShowcaseVideo.distinct('leadId', { status: { $in: ['ready', 'sent'] } });
+  const filter = { kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, _id: { $nin: taken } };
+  if (niche) filter.niche = new RegExp(String(niche).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  if (q) filter.$or = [{ name: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { website: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
+  const leads = await Lead.find(filter).sort({ score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score').lean();
+  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null }));
+}
+
+/** Message prêt pour la marque (email ou message privé), avec le lien de la page du devis où la vidéo se regarde */
+export function showcaseMessage(sv, link) {
+  return `Bonjour, un créateur vérifié de NeedCreator a tourné cette vidéo pour ${sv.productName} : ${link}\nElle est à vous pour ${sv.price} € HT, droits inclus (durée et supports écrits dans le devis) ; sinon, rien. Le paiement ne part qu'à votre validation.`;
+}
+
+/** Vidéo vitrine la plus récente d'un prospect (pour la fiche admin et la file du jour) */
+export async function showcaseForLead(leadId) {
+  const sv = await ShowcaseVideo.findOne({ leadId, status: { $in: ['ready', 'sent'] } }).sort({ createdAt: -1 }).populate('creatorId', 'profile.name').lean();
+  if (!sv) return null;
+  const q = sv.quoteId ? await ExternalQuote.findById(sv.quoteId).select('token').lean() : null;
+  return { id: sv._id, productName: sv.productName, price: sv.price, previewUrl: sv.previewUrl || null, ready: !!sv.watermarkedAt, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, sentAt: sv.sentAt || null, token: q?.token || null };
+}

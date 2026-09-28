@@ -234,4 +234,5 @@ Source : `docs/idees.txt`. Toutes réutilisent l'existant (brief IA, lecture de 
 9. ~~**Bilan hebdomadaire automatique**~~ Livré le 26/09/2026 : email du lundi aux administrateurs, comparé à la semaine précédente.
 10. ~~**Accueil des marques inscrites**~~ Livré le 26/09/2026 : J+1 campagne au produit offert, J+5 sans campagne publiée.
 11. **Parcours marque en anglais** (demande d'une marque venue de Reddit, promis pour la semaine du 29/09/2026) : sélecteur FR/EN, dictionnaire d'affichage, emails traduits par l'IA. Livré en première version le 26/09/2026 ; à compléter au fil des manques signalés. Version anglaise complète (créateurs, contrats) : quand une marque étrangère paie une deuxième campagne.
+12. ~~**Vidéo vitrine**~~ Livrée le 28/09/2026 : les créateurs tournent avant la demande pour les marques prospectées, la marque reçoit la vidéo finie avec un devis et l'achète en un clic ; livraison d'office à l'acceptation. Réponse au constat « les marques sont sursollicitées ».
 
