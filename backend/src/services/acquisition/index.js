@@ -41,6 +41,22 @@ async function alreadyKnown(cand) {
   return null;
 }
 
+/** Marques dont le message privé date d'une ancienne consigne (sans la phrase finale) : réécrit par lots, par la tâche planifiée */
+export async function refreshBrandMessages({ limit = 50 } = {}) {
+  // Une passe par jour au plus : ces réécritures coûtent un appel d'IA par fiche
+  const last = await getSetting('brandMessagesRefreshedAt', null);
+  if (last && Date.now() - new Date(last).getTime() < 20 * 3600000) return 0;
+  const { setSetting } = await import('../../models/Setting.js');
+  await setSetting('brandMessagesRefreshedAt', new Date().toISOString());
+  const leads = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact'] }, message: { $nin: [null, ''] }, $nor: [{ message: /registre des droits/i }] }).sort({ score: -1 }).limit(limit);
+  let done = 0;
+  for (const lead of leads) {
+    try { await qualifyOne(lead, []); done++; } catch (err) { logger.warn(`refreshBrandMessages ${lead._id}: ${err.message}`); }
+  }
+  if (done) logger.info(`Messages de marques réécrits avec la consigne du jour : ${done}`);
+  return done;
+}
+
 /** Au démarrage du serveur : les exécutions restées « en cours » ont été coupées par un redémarrage ; on les clôture avec ce motif */
 export async function closeInterruptedRuns() {
   const r = await LeadRun.updateMany({ finishedAt: null }, { $set: { finishedAt: new Date() }, $push: { issues: 'Interrompue par un redémarrage du serveur (déploiement) avant la fin : les prospects déjà trouvés sont conservés, relancez la recherche' } });

@@ -30,14 +30,14 @@ function clip(text, max) {
   const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
   return (end > max * 0.5 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : max)).trim();
 }
-const normalizeCommon = (o) => ({ ...o, fit: Number(o.fit) || 0, signals: (o.signals || []).map(String).slice(0, 5), summary: clip(o.summary, 300), message: clip(o.message, 420), emailParagraph: clip(o.emailParagraph, 500) });
+const normalizeCommon = (o, messageMax = 320) => ({ ...o, fit: Number(o.fit) || 0, signals: (o.signals || []).map(String).slice(0, 5), summary: clip(o.summary, 300), message: clip(o.message, messageMax), emailParagraph: clip(o.emailParagraph, 500) });
 /** Marques : la question finale est obligatoire ; si l'IA l'a oubliée ou si elle a été coupée, on la rétablit */
-const BRAND_FINAL_QUESTION = "Qui s'occupe de vos vidéos publicitaires, et à quelle adresse puis-je lui écrire ?";
+const BRAND_FINAL_QUESTION = "Même sans collaboration, notre registre des droits vous dit gratuitement jusqu'à quand vous pouvez diffuser les vidéos de vos créateurs : je vous envoie le lien ?";
 const normalizeBrand = (o) => {
-  const base = normalizeCommon(o);
+  const base = normalizeCommon(o, 480); // marques : trois phrases complètes, la phrase finale ne doit jamais être coupée
   let msg = String(base.message || '').trim();
-  if (!/Qui s'occupe de vos vidéos publicitaires, et à quelle adresse/i.test(msg)) {
-    msg = msg.replace(/[\s.…]*$/, '').replace(/(Qui s'occupe|À quelle adresse)[^.?!]*$/i, '').trim();
+  if (!/registre des droits/i.test(msg)) {
+    msg = msg.replace(/[\s.…]*$/, '').replace(/(Qui s'occupe|À quelle adresse|Même sans collaboration)[^.?!]*$/i, '').trim();
     msg = `${msg}${msg && !/[.!?]$/.test(msg) ? '.' : ''} ${BRAND_FINAL_QUESTION}`.trim();
   }
   return { ...base, message: msg.slice(0, 480) };
@@ -83,7 +83,7 @@ Réponds avec :
 - fit : 0 à 100, adéquation avec l'UGC (produit montrable en vidéo, publicité active, grand public)
 - signals : 1 à 4 constats factuels courts
 - summary : une phrase sur ce que vend la marque
-- message : message privé (Instagram ou LinkedIn) de 300 caractères maximum, en trois phrases courtes, écrit à la première personne par la personne qui s'occupe de NeedCreator, sans prénom. Objectif : obtenir une RÉPONSE et le bon interlocuteur, pas une inscription. Constat de terrain : les marques lisent ces messages comme une demande de collaboration venant d'un créateur et répondent par un refus type ou une adresse « collab » ; il faut donc préciser en une phrase que ce n'est pas une demande de collaboration mais une plateforme où des créateurs vérifiés tournent des vidéos pour ses publicités, payées seulement si elles lui conviennent. Phrase 1 : « Bonjour, » puis UN SEUL élément concret vu chez la marque (un produit précis ou une publicité), jamais deux. Phrase 2, à imiter, formulée au positif (dire qui l'on est, pas ce que l'on n'est pas) : « Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. » Phrase 3, OBLIGATOIRE et finale, mot pour mot : « Qui s'occupe de vos vidéos publicitaires, et à quelle adresse puis-je lui écrire ? ». Exemple complet : « Bonjour, j'ai vu vos publicités pour vos bougies parfumées. Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. Qui s'occupe de vos vidéos publicitaires, et à quelle adresse puis-je lui écrire ? ». Pas d'emoji, pas de lien, pas de liste d'avantages, aucun texte entre accolades
+- message : message privé (Instagram ou LinkedIn) de 420 caractères maximum, en trois phrases, écrit à la première personne par la personne qui s'occupe de NeedCreator, sans prénom. Objectif : obtenir une RÉPONSE et le bon interlocuteur, pas une inscription. Constat de terrain : les marques lisent ces messages comme une demande de collaboration venant d'un créateur et répondent par un refus type ou une adresse « collab » ; il faut donc préciser en une phrase que ce n'est pas une demande de collaboration mais une plateforme où des créateurs vérifiés tournent des vidéos pour ses publicités, payées seulement si elles lui conviennent. Phrase 1 : « Bonjour, » puis UN SEUL élément concret vu chez la marque (un produit précis ou une publicité), jamais deux. Phrase 2, à imiter, formulée au positif (dire qui l'on est, pas ce que l'on n'est pas) : « Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. » Phrase 3, OBLIGATOIRE et finale, mot pour mot (un outil gratuit utile même sans collaboration, qui appelle une réponse) : « Même sans collaboration, notre registre des droits vous dit gratuitement jusqu'à quand vous pouvez diffuser les vidéos de vos créateurs : je vous envoie le lien ? ». Exemple complet : « Bonjour, j'ai vu vos publicités pour vos bougies parfumées. Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées seulement si elles vous conviennent. Même sans collaboration, notre registre des droits vous dit gratuitement jusqu'à quand vous pouvez diffuser les vidéos de vos créateurs : je vous envoie le lien ? ». Pas d'emoji, pas de lien, pas de liste d'avantages, aucun texte entre accolades
 - emailParagraph : paragraphe de 2 phrases pour un email, personnalisé de la même façon`;
   return generateJson({ system: SYSTEM, prompt, schema: brandSchema, normalize: normalizeBrand });
 }

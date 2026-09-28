@@ -90,18 +90,19 @@ async function prefillInPage(text) {
     }
     editor.focus();
     await sleep(300);
-    let ok = false;
-    try { ok = document.execCommand('insertText', false, text); } catch { ok = false; }
-    if (!ok || !(editor.innerText || editor.value || '').includes(text.slice(0, 20))) {
+    const has = () => (editor.innerText || editor.value || '').includes(text.slice(0, 20));
+    if (has()) return { prefilled: true, copied: false }; // déjà collé (tâche redonnée)
+    try { document.execCommand('insertText', false, text); } catch { /* éditeur sans execCommand */ }
+    await sleep(600); // l'éditeur met à jour son contenu après coup : vérifier avant tout collage de secours
+    if (!has()) {
       // Editors that ignore execCommand: paste event with the text as clipboard data
       try {
         const dt = new DataTransfer(); dt.setData('text/plain', text);
         editor.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
-        await sleep(300);
-        ok = (editor.innerText || editor.value || '').includes(text.slice(0, 20));
-      } catch { ok = false; }
+        await sleep(600);
+      } catch { /* collage de secours impossible */ }
     }
-    if (ok) return { prefilled: true, copied: false };
+    if (has()) return { prefilled: true, copied: false };
     try { await navigator.clipboard.writeText(text); return { prefilled: false, copied: true }; } catch { return { prefilled: false, copied: false, error: 'collage impossible dans cet éditeur' }; }
   } catch (err) { return { prefilled: false, copied: false, error: String(err && err.message || err) }; }
 }

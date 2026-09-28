@@ -11,7 +11,7 @@ import { runScheduledBackup } from '../services/backup.js';
 import { closeSeededCampaigns } from '../controllers/seed.js';
 import { sendCreatorRightsReminders } from '../controllers/creatorContents.js';
 import { sendProspectFollowUpReminders } from '../controllers/prospects.js';
-import { runScheduledAcquisition } from '../services/acquisition/index.js';
+import { runScheduledAcquisition, refreshBrandMessages } from '../services/acquisition/index.js';
 import { runScheduledOutreach } from '../services/acquisition/outreach.js';
 import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
@@ -258,9 +258,10 @@ export async function runScheduledJobs() {
     const memberMessages = await runMemberOnboarding().catch(err => { logger.error('runMemberOnboarding:', err); return 0; });
     const verifyReminders = await runEmailVerificationReminders().catch(err => { logger.error('runEmailVerificationReminders:', err); return 0; });
     const weeklyReport = await sendWeeklyReport().catch(err => ({ sent: false, error: err.message }));
+    const brandMessages = await refreshBrandMessages().catch(err => { logger.error('refreshBrandMessages:', err); return 0; });
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport, brandMessages };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };
