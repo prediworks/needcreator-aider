@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, useContactEmail, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { showcaseForLeadView, sendShowcaseToLead } from '../controllers/showcase.js';
 import {
@@ -113,7 +113,8 @@ router.get('/acquisition/dashboard', acquisitionDashboard);
 router.get('/acquisition/daily-queue', dailyQueue);
 router.get('/acquisition/leads/:id/showcase', showcaseForLeadView); // vidéo vitrine disponible pour ce prospect
 router.post('/acquisition/leads/:id/showcase/send', sendShowcaseToLead); // la proposer par email, ou marquer proposée en message privé
-router.post('/acquisition/leads/:id/prefill', prefillMessage); // file du jour : message préparé dans Chrome par l'extension (rôle « messages ») // file « À contacter aujourd'hui » (messages privés à la main)
+router.post('/acquisition/leads/:id/prefill', prefillMessage);
+router.post('/acquisition/leads/:id/use-contact-email', useContactEmail); // email d'un contact LinkedIn retenu comme adresse de la marque // file du jour : message préparé dans Chrome par l'extension (rôle « messages ») // file « À contacter aujourd'hui » (messages privés à la main)
 router.get('/acquisition/mailing', mailingStatus);
 router.get('/acquisition/mailing/breakdown', mailingBreakdownView); // pourquoi tel prospect n'est pas dans l'outil de mailing
 router.post('/acquisition/leads/:id/reply', replyToLead);

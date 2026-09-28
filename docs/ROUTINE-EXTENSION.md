@@ -58,6 +58,9 @@ Trois sources, par ordre d'intérêt :
 3. **« Lot : pubs TikTok »** avec les mots-clés de la semaine (tableau dans `docs/AIDE-MEMOIRE-PROSPECTION.md`) : les annonceurs des
    meilleures publicités TikTok du mois.
 
+4. **« Lot : contacts LinkedIn »** (compte LinkedIn secondaire connecté dans le profil de lecture) : 20 marques par jour au plus ; la fiche reçoit
+   les personnes marketing avec un email déduit, à « retenir » d'un clic dans la file du jour, et un bouton « message LinkedIn » pour la personne.
+
 Puis Start dans le profil « lecture ». Les marques avec email partent au mailing la nuit suivante ; celles avec Instagram arrivent dans la
 file du jour.
 

@@ -422,7 +422,7 @@ export async function dailyQueue(req, res) {
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1 } }]) : [];
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
     res.json({ kind, goal, doneToday, left, waiting, leads });
   } catch (error) {
     logger.error('dailyQueue failed:', error);
@@ -458,10 +458,24 @@ export async function prefillMessage(req, res) {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
     const { queuePrefillMessage } = await import('../services/browserTasks.js');
-    const r = await queuePrefillMessage(lead, { network: req.body?.network, createdBy: req.user._id });
+    const r = await queuePrefillMessage(lead, { network: req.body?.network, createdBy: req.user._id, url: req.body?.url });
     res.json({ message: r.already ? 'Déjà en attente : l\'extension va ouvrir la conversation' : 'Envoyé à l\'extension : la conversation s\'ouvre dans Chrome avec le message collé, relisez et envoyez', taskId: r.task._id });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     logger.error('prefillMessage failed:', error); res.status(500).json({ error: 'Préparation impossible' });
   }
+}
+
+/** Fiche marque : retenir l'email d'un contact (déduit ou saisi) comme adresse de la marque, pour le mailing */
+export async function useContactEmail(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Email invalide' });
+    lead.email = email; lead.emailSource = 'contact linkedin';
+    lead.contacts = (lead.contacts || []).map(c => (c.email === email ? { ...(c.toObject?.() || c), emailGuessed: false } : c));
+    await lead.save();
+    res.json({ message: `Adresse retenue : ${email}. La fiche partira au mailing au prochain envoi.`, lead });
+  } catch (error) { logger.error('useContactEmail failed:', error); res.status(500).json({ error: 'Enregistrement impossible' }); }
 }

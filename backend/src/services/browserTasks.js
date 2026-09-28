@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { z } from 'zod';
-import BrowserTask, { BrowserTaskBatch, TASK_TYPES } from '../models/BrowserTask.js';
+import BrowserTask, { BrowserTaskBatch, TASK_TYPES, LINKEDIN_TYPES } from '../models/BrowserTask.js';
 import Lead from '../models/Lead.js';
 import { getSetting, setSetting } from '../models/Setting.js';
 import { extractEmails, pickEmail, extractSocials } from './acquisition/enrich.js';
@@ -76,6 +76,19 @@ export async function batchFromHashtags({ hashtags, count = 20, createdBy } = {}
   return createBatch({ label: `Hashtags Instagram · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'creator', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/` })) });
 }
 
+export const LINKEDIN_DAY_CAP = 20; // pages LinkedIn par jour, toutes tâches confondues : le réseau le plus sévère, un compte neuf
+
+/** Lot « contacts LinkedIn » : marques avec un site et sans contact connu ; recherche de la page entreprise, puis lecture des personnes marketing */
+export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) {
+  const leads = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit).select('name website socials.linkedin').lean();
+  if (!leads.length) return null;
+  await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.linkedinAt': new Date() } });
+  const items = leads.map(l => l.socials?.linkedin && /linkedin\.com\/company\//i.test(l.socials.linkedin)
+    ? { type: 'read_company_people', url: `${l.socials.linkedin.replace(/\/+$/, '')}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: l._id, query: l.name }
+    : { type: 'find_company', url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(l.name)}`, leadId: l._id, query: l.name });
+  return createBatch({ label: `Contacts LinkedIn · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, items });
+}
+
 export const PARTNERSHIP_HASHTAGS = ['partenariat', 'collab', 'collaboration', 'ugcfrance', 'ugccreator', 'sponsorise', 'adfrance'];
 
 /** Lot « marques taguées par les créateurs » : hashtags de partenariat, publications lues pour la marque citée (pas pour l'auteur) */
@@ -145,7 +158,13 @@ export async function claimNextTask({ workspaceId = 'default', types = null } = 
   await BrowserTask.updateMany({ workspaceId, status: 'running', claimedAt: { $lt: stale } }, { $set: { status: 'pending' } });
   await failExhaustedTasks(workspaceId);
   // Rôle de l'extension : « lecture » (compte secondaire) ne prend jamais les messages ; « messages » (compte principal) ne prend que ceux-là
-  const wanted = Array.isArray(types) && types.length ? types.filter(t => TASK_TYPES.includes(t)) : TASK_TYPES.filter(t => t !== 'prefill_message');
+  let wanted = Array.isArray(types) && types.length ? types.filter(t => TASK_TYPES.includes(t)) : TASK_TYPES.filter(t => t !== 'prefill_message');
+  // LinkedIn : 20 pages par jour au plus (compte secondaire neuf, réseau qui bloque vite) ; au-delà, ces tâches attendent demain
+  if (wanted.some(t => LINKEDIN_TYPES.includes(t))) {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const doneToday = await BrowserTask.countDocuments({ workspaceId, type: { $in: LINKEDIN_TYPES }, status: { $in: ['done', 'failed', 'running'] }, updatedAt: { $gte: start } });
+    if (doneToday >= LINKEDIN_DAY_CAP) wanted = wanted.filter(t => !LINKEDIN_TYPES.includes(t));
+  }
   const task = await BrowserTask.findOneAndUpdate(
     { workspaceId, status: 'pending', attempts: { $lt: MAX_ATTEMPTS }, type: { $in: wanted } },
     { $set: { status: 'running', claimedAt: new Date() }, $inc: { attempts: 1 } },
@@ -167,9 +186,9 @@ export async function queueStatus({ workspaceId = 'default', types = null } = {}
 }
 
 /** File du jour : prépare le message d'un prospect dans le Chrome du compte principal (extension en rôle « messages ») */
-export async function queuePrefillMessage(lead, { network, createdBy } = {}) {
+export async function queuePrefillMessage(lead, { network, createdBy, url: urlOverride } = {}) {
   const net = ['instagram', 'tiktok', 'linkedin'].includes(network) ? network : (lead.socials?.instagram ? 'instagram' : lead.socials?.tiktok ? 'tiktok' : 'linkedin');
-  const url = lead.socials?.[net];
+  const url = urlOverride && /^https:\/\/(www\.)?linkedin\.com\/in\//i.test(urlOverride) ? urlOverride : lead.socials?.[net]; // urlOverride : profil d'un contact LinkedIn de la fiche
   if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
   if (!lead.message) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
   const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;
@@ -338,6 +357,60 @@ export async function extractTiktokAdvertisers(result, count = 15) {
   return advertisers.slice(0, Math.max(count, 15));
 }
 
+/** Page entreprise LinkedIn dans une page de résultats de recherche : premier lien /company/ */
+export function extractCompanyLink(result) {
+  for (const l of result?.links || []) {
+    const m = String(l.href || '').match(/^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/company\/([^/?#]+)/i);
+    if (m) return `https://www.linkedin.com/company/${m[1]}`;
+  }
+  return null;
+}
+
+const CONTACT_TITLE = /marketing|brand|marque|content|contenu|acquisition|growth|communication|social|digital|influence|fondat|founder|ceo|co-?founder|directeur|directrice|head of|responsable|manager|chief/i;
+
+/** Personnes d'une page « Personnes » LinkedIn : liens de profils /in/ avec le nom, titre pris dans le texte qui suit ; IA en complément sur le texte visible */
+export async function extractCompanyPeople(result, { limit = 5 } = {}) {
+  const text = String(result?.text || '');
+  const people = []; const seen = new Set();
+  for (const l of result?.links || []) {
+    const m = String(l.href || '').match(/^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/in\/([^/?#]+)/i);
+    if (!m || seen.has(m[1])) continue;
+    const name = String(l.text || '').replace(/\s+/g, ' ').trim();
+    if (!name || name.length > 60 || /voir|see|profil|profile|connect|message/i.test(name)) continue;
+    seen.add(m[1]);
+    // titre : la ligne qui suit le nom dans le texte visible
+    const i = text.indexOf(name); let title = '';
+    if (i >= 0) { const after = text.slice(i + name.length, i + name.length + 200).split('\n').map(x => x.trim()).filter(Boolean); title = after.find(x => x !== name && x.length > 3 && x.length < 120) || ''; }
+    people.push({ name, title, linkedin: `https://www.linkedin.com/in/${m[1]}` });
+  }
+  let out = people.filter(p => !p.title || CONTACT_TITLE.test(p.title));
+  if (aiConfig().configured && text.length > 200) {
+    try {
+      const ai = await generateJson({
+        system: 'Tu lis le texte visible d\'une page « Personnes » d\'une entreprise sur LinkedIn. Réponds en JSON strict.',
+        prompt: `Texte :\n"""\n${text.slice(0, 9000)}\n"""\nRelève jusqu'à ${limit} personnes dont le poste touche au marketing, à la marque, au contenu, à l'acquisition, à la communication, ou qui dirigent l'entreprise (fondateur, CEO, directeur). Pour chacune : name (prénom et nom tels qu'affichés), title (intitulé de poste tel qu'affiché).`,
+        schema: z.object({ people: z.array(z.object({ name: z.string(), title: z.string().default('') })).default([]) }),
+      });
+      for (const p of ai.people) {
+        const cur = out.find(x => x.name.toLowerCase() === p.name.toLowerCase()) || people.find(x => x.name.toLowerCase() === p.name.toLowerCase());
+        if (cur) { cur.title = cur.title || p.title; if (!out.includes(cur)) out.push(cur); }
+        else if (CONTACT_TITLE.test(p.title)) out.push({ name: p.name.slice(0, 60), title: p.title.slice(0, 120), linkedin: '' });
+      }
+    } catch (err) { logger.warn(`extractCompanyPeople AI: ${err.message}`); }
+  }
+  return out.slice(0, limit);
+}
+
+/** Adresse déduite du format de la marque : contact@marque.fr connu → prenom.nom@marque.fr (à confirmer par la marque) */
+export function guessEmail(name, knownEmail, website) {
+  const domain = (String(knownEmail || '').split('@')[1] || '').toLowerCase() || String(website || '').replace(/^https?:\/\/(www\.)?/i, '').split('/')[0].toLowerCase();
+  if (!domain || /gmail|hotmail|outlook|yahoo|orange\.fr|free\.fr|wanadoo|icloud/.test(domain)) return null;
+  const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z\s-]/g, ' ').trim().split(/\s+/);
+  const parts = norm(name).filter(Boolean);
+  if (parts.length < 2) return null;
+  return `${parts[0]}.${parts[parts.length - 1]}@${domain}`;
+}
+
 /** Publications d'une page hashtag : liens /p/ et /reel/ distincts */
 export function extractPosts(result, count = 20) {
   const out = []; const seen = new Set();
@@ -462,6 +535,31 @@ export async function submitTaskResult(id, result) {
       const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'TikTok Creative Center' }) : { created: 0, updated: 0, emailsAdded: 0 };
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       outcome = `${advertisers.length} annonceur(s) relevé(s), ${imp.created} nouvelle(s) marque(s), ${imp.emailsAdded} email(s)`;
+    } else if (task.type === 'find_company') {
+      const company = extractCompanyLink(slim);
+      if (!company) throw new Error('page entreprise introuvable dans les résultats');
+      task.extracted = { company };
+      if (task.input.leadId) await Lead.updateOne({ _id: task.input.leadId, $or: [{ 'socials.linkedin': { $in: [null, ''] } }, { 'socials.linkedin': { $exists: false } }] }, { $set: { 'socials.linkedin': company } });
+      await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_company_people', input: { url: `${company}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: task.input.leadId, query: task.input.query } });
+      if (batch) batch.counts.total += 1;
+      outcome = `page entreprise trouvée : personnes à lire`;
+    } else if (task.type === 'read_company_people') {
+      const people = await extractCompanyPeople(slim, { limit: 5 });
+      task.extracted = { people };
+      const lead = task.input.leadId ? await Lead.findById(task.input.leadId) : null;
+      if (lead) {
+        const existing = new Set((lead.contacts || []).map(c => c.name.toLowerCase()));
+        let added = 0;
+        for (const p of people) {
+          if (existing.has(p.name.toLowerCase())) continue;
+          const guess = guessEmail(p.name, lead.email, lead.website);
+          lead.contacts.push({ name: p.name, title: p.title, linkedin: p.linkedin, email: guess || undefined, emailGuessed: !!guess, foundAt: new Date() });
+          added++;
+        }
+        await lead.save();
+        if (batch) { batch.imported.updated += added ? 1 : 0; }
+        outcome = people.length ? `${people.length} personne(s) marketing relevée(s), ${added} ajoutée(s) à la fiche${lead.contacts.some(c => c.emailGuessed) ? ' · emails déduits du format de la marque' : ''}` : 'aucune personne marketing visible sur la page';
+      } else outcome = `${people.length} personne(s) relevée(s), fiche absente`;
     } else if (task.type === 'list_hashtag') {
       const posts = extractPosts(slim, task.input.count || 20);
       task.extracted = { posts };

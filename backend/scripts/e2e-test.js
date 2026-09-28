@@ -2984,6 +2984,28 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     const ttLead = await db.collection('leads').findOne({ handle: '@e2eexttiktokbrand' });
     expect(ttLead && ttLead.kind === 'brand' && ttLead.socials?.tiktok === 'https://www.tiktok.com/@e2eexttiktokbrand', 'L\'annonceur TikTok doit exister en prospect marque avec son TikTok', ttLead);
     await db.collection('leads').deleteMany({ handle: { $in: ['@e2eextbrandtag', '@e2eexttiktokbrand'] } });
+    // Contacts LinkedIn : marque avec site → recherche d'entreprise → personnes marketing → contacts avec email déduit du format de la marque
+    const liLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTLI-${RUN}`, name: 'E2E Ext Lumière', website: 'https://e2eextlumiere-test.example', email: 'contact@e2eextlumiere-test.example', status: 'qualified', score: 75, socials: { instagram: 'https://www.instagram.com/e2eextlumiere/' }, createdAt: new Date(), updatedAt: new Date() });
+    const lot7 = await brandApi('POST', '/browser-tasks/batches', { preset: 'linkedin_contacts', limit: 20 });
+    expect(lot7.status === 201 && /Contacts LinkedIn/.test(lot7.data.batch.label), 'Le lot « contacts LinkedIn » doit se créer', lot7);
+    batchIds.push(lot7.data.batch._id);
+    let t8 = null;
+    for (let i = 0; i < 25; i++) { const n = (await ext('GET', '/next')).data.task; if (!n) break; if (n.type === 'find_company' && String(n.input.leadId) === String(liLead.insertedId)) { t8 = n; break; } await ext('POST', `/${n.id}/result`, { url: n.input.url, blocked: 'error', error: 'hors test', text: '', links: [] }); }
+    expect(t8 && /linkedin\.com\/search\/results\/companies/.test(t8.input.url), 'La marque sans page LinkedIn connue passe par la recherche d\'entreprise', t8);
+    const r8 = await ext('POST', `/${t8.id}/result`, { url: t8.input.url, title: 'Recherche', text: 'E2E Ext Lumière Bougies', links: [{ href: 'https://www.linkedin.com/feed/', text: 'Accueil' }, { href: 'https://fr.linkedin.com/company/e2e-ext-lumiere/?trk=search', text: 'E2E Ext Lumière' }] });
+    expect(r8.status === 200 && /page entreprise trouvée/.test(r8.data.outcome), 'La page entreprise doit être relevée', r8);
+    const t9 = (await ext('GET', '/next')).data.task;
+    expect(t9 && t9.type === 'read_company_people' && /company\/e2e-ext-lumiere\/people\/\?keywords=marketing/.test(t9.input.url), 'La tâche fille lit les personnes marketing de l\'entreprise', t9);
+    const r9 = await ext('POST', `/${t9.id}/result`, { url: t9.input.url, title: 'Personnes', text: 'E2E Ext Lumière\nÉlodie Martin\nResponsable marketing\nJean Dupont\nComptable\nPaul Renard\nCo-founder', links: [{ href: 'https://www.linkedin.com/in/elodie-martin-e2e/', text: 'Élodie Martin' }, { href: 'https://www.linkedin.com/in/jean-dupont-e2e/', text: 'Jean Dupont' }, { href: 'https://www.linkedin.com/in/paul-renard-e2e/', text: 'Paul Renard' }] });
+    expect(r9.status === 200 && /personne\(s\) marketing relevée/.test(r9.data.outcome), 'Les personnes marketing doivent être relevées', r9);
+    const liAfter = await db.collection('leads').findOne({ _id: liLead.insertedId });
+    const elodie = (liAfter.contacts || []).find(c => c.name === 'Élodie Martin');
+    expect(elodie && /marketing/i.test(elodie.title) && elodie.email === 'elodie.martin@e2eextlumiere-test.example' && elodie.emailGuessed === true && !(liAfter.contacts || []).some(c => c.name === 'Jean Dupont') && liAfter.socials?.linkedin === 'https://www.linkedin.com/company/e2e-ext-lumiere', 'La fiche porte la responsable marketing avec son email déduit, pas le comptable, et la page entreprise', { status: 200, data: liAfter.contacts });
+    const useE = await brandApi('POST', `/admin/acquisition/leads/${liLead.insertedId}/use-contact-email`, { email: elodie.email });
+    expect(useE.status === 200 && useE.data.lead.email === elodie.email && useE.data.lead.contacts.find(c => c.name === 'Élodie Martin').emailGuessed === false, 'L\'adresse retenue devient l\'email de la marque', useE);
+    const dq = await brandApi('GET', '/admin/acquisition/daily-queue?kind=brand');
+    expect(dq.status === 200 && (dq.data.leads || []).every(l => l.contacts === undefined || Array.isArray(l.contacts)), 'La file du jour expose les contacts', dq);
+    await db.collection('leads').deleteOne({ _id: liLead.insertedId });
     // Préparation de message : créée depuis la file du jour, jamais donnée au rôle « lecture », donnée au rôle « messages », résultat collé
     const dmLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTDM-${RUN}`, name: 'E2E Ext Marque DM', status: 'qualified', score: 70, message: 'Bonjour, message de test E2E.', socials: { instagram: 'https://www.instagram.com/e2eextbrand.dm/' }, createdAt: new Date(), updatedAt: new Date() });
     const pre = await brandApi('POST', `/admin/acquisition/leads/${dmLead.insertedId}/prefill`, { network: 'instagram' });
