@@ -51,9 +51,9 @@ Cible : créateurs UGC débutants ou confirmés, trouvés sur YouTube et Instagr
 ```
 Bonjour,
 
-{{ paragraph }}
-
 Je m'appelle {{name_of_sender}}, je lance NeedCreator, une plateforme française qui met en relation des marques et des créateurs pour des vidéos UGC : témoignages, unboxings, démonstrations. Pas besoin d'audience, les marques regardent votre portfolio.
+
+{{ paragraph }}
 
 Trois choses qui changent par rapport à ce que vous connaissez :
 - Vous fixez votre prix. Vous envoyez un devis pour chaque campagne, la marque accepte ou non.
