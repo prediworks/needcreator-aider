@@ -20,7 +20,7 @@ async function loadState() {
   if (state.dayKey !== today) { state.day = 0; state.dayKey = today; }
 }
 async function saveState() { await chrome.storage.local.set({ running: state.running, paused: state.paused, session: state.session, day: state.day, dayKey: state.dayKey, log: state.log.slice(-40) }); }
-function log(msg) { state.last = msg; state.log.push(`${new Date().toLocaleTimeString()} ${msg}`); if (state.log.length > 40) state.log.shift(); }
+function log(msg) { state.last = msg; state.log.push(`${new Date().toLocaleTimeString()} ${msg}`); if (state.log.length > 40) state.log.shift(); saveState().catch(() => {}); } // journal enregistré à chaque ligne : la fenêtre le voit en direct
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -116,6 +116,7 @@ async function prefillMessage(task) {
 }
 
 async function tick() {
+  await ensureLoaded();
   if (!state.running || state.paused || state.busy) return;
   state.busy = true;
   try {
@@ -167,9 +168,12 @@ async function tick() {
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === 'poll') tick(); });
 async function schedulePoll() { const s = await settings(); chrome.alarms.create('poll', { periodInMinutes: Math.max(0.5, s.pollSeconds / 60) }); }
 
+let loaded = false;
+async function ensureLoaded() { if (!loaded) { await loadState(); loaded = true; } } // l'état enregistré n'écrase jamais une exécution en cours
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   (async () => {
-    await loadState();
+    await ensureLoaded();
     if (msg.type === 'start') { state.running = true; state.paused = false; state.session = 0; state.lastError = ''; chrome.action.setBadgeText({ text: '' }); log('Started.'); await saveState(); await schedulePoll(); tick(); }
     else if (msg.type === 'pause') { state.paused = !state.paused; log(state.paused ? 'Paused.' : 'Resumed.'); await saveState(); if (!state.paused) tick(); }
     else if (msg.type === 'stop') { state.running = false; state.paused = false; log('Stopped.'); await saveState(); }
@@ -181,5 +185,5 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   return true;
 });
 
-chrome.runtime.onInstalled.addListener(async () => { await loadState(); state.running = false; await saveState(); });
-loadState();
+chrome.runtime.onInstalled.addListener(async () => { await ensureLoaded(); state.running = false; await saveState(); });
+ensureLoaded();
