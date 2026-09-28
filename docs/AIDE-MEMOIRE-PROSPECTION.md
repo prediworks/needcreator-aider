@@ -1,4 +1,7 @@
-# Aide-mémoire prospection NeedCreator
+# Aide-mémoire prospection NeedCreator (assistant Claude, plan B)
+
+> Depuis le 26/09/2026, la routine se fait avec l'extension Chrome : voir `docs/ROUTINE-EXTENSION.md`. Ce document reste le plan B
+> quand l'extension ne peut pas tourner (compte bloqué, page qui a changé).
 
 Deux routines, vingt minutes chacune, dont quinze où l'assistant travaille seul.
 Matériel : l'application Claude sur le PC, l'extension Chrome active, vos comptes **secondaires** Instagram et Facebook connectés
