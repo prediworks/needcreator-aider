@@ -165,9 +165,14 @@ export async function updateLead(req, res) {
 export async function bulkUpdateLeads(req, res) {
   const { ids = [], status, contactedVia } = req.body || {};
   if (!Array.isArray(ids) || !ids.length || !LEAD_STATUSES.includes(status)) return res.status(400).json({ error: 'Identifiants et statut requis' });
-  const set = { status };
-  if (status === 'contacted') { set.contactedAt = new Date(); set.contactedVia = contactedVia || 'email'; }
-  const r = await Lead.updateMany({ _id: { $in: ids.slice(0, 500) } }, { $set: set });
+  const list = ids.slice(0, 500);
+  if (status === 'contacted') {
+    // Une fiche déjà contactée garde sa date et son canal de premier contact ; seules les autres reçoivent la date du jour
+    const r1 = await Lead.updateMany({ _id: { $in: list }, status: 'contacted' }, { $set: { status } });
+    const r2 = await Lead.updateMany({ _id: { $in: list }, status: { $ne: 'contacted' } }, { $set: { status, contactedAt: new Date(), contactedVia: contactedVia || 'email' } });
+    return res.json({ message: `${r2.modifiedCount} prospect(s) marqué(s) contacté(s)${r1.matchedCount ? `, ${r1.matchedCount} l'étaient déjà (date conservée)` : ''}`, updated: r2.modifiedCount });
+  }
+  const r = await Lead.updateMany({ _id: { $in: list } }, { $set: { status } });
   res.json({ message: `${r.modifiedCount} prospect(s) mis à jour`, updated: r.modifiedCount });
 }
 
