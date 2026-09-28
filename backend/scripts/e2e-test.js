@@ -2499,6 +2499,7 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(dup.status === 409, 'Doublon de prospect refusé', dup);
     const b = await brandApi('POST', '/admin/acquisition/leads', { kind: 'brand', name: 'Maison Soleil', website: `https://maison-soleil-${RUN}.example.com`, description: 'Marque française de crèmes solaires minérales vendues en ligne, publicités vidéo actives sur Instagram.', niche: 'cosmétiques', stats: { ads: 4 } });
     expect(b.status === 201 && b.data.lead.kind === 'brand', 'Prospect marque non créé', b);
+    if (aiOn) expect(Array.isArray(b.data.lead.hooks) && b.data.lead.hooks.length === 3 && /1\)/.test(b.data.lead.emailParagraph) && /à quelle adresse puis-je vous les envoyer/i.test(b.data.lead.message), 'Marque qualifiée : trois accroches, reprises dans le paragraphe d\'email et la question finale du message', b);
     const list = await brandApi('GET', `/admin/acquisition/leads?kind=creator&hasEmail=1&q=leavlog${RUN}`);
     expect(list.status === 200 && list.data.total === 1 && list.data.leads[0].email === leadEmail, 'Filtres prospects : 1 créateur avec email attendu', list);
     const none = await brandApi('GET', `/admin/acquisition/leads?kind=brand&q=leavlog${RUN}`);

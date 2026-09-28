@@ -119,6 +119,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
             </div>
           </div>
           <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.'}</div>
+          {l.hooks?.length > 0 && <div className="mt-2 text-xs text-neutral-600" data-testid="daily-hooks" title="Trois accroches de créateur pour ce produit, rédigées par l'IA d'après la publicité de la marque : la première est dans le message, les trois partent dans l'email d'ouverture"><span className="font-medium text-neutral-700">Accroches :</span> {l.hooks.map((h: string, i: number) => <span key={i} className="block">{i + 1}) {h}</span>)}</div>}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
             {l.socials?.instagram && <Button size="sm" onClick={() => open('instagram', l.socials.instagram)} title="Copie le message et ouvre le profil Instagram dans un nouvel onglet. Commentez une publication récente avant d'écrire si vous ne l'avez jamais fait : le message passe mieux." data-testid="daily-open-instagram"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}
             {l.socials?.tiktok && <Button size="sm" variant={l.socials?.instagram ? 'outline' : 'primary'} onClick={() => open('tiktok', l.socials.tiktok)} title="Copie le message et ouvre le profil TikTok dans un nouvel onglet"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
@@ -503,6 +504,7 @@ export default function AcquisitionTool() {
                       </div>
                       <div className="text-xs text-neutral-600 mt-1">{l.email ? <span className="text-green-700">{l.email} <span className="text-neutral-400">({l.emailSource})</span></span> : <span className="text-orange-700">pas d&apos;email : contact sur le réseau</span>}{l.aiSummary ? ` · ${l.aiSummary}` : ''}{l.signals?.length ? ` · ${l.signals.join(' · ')}` : ''}{l.error ? <span className="text-red-600"> · {l.error}</span> : ''}{l.mailing?.pushedAt ? <span className="text-primary-700"> · envoyé via {l.mailing.provider} le {formatDateTime(l.mailing.pushedAt)}</span> : ''}</div>
                       {l.message && <div className="text-xs text-neutral-700 mt-1 bg-neutral-50 rounded px-2 py-1">{l.message}</div>}
+                      {l.hooks?.length > 0 && <div className="text-[11px] text-neutral-500 mt-1" title="Accroches de créateur pour ce produit (mini-audit de la publicité), reprises dans l'email d'ouverture">Accroches : {l.hooks.join(' · ')}</div>}
                       {embedProvider(l.url) && <div className="mt-2 max-w-xl"><SocialEmbed url={l.url} compact onAuthor={(a) => { if (l.source === 'instagram' && !l.handle && a.name) patch.mutate({ id: l._id, handle: a.name, socials: { instagram: `https://www.instagram.com/${String(a.name).replace(/^@/, '')}/` } }); }} /></div>}
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                       {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}

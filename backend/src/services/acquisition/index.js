@@ -48,7 +48,8 @@ export async function refreshBrandMessages({ limit = 50 } = {}) {
   if (last && Date.now() - new Date(last).getTime() < 20 * 3600000) return 0;
   const { setSetting } = await import('../../models/Setting.js');
   await setSetting('brandMessagesRefreshedAt', new Date().toISOString());
-  const leads = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact'] }, message: { $nin: [null, ''] }, $nor: [{ message: /registre des droits/i }] }).sort({ score: -1 }).limit(limit);
+  // Fiches d'une consigne précédente : sans accroches, ou message sans la phrase finale du jour
+  const leads = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact'] }, message: { $nin: [null, ''] }, $or: [{ hooks: { $size: 0 } }, { hooks: { $exists: false } }, { $nor: [{ message: /à quelle adresse puis-je vous les envoyer/i }] }] }).sort({ score: -1 }).limit(limit);
   let done = 0;
   for (const lead of leads) {
     try { await qualifyOne(lead, []); done++; } catch (err) { logger.warn(`refreshBrandMessages ${lead._id}: ${err.message}`); }
@@ -89,6 +90,7 @@ export async function qualifyOne(lead, openNiches) {
     lead.aiSummary = q.summary;
     lead.message = q.message;
     lead.emailParagraph = q.emailParagraph;
+    if (Array.isArray(q.hooks)) lead.hooks = q.hooks;
     if (q.firstName) lead.name = lead.name || q.firstName;
     if (q.firstName) lead.firstName = q.firstName;
     const offTarget = lead.kind === 'brand' ? q.sellsProducts === false : false;

@@ -129,25 +129,26 @@ Cible : PME et marques e-commerce françaises qui diffusent déjà des publicit�
 
 ## Marques · Email 1 · jour 0
 
+Depuis le 28/09/2026, `{{ paragraph }}` contient le **mini-audit** de la marque : « Nous avons vu votre publicité pour X. Trois accroches que nos créateurs
+tourneraient pour ce produit : 1) … 2) … 3) … Si l'une vous parle, elle est prête à être tournée sous dix jours. » Le champ SalesBlink est le même ;
+vérifier par un envoi test que les retours à la ligne sont conservés. La présentation vient avant le paragraphe.
+
 **Objet** (tester les deux) :
 - `Des vidéos UGC pour {{ company_name }}, payées seulement si elles vous conviennent`
-- `{{ company_name }} : vos prochaines vidéos publicitaires`
+- `{{ company_name }} : trois accroches pour votre prochaine publicité`
 
 ```
 Bonjour,
 
-{{ paragraph }}
+Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator, une plateforme française de vidéos UGC : des créateurs vérifiés tournent des témoignages, unboxings et démonstrations de vos produits, prêts pour vos publicités et vos réseaux.
 
-Je m'appelle {{name_of_sender}}, je lance NeedCreator, une plateforme française de vidéos UGC : des créateurs vérifiés tournent des témoignages, unboxings et démonstrations de vos produits, prêts pour vos publicités et vos réseaux.
+{{ paragraph }}
 
 Ce qui nous distingue :
 - Vous publiez un brief, vous recevez des devis avec le portfolio vidéo de chaque créateur, vous choisissez.
 - Vous ne payez qu'à la validation des vidéos. Le prix affiché est le prix payé, sans frais ajoutés.
-- Chaque mission génère un contrat de cession de droits : durée, supports, territoire. Plus de flou sur ce que vous avez le droit de diffuser.
+- Chaque mission génère un contrat de cession de droits : durée, supports, territoire.
 - Pas de budget vidéo pour l'instant ? Vous pouvez rémunérer le créateur avec votre produit offert.
-
-Pour voir ce que cela donnerait pour vous, collez le lien d'un de vos produits ici, sans créer de compte : vous obtenez trois angles créatifs, un format et un budget estimé en trente secondes.
-https://needcreator.com/brief-depuis-url
 
 Si ce message ne vous concerne pas directement, pourriez-vous le transmettre à la personne en charge du marketing ou des publicités ? Merci d'avance.
 

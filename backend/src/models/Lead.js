@@ -30,6 +30,7 @@ const leadSchema = new mongoose.Schema({
   signals: [String], // ex. « fait déjà de l'UGC », « pub vidéo active »
   aiSummary: String,
   message: String, // message court pour les réseaux (≤ 300 caractères)
+  hooks: [String], // marques : trois accroches de créateur pour leur produit (mini-audit de leur publicité), reprises dans l'email 1 et le message
   emailParagraph: String, // paragraphe personnalisé pour l'email
   status: { type: String, enum: LEAD_STATUSES, default: 'new', index: true },
   runId: String,

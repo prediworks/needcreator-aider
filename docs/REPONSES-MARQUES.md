@@ -10,7 +10,7 @@ Constats des premiers envois Instagram (23 septembre 2026), à partir de quatre 
   l'objectif : le message privé sert à obtenir l'adresse, l'argumentation se fait ensuite par email.
 - **Le message généré par l'admin** est écrit pour ça depuis le 23/09, resserré le 26/09 : « Bonjour, » puis un seul détail vu chez la marque, une phrase au
   positif (« Je ne suis pas créatrice : je m'occupe de NeedCreator, une plateforme où des créateurs vérifiés tournent des vidéos pour vos pubs, payées
-  seulement si elles vous conviennent »), et la phrase finale, un outil gratuit utile même sans collaboration, qui appelle une réponse : « Même sans collaboration, notre registre des droits vous dit gratuitement jusqu'à quand vous pouvez diffuser les vidéos de vos créateurs : je vous envoie le lien ? ». Réponse « oui » : envoyer needcreator.com/contenus-et-droits, puis demander l'adresse email pour la suite. Relisez-le avant d'envoyer,
+  seulement si elles vous conviennent »), la meilleure des trois accroches de créateur rédigées pour son produit (« Un de nos créateurs l'ouvrirait ainsi : « … » »), et la phrase finale : « J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ? ». Réponse avec une adresse : « Coller la réponse », l'email d'ouverture part avec les trois accroches. Le registre des droits reste l'argument des marques qui ont déjà des créateurs (tableau ci-dessous). Relisez-le avant d'envoyer,
   adaptez un mot ; si la question finale manque, ajoutez-la.
 
 ## À chaque réponse : le bouton « Coller la réponse »
