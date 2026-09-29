@@ -74,13 +74,13 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
           );
         })()}
         {user.status === 'active' && <OpportunitiesCard />}
-        {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
         {user.status === 'active' && (
           <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
             <div className="text-sm text-neutral-700"><strong>Vos outils, même hors NeedCreator :</strong> suivi des marques que vous démarchez, devis et contrat en un clic, registre de vos droits et exclusivités, calculateur de tarif.</div>
             <div className="flex gap-2 flex-wrap"><Link href="/vitrine"><Button size="sm" variant="outline" title="Tournez une vidéo pour un produit que vous possédez d'une marque que nous démarchons : elle la reçoit finie avec un devis et l'achète en un clic">Candidature spontanée</Button></Link><Link href="/prospects"><Button size="sm" variant="outline">Prospection</Button></Link><Link href="/quotes"><Button size="sm" variant="outline">Devis clients</Button></Link><Link href="/rights"><Button size="sm" variant="outline">Droits &amp; exclusivités</Button></Link><Link href="/calculateur-tarif-ugc"><Button size="sm" variant="outline">Calculateur de tarif</Button></Link></div>
           </Card>
         )}
+        {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
         {blockers.length > 0 && user.status !== 'pending' && (
           <p className="text-xs text-neutral-500 -mt-3 mb-6 flex items-center gap-1"><AlertTriangle className="w-3.5 h-3.5" /> Avant de pouvoir envoyer un devis :{' '}
             {blockers.map((b, i) => <span key={b}>{i > 0 && ' '}<Link href={blockerHref(b)} className="underline decoration-dotted hover:text-primary-600">{b}</Link></span>)}

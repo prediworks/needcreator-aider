@@ -48,12 +48,13 @@ export default function Header() {
     ? [
         { href: '/dashboard', label: 'Tableau de bord' },
         { href: '/campaigns', label: 'Campagnes' },
-        ...(user?.role === 'creator' ? [{ href: '/vitrine', label: 'Candidature vidéo' }] : []), // candidature spontanée : à égalité avec les campagnes
+        // Candidature spontanée à égalité avec les campagnes ; devis clients toujours à portée (le portfolio reste dans le profil)
+        ...(user?.role === 'creator' ? [{ href: '/vitrine', label: 'Candidature vidéo' }, { href: '/quotes', label: 'Devis clients' }] : []),
         { href: '/deliveries', label: user?.role === 'creator' ? 'Missions' : 'Livraisons' },
         ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
         ...(user?.role === 'brand' ? [{ href: '/contents', label: 'Contenus' }] : []),
-        ...(user?.role === 'creator' ? [{ href: '/academie', label: 'Académie' }, { href: '/earnings', label: 'Revenus' }, { href: '/profile#portfolio', label: 'Portfolio' }] : []),
+        ...(user?.role === 'creator' ? [{ href: '/academie', label: 'Académie' }, { href: '/earnings', label: 'Revenus' }] : []),
         ...(user?.role === 'admin' ? [{ href: '/admin', label: 'Administration' }] : []),
       ]
     : [
@@ -85,13 +86,13 @@ export default function Header() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0 mr-6 xl:mr-10">
+          <Link href="/" className="flex items-center gap-2 shrink-0 mr-6">
             <img src="/icon.svg" alt="" width={32} height={32} className="w-8 h-8 rounded-lg" />
             <span className="text-xl font-bold text-neutral-900 whitespace-nowrap">NeedCreator</span>
           </Link>
 
           {/* Navigation desktop (à partir de lg : en dessous, le menu hamburger évite tout chevauchement) */}
-          <nav className="hidden xl:flex items-center gap-x-3 xl:gap-x-6 flex-1 min-w-0 text-sm xl:text-[15px] whitespace-nowrap">
+          <nav className="hidden xl:flex items-center gap-x-4 flex-1 min-w-0 text-sm xl:text-[15px] whitespace-nowrap">
             {links.map(navLink)}
           </nav>
 
