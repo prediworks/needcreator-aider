@@ -255,8 +255,9 @@ export function extractPostAuthor(result) {
 /** Fiche de profil (Instagram ou TikTok) : email, abonnés, lien de bio, bio courte (IA si disponible, sinon début du texte) */
 export async function extractProfile(result, url) {
   const text = String(result?.text || '');
-  // Texte visible d'abord, puis liens mailto, puis emails trouvés dans le code de la page (bouton « E-mail », données intégrées)
-  const email = pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' '))) || pickEmail(extractEmails((result?.emails || []).join(' ')));
+  // Adresse de contact publiée par le compte professionnel (bouton « E-mail ») d'abord, puis texte visible, liens mailto, emails du code de la page
+  const contact = pickEmail(extractEmails(String(result?.contact?.email || '')));
+  const email = contact || pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' '))) || pickEmail(extractEmails((result?.emails || []).join(' ')));
   const followers = followersFromText(text);
   const site = externalLinks(result?.links, ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com']).find(h => !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h)) || null;
   let bio = '';
@@ -268,11 +269,11 @@ export async function extractProfile(result, url) {
         schema: z.object({ bio: z.string().default(''), email: z.string().default('') }),
       });
       bio = out.bio || '';
-      if (!email && /@/.test(out.email)) return { email: out.email.toLowerCase(), followers, site, bio };
+      if (!email && /@/.test(out.email)) return { email: out.email.toLowerCase(), emailSource: 'bio', followers, site, bio };
     } catch (err) { logger.warn(`extractProfile AI: ${err.message}`); }
   }
   if (!bio) bio = text.replace(/\s+/g, ' ').slice(0, 160);
-  return { email, followers, site, bio };
+  return { email, emailSource: email ? (contact ? 'bouton e-mail' : 'bio') : null, followers, site, bio };
 }
 
 /** Annonceurs d'une page de bibliothèque publicitaire : IA sur le texte, complétée par les liens de pages Facebook */
@@ -466,7 +467,7 @@ export async function submitTaskResult(id, result) {
   if (!task) throw Object.assign(new Error('Tâche introuvable'), { status: 404 });
   if (task.status !== 'running') throw Object.assign(new Error(`Tâche ${task.status}, résultat ignoré`), { status: 409 });
   const batch = await BrowserTaskBatch.findById(task.batchId);
-  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 800).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
+  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 800).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null, contact: result?.contact ? { email: String(result.contact.email || '').slice(0, 200).toLowerCase(), source: String(result.contact.source || '').slice(0, 20), category: String(result.contact.category || '').slice(0, 80), professional: result.contact.professional ?? null } : null };
   task.result = slim;
   if (slim.blocked) {
     const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;
@@ -503,7 +504,7 @@ export async function submitTaskResult(id, result) {
       if (!lead) throw new Error('fiche marque introuvable');
       let gotEmail = false;
       if (p.site && !lead.website) lead.website = p.site;
-      if (p.email && !lead.email) { lead.email = p.email; lead.emailSource = 'bio'; gotEmail = true; }
+      if (p.email && !lead.email) { lead.email = p.email; lead.emailSource = p.emailSource || 'bio'; gotEmail = true; }
       if (p.followers) lead.stats = { ...(lead.stats?.toObject?.() || lead.stats || {}), subscribers: p.followers };
       if (p.bio && !/\S{20}/.test(lead.description || '')) lead.description = `${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);
       if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
@@ -518,7 +519,7 @@ export async function submitTaskResult(id, result) {
       } else {
         await lead.save();
         if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
-        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ' · email trouvé' : ''}`;
+        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ` · email trouvé${p.emailSource === 'bouton e-mail' && lead.email === p.email ? ' (bouton e-mail)' : ''}` : ''}`;
       }
     } else if (task.type === 'read_profile') {
       const url = task.input.url;
@@ -531,7 +532,7 @@ export async function submitTaskResult(id, result) {
       const imp = await importLeads({ kind: 'creator', rows: [row], niche: batch?.niche, origin: batch?.origin || 'extension' });
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       outcome = imp.created ? 'nouvelle fiche' : imp.updated ? 'fiche complétée' : 'fiche connue, rien de nouveau';
-      if (p.email) outcome += ` · email trouvé`;
+      if (p.email) outcome += ` · email trouvé${p.emailSource === 'bouton e-mail' ? ' (bouton e-mail)' : ''}`;
       else if (imp.emailsAdded) outcome += ' · email trouvé sur le site';
     } else if (task.type === 'list_ad_library') {
       const advertisers = await extractAdvertisers(slim, task.input.count || 15);

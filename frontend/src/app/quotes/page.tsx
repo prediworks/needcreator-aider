@@ -16,7 +16,7 @@ import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import QuoteCreateForm, { readQuoteDraft, clearQuoteDraft } from '@/components/QuoteCreateForm';
 import { RIGHTS_DURATION } from '@/lib/labels';
-import { FileSignature, Plus, Send, Copy, ExternalLink, Trash2, CheckCircle, Link2, Pencil } from 'lucide-react';
+import { FileSignature, Plus, Send, Copy, ExternalLink, Trash2, CheckCircle, Link2, Pencil, Bell } from 'lucide-react';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   draft: { label: 'Brouillon', cls: 'bg-neutral-100 text-neutral-700' },
@@ -41,6 +41,7 @@ function QuotesPageInner() {
   const { data, isLoading } = useQuery({ queryKey: ['external-quotes'], queryFn: async () => (await api.get('/external-quotes')).data, enabled: ready });
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['external-quotes'] });
   const send = useMutation({ mutationFn: async ({ id, email, message }: any) => (await api.post(`/external-quotes/${id}/send`, { email, message })).data, onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const remind = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.post(`/external-quotes/${id}/remind`, body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const direct = useMutation({ mutationFn: async (id: string) => (await api.post(`/external-quotes/${id}/direct`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const remove = useMutation({ mutationFn: async (id: string) => (await api.delete(`/external-quotes/${id}`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const copy = async (t: string) => { try { await navigator.clipboard.writeText(t); toast.success('Lien copié'); } catch { toast.error('Copie impossible'); } };
@@ -75,11 +76,19 @@ function QuotesPageInner() {
                         <button type="button" onClick={() => copy(q.link)} className="text-primary-600 underline inline-flex items-center gap-1"><Link2 className="w-3 h-3" /> Copier le lien client</button>
                         {q.deliveryId && <Link href={`/deliveries/${q.deliveryId}`} className="text-primary-600 underline inline-flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Voir la mission</Link>}
                       </div>
+                      {q.status === 'sent' && q.reminder && !q.reminder.showcase && (
+                        <div className="text-xs text-neutral-600 mt-1 flex gap-2 flex-wrap items-center" data-testid="quote-reminder">
+                          <span>{q.sentAt ? `Envoyé le ${formatDate(q.sentAt)}` : 'Envoyé'}{q.reminder.count > 0 ? ` · ${q.reminder.count} rappel${q.reminder.count > 1 ? 's' : ''} sur ${q.reminder.max}, le dernier le ${formatDate(q.reminder.lastAt)}` : ' · aucun rappel pour l\'instant'}</span>
+                          <label className="inline-flex items-center gap-1 cursor-pointer" title="Le client reçoit un rappel automatique s'il ne répond pas ; vous êtes prévenu à chaque rappel"><input type="checkbox" checked={q.reminder.auto} onChange={(e) => remind.mutate({ id: q._id, auto: e.target.checked })} /> Rappels automatiques</label>
+                          {!q.reminder.canRemind && q.reminder.why && <span className="text-orange-700">{q.reminder.why}</span>}
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2 flex-wrap">
                       {['draft', 'sent'].includes(q.status) && (
                         <>
                           <Button size="sm" onClick={() => { const email = prompt('Envoyer le devis à quelle adresse ?', q.client.email || ''); if (!email) return; const message = prompt('Un mot pour le client (optionnel) :') || ''; send.mutate({ id: q._id, email, message }); }} isLoading={send.isPending}><Send className="w-4 h-4 mr-1" /> {q.status === 'sent' ? 'Renvoyer' : 'Envoyer au client'}</Button>
+                          {q.status === 'sent' && q.reminder?.canRemind && <Button size="sm" variant="outline" onClick={() => { const message = prompt(`Relancer ${q.client.companyName} (${q.client.email}). Un mot pour le client (optionnel) :`, ''); if (message !== null) remind.mutate({ id: q._id, message }); }} isLoading={remind.isPending} data-testid="quote-remind" title="Envoie au client un rappel avec le lien du devis"><Bell className="w-4 h-4 mr-1" /> Relancer</Button>}
                           <Button size="sm" variant="outline" onClick={() => { setAdding(false); setEditing(q); window.scrollTo({ top: 0, behavior: 'smooth' }); }}><Pencil className="w-4 h-4 mr-1" /> Modifier</Button>
                           <Button size="sm" variant="outline" onClick={() => { if (confirm('Le client a accepté et vous paie en direct, hors NeedCreator ? Aucune commission, pas de facture par mandat : vous facturez vous-même.')) direct.mutate(q._id); }} isLoading={direct.isPending}>Payé en direct</Button>
                           <Button size="sm" variant="ghost" onClick={() => { if (confirm('Supprimer ce devis ?')) remove.mutate(q._id); }}><Trash2 className="w-4 h-4" /></Button>

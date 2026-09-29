@@ -929,6 +929,37 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
   expect(pub.quote?.status === 'sent' && pub.quote.creator?.name && pub.quote.quote.price === 320 && !pub.quote.creatorId && !JSON.stringify(pub).includes('legalInfo'), 'Vue publique du devis sans données sensibles', { status: 200, data: pub });
   // Refus par le client
+  // Relances du devis resté sans réponse : à la main (délai de deux jours, trois au plus), automatique (réglage), désactivable par devis
+  {
+    const db = mongoose.connection.db; const quotes = db.collection('externalquotes'); const qid = new mongoose.Types.ObjectId(String(q1.data.quote._id));
+    const st0 = (await creatorApi('GET', '/external-quotes')).data.quotes.find(x => x._id === q1.data.quote._id);
+    expect(st0.reminder && st0.reminder.count === 0 && st0.reminder.auto === true && st0.reminder.canRemind === false && /attendez/.test(st0.reminder.why), 'Un devis tout juste envoyé ne se relance pas encore', st0.reminder);
+    const early = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/remind`, { message: 'Trop tôt' });
+    expect(early.status === 400 && /attendez/.test(early.data.error), 'La relance trop rapprochée doit être refusée avec la date', early);
+    await quotes.updateOne({ _id: qid }, { $set: { sentAt: new Date(Date.now() - 5 * 86400000) } });
+    const { runQuoteReminders, reminderState } = await import('../src/services/quoteReminders.js');
+    expect(reminderState({ status: 'sent', client: { email: 'a@b.fr' }, sentAt: new Date(Date.now() - 5 * 86400000), quote: {} }, { showcase: true }).canRemind === false, 'Une candidature spontanée ne se relance jamais');
+    expect(reminderState({ status: 'sent', client: { email: 'a@b.fr' }, sentAt: new Date(Date.now() - 5 * 86400000), quote: { validUntil: new Date(Date.now() - 86400000) } }).canRemind === false, 'Un devis expiré ne se relance pas');
+    const off = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/remind`, { auto: false });
+    expect(off.status === 200 && off.data.reminder.auto === false, 'Les rappels automatiques doivent pouvoir être désactivés pour un devis', off);
+    await runQuoteReminders();
+    expect(((await quotes.findOne({ _id: qid })).reminders?.count || 0) === 0, 'Rappels automatiques désactivés : aucun envoi');
+    await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/remind`, { auto: true });
+    await runQuoteReminders();
+    const afterAuto = await quotes.findOne({ _id: qid });
+    expect(afterAuto.reminders.count === 1 && afterAuto.reminders.lastAt, 'Le rappel automatique doit partir après le délai, une fois', afterAuto.reminders);
+    await runQuoteReminders();
+    expect((await quotes.findOne({ _id: qid })).reminders.count === 1, 'Le rappel automatique ne doit pas se répéter avant le délai suivant');
+    const bellQ = await creatorApi('GET', '/notifications');
+    expect((bellQ.data.notifications || []).some(n => /a reçu un rappel de votre devis|Rappel de devis non remis/.test(n.title)), 'Le créateur doit être prévenu du rappel automatique (ou de l\'adresse refusée)', (bellQ.data.notifications || []).slice(0, 3));
+    await quotes.updateOne({ _id: qid }, { $set: { 'reminders.lastAt': new Date(Date.now() - 3 * 86400000) } });
+    const manual = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/remind`, { message: 'Avez-vous pu regarder ?' });
+    expect((manual.status === 200 && manual.data.reminder.count === 2) || (manual.status === 502 && /adresse refusée/.test(manual.data.error)), 'La relance à la main doit partir (ou l\'adresse refusée être expliquée)', manual);
+    await quotes.updateOne({ _id: qid }, { $set: { 'reminders.count': 3, 'reminders.lastAt': new Date(Date.now() - 3 * 86400000) } });
+    const tooMany = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/remind`, {});
+    expect(tooMany.status === 400 && /3 rappels/.test(tooMany.data.error), 'Trois rappels au plus par devis', tooMany);
+    await quotes.updateOne({ _id: qid }, { $set: { sentAt: new Date(), reminders: { count: 0, auto: true } } });
+  }
   const q2 = await creatorApi('POST', '/external-quotes', { ...base, title: 'Devis à décliner' });
   const dec = await fetch(`${API}/external-quotes/public/${q2.data.quote.token}/decline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Budget épuisé' }) });
   expect(dec.status === 200, 'Refus public échoué', { status: dec.status });
@@ -3119,6 +3150,12 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r2.status === 200 && /email trouvé/.test(r2.data.outcome), 'Le profil doit donner l\'email', r2);
     const lead = await db.collection('leads').findOne({ url: 'https://www.instagram.com/p/E2EEXT1/' });
     expect(lead && lead.handle === '@e2e.extcreator' && lead.email === 'e2e-ext-creator@needcreator-test.com' && lead.stats?.subscribers === 12400 && lead.socials?.instagram === 'https://www.instagram.com/e2e.extcreator/', 'La fiche « publication seule » doit être complétée : auteur, email, abonnés, profil', lead);
+    // Adresse de contact du compte professionnel (bouton « E-mail ») : prioritaire sur le texte de la page
+    const { extractProfile } = await import('../src/services/browserTasks.js');
+    const viaButton = await extractProfile({ text: 'marque.test 2 300 abonnés Bougies artisanales. Contact presse : presse@autre-test.com', links: [], emails: [], contact: { email: 'Bonjour@Marque-Test.com', source: 'contact', professional: true } }, 'https://www.instagram.com/marque.test/');
+    expect(viaButton.email === 'bonjour@marque-test.com' && viaButton.emailSource === 'bouton e-mail', 'L\'adresse de contact du compte professionnel doit primer', viaButton);
+    const noButton = await extractProfile({ text: 'marque.test 2 300 abonnés Bougies artisanales. Contact : presse@autre-test.com', links: [], emails: [], contact: { email: null, note: 'profile data refused (401)' } }, 'https://www.instagram.com/marque.test/');
+    expect(noButton.email === 'presse@autre-test.com' && noButton.emailSource === 'bio', 'Sans adresse de contact, l\'email du texte reste utilisé', noButton);
     // Bibliothèque publicitaire : mot-clé → annonceurs relevés → marques importées
     const lot2 = await brandApi('POST', '/browser-tasks/batches', { preset: 'ad_library', keywords: ['bougie e2e'], count: 10 });
     batchIds.push(lot2.data.batch._id);

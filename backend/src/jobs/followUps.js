@@ -9,6 +9,7 @@ import {
 } from '../services/email.js';
 import logger from '../utils/logger.js';
 import { notify } from '../services/notifications.js';
+import { runQuoteReminders } from '../services/quoteReminders.js';
 
 /**
  * Relances automatiques et refus définitif automatique.
@@ -176,6 +177,7 @@ export async function processAutoRejections() {
 }
 
 export async function runFollowUps() {
+  const externalQuotes = await runQuoteReminders().catch(e => { logger.error('runQuoteReminders:', e); return 0; });
   const [quotes, noUpload, product, revision, autoRejected] = await Promise.all([
     remindBrandsOnPendingQuotes().catch(e => { logger.error('remindBrandsOnPendingQuotes:', e); return 0; }),
     remindCreatorsWithoutUpload().catch(e => { logger.error('remindCreatorsWithoutUpload:', e); return 0; }),
@@ -183,5 +185,5 @@ export async function runFollowUps() {
     remindCreatorsRevisionPending().catch(e => { logger.error('remindCreatorsRevisionPending:', e); return 0; }),
     processAutoRejections().catch(e => { logger.error('processAutoRejections:', e); return 0; }),
   ]);
-  return { quotes, noUpload, product, revision, autoRejected };
+  return { quotes, noUpload, product, revision, autoRejected, externalQuotes };
 }

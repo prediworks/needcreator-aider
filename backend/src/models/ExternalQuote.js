@@ -41,6 +41,8 @@ const externalQuoteSchema = new mongoose.Schema({
   status: { type: String, enum: ['draft', 'sent', 'accepted_needcreator', 'accepted_direct', 'declined', 'expired'], default: 'draft', index: true },
   pdf: { quoteUrl: String, contractUrl: String, number: String, generatedAt: Date },
   sentAt: Date,
+  // Relances au client resté sans réponse : automatiques (réglage admin, désactivables par devis) ou à la main par le créateur
+  reminders: { count: { type: Number, default: 0 }, lastAt: Date, auto: { type: Boolean, default: true } },
   acceptedAt: Date,
   declinedAt: Date,
   declineReason: String,

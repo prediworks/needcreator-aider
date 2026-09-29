@@ -5,7 +5,7 @@
  * from the server: random 5–10 s pause between pages, per-session and per-day caps, stop on login page / captcha /
  * restriction, no engagement of any kind (the extension only reads pages).
  */
-const DEFAULTS = { serverUrl: '', token: '', role: 'reader', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
+const DEFAULTS = { serverUrl: '', token: '', role: 'reader', contact: 'on', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 // role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
 const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
@@ -51,6 +51,39 @@ function waitLoaded(tabId, timeoutMs = 30000) {
 }
 async function run(tabId, file) { const [r] = await chrome.scripting.executeScript({ target: { tabId }, files: [file] }); return r?.result; }
 
+/**
+ * Injected in an Instagram profile tab: the public contact address of a professional account (the one behind the « E-mail » button
+ * of the mobile app). Two readings, no click and no engagement:
+ *  1. a visible contact button or link that carries a mailto address;
+ *  2. the profile data the site itself loads for this page (same request, same session), where the public business email is given.
+ * Returns { email, source, category, professional } ; email is null when the account publishes none. Self-contained (serialized by chrome.scripting).
+ */
+async function readContactInPage() {
+  const out = { email: null, source: null, category: null, professional: null, note: null };
+  const valid = (e) => /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(e || '').trim());
+  try {
+    const m = location.pathname.match(/^\/([A-Za-z0-9._]{2,30})\/?$/);
+    if (!/(^|\.)instagram\.com$/.test(location.hostname) || !m) { out.note = 'not a profile page'; return out; }
+    for (const el of document.querySelectorAll('header a[href^="mailto:"], main a[href^="mailto:"]')) {
+      const e = decodeURIComponent(el.getAttribute('href').replace(/^mailto:/i, '').split('?')[0]).trim().toLowerCase();
+      if (valid(e)) { out.email = e; out.source = 'button'; return out; }
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(`/api/v1/users/web_profile_info/?username=${encodeURIComponent(m[1])}`, { headers: { 'X-IG-App-ID': '936619743392459', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'include', signal: ctrl.signal });
+      if (!r.ok) { out.note = `profile data refused (${r.status})`; return out; }
+      const u = (await r.json())?.data?.user;
+      if (!u) { out.note = 'profile data empty'; return out; }
+      out.professional = !!(u.is_business_account || u.is_professional_account);
+      out.category = String(u.category_name || u.business_category_name || '').slice(0, 80) || null;
+      const e = String(u.business_email || u.public_email || '').trim().toLowerCase();
+      if (valid(e)) { out.email = e; out.source = 'contact'; }
+    } finally { clearTimeout(timer); }
+  } catch (err) { out.note = String(err && err.message || err).slice(0, 120); }
+  return out;
+}
+
 async function readPage(task) {
   const s = await settings();
   const tabId = await ensureTab(task.input.url);
@@ -66,6 +99,11 @@ async function readPage(task) {
   for (let i = 0; i < 6 && page && !page.blocked && page.text.length < 300; i++) { await sleep(1500); page = await run(tabId, 'extract.js'); }
   if (!page) throw new Error('page unreadable');
   if (collected.size) { collect(page); page.links = [...collected.values()].slice(0, 800); }
+  // Instagram profile: public contact address of the professional account (can be switched off in the options)
+  if (task.type === 'read_profile' && !page.blocked && s.contact !== 'off' && /^https?:\/\/(www\.)?instagram\.com\//i.test(task.input.url)) {
+    try { const [c] = await chrome.scripting.executeScript({ target: { tabId }, func: readContactInPage }); if (c?.result) page.contact = c.result; }
+    catch (err) { page.contact = { email: null, note: String(err.message).slice(0, 120) }; }
+  }
   await sleep(rand(s.minDelay * 1000, s.maxDelay * 1000)); // pause between two pages
   return page;
 }
@@ -156,7 +194,7 @@ async function tick() {
       log(page.blocked === 'consent' ? 'Stopped: the site asks to accept cookies. Open the tab, accept once, then start again.' : `Stopped: the site showed a ${page.blocked} page. Open the tab, sort it out by hand, then start again later.`);
       chrome.action.setBadgeText({ text: '!' }); chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
     } else {
-      log(`Done: ${res.outcome || 'result sent'}`);
+      log(`Done: ${res.outcome || 'result sent'}${page.contact ? (page.contact.email ? ' · contact address read' : page.contact.note ? ` · contact: ${page.contact.note}` : ' · no public contact address') : ''}`);
     }
     await saveState();
   } catch (err) {

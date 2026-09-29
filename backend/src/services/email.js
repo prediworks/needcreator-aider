@@ -366,6 +366,21 @@ export async function sendExternalQuoteToClient(email, clientName, creatorName, 
   `;
   return sendEmail(email, subject, html, null, { attachments });
 }
+/** Rappel au client d'un devis resté sans réponse (automatique ou envoyé par le créateur) */
+export async function sendExternalQuoteReminder(email, clientName, creatorName, title, price, link, { validUntil = null, message = '', sentAt = null } = {}) {
+  const subject = `Rappel : le devis de ${creatorName} pour « ${title} »`;
+  const until = validUntil ? new Date(validUntil).toLocaleDateString('fr-FR') : '';
+  const html = `
+    <h1>Bonjour${clientName ? ' ' + esc(clientName) : ''},</h1>
+    <p><strong>${esc(creatorName)}</strong> vous a adressé${sentAt ? ` le ${new Date(sentAt).toLocaleDateString('fr-FR')}` : ''} un devis pour « ${esc(title)} » : <strong>${price} € HT</strong>. Il attend votre réponse${until ? `, et reste valable jusqu'au <strong>${until}</strong>` : ''}.</p>
+    ${message ? `<p><em>« ${esc(message)} »</em></p>` : ''}
+    ${button(link, 'Voir le devis et répondre')}
+    <p>Sur cette page, vous acceptez le devis ou vous le déclinez en un clic : dans les deux cas, ${esc(creatorName)} est prévenu et vous ne recevez plus de rappel.</p>
+    <p style="font-size:12px;color:#666">NeedCreator est la plateforme sur laquelle ${esc(creatorName)} gère ses missions. Le paiement sécurisé et le contrat de cession de droits sont inclus, sans frais ajoutés au devis.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `${price} € HT${until ? `, valable jusqu'au ${until}` : ''} : acceptez ou déclinez en un clic.` });
+}
+
 export async function sendExternalQuoteAccepted(email, creatorName, clientName, title, deliveryId) {
   const subject = `${clientName} accepte votre devis et paie via NeedCreator`;
   const html = `

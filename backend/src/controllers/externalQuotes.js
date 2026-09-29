@@ -11,6 +11,7 @@ import { createDeliveryForCampaign } from './deliveries.js';
 import { sendExternalQuoteToClient, sendExternalQuoteAccepted, sendExternalQuoteDeclined } from '../services/email.js';
 import { notify } from '../services/notifications.js';
 import { attachQuoteToProspect } from './prospects.js';
+import { reminderState, remindQuoteManually } from '../services/quoteReminders.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -71,7 +72,27 @@ const serialize = async (q) => { const o = q.toObject ? q.toObject() : q; if (o.
 
 export async function listExternalQuotes(req, res) {
   const list = await ExternalQuote.find({ creatorId: req.user._id }).sort({ createdAt: -1 }).lean();
-  res.json({ quotes: await Promise.all(list.map(serialize)) });
+  const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+  const showcase = new Set((await ShowcaseVideo.distinct('quoteId', { creatorId: req.user._id })).map(String));
+  res.json({ quotes: await Promise.all(list.map(async (q) => ({ ...(await serialize(q)), reminder: reminderState(q, { showcase: showcase.has(String(q._id)) }) }))) });
+}
+
+/** Créateur : relance le client d'un devis resté sans réponse (mot facultatif), ou active / désactive les rappels automatiques de ce devis */
+export async function remindExternalQuote(req, res) {
+  try {
+    const q = await ExternalQuote.findOne({ _id: req.params.id, creatorId: req.user._id });
+    if (!q) return res.status(404).json({ error: 'Devis introuvable' });
+    if (typeof req.body?.auto === 'boolean') {
+      q.reminders = { count: q.reminders?.count || 0, lastAt: q.reminders?.lastAt, auto: req.body.auto };
+      await q.save();
+      return res.json({ message: req.body.auto ? 'Rappels automatiques activés pour ce devis' : 'Rappels automatiques désactivés pour ce devis', reminder: reminderState(q) });
+    }
+    await remindQuoteManually(q, req.user, req.body?.message);
+    res.json({ message: `Rappel envoyé à ${q.client.email}`, reminder: reminderState(q) });
+  } catch (error) {
+    if (!error.status) logger.error('remindExternalQuote failed:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Relance impossible' });
+  }
 }
 
 /** Crée un devis (PDF générés) pour un créateur : utilisé par l'API et par le registre des droits (renouvellement) */
@@ -124,7 +145,9 @@ export async function sendExternalQuote(req, res) {
     if (!['draft', 'sent'].includes(q.status)) return res.status(400).json({ error: 'Ce devis n\'est plus modifiable' });
     const email = String(req.body?.email || q.client.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Email du client invalide' });
+    const first = q.status !== 'sent';
     q.client.email = email; q.status = 'sent'; q.sentAt = new Date();
+    if (first) q.reminders = { count: 0, lastAt: undefined, auto: q.reminders?.auto !== false }; // premier envoi : le compteur de rappels part de zéro
     await q.save();
     const s = await serialize(q);
     const attachments = await quoteAttachments(q);

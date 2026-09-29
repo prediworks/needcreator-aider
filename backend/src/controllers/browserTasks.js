@@ -35,6 +35,7 @@ const resultSchema = Joi.object({
   meta: Joi.object({ description: Joi.string().max(2000).allow(''), ogTitle: Joi.string().max(500).allow(''), ogDescription: Joi.string().max(2000).allow('') }).unknown(true),
   self: Joi.string().max(40).allow('', null),
   emails: Joi.array().items(Joi.string().max(120)).max(20),
+  contact: Joi.object({ email: Joi.string().max(200).allow('', null), source: Joi.string().max(20).allow('', null), category: Joi.string().max(80).allow('', null), professional: Joi.boolean().allow(null), note: Joi.string().max(200).allow('', null) }).unknown(true).allow(null), // adresse de contact publiée par un compte professionnel
 }).unknown(true);
 
 export async function taskResult(req, res) {

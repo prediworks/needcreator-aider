@@ -22,6 +22,12 @@
     <option value="messenger">Messenger · main account: only opens a conversation and pastes the prepared text (never reads pages, never sends)</option>
   </select>
   <div class="hint">Install the extension twice, in two Chrome profiles: one logged in with a secondary account (Reader), one with the account the prospects should see (Messenger).</div>
+  <label for="contact">Instagram profiles: public contact address</label>
+  <select id="contact" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;font-size:14px">
+    <option value="on">Read it (address published by professional accounts)</option>
+    <option value="off">Do not read it</option>
+  </select>
+  <div class="hint">Professional accounts can publish a contact address (the « E-mail » button of the mobile app). When this is on, the Reader reads it from the profile data the site loads for the page: one more request per profile, no click. Switch it off if the site shows restriction notices.</div>
   <div class="grid">
     <div><label for="minDelay">Minimum pause between pages (s)</label><input id="minDelay" type="number" min="5" max="60"></div>
     <div><label for="maxDelay">Maximum pause (s)</label><input id="maxDelay" type="number" min="5" max="120"></div>
