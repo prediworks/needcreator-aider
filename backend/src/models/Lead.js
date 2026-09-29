@@ -50,6 +50,7 @@ const leadSchema = new mongoose.Schema({
     fallbackAt: Date, fallbackText: String, fallbackSentAt: Date,
     closedAt: Date, closedReason: String,
   },
+  sizeTier: { type: String, enum: ['ok', 'large', 'huge'] }, // taille estimée d'une marque (abonnés, annonces, liste des marques refusées) : « large » répond rarement, « huge » est écartée
   // Marque suggérée par un créateur : elle lui est réservée quelques jours pour sa candidature spontanée
   suggestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   reservedUntil: Date,

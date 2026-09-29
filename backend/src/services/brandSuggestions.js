@@ -46,10 +46,33 @@ export function suggestionKey({ name, website, instagram }) {
 }
 
 /** Niveau de taille à partir des indices disponibles (fonction pure, couverte par les tests) */
-export function tierOf({ blocked = false, ads = null, ai = '' } = {}, { largeAds = 50, hugeAds = 300 } = {}) {
-  if (blocked || ai === 'huge' || (ads != null && ads >= hugeAds)) return 'huge';
-  if (ai === 'large' || (ads != null && ads >= largeAds)) return 'large';
+export function tierOf({ blocked = false, ads = null, ai = '', followers = null } = {}, { largeAds = 50, hugeAds = 300, largeFollowers = 100000, hugeFollowers = 500000 } = {}) {
+  if (blocked || ai === 'huge' || (ads != null && ads >= hugeAds) || (followers != null && followers >= hugeFollowers)) return 'huge';
+  if (ai === 'large' || (ads != null && ads >= largeAds) || (followers != null && followers >= largeFollowers)) return 'large';
   return 'ok';
+}
+
+// Nom exact, ou suivi d'un pays ou d'une mention officielle (« nike france », « sephora_officiel ») : pas de simple début de mot, « dovetail » n'est pas « dove »
+const SUFFIX = ['', 'france', 'fr', 'paris', 'official', 'officiel', 'officielle', 'europe', 'beauty', 'store', 'shop'];
+/** La marque (nom ou pseudo) figure-t-elle dans la liste des marques toujours refusées ? */
+export function isBlockedBrand(list, name, handle = '') {
+  const names = String(list || '').split(/[,\n]/).map(norm).filter(n => n.length >= 2);
+  const n = norm(name); const h = norm(String(handle || '').replace(/^https:\/\/www\.instagram\.com\//, ''));
+  return names.some(b => SUFFIX.some(x => (n && n === b + x) || (h && h === b + x)));
+}
+
+/** Seuils et liste réglés dans l'admin (Réglages → Prospection) */
+export async function sizeSettings() {
+  const get = (k) => getSetting(SETTINGS[k].key, SETTINGS[k].default);
+  const [largeAds, hugeAds, largeFollowers, hugeFollowers, blockedList] = await Promise.all([get('suggestLargeAds'), get('suggestHugeAds'), get('brandLargeFollowers'), get('brandHugeFollowers'), get('suggestBlockedBrands')]);
+  return { largeAds, hugeAds, largeFollowers, hugeFollowers, blockedList };
+}
+
+/** Taille d'une marque trouvée par la prospection, d'après ce qu'on sait déjà d'elle (aucun appel extérieur) */
+export async function brandTier({ name, handle = '', followers = null, ads = null }, settings = null) {
+  const st = settings || await sizeSettings();
+  const blocked = isBlockedBrand(st.blockedList, name, handle);
+  return { tier: tierOf({ blocked, ads, followers }, st), blocked };
 }
 
 const sizeSchema = z.object({ size: z.enum(['unknown', 'small', 'medium', 'large', 'huge']), group: z.string().max(80), reason: z.string().max(200) });
@@ -57,16 +80,8 @@ const withTimeout = (p, ms) => Promise.race([p, new Promise(resolve => setTimeou
 
 /** Indices de taille : liste des marques toujours refusées, annonces actives (Meta), connaissance de l'IA. Chaque indice peut manquer. */
 export async function estimateSize({ name, website, instagram }) {
-  const [largeAds, hugeAds, list] = await Promise.all([
-    getSetting(SETTINGS.suggestLargeAds.key, SETTINGS.suggestLargeAds.default), getSetting(SETTINGS.suggestHugeAds.key, SETTINGS.suggestHugeAds.default),
-    getSetting(SETTINGS.suggestBlockedBrands.key, SETTINGS.suggestBlockedBrands.default),
-  ]);
-  const names = String(list || '').split(/[,\n]/).map(norm).filter(n => n.length >= 2);
-  const handle = instagram ? norm(instagram.replace(/^https:\/\/www\.instagram\.com\//, '')) : '';
-  const n = norm(name);
-  // Nom exact, ou suivi d'un pays ou d'une mention officielle (« nike france », « sephora_officiel ») : pas de simple début de mot, « dovetail » n'est pas « dove »
-  const SUFFIX = ['', 'france', 'fr', 'paris', 'official', 'officiel', 'officielle', 'europe', 'beauty', 'store', 'shop'];
-  const blocked = names.some(b => SUFFIX.some(x => n === b + x || (handle && handle === b + x)));
+  const st = await sizeSettings();
+  const blocked = isBlockedBrand(st.blockedList, name, instagram);
   const size = { blocked, ads: null, ai: '', group: '', reason: '' };
   if (!blocked) {
     const [meta, ai] = await Promise.all([
@@ -80,7 +95,7 @@ export async function estimateSize({ name, website, instagram }) {
     if (meta) size.ads = meta.ads || 0;
     if (ai) { size.ai = ai.size; size.group = ai.group; size.reason = ai.reason; }
   } else size.reason = 'Marque de la liste des marques toujours refusées';
-  return { size, tier: tierOf(size, { largeAds, hugeAds }) };
+  return { size, tier: tierOf(size, st) };
 }
 
 /** Prospect marque déjà connu pour cette suggestion (site, Instagram ou nom) */

@@ -47,5 +47,5 @@
       if (emails.length >= 10) break;
     }
   } catch { /* page source unreadable */ }
-  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, emails, scrollHeight: document.documentElement.scrollHeight };
+  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, emails, scrollHeight: document.documentElement.scrollHeight, visibility: document.visibilityState };
 })();

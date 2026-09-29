@@ -17,7 +17,9 @@ Header on every call: `X-Extension-Token: <token>`.
 Task types the extension knows: `read_post_author`, `read_profile` (one page, no scroll), `list_hashtag` (4 scrolls),
 `list_ad_library` (6 scrolls), `list_tiktok_ads` (6 scrolls), `read_post_brands` (one page), and `prefill_message` (opens the profile in a visible tab, opens the conversation, pastes `input.text`, stops; result `{ prefilled, copied, error }`). Any other type is read as a single page.
 
-**Contact address (0.2.5).** On an Instagram `read_profile`, the result also carries `contact: { email, source, category, professional, note }`: the public contact address a professional account publishes (the « E-mail » button of the mobile app). It is read without any click, from a visible `mailto` link (`source: 'button'`) or from the profile data the site loads for the page (`source: 'contact'`, one same-origin request with the session of the tab). `email` is `null` when the account publishes none; `note` says why a reading failed. The options page can switch it off.
+**List pages (0.2.6).** Lists (`list_hashtag`, `list_ad_library`, `list_tiktok_ads`) load their next items only while the page is displayed: in a background tab the scroll moves and nothing new is rendered. The working tab and its window come to the front for the reading of a list, then the tab and the window the user was on are put back (option « List pages », on by default). The result carries `list: { steps, links, visibility }`: the number of links seen after each scroll and the visibility of the page, so that the server can tell a list that stayed on its first items.
+
+**Contact address (0.2.5, off by default since 0.2.6).** On an Instagram `read_profile`, the result can carry `contact: { email, source, category, professional, note }`: the public contact address a professional account publishes (the « E-mail » button of the mobile app), read without any click from a visible `mailto` link or from the profile data the site loads for the page (one same-origin request). Instagram answered `429` to this request on the first real run: the option is off by default, and one refusal (401, 403, 429) stops it until the extension is restarted.
 
 **Roles.** The options page sets the role of an installation: `reader` (default) asks `GET /ext/next` without a filter and the server never hands it a `prefill_message`; `messenger` asks `GET /ext/next?types=prefill_message` and only prepares messages. Install the extension in two Chrome profiles: a secondary account for reading, the account prospects should see for messages.
 
@@ -26,8 +28,8 @@ Task types the extension knows: `read_post_author`, `read_profile` (one page, no
 - Random pause between two pages: 5 to 10 s by default, never under 5 s.
 - Caps: 60 pages per session and 150 per day by default (hard ceilings 100 and 300).
 - Stops by itself on a login page, a captcha, a cookie-consent page or a restriction notice, and tells the user.
-- Reads only: no like, follow, comment, message or form submit. The only scripts injected are `extract.js` (read), `scroll.js` (scroll down), the contact reading on Instagram profiles (one request for the profile data, optional) and, in the messenger role, the paste function (opens the conversation, pastes, never sends).
-- A dedicated background tab the user can watch; Pause and Stop in the popup; a log of the last actions.
+- Reads only: no like, follow, comment, message or form submit. The only scripts injected are `extract.js` (read), `scroll.js` (scroll down), the contact reading on Instagram profiles (one request for the profile data, off by default) and, in the messenger role, the paste function (opens the conversation, pastes, never sends).
+- A dedicated tab the user can watch, in the background except while a list is read; Pause and Stop in the popup; a log of the last actions.
 
 ## Install (developer mode)
 

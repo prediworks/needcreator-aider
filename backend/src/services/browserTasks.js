@@ -510,7 +510,17 @@ export async function submitTaskResult(id, result) {
       if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
       lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() };
       const paid = /partenariat rémunéré déclaré/.test(lead.description || '');
-      if (!paid && !looksLikeBrand(p, slim.text)) {
+      const { brandTier } = await import('./brandSuggestions.js');
+      const size = await brandTier({ name: lead.name, handle: lead.socials?.instagram || task.input.url, followers: p.followers || null, ads: lead.stats?.ads ?? null });
+      lead.sizeTier = size.tier;
+      const audience = p.followers ? `${p.followers.toLocaleString('fr-FR')} abonnés` : size.blocked ? 'liste des marques refusées' : `${lead.stats?.ads || 0} annonces actives`;
+      if (size.tier === 'huge') {
+        // Très grande marque : agences et créateurs sous contrat, les propositions directes ne sont pas lues
+        lead.status = 'rejected';
+        lead.notes = [lead.notes, `Écartée : très grande marque (${audience})`].filter(Boolean).join(' · ').slice(0, 2000);
+        await lead.save();
+        outcome = `très grande marque (${audience}) : fiche écartée`;
+      } else if (!paid && !looksLikeBrand(p, slim.text)) {
         // Compte personnel cité dans une légende : pas un prospect marque
         lead.status = 'rejected';
         lead.notes = [lead.notes, 'Écarté : le compte Instagram est un particulier, pas une marque (catégorie, site, audience)'].filter(Boolean).join(' · ').slice(0, 2000);
@@ -519,7 +529,9 @@ export async function submitTaskResult(id, result) {
       } else {
         await lead.save();
         if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
-        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ` · email trouvé${p.emailSource === 'bouton e-mail' && lead.email === p.email ? ' (bouton e-mail)' : ''}` : ''}`;
+        if (size.tier === 'large' && !/Grande marque/.test(lead.notes || '')) lead.notes = [lead.notes, `Grande marque (${audience}) : répond rarement`].filter(Boolean).join(' · ').slice(0, 2000);
+        if (size.tier === 'large') await lead.save();
+        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ` · email trouvé${p.emailSource === 'bouton e-mail' && lead.email === p.email ? ' (bouton e-mail)' : ''}` : ''}${size.tier === 'large' ? ` · grande marque (${audience})` : ''}`;
       }
     } else if (task.type === 'read_profile') {
       const url = task.input.url;
@@ -547,8 +559,13 @@ export async function submitTaskResult(id, result) {
       outcome = result?.prefilled ? 'message collé dans la conversation, à relire et envoyer' : result?.copied ? 'messagerie introuvable : message copié, à coller à la main' : `préparation impossible${result?.error ? ` : ${String(result.error).slice(0, 120)}` : ''}`;
       if (!result?.prefilled && !result?.copied) throw new Error(outcome);
     } else if (task.type === 'read_post_brands') {
-      const brands = extractPostBrands(slim);
-      task.extracted = { brands };
+      const tagged = extractPostBrands(slim);
+      // Très grandes marques (liste réglée dans l'admin) : ignorées avant toute lecture de profil
+      const { sizeSettings, isBlockedBrand } = await import('./brandSuggestions.js');
+      const sizes = await sizeSettings();
+      const brands = tagged.filter(b => !isBlockedBrand(sizes.blockedList, b.handle, b.handle));
+      const tooBig = tagged.length - brands.length;
+      task.extracted = { brands, tooBig };
       const rows = [];
       for (const b of brands) {
         const meta = await lookupBrandOnMeta(b.handle);
@@ -564,6 +581,7 @@ export async function submitTaskResult(id, result) {
         if (batch) batch.counts.total += toRead.length;
       }
       outcome = brands.length ? `${brands.length} marque(s) taguée(s)${brands.some(b => b.paid) ? ' (partenariat rémunéré)' : ''} : ${imp.created} nouvelle(s), ${imp.emailsAdded} email(s)${toRead.length ? `, ${toRead.length} profil(s) à lire` : ''}` : 'aucune marque taguée dans cette publication';
+      if (tooBig) outcome = `${brands.length ? `${outcome} · ` : ''}${tooBig} très grande(s) marque(s) ignorée(s)`;
     } else if (task.type === 'list_tiktok_ads') {
       const advertisers = await extractTiktokAdvertisers(slim, task.input.count || 15);
       task.extracted = { advertisers };
@@ -617,6 +635,9 @@ export async function submitTaskResult(id, result) {
         if (batch) batch.counts.total += fresh.length;
       }
       outcome = `${posts.length} publication(s) : ${task.input.purpose === 'brands' ? 'marques taguées à lire' : 'auteurs à lire'}`;
+      // Liste restée sur ses premiers éléments : la cause la plus fréquente est un onglet caché (la page ne charge la suite qu'affichée)
+      const list = result?.list;
+      if (list && posts.length < 6) outcome += list.visibility === 'hidden' ? ' · page peu chargée : onglet caché pendant la lecture (Options de l\'extension → « Show the tab while a list is read »)' : ` · page peu chargée (${Array.isArray(list.steps) ? list.steps.slice(0, 8).join(', ') : '?'} liens au fil du défilement)`;
     }
     task.status = 'done';
     task.outcome = outcome;

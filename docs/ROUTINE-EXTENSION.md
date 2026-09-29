@@ -72,7 +72,9 @@ file du jour.
   « auteur introuvable » ou « échec » se lisent en clair.
 - **Fenêtre de l'extension** : « Stopped: login / captcha / consent » → ouvrir l'onglet qu'elle utilise, régler la page à la main (se
   connecter, accepter les cookies), puis Start. « Daily cap reached » → demain.
-- **Adresse de contact Instagram** (extension 0.2.5) : dans le journal de la fenêtre, chaque profil lu se termine par « contact address read » (adresse trouvée), « no public contact address » (le compte n'en publie pas) ou « contact: … refused » (Instagram a refusé la lecture). Dans le détail du lot, « email trouvé (bouton e-mail) ». Si « refused » revient à chaque profil ou si Instagram affiche un avertissement, coupez la lecture dans Options → « Instagram profiles: public contact address » → « Do not read it », et dites-le-moi.
+- **Pages de hashtag** (extension 0.2.6) : pendant la lecture d'une liste, l'onglet de l'extension passe au premier plan une vingtaine de secondes, puis votre onglet revient. C'est voulu : Instagram ne charge la suite des publications que si la page est affichée. Dans le détail du lot, un hashtag doit donner une vingtaine de publications ; « page peu chargée » signale une liste restée sur ses premières publications.
+- **Taille des marques** : dans le détail du lot, « très grande marque : fiche écartée » (plus de 500 000 abonnés, ou liste des marques refusées) et « grande marque » (plus de 100 000 : gardée, signalée). Seuils et liste dans Réglages → Prospection → « Taille des marques ».
+- **Adresse de contact Instagram** : lecture coupée par défaut depuis la 0.2.6. Instagram l'a refusée (« 429 ») au premier passage réel ; ne pas la réactiver.
 - **Ligne d'état** en haut de Prospection : Meta, YouTube, Instagram, IA en vert.
 - **Bloc mailing** : « poussés aujourd'hui » supérieur à zéro après une nuit avec des marques nouvelles.
 

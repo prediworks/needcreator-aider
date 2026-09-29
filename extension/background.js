@@ -5,7 +5,7 @@
  * from the server: random 5–10 s pause between pages, per-session and per-day caps, stop on login page / captcha /
  * restriction, no engagement of any kind (the extension only reads pages).
  */
-const DEFAULTS = { serverUrl: '', token: '', role: 'reader', contact: 'on', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
+const DEFAULTS = { serverUrl: '', token: '', role: 'reader', contactLookup: 'off', listFocus: 'on', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 // role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
 const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
@@ -33,13 +33,44 @@ async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-async function ensureTab(url) {
+async function ensureTab(url, visible = false) {
   if (state.tabId) {
-    try { await chrome.tabs.get(state.tabId); await chrome.tabs.update(state.tabId, { url, active: false }); return state.tabId; } catch { state.tabId = null; }
+    try { await chrome.tabs.get(state.tabId); await chrome.tabs.update(state.tabId, { url, active: visible }); return state.tabId; } catch { state.tabId = null; }
   }
-  const tab = await chrome.tabs.create({ url, active: false });
+  const tab = await chrome.tabs.create({ url, active: visible });
   state.tabId = tab.id;
   return tab.id;
+}
+
+/**
+ * List pages (hashtags, ad libraries) load their next items only while the page is really displayed: in a background tab the
+ * scroll moves but nothing new is rendered. The tab is shown and its window brought to the front for the time of the reading,
+ * then the tab and the window the user was on are put back.
+ */
+async function rememberFront() {
+  // Taken before the working tab is shown: the tab and the window the user is on
+  const before = { windowId: null, tabId: null };
+  try {
+    const focused = await chrome.windows.getLastFocused().catch(() => null);
+    const work = state.tabId ? await chrome.tabs.get(state.tabId).catch(() => null) : null;
+    const workWindow = work ? work.windowId : focused?.id;
+    before.windowId = focused?.id ?? null;
+    if (workWindow != null) { const [active] = await chrome.tabs.query({ active: true, windowId: workWindow }); before.tabId = active && active.id !== state.tabId ? active.id : null; }
+  } catch { /* nothing to put back */ }
+  return before;
+}
+async function showTab(tabId, before) {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (before.windowId === tab.windowId) before.windowId = null; // same window: only the tab is put back
+    await chrome.tabs.update(tabId, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true }).catch(() => {});
+  } catch { /* tab closed meanwhile: the reading goes on as before */ }
+  return before;
+}
+async function restoreTab(before) {
+  try { if (before?.tabId) await chrome.tabs.update(before.tabId, { active: true }); } catch { /* tab closed by the user */ }
+  try { if (before?.windowId) await chrome.windows.update(before.windowId, { focused: true }); } catch { /* window closed by the user */ }
 }
 function waitLoaded(tabId, timeoutMs = 30000) {
   return new Promise((resolve) => {
@@ -86,22 +117,30 @@ async function readContactInPage() {
 
 async function readPage(task) {
   const s = await settings();
-  const tabId = await ensureTab(task.input.url);
+  const scrolls = LIST_TYPES[task.type] || 0;
+  const visible = scrolls > 0 && s.listFocus !== 'off';
+  const front = visible ? await rememberFront() : null;
+  const tabId = await ensureTab(task.input.url, visible);
+  const before = visible ? await showTab(tabId, front) : null;
   await waitLoaded(tabId);
   await sleep(rand(2500, 4500)); // let the page render its content
-  const scrolls = LIST_TYPES[task.type] || 0;
   // Lists are virtualized: items leave the page as it scrolls, so links are collected at every step and merged
   const collected = new Map();
   const collect = (p) => { for (const l of p?.links || []) if (!collected.has(l.href)) collected.set(l.href, l); };
-  for (let i = 0; i < scrolls; i++) { collect(await run(tabId, 'extract.js')); await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
+  const steps = []; // links seen after each scroll: tells a page that loads from one that stays on its first items
+  let shown = null;
+  try {
+    for (let i = 0; i < scrolls; i++) { const p = await run(tabId, 'extract.js'); collect(p); steps.push(collected.size); shown = p?.visibility || shown; await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
+  } finally { if (before) await restoreTab(before); }
   // Pages that fill in after load (single-page apps): read again until there is text, up to ~10 s
   let page = await run(tabId, 'extract.js');
   for (let i = 0; i < 6 && page && !page.blocked && page.text.length < 300; i++) { await sleep(1500); page = await run(tabId, 'extract.js'); }
   if (!page) throw new Error('page unreadable');
   if (collected.size) { collect(page); page.links = [...collected.values()].slice(0, 800); }
-  // Instagram profile: public contact address of the professional account (can be switched off in the options)
-  if (task.type === 'read_profile' && !page.blocked && s.contact !== 'off' && /^https?:\/\/(www\.)?instagram\.com\//i.test(task.input.url)) {
-    try { const [c] = await chrome.scripting.executeScript({ target: { tabId }, func: readContactInPage }); if (c?.result) page.contact = c.result; }
+  if (scrolls) page.list = { steps, links: collected.size, visibility: shown || page.visibility || null };
+  // Instagram profile: public contact address of the professional account. Off by default (the site answers 429 to this reading); one refusal stops it for the session
+  if (task.type === 'read_profile' && !page.blocked && s.contactLookup === 'on' && !state.contactRefused && /^https?:\/\/(www\.)?instagram\.com\//i.test(task.input.url)) {
+    try { const [c] = await chrome.scripting.executeScript({ target: { tabId }, func: readContactInPage }); if (c?.result) page.contact = c.result; if (/refused \((401|403|429)\)/.test(c?.result?.note || '')) { state.contactRefused = true; log('Contact reading refused by the site: not tried again until the extension is restarted.'); } }
     catch (err) { page.contact = { email: null, note: String(err.message).slice(0, 120) }; }
   }
   await sleep(rand(s.minDelay * 1000, s.maxDelay * 1000)); // pause between two pages

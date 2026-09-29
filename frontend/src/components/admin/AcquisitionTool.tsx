@@ -609,6 +609,7 @@ export default function AcquisitionTool() {
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                       {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}
                       {l.offeredBriefId && <div className="text-xs text-primary-700 mt-1">Brief offert préparé : <a href={`/brief-depuis-url?id=${l.offeredBriefId}`} target="_blank" rel="noopener noreferrer" className="underline">le voir</a> (le lien est dans la réponse proposée)</div>}
+                      {l.kind === 'brand' && l.sizeTier === 'large' && <div className="text-xs text-orange-700 mt-1" title="Seuils dans Réglages → Prospection → Taille des marques">Grande marque{l.stats?.subscribers ? ` (${Number(l.stats.subscribers).toLocaleString('fr-FR')} abonnés)` : ''} : répond rarement aux propositions directes</div>}
                       {l.showcaseRequest?.explicit && !l.showcaseRequest?.closedAt && <div className="text-xs text-green-700 mt-1">Vidéo demandée{l.showcaseRequest.product ? ` : ${l.showcaseRequest.product}` : ''} · suivi dans « Vidéos demandées »</div>}
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                     </div>

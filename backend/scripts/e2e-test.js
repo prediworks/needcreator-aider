@@ -3038,6 +3038,9 @@ await step('Marque suggérée par un créateur : doublons, taille (grande, très
   const leads = db.collection('leads');
   const sugg = db.collection('brandsuggestions');
   const { tierOf, cleanWebsite, cleanInstagram, suggestionKey } = await import('../src/services/brandSuggestions.js');
+  const { isBlockedBrand } = await import('../src/services/brandSuggestions.js');
+  expect(tierOf({ followers: 50000 }) === 'ok' && tierOf({ followers: 150000 }) === 'large' && tierOf({ followers: 900000 }) === 'huge' && tierOf({ followers: 150000 }, { largeFollowers: 200000 }) === 'ok', 'Les seuils d\'abonnés doivent donner les trois niveaux');
+  expect(isBlockedBrand('nike, garnier, dove', 'Garnier') && isBlockedBrand('nike, garnier, dove', 'x', 'https://www.instagram.com/garnierfr/') && isBlockedBrand('nike, garnier', 'Nike France') && !isBlockedBrand('nike, garnier, dove', 'Dovetail') && !isBlockedBrand('nike', 'Maison Verveine', 'maisonverveine'), 'La liste des marques refusées doit reconnaître le nom exact ou suivi du pays, pas un début de mot');
   expect(tierOf({ ads: 10 }) === 'ok' && tierOf({ ads: 60 }) === 'large' && tierOf({ ads: 400 }) === 'huge' && tierOf({ ai: 'large' }) === 'large' && tierOf({ ai: 'huge', ads: 2 }) === 'huge' && tierOf({ blocked: true }) === 'huge' && tierOf({ ai: 'unknown' }) === 'ok' && tierOf({ ads: 60 }, { largeAds: 100, hugeAds: 500 }) === 'ok', 'Les trois niveaux de taille doivent suivre les seuils');
   expect(cleanWebsite('maisonverveine.fr') === 'https://maisonverveine.fr' && cleanWebsite('https://www.instagram.com/x') === '' && cleanInstagram('@Maison.Verveine') === 'https://www.instagram.com/maison.verveine/' && cleanInstagram('https://instagram.com/maisonverveine?hl=fr') === 'https://www.instagram.com/maisonverveine/' && suggestionKey({ name: 'X', website: 'https://www.maisonverveine.fr/produits' }) === 'd:maisonverveine.fr', 'Site, Instagram et clé de dédoublonnage doivent être remis en forme', [cleanWebsite('maisonverveine.fr'), cleanInstagram('@Maison.Verveine')]);
   const clean = async () => { await sugg.deleteMany({ name: /^(E2E Suggérée|Nike$)/ }); await leads.deleteMany({ name: /^E2E Suggérée/ }); await db.collection('showcasevideos').deleteMany({ brandName: /^E2E Suggérée/ }); };
@@ -3194,8 +3197,8 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     batchIds.push(lot5.data.batch._id);
     const t5 = (await ext('GET', '/next')).data.task;
     expect(t5 && t5.type === 'list_hashtag' && t5.input.purpose === 'brands', 'La tâche hashtag doit porter le but « marques »', t5);
-    const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }, { href: 'https://www.instagram.com/p/E2EEXTTAG1/?img_index=2', text: '' }] });
-    expect(r5.status === 200 && /marques taguées à lire/.test(r5.data.outcome), 'Les publications doivent donner des tâches « marques taguées »', r5);
+    const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }, { href: 'https://www.instagram.com/p/E2EEXTTAG1/?img_index=2', text: '' }], list: { steps: [1, 1, 1], links: 1, visibility: 'hidden' } });
+    expect(r5.status === 200 && /marques taguées à lire/.test(r5.data.outcome) && /onglet caché/.test(r5.data.outcome), 'Les publications doivent donner des tâches « marques taguées », et une liste restée sur ses premiers éléments doit être signalée', r5);
     const t6 = (await ext('GET', '/next')).data.task;
     expect(t6 && t6.type === 'read_post_brands' && /E2EEXTTAG1/.test(t6.input.url), 'La tâche fille lit la marque taguée de la publication', t6);
     const r6 = await ext('POST', `/${t6.id}/result`, { url: t6.input.url, title: 'Marie (@e2e.extcreator) • Instagram', text: 'e2e.extcreator Partenariat rémunéré avec e2eextbrandtag Ma routine avec @e2eextbrandtag #e2epartenariat', links: [{ href: 'https://www.instagram.com/moncompte.secondaire/', text: 'Profil' }, { href: 'https://www.instagram.com/e2e.extcreator/', text: 'e2e.extcreator' }, { href: 'https://www.instagram.com/e2eextbrandtag/', text: 'e2eextbrandtag' }], self: 'moncompte.secondaire' });
@@ -3209,6 +3212,32 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r6b.status === 200 && /site trouvé/.test(r6b.data.outcome) && /email trouvé/.test(r6b.data.outcome), 'Site et email de la marque doivent être relevés depuis son profil', r6b);
     const tagLead2 = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
     expect(tagLead2.website === 'https://e2eextbrandtag-test.example/' && tagLead2.email === 'hello@e2eextbrandtag-test.example', 'La fiche marque doit porter le site et l\'email', tagLead2);
+    // Taille des marques : liste des marques refusées ignorée avant toute lecture ; abonnés lus sur le profil → grande (gardée, signalée) ou très grande (écartée)
+    {
+      const tasks = db.collection('browsertasks'); const leadsC = db.collection('leads');
+      await leadsC.deleteMany({ handle: { $in: ['@e2eextbrandbig', '@e2eextbrandlarge', '@garnierfr'] } });
+      const bid = new mongoose.Types.ObjectId(String(lot5.data.batch._id));
+      const mkLead = async (h) => (await leadsC.insertOne({ kind: 'brand', source: 'instagram', externalId: `e2e-${h}-${RUN}`, name: h, handle: `@${h}`, url: `https://www.instagram.com/${h}/`, socials: { instagram: `https://www.instagram.com/${h}/` }, status: 'new', description: 'Marque taguée dans une publication UGC', createdAt: new Date(), updatedAt: new Date() })).insertedId;
+      const big = await mkLead('e2eextbrandbig'); const large = await mkLead('e2eextbrandlarge');
+      const now = Date.now();
+      await tasks.insertMany([
+        { workspaceId: 'default', batchId: bid, type: 'read_post_brands', status: 'pending', attempts: 0, input: { url: 'https://www.instagram.com/p/E2EEXTTAG2/', postUrl: 'https://www.instagram.com/p/E2EEXTTAG2/', query: 'e2epartenariat' }, createdAt: new Date(now - 3000), updatedAt: new Date() },
+        { workspaceId: 'default', batchId: bid, type: 'read_profile', status: 'pending', attempts: 0, input: { url: 'https://www.instagram.com/e2eextbrandbig/', leadId: big, kind: 'brand' }, createdAt: new Date(now - 2000), updatedAt: new Date() },
+        { workspaceId: 'default', batchId: bid, type: 'read_profile', status: 'pending', attempts: 0, input: { url: 'https://www.instagram.com/e2eextbrandlarge/', leadId: large, kind: 'brand' }, createdAt: new Date(now - 1000), updatedAt: new Date() },
+      ]);
+      const tA = (await ext('GET', '/next')).data.task;
+      const rA = await ext('POST', `/${tA.id}/result`, { url: tA.input.url, title: 'Marie (@e2e.extcreator) • Instagram', text: 'e2e.extcreator Ma routine avec @garnierfr #e2epartenariat', links: [], meta: { description: '12 likes, 1 comments - e2e.extcreator on May 3, 2026: "Ma routine cheveux avec @garnierfr #e2epartenariat"' }, self: 'moncompte.secondaire' });
+      expect(tA.type === 'read_post_brands' && rA.status === 200 && /très grande\(s\) marque\(s\) ignorée/.test(rA.data.outcome) && !(await leadsC.findOne({ handle: '@garnierfr' })), 'Une marque de la liste refusée doit être ignorée sans fiche ni lecture de profil', rA);
+      const tB = (await ext('GET', '/next')).data.task;
+      const rB = await ext('POST', `/${tB.id}/result`, { url: tB.input.url, title: 'E2E Big (@e2eextbrandbig)', text: 'e2eextbrandbig 1,2 M abonnés Boutique officielle. Livraison offerte dès 30 €. Nos produits', links: [{ href: 'https://l.instagram.com/?u=https%3A%2F%2Fe2eextbrandbig-test.example%2F', text: 'site' }] });
+      const bigAfter = await leadsC.findOne({ _id: big });
+      expect(rB.status === 200 && /très grande marque/.test(rB.data.outcome) && bigAfter.status === 'rejected' && bigAfter.sizeTier === 'huge' && /1 200 000 abonnés/.test(bigAfter.notes.replace(/[\u202f\u00a0]/g, ' ')), 'Une marque à plus de 500 000 abonnés doit être écartée, avec le motif', { rB, bigAfter });
+      const tC = (await ext('GET', '/next')).data.task;
+      const rC = await ext('POST', `/${tC.id}/result`, { url: tC.input.url, title: 'E2E Large (@e2eextbrandlarge)', text: 'e2eextbrandlarge 150 k abonnés Boutique en ligne. Livraison offerte. Nos produits made in France', links: [{ href: 'https://l.instagram.com/?u=https%3A%2F%2Fe2eextbrandlarge-test.example%2F', text: 'site' }] });
+      const largeAfter = await leadsC.findOne({ _id: large });
+      expect(rC.status === 200 && /grande marque \(150/.test(rC.data.outcome) && largeAfter.status !== 'rejected' && largeAfter.sizeTier === 'large' && /répond rarement/.test(largeAfter.notes), 'Une marque entre 100 000 et 500 000 abonnés doit être gardée et signalée', { rC, largeAfter });
+      await leadsC.deleteMany({ handle: { $in: ['@e2eextbrandbig', '@e2eextbrandlarge'] } });
+    }
     // TikTok Creative Center : annonceurs relevés depuis les liens de profils TikTok
     const lot6 = await brandApi('POST', '/browser-tasks/batches', { preset: 'tiktok_ads', keywords: ['bougie e2e'], count: 10 });
     expect(lot6.status === 201 && lot6.data.batch.origin === 'TikTok Creative Center', 'Le lot TikTok doit se créer', lot6);
