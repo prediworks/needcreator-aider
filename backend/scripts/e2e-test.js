@@ -3250,6 +3250,23 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(ttLead && ttLead.kind === 'brand' && ttLead.socials?.tiktok === 'https://www.tiktok.com/@e2eexttiktokbrand', 'L\'annonceur TikTok doit exister en prospect marque avec son TikTok', ttLead);
     await db.collection('leads').deleteMany({ handle: { $in: ['@e2eextbrandtag', '@e2eexttiktokbrand'] } });
     // Contacts LinkedIn : marque avec site → recherche d'entreprise → personnes marketing → contacts avec email déduit du format de la marque
+    {
+      const { companySlugMatches, linkedinWorthy, linkedinQuery } = await import('../src/services/browserTasks.js');
+      expect(companySlugMatches('kr-me', 'Krème') && companySlugMatches('%C3%A9lon%C4%B1e-paris', 'Elonie') && companySlugMatches('pierre-cattier-sas', 'Pierre Cattier') && !companySlugMatches('hydros-alumni', 'Hydros') && !companySlugMatches('ecoyoungleaderscamp', 'Young & Eco') && !companySlugMatches('laboratoriovitalis', 'Vitalis') && !companySlugMatches('k-e', 'Krème'), 'L\'identifiant de page LinkedIn doit être rapproché de la marque, lettres accentuées perdues comprises');
+      expect(!linkedinWorthy({ name: 'megane_gil', website: 'https://x.fr' }) && !linkedinWorthy({ name: 'Edson Pina', website: 'https://x.fr', keyword: 'import:créateurs UGC (tag)' }) && !linkedinWorthy({ name: 'Bioskins', website: 'https://www.instagram.com/bioskins' }) && linkedinWorthy({ name: 'Pierre Cattier', website: 'https://pierrecattier.fr', keyword: 'crème bio' }) && linkedinWorthy({ name: 'wildrefill_fr', website: 'https://wild.fr', keyword: 'import:créateurs UGC (tag)', enrich: { socialsSearchedAt: new Date() } }), 'Le lot LinkedIn ne doit retenir que de vraies marques');
+      expect(linkedinQuery('wildrefill_fr') === 'wildrefill' && linkedinQuery('cabania.fr') === 'cabania' && linkedinQuery('Pierre Cattier') === 'Pierre Cattier' && linkedinQuery('grain_de_malice') === 'grain de malice', 'Un pseudo doit devenir un nom à chercher', [linkedinQuery('wildrefill_fr'), linkedinQuery('cabania.fr'), linkedinQuery('grain_de_malice')]);
+      // Tâche ancienne vers la page d'une autre entreprise : écartée sans être confiée à l'extension, sans compter dans le plafond du jour
+      const tasksC = db.collection('browsertasks');
+      const old = await tasksC.insertOne({ workspaceId: 'default', batchId: new mongoose.Types.ObjectId(String(batchIds[batchIds.length - 1])), type: 'read_company_people', status: 'pending', attempts: 0, input: { url: 'https://www.linkedin.com/company/hydros-alumni/people/?keywords=marketing', query: 'Hydros' }, createdAt: new Date(Date.now() - 86400000 * 3), updatedAt: new Date() });
+      const keep = await tasksC.insertOne({ workspaceId: 'default', batchId: new mongoose.Types.ObjectId(String(batchIds[batchIds.length - 1])), type: 'read_company_people', status: 'pending', attempts: 0, input: { url: 'https://www.linkedin.com/company/kr-me/people/?keywords=marketing', query: 'Krème' }, createdAt: new Date(), updatedAt: new Date() });
+      const nextTask = (await ext('GET', '/next?types=read_post_author')).data.task; // toute remise de tâche déclenche le contrôle, même hors LinkedIn
+      const skipped = await tasksC.findOne({ _id: old.insertedId });
+      expect(skipped.status === 'failed' && skipped.skipped === true && /écartée sans lecture/.test(skipped.outcome), 'La page d\'une autre entreprise doit être écartée avant lecture', { skipped, nextTask });
+      const kept = await tasksC.findOne({ _id: keep.insertedId });
+      expect(kept.status === 'pending' && kept.input.verified === true, 'La bonne page (« kr-me » pour Krème) doit rester à lire', kept);
+      if (nextTask) await tasksC.updateOne({ _id: new mongoose.Types.ObjectId(String(nextTask.id)) }, { $set: { status: 'pending' }, $inc: { attempts: -1 } });
+      await tasksC.deleteMany({ _id: { $in: [old.insertedId, keep.insertedId] } });
+    }
     const liLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTLI-${RUN}`, name: 'E2E Ext Lumière', website: 'https://e2eextlumiere-test.example', email: 'contact@e2eextlumiere-test.example', status: 'qualified', score: 75, socials: { instagram: 'https://www.instagram.com/e2eextlumiere/' }, createdAt: new Date(), updatedAt: new Date() });
     const lot7 = await brandApi('POST', '/browser-tasks/batches', { preset: 'linkedin_contacts', limit: 20 });
     expect(lot7.status === 201 && /Contacts LinkedIn/.test(lot7.data.batch.label), 'Le lot « contacts LinkedIn » doit se créer', lot7);

@@ -23,9 +23,11 @@ const taskSchema = new mongoose.Schema({
     network: String,   // prefill_message : instagram, tiktok, linkedin
     purpose: String,   // list_hashtag : 'creators' (auteurs) ou 'brands' (marques taguées dans les publications)
     kind: String,      // read_profile : 'brand' quand la fiche à compléter est une marque
+    verified: Boolean, // read_company_people : la page entreprise a déjà été rapprochée de la marque (nom affiché dans la recherche, ou lien venu du site)
   },
   status: { type: String, enum: TASK_STATUSES, default: 'pending', index: true },
   attempts: { type: Number, default: 0 },
+  skipped: Boolean, // écartée par le serveur avant d'être confiée à l'extension (aucune page lue : ne compte pas dans le plafond LinkedIn)
   claimedAt: Date,
   finishedAt: Date,
   result: mongoose.Schema.Types.Mixed,   // résultat brut renvoyé par l'extension (texte réduit, liens)

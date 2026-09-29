@@ -40,7 +40,7 @@ export async function createBatch({ label, kind = 'creator', origin, niche, item
   const valid = (items || []).filter(i => TASK_TYPES.includes(i.type) && (i.url || i.query));
   if (!valid.length) throw new Error('Aucune tâche valide dans le lot');
   const batch = await BrowserTaskBatch.create({ label, kind, origin, niche, createdBy, workspaceId, counts: { total: valid.length } });
-  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
+  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
   return batch;
 }
 
@@ -78,14 +78,37 @@ export async function batchFromHashtags({ hashtags, count = 20, createdBy } = {}
 
 export const LINKEDIN_DAY_CAP = 20; // pages LinkedIn par jour, toutes tâches confondues : le réseau le plus sévère, un compte neuf
 
+/** Nom à chercher sur LinkedIn : un pseudo (« wildrefill_fr ») devient un nom (« wildrefill ») */
+export function linkedinQuery(name) {
+  const n = String(name || '').trim();
+  if (!/[_@.]/.test(n) || /\s/.test(n)) return n;
+  const words = n.replace(/^@/, '').split(/[_.]+/).filter(Boolean).filter((w, i, all) => !(all.length > 1 && /^(fr|france|officiel|official|paris|shop|store)$/i.test(w)));
+  return words.join(' ') || n;
+}
+
+/** Cette fiche marque mérite-t-elle une page LinkedIn ? Un vrai nom d'entreprise, un vrai site, et un profil confirmé pour les marques taguées */
+export function linkedinWorthy(lead) {
+  const name = String(lead?.name || '').trim();
+  if (name.length < 3) return false;
+  // Pseudo de réseau social (« megane_gil », « wildrefill_fr ») : seulement si le profil a été lu et reconnu comme celui d'une marque
+  const handleLike = /[_@]/.test(name) || (/^[a-z0-9.]+$/.test(name) && /[.\d]/.test(name));
+  if (handleLike && !lead.enrich?.socialsSearchedAt) return false;
+  if (/instagram\.com|tiktok\.com|facebook\.com|fb\.me|linktr\.ee|beacons\.ai|youtube\.com|meta\.com/i.test(String(lead.website || ''))) return false;
+  if (/tag/i.test(String(lead.keyword || '')) && !lead.enrich?.socialsSearchedAt) return false; // marque taguée dont le profil n'a pas été lu
+  return true;
+}
+
 /** Lot « contacts LinkedIn » : marques avec un site et sans contact connu ; recherche de la page entreprise, puis lecture des personnes marketing */
 export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) {
-  const leads = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit).select('name website socials.linkedin').lean();
+  // Vingt pages LinkedIn par jour : elles vont aux vraies marques. Sont laissés de côté les pseudos (« megane_gil »), les marques taguées
+  // dont le profil Instagram n'a pas encore été lu (ce peut être une personne), les très grandes marques et les sites qui sont un réseau social.
+  const found = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, sizeTier: { $ne: 'huge' }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit * 4).select('name website keyword enrich.socialsSearchedAt socials.linkedin').lean();
+  const leads = found.filter(linkedinWorthy).slice(0, limit);
   if (!leads.length) return null;
   await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.linkedinAt': new Date() } });
   const items = leads.map(l => l.socials?.linkedin && /linkedin\.com\/company\//i.test(l.socials.linkedin)
-    ? { type: 'read_company_people', url: `${l.socials.linkedin.replace(/\/+$/, '')}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: l._id, query: l.name }
-    : { type: 'find_company', url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(l.name)}`, leadId: l._id, query: l.name });
+    ? { type: 'read_company_people', url: `${l.socials.linkedin.replace(/\/+$/, '')}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: l._id, query: l.name, verified: true }
+    : { type: 'find_company', url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(linkedinQuery(l.name))}`, leadId: l._id, query: linkedinQuery(l.name) });
   return createBatch({ label: `Contacts LinkedIn · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, items });
 }
 
@@ -154,16 +177,34 @@ export async function failExhaustedTasks(workspaceId = 'default') {
 }
 
 /** Prochaine tâche pour l'extension (la plus ancienne en attente ; une tâche en cours depuis trop longtemps est redonnée) */
+/**
+ * Pages entreprise jamais rapprochées de la marque (tâches créées avant le contrôle du nom) : le nom est contrôlé avant toute lecture.
+ * Une page d'une autre entreprise est écartée sans être confiée à l'extension : elle ne coûte aucune des vingt pages LinkedIn du jour.
+ */
+export async function skipForeignCompanyTasks(workspaceId = 'default') {
+  const todo = await BrowserTask.find({ workspaceId, status: 'pending', type: 'read_company_people', 'input.verified': { $ne: true }, 'input.query': { $nin: [null, ''] } }).select('input').limit(100).lean();
+  let n = 0;
+  for (const t of todo) {
+    const slug = (String(t.input.url || '').match(/linkedin\.com\/company\/([^/?#]+)/i) || [])[1] || '';
+    if (companySlugMatches(slug, t.input.query)) { await BrowserTask.updateOne({ _id: t._id }, { $set: { 'input.verified': true } }); continue; }
+    let shown = slug; try { shown = decodeURIComponent(slug); } catch { /* identifiant illisible */ }
+    await BrowserTask.updateOne({ _id: t._id, status: 'pending' }, { $set: { status: 'failed', skipped: true, finishedAt: new Date(), error: 'autre entreprise', outcome: `page d'une autre entreprise (${shown}) : écartée sans lecture` } });
+    n++;
+  }
+  return n;
+}
+
 export async function claimNextTask({ workspaceId = 'default', types = null } = {}) {
   const stale = new Date(Date.now() - CLAIM_TIMEOUT_MS);
   await BrowserTask.updateMany({ workspaceId, status: 'running', claimedAt: { $lt: stale } }, { $set: { status: 'pending' } });
   await failExhaustedTasks(workspaceId);
+  await skipForeignCompanyTasks(workspaceId);
   // Rôle de l'extension : « lecture » (compte secondaire) ne prend jamais les messages ; « messages » (compte principal) ne prend que ceux-là
   let wanted = Array.isArray(types) && types.length ? types.filter(t => TASK_TYPES.includes(t)) : TASK_TYPES.filter(t => t !== 'prefill_message');
   // LinkedIn : 20 pages par jour au plus (compte secondaire neuf, réseau qui bloque vite) ; au-delà, ces tâches attendent demain
   if (wanted.some(t => LINKEDIN_TYPES.includes(t))) {
     const start = new Date(); start.setHours(0, 0, 0, 0);
-    const doneToday = await BrowserTask.countDocuments({ workspaceId, type: { $in: LINKEDIN_TYPES }, status: { $in: ['done', 'failed', 'running'] }, updatedAt: { $gte: start } });
+    const doneToday = await BrowserTask.countDocuments({ workspaceId, type: { $in: LINKEDIN_TYPES }, status: { $in: ['done', 'failed', 'running'] }, updatedAt: { $gte: start }, skipped: { $ne: true } }); // les pages écartées sans lecture ne comptent pas
     if (doneToday >= LINKEDIN_DAY_CAP) wanted = wanted.filter(t => !LINKEDIN_TYPES.includes(t));
   }
   const task = await BrowserTask.findOneAndUpdate(
@@ -388,6 +429,23 @@ export function sameCompany(a, b) {
   return short.length >= 4 && long.includes(short) && short.length / long.length >= 0.5;
 }
 
+const SLUG_STOP = /^(sas|sarl|sa|paris|france|fr|officiel|official|cosmetics|cosmetiques|laboratoire|laboratoires|the|la|le|les|group|groupe)$/;
+/**
+ * L'identifiant d'une page entreprise (« kr-me », « élonıe-paris ») désigne-t-il la marque ? LinkedIn y remplace les lettres accentuées
+ * par un tiret ou un caractère voisin : chaque caractère hors a-z et 0-9 vaut donc « une lettre quelconque, ou rien ».
+ */
+export function companySlugMatches(slug, brandName) {
+  let raw = String(slug || ''); try { raw = decodeURIComponent(raw); } catch { /* identifiant déjà décodé */ }
+  if (sameCompany(raw.replace(/-/g, ' '), brandName)) return true;
+  if (/alumni|recrut|careers|jobs|\bfans?\b|anciens/i.test(`${raw} ${brandName}`)) return false;
+  const tokens = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split('-').filter(t => t && !SLUG_STOP.test(t));
+  const name = normName(brandName);
+  if (!tokens.length || name.length < 3) return false;
+  const pattern = tokens.map(t => t.replace(/[^a-z0-9]/g, '.?')).join('.?');
+  if (pattern.replace(/\.\?/g, '').length < 3) return false;
+  try { return new RegExp(`^${pattern}$`).test(name); } catch { return false; }
+}
+
 export function extractCompanyLink(result, brandName = '') {
   for (const l of result?.links || []) {
     const m = String(l.href || '').match(/^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/company\/([^/?#]+)/i);
@@ -600,7 +658,7 @@ export async function submitTaskResult(id, result) {
       if (!company) throw new Error(`aucune page entreprise au nom de « ${task.input.query || 'la marque'} » dans les résultats`);
       task.extracted = { company };
       if (task.input.leadId) await Lead.updateOne({ _id: task.input.leadId, $or: [{ 'socials.linkedin': { $in: [null, ''] } }, { 'socials.linkedin': { $exists: false } }] }, { $set: { 'socials.linkedin': company } });
-      await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_company_people', input: { url: `${company}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: task.input.leadId, query: task.input.query } });
+      await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_company_people', input: { url: `${company}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: task.input.leadId, query: task.input.query, verified: true } });
       if (batch) batch.counts.total += 1;
       outcome = `page entreprise trouvée : personnes à lire`;
     } else if (task.type === 'read_company_people') {

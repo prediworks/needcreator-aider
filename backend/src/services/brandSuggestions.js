@@ -53,7 +53,7 @@ export function tierOf({ blocked = false, ads = null, ai = '', followers = null 
 }
 
 // Nom exact, ou suivi d'un pays ou d'une mention officielle (« nike france », « sephora_officiel ») : pas de simple début de mot, « dovetail » n'est pas « dove »
-const SUFFIX = ['', 'france', 'fr', 'paris', 'official', 'officiel', 'officielle', 'europe', 'beauty', 'store', 'shop'];
+const SUFFIX = ['', 'france', 'enfrance', 'fr', 'paris', 'official', 'officiel', 'officielle', 'europe', 'beauty', 'store', 'shop'];
 /** La marque (nom ou pseudo) figure-t-elle dans la liste des marques toujours refusées ? */
 export function isBlockedBrand(list, name, handle = '') {
   const names = String(list || '').split(/[,\n]/).map(norm).filter(n => n.length >= 2);
