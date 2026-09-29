@@ -257,7 +257,7 @@ export async function extractProfile(result, url) {
   // Texte visible d'abord, puis liens mailto, puis emails trouvés dans le code de la page (bouton « E-mail », données intégrées)
   const email = pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' '))) || pickEmail(extractEmails((result?.emails || []).join(' ')));
   const followers = followersFromText(text);
-  const site = externalLinks(result?.links, ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'spotify.com', 'cloudflare.com']).find(h => !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h)) || null;
+  const site = externalLinks(result?.links, ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com']).find(h => !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h)) || null;
   let bio = '';
   if (aiConfig().configured) {
     try {
@@ -311,14 +311,29 @@ export async function extractAdvertisers(result, count = 15) {
  */
 export function extractPostBrands(result) {
   const text = String(result?.text || '');
+  // La légende est dans la description de la page (« 12 likes - auteur on … : "légende" ») : les commentaires, où l'on cite ses amis, n'y sont pas
+  const caption = `${result?.meta?.description || ''}\n${result?.meta?.ogDescription || ''}`;
   const self = String(result?.self || '').toLowerCase();
   const author = (extractPostAuthor(result) || '').replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, '').toLowerCase();
   const out = new Map();
   const add = (h, paid) => { const k = String(h || '').replace(/^@/, '').replace(/[.,;:!?)]+$/, '').toLowerCase(); if (!/^[a-z0-9_.]{2,30}$/.test(k) || IG_RESERVED.has(k) || k === self || k === author) return; if (!out.has(k) || paid) out.set(k, { handle: k, paid: !!paid || (out.get(k)?.paid ?? false) }); };
   for (const m of text.matchAll(/(?:partenariat r[ée]mun[ée]r[ée] avec|paid partnership with|en partenariat avec|in partnership with|sponsoris[ée] par|sponsored by)\s*@?([A-Za-z0-9_.]{2,30})/gi)) add(m[1], true);
-  for (const m of text.matchAll(/(?:^|[^A-Za-z0-9_.])@([A-Za-z0-9_.]{2,30})/g)) add(m[1], false);
-  for (const l of result?.links || []) { const p = igProfileFromHref(l.href); if (!p) continue; const h = p.replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, ''); if (new RegExp(`@${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![A-Za-z0-9_.])`, 'i').test(text)) add(h, false); }
-  return [...out.values()];
+  const mentions = [...caption.matchAll(/(?:^|[^A-Za-z0-9_.])@([A-Za-z0-9_.]{2,30})/g)].map(m => m[1]);
+  // Plus de trois comptes cités dans une légende : concours ou liste d'amis, pas une collaboration
+  if (new Set(mentions.map(m => m.toLowerCase())).size <= 3) for (const m of mentions) add(m, false);
+  return [...out.values()].slice(0, 3);
+}
+
+/** Le compte lu est-il une marque ? Catégorie professionnelle, boutique ou site dans la bio, audience ; un particulier est écarté */
+export function looksLikeBrand(profile, text) {
+  const t = String(text || '').toLowerCase();
+  const category = /(marque|brand|boutique|shop|magasin|produit\/service|product\/service|e-commerce|cosm[ée]tique|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|restaurant|entreprise|company|soin de la peau|skin care|jewelry|bijouterie|food & beverage|aliments et boissons|health\/beauty|santé\/beauté)/.test(t);
+  const commerce = /(livraison|shipping|code promo|-\d{1,2} ?%|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée] en france|nos produits|notre gamme|site officiel|official)/.test(t);
+  const hasSite = !!profile?.site;
+  const followers = Number(profile?.followers) || 0;
+  let score = 0;
+  if (category) score += 2; if (commerce) score += 1; if (hasSite) score += 1; if (followers >= 2000) score += 1; if (followers >= 20000) score += 1;
+  return score >= 3;
 }
 
 /** Site et publicités d'une marque connue par son pseudo ou son nom : recherche dans la bibliothèque Meta (serveur, sans page de plus dans le navigateur) */
@@ -360,10 +375,24 @@ export async function extractTiktokAdvertisers(result, count = 15) {
 }
 
 /** Page entreprise LinkedIn dans une page de résultats de recherche : premier lien /company/ */
-export function extractCompanyLink(result) {
+const normName = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(sas|sarl|sa|paris|france|officiel|official|cosmetics|cosmetiques|laboratoire|laboratoires|the|la|le|les)\b/g, ' ').replace(/[^a-z0-9]/g, '');
+/** Deux noms désignent-ils la même entreprise ? (égalité, ou l'un contient l'autre sur au moins 4 caractères) */
+export function sameCompany(a, b) {
+  if (/alumni|recrut|careers|jobs|\bfans?\b|anciens/i.test(`${a} ${b}`)) return false; // pages d'anciens, de recrutement ou de fans : jamais la marque elle-même
+  const x = normName(a), y = normName(b);
+  if (x.length < 3 || y.length < 3) return false;
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 4 && long.includes(short) && short.length / long.length >= 0.5;
+}
+
+export function extractCompanyLink(result, brandName = '') {
   for (const l of result?.links || []) {
     const m = String(l.href || '').match(/^https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/company\/([^/?#]+)/i);
-    if (m) return `https://www.linkedin.com/company/${m[1]}`;
+    if (!m) continue;
+    // Le nom affiché (ou l'identifiant de la page) doit correspondre à la marque cherchée : le premier résultat est souvent une autre entreprise
+    if (brandName && !sameCompany(l.text, brandName) && !sameCompany(decodeURIComponent(m[1]).replace(/-/g, ' '), brandName)) continue;
+    return `https://www.linkedin.com/company/${m[1]}`;
   }
   return null;
 }
@@ -478,9 +507,18 @@ export async function submitTaskResult(id, result) {
       if (p.bio && !/\S{20}/.test(lead.description || '')) lead.description = `${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);
       if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
       lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() };
-      await lead.save();
-      if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
-      outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ' · email trouvé' : ''}`;
+      const paid = /partenariat rémunéré déclaré/.test(lead.description || '');
+      if (!paid && !looksLikeBrand(p, slim.text)) {
+        // Compte personnel cité dans une légende : pas un prospect marque
+        lead.status = 'rejected';
+        lead.notes = [lead.notes, 'Écarté : le compte Instagram est un particulier, pas une marque (catégorie, site, audience)'].filter(Boolean).join(' · ').slice(0, 2000);
+        await lead.save();
+        outcome = 'compte personnel, pas une marque : fiche écartée';
+      } else {
+        await lead.save();
+        if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
+        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ' · email trouvé' : ''}`;
+      }
     } else if (task.type === 'read_profile') {
       const url = task.input.url;
       const p = await extractProfile(slim, url);
@@ -538,14 +576,17 @@ export async function submitTaskResult(id, result) {
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       outcome = `${advertisers.length} annonceur(s) relevé(s), ${imp.created} nouvelle(s) marque(s), ${imp.emailsAdded} email(s)`;
     } else if (task.type === 'find_company') {
-      const company = extractCompanyLink(slim);
-      if (!company) throw new Error('page entreprise introuvable dans les résultats');
+      const company = extractCompanyLink(slim, task.input.query || '');
+      if (!company) throw new Error(`aucune page entreprise au nom de « ${task.input.query || 'la marque'} » dans les résultats`);
       task.extracted = { company };
       if (task.input.leadId) await Lead.updateOne({ _id: task.input.leadId, $or: [{ 'socials.linkedin': { $in: [null, ''] } }, { 'socials.linkedin': { $exists: false } }] }, { $set: { 'socials.linkedin': company } });
       await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_company_people', input: { url: `${company}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: task.input.leadId, query: task.input.query } });
       if (batch) batch.counts.total += 1;
       outcome = `page entreprise trouvée : personnes à lire`;
     } else if (task.type === 'read_company_people') {
+      // Garde-fou : la page lue doit être celle de la marque (tâches créées avant le contrôle du nom)
+      const slug = decodeURIComponent((String(task.input.url || '').match(/linkedin\.com\/company\/([^/?#]+)/i) || [])[1] || '').replace(/-/g, ' ');
+      if (task.input.query && !sameCompany(slug, task.input.query) && !sameCompany(String(slim.title || '').split(/[|:·]/)[0], task.input.query)) throw new Error(`page d'une autre entreprise (${slug || 'inconnue'}) : ignorée`);
       const people = await extractCompanyPeople(slim, { limit: 5 });
       task.extracted = { people };
       const lead = task.input.leadId ? await Lead.findById(task.input.leadId) : null;
