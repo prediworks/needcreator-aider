@@ -3023,6 +3023,12 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(messenger.data.task && messenger.data.task.type === 'prefill_message' && messenger.data.task.input.text === 'Bonjour, message de test E2E.' && /e2eextbrand\.dm/.test(messenger.data.task.input.url), 'Le rôle messages reçoit la préparation avec le texte et le profil', messenger);
     const pasted = await ext('POST', `/${messenger.data.task.id}/result`, { url: messenger.data.task.input.url, text: '', links: [], prefilled: true });
     expect(pasted.status === 200 && /collé dans la conversation/.test(pasted.data.outcome), 'Le résultat « collé » doit être enregistré', pasted);
+    // Un second message le même jour rejoint le même lot « Messages du jour », rouvert
+    const dmLead2 = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `E2EEXTDM2-${RUN}`, name: 'E2E Ext Marque DM 2', status: 'qualified', score: 70, message: 'Bonjour, second message de test E2E.', socials: { instagram: 'https://www.instagram.com/e2eextbrand.dm2/' }, createdAt: new Date(), updatedAt: new Date() });
+    const preB = await brandApi('POST', `/admin/acquisition/leads/${dmLead2.insertedId}/prefill`, { network: 'instagram' });
+    const taskB = await db.collection('browsertasks').findOne({ _id: new mongoose.Types.ObjectId(preB.data.taskId) });
+    expect(preB.status === 200 && String(taskB.batchId) === String(messenger.data.task.batchId), 'Les messages d\'une même journée doivent partager un seul lot', { status: preB.status, data: { a: String(taskB.batchId), b: String(messenger.data.task.batchId) } });
+    await db.collection('leads').deleteOne({ _id: dmLead2.insertedId });
     const dmBatch = await db.collection('browsertaskbatches').findOne({ _id: new mongoose.Types.ObjectId(messenger.data.task.batchId) });
     batchIds.push(String(dmBatch._id));
     await db.collection('leads').deleteOne({ _id: dmLead.insertedId });

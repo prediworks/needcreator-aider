@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
@@ -247,22 +247,32 @@ function ExtensionPanel() {
               <thead><tr className="text-left text-neutral-500"><th className="py-1 pr-3 font-medium">Lot</th><th className="py-1 px-2 font-medium">Avancement</th><th className="py-1 px-2 font-medium">Fiches</th><th className="py-1 px-2 font-medium">État</th><th></th></tr></thead>
               <tbody>
                 {lots.batches.map((b: any) => (
-                  <tr key={b._id} className="border-t border-neutral-100 text-neutral-700 align-top">
-                    <td className="py-1 pr-3"><button type="button" className="underline text-left" onClick={() => setOpenId(openId === b._id ? null : b._id)} title="Détail des tâches du lot">{b.label}</button><div className="text-neutral-400">{formatDateTime(b.createdAt)}</div></td>
-                    <td className="py-1 px-2">{b.counts.done} / {b.counts.total}{b.counts.failed ? ` · ${b.counts.failed} échec(s)` : ''}</td>
-                    <td className="py-1 px-2">{b.imported.created} nouvelle(s), {b.imported.updated} complétée(s), {b.imported.emailsAdded} email(s)</td>
-                    <td className="py-1 px-2">{b.blockedReason && !b.closedAt ? <span className="text-red-700">bloqué : {b.blockedReason}</span> : b.closedAt ? 'terminé' : 'en cours'}</td>
-                    <td className="py-1 px-2">{!b.closedAt && <button type="button" className="text-red-700 underline" onClick={() => cancel.mutate(b._id)} title="Annule les tâches restantes de ce lot">Annuler</button>}</td>
-                  </tr>
+                  <Fragment key={b._id}>
+                    <tr className={`border-t border-neutral-100 text-neutral-700 align-top ${openId === b._id ? 'bg-primary-50/40' : ''}`}>
+                      <td className="py-1 pr-3"><button type="button" className="underline text-left" onClick={() => setOpenId(openId === b._id ? null : b._id)} title="Détail des tâches du lot, affiché juste dessous">{openId === b._id ? '▾' : '▸'} {b.label}</button><div className="text-neutral-400">{formatDateTime(b.createdAt)}</div></td>
+                      <td className="py-1 px-2">{b.counts.done} / {b.counts.total}{b.counts.failed ? ` · ${b.counts.failed} échec(s)` : ''}</td>
+                      <td className="py-1 px-2">{b.imported.created} nouvelle(s), {b.imported.updated} complétée(s), {b.imported.emailsAdded} email(s)</td>
+                      <td className="py-1 px-2">{b.blockedReason && !b.closedAt ? <span className="text-red-700">bloqué : {b.blockedReason}</span> : b.closedAt ? 'terminé' : 'en cours'}</td>
+                      <td className="py-1 px-2">{!b.closedAt && <button type="button" className="text-red-700 underline" onClick={() => cancel.mutate(b._id)} title="Annule les tâches restantes de ce lot">Annuler</button>}</td>
+                    </tr>
+                    {openId === b._id && (
+                      <tr><td colSpan={5} className="pb-2">
+                        {!detail?.tasks ? <div className="text-neutral-500 p-2">Chargement du détail…</div> : (
+                          <>
+                            <div className="flex justify-end"><button type="button" className="underline text-primary-700 mb-1" onClick={async () => { try { await navigator.clipboard.writeText(detail.tasks.map((t: any) => `${t.type} · ${t.input?.url || t.input?.query || ''} · ${t.outcome || t.status}`).join('\n')); toast.success('Détail du lot copié'); } catch { /* presse-papiers indisponible */ } }} title="Copie toutes les lignes du détail, à coller dans un message">Copier le détail</button></div>
+                            <ul className="max-h-64 overflow-auto bg-neutral-50 rounded p-2 space-y-0.5" data-testid="ext-batch-detail">
+                              {detail.tasks.map((t: any) => <li key={t._id} className={t.status === 'failed' ? 'text-red-700' : t.status === 'done' ? 'text-neutral-700' : 'text-neutral-500'}>{t.type} · <a href={t.input?.url} target="_blank" rel="noreferrer" className="underline">{shortUrl(t.input?.url || t.input?.query || '')}</a> · {t.outcome || t.status}</li>)}
+                            </ul>
+                          </>
+                        )}
+                      </td></tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           )}
-          {openId && detail?.tasks && (
-            <ul className="mt-2 max-h-64 overflow-auto bg-neutral-50 rounded p-2 space-y-0.5" data-testid="ext-batch-detail">
-              {detail.tasks.map((t: any) => <li key={t._id} className={t.status === 'failed' ? 'text-red-700' : t.status === 'done' ? 'text-neutral-700' : 'text-neutral-500'}>{t.type} · <a href={t.input?.url} target="_blank" rel="noreferrer" className="underline">{shortUrl(t.input?.url || t.input?.query || '')}</a> · {t.outcome || t.status}</li>)}
-            </ul>
-          )}
+
         </div>
       )}
       <p className="text-[11px] text-neutral-500">L&apos;extension (dossier <code>extension/</code> du dépôt, à charger dans Chrome en mode développeur) lit les pages une par une dans votre session, avec 5 à 10 s entre deux pages, 60 pages par session, et s&apos;arrête seule sur une page de connexion ou un captcha. Utilisez un compte secondaire, jamais @need.creator.</p>

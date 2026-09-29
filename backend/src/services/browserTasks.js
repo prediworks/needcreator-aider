@@ -192,8 +192,10 @@ export async function queuePrefillMessage(lead, { network, createdBy, url: urlOv
   if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
   if (!lead.message) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
   const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;
-  let batch = await BrowserTaskBatch.findOne({ label, closedAt: null });
+  // Un seul lot « Messages du jour » par journée : rouvert s'il s'était fermé après le message précédent
+  let batch = await BrowserTaskBatch.findOne({ label }).sort({ createdAt: 1 });
   if (!batch) batch = await BrowserTaskBatch.create({ label, kind: lead.kind, createdBy, counts: { total: 0 } });
+  else if (batch.closedAt) { batch.closedAt = null; }
   // Une seule préparation en attente par prospect
   const existing = await BrowserTask.findOne({ type: 'prefill_message', status: { $in: ['pending', 'running'] }, 'input.leadId': lead._id }).lean();
   if (existing) return { task: existing, batch, already: true };
