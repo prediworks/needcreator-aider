@@ -6,6 +6,8 @@ import Lead from '../models/Lead.js';
 import ExternalQuote from '../models/ExternalQuote.js';
 import { downloadFile, uploadFile, keyFromUrl } from './storage.js';
 import { watermarkVideoBuffer, videoCodec, transcodePlayable } from './watermark.js';
+import { getSetting, SETTINGS } from '../models/Setting.js';
+import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
 const MAX_ATTEMPTS = 3;
@@ -17,6 +19,7 @@ export async function processShowcaseVideo(showcaseId) {
   const key = keyFromUrl(sv.videoUrl);
   if (!key) return sv;
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncsv-'));
+  let autoOffer = false;
   try {
     const input = path.join(workDir, 'input' + (path.extname(key) || '.mp4'));
     fs.writeFileSync(input, await downloadFile(key));
@@ -27,13 +30,47 @@ export async function processShowcaseVideo(showcaseId) {
     const out = await watermarkVideoBuffer(input, workDir);
     const { url } = await uploadFile(fs.readFileSync(out), `wm-${base}.mp4`, 'video/mp4', `showcase/${sv.creatorId}/previews`);
     sv.previewUrl = url; sv.watermarkedAt = new Date(); sv.watermarkError = undefined;
+    autoOffer = true;
   } catch (err) {
     sv.watermarkAttempts = (sv.watermarkAttempts || 0) + 1;
     sv.watermarkError = String(err?.message || err).slice(-300);
     logger.warn(`Showcase ${showcaseId} watermark failed (${sv.watermarkAttempts}): ${sv.watermarkError}`);
   } finally { fs.rmSync(workDir, { recursive: true, force: true }); }
   await sv.save();
+  // Envoi automatique (réglage, désactivé par défaut) : la marque a une adresse et la vidéo est prête
+  if (autoOffer && sv.status === 'ready' && await getSetting(SETTINGS.showcaseAutoEmail.key, SETTINGS.showcaseAutoEmail.default)) {
+    const lead = await Lead.findById(sv.leadId);
+    if (lead?.email) await offerShowcase(sv, lead, { via: 'email' }).catch(err => logger.warn(`Showcase auto offer ${sv._id}: ${err.message}`));
+  }
   return sv;
+}
+
+/** Propose la vidéo à la marque : email (adresse de la fiche ou fournie) ou message privé (texte à coller) ; trace sur la vidéo et le prospect */
+export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}) {
+  if (!sv.watermarkedAt) throw Object.assign(new Error('Le filigrane n\'est pas terminé : réessayez dans quelques minutes'), { status: 400 });
+  const q = await ExternalQuote.findById(sv.quoteId).select('token').lean();
+  const link = `${config.cors.origin}/q/${q.token}`;
+  const creator = await (await import('../models/User.js')).default.findById(sv.creatorId).select('profile.name').lean();
+  if (via === 'email') {
+    const to = String(email || lead.email || '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw Object.assign(new Error('Il manque : une adresse email pour cette marque'), { status: 400 });
+    const { sendShowcaseOffer } = await import('./email.js');
+    await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
+    if (!lead.email) { lead.email = to; lead.emailSource = 'manuel'; }
+  }
+  sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
+  if (!['replied', 'registered'].includes(lead.status)) { lead.status = 'contacted'; lead.contactedAt = lead.contactedAt || new Date(); lead.contactedVia = lead.contactedVia || via; }
+  lead.notes = [lead.notes, `Vidéo vitrine proposée le ${new Date().toLocaleDateString('fr-FR')} (${via}) : ${sv.productName}, ${sv.price} €`].filter(Boolean).join(' · ').slice(0, 2000);
+  await lead.save();
+  return { link, text: showcaseMessage(sv, link), to: lead.email };
+}
+
+/** Admin : toutes les vidéos vitrine à proposer ou déjà proposées, quel que soit le statut de la marque */
+export async function listShowcasesForAdmin({ limit = 100 } = {}) {
+  const list = await ShowcaseVideo.find({ status: { $in: ['ready', 'sent', 'accepted'] } }).sort({ status: 1, createdAt: -1 }).limit(limit).populate('creatorId', 'profile.name').populate('leadId', 'name email status socials.instagram website').lean();
+  const quotes = await ExternalQuote.find({ _id: { $in: list.map(s => s.quoteId).filter(Boolean) } }).select('token').lean();
+  const tokenOf = new Map(quotes.map(q => [String(q._id), q.token]));
+  return list.map(sv => { const link = tokenOf.get(String(sv.quoteId)) ? `${config.cors.origin}/q/${tokenOf.get(String(sv.quoteId))}` : null; return { id: sv._id, leadId: sv.leadId?._id || null, brandName: sv.brandName, brandEmail: sv.leadId?.email || null, brandInstagram: sv.leadId?.socials?.instagram || null, brandStatus: sv.leadId?.status || null, productName: sv.productName, price: sv.price, note: sv.note, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, ready: !!sv.watermarkedAt, previewUrl: sv.previewUrl || null, sentAt: sv.sentAt || null, sentVia: sv.sentVia || null, viewedAt: sv.viewedAt || null, acceptedAt: sv.acceptedAt || null, link, message: link ? showcaseMessage(sv, link) : null, createdAt: sv.createdAt }; });
 }
 
 /** Tâche planifiée : vidéos vitrine non filigranées (échec ou redémarrage), quelques-unes par passage */

@@ -2860,6 +2860,8 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   const users = db.collection('users');
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   try {
+    const allSv = await brandApi('GET', '/admin/acquisition/showcases');
+    expect(allSv.status === 200 && allSv.data.showcases.some(x => String(x.leadId) === String(lead.insertedId) && x.status === 'ready' && x.ready && x.link && x.message), 'La liste « Vidéos vitrine à proposer » doit contenir la vidéo, prête, avec son lien et son message', allSv);
     const sv = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/showcase`);
     expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);
     const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com` });
@@ -2963,7 +2965,7 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     batchIds.push(lot5.data.batch._id);
     const t5 = (await ext('GET', '/next')).data.task;
     expect(t5 && t5.type === 'list_hashtag' && t5.input.purpose === 'brands', 'La tâche hashtag doit porter le but « marques »', t5);
-    const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }] });
+    const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }, { href: 'https://www.instagram.com/p/E2EEXTTAG1/?img_index=2', text: '' }] });
     expect(r5.status === 200 && /marques taguées à lire/.test(r5.data.outcome), 'Les publications doivent donner des tâches « marques taguées »', r5);
     const t6 = (await ext('GET', '/next')).data.task;
     expect(t6 && t6.type === 'read_post_brands' && /E2EEXTTAG1/.test(t6.input.url), 'La tâche fille lit la marque taguée de la publication', t6);

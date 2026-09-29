@@ -89,7 +89,8 @@ export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) 
   return createBatch({ label: `Contacts LinkedIn · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, items });
 }
 
-export const PARTNERSHIP_HASHTAGS = ['partenariat', 'collab', 'collaboration', 'ugcfrance', 'ugccreator', 'sponsorise', 'adfrance'];
+// « Collaboration commerciale » et « publicité » sont les mentions légales d'un partenariat en France : ces hashtags ciblent les marques qui paient
+export const PARTNERSHIP_HASHTAGS = ['collaborationcommerciale', 'partenariatremunere', 'produitoffert', 'partenariat', 'collab', 'ugcfrance', 'publicite'];
 
 /** Lot « marques taguées par les créateurs » : hashtags de partenariat, publications lues pour la marque citée (pas pour l'auteur) */
 export async function batchFromPartnershipHashtags({ hashtags, count = 20, createdBy } = {}) {
@@ -465,7 +466,7 @@ export async function submitTaskResult(id, result) {
   if (!task) throw Object.assign(new Error('Tâche introuvable'), { status: 404 });
   if (task.status !== 'running') throw Object.assign(new Error(`Tâche ${task.status}, résultat ignoré`), { status: 409 });
   const batch = await BrowserTaskBatch.findById(task.batchId);
-  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 400).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
+  const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 800).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null };
   task.result = slim;
   if (slim.blocked) {
     const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;
@@ -608,8 +609,11 @@ export async function submitTaskResult(id, result) {
       task.extracted = { posts };
       if (posts.length) {
         const childType = task.input.purpose === 'brands' ? 'read_post_brands' : 'read_post_author';
-        await BrowserTask.insertMany(posts.map(u => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: childType, input: { url: u, postUrl: u, query: task.input.query } })));
-        if (batch) batch.counts.total += posts.length;
+        // Une publication présente sous plusieurs hashtags n'est lue qu'une fois par lot
+        const known = new Set(await BrowserTask.distinct('input.url', { batchId: task.batchId, type: childType }));
+        const fresh = posts.filter(u => !known.has(u));
+        if (fresh.length) await BrowserTask.insertMany(fresh.map(u => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: childType, input: { url: u, postUrl: u, query: task.input.query } })));
+        if (batch) batch.counts.total += fresh.length;
       }
       outcome = `${posts.length} publication(s) : ${task.input.purpose === 'brands' ? 'marques taguées à lire' : 'auteurs à lire'}`;
     }

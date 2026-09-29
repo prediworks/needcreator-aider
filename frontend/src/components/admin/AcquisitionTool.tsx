@@ -193,12 +193,56 @@ function MailingBreakdown() {
   );
 }
 
+/** Vidéos vitrine déposées par les créateurs : à proposer à la marque (email ou message privé), quel que soit le statut du prospect */
+function ShowcaseList() {
+  const queryClient = useQueryClient();
+  const { data } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
+  const send = useMutation({
+    mutationFn: async ({ leadId, via, email }: any) => (await api.post(`/admin/acquisition/leads/${leadId}/showcase/send`, { via, email })).data,
+    onSuccess: async (d, v: any) => { if (v.via === 'instagram' && d.text) { try { await navigator.clipboard.writeText(d.text); } catch { /* presse-papiers indisponible */ } } toast.success(v.via === 'instagram' ? 'Message copié et vidéo marquée proposée : collez-le dans la conversation' : d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
+  const list = data || [];
+  const todo = list.filter((s: any) => s.status === 'ready');
+  if (!list.length) return null;
+  return (
+    <Card className="p-6" data-testid="showcase-list">
+      <h2 className="text-lg font-semibold text-neutral-900 mb-1">🎬 Vidéos vitrine à proposer {todo.length > 0 && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-primary-500 text-white">{todo.length}</span>}</h2>
+      <p className="text-sm text-neutral-600 mb-3">Vidéos tournées par des créateurs pour une marque prospectée, avant toute demande. La marque reçoit le lien de la page où la vidéo se regarde en filigrane et s&apos;achète en un clic.</p>
+      <div className="space-y-3">
+        {list.map((s: any) => (
+          <div key={s.id} className="border border-neutral-200 rounded-lg p-3 text-sm flex gap-3 flex-wrap items-start">
+            {s.previewUrl ? <video src={s.previewUrl} controls playsInline className="w-40 max-h-56 rounded bg-black" /> : <div className="w-40 h-24 rounded bg-neutral-100 text-xs text-neutral-500 flex items-center justify-center">filigrane en cours</div>}
+            <div className="flex-1 min-w-[16rem]">
+              <div className="font-medium text-neutral-900">{s.brandName} · {s.productName} · {s.price} € HT</div>
+              <div className="text-neutral-600">par {s.creatorName} · déposée le {formatDateTime(s.createdAt)}{s.note ? ` · ${s.note}` : ''}</div>
+              <div className="text-xs mt-1">
+                {s.status === 'accepted' ? <span className="text-green-700 font-medium">Achetée le {formatDateTime(s.acceptedAt)}</span>
+                  : s.status === 'sent' ? <span className="text-yellow-800">Proposée le {formatDateTime(s.sentAt)} ({s.sentVia === 'instagram' ? 'message privé' : 'email'}){s.viewedAt ? ` · page ouverte le ${formatDateTime(s.viewedAt)}` : ' · page pas encore ouverte'}</span>
+                  : <span className="text-blue-800">À proposer{s.brandStatus === 'contacted' ? ' · marque déjà contactée' : ''}</span>}
+              </div>
+              {s.status !== 'accepted' && (
+                <div className="flex gap-2 flex-wrap mt-2 items-center">
+                  <Button size="sm" onClick={() => { const email = s.brandEmail || prompt('Adresse email de la marque :') || ''; if (email) send.mutate({ leadId: s.leadId, via: 'email', email }); }} isLoading={send.isPending} disabled={!s.ready} title={s.brandEmail ? `Envoie l'email de proposition à ${s.brandEmail}` : 'Aucune adresse connue : vous serez invité à la saisir'}>{s.status === 'sent' ? 'Renvoyer par email' : 'Proposer par email'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'instagram' })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message avec le lien de la vidéo et marque la vidéo comme proposée">Copier le message vitrine</Button>
+                  {s.brandInstagram && <a href={s.brandInstagram} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Instagram de la marque</a>}
+                  {s.link && <a href={s.link} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Page vue par la marque</a>}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 /** Extension Chrome de prospection : jeton, lots de tâches, avancement. Remplace le copier-coller des consignes de l'assistant. */
 function ExtensionPanel() {
   const queryClient = useQueryClient();
   const [keywords, setKeywords] = useState('');
   const [hashtags, setHashtags] = useState('');
-  const [partnerTags, setPartnerTags] = useState('partenariat, collab, collaboration, ugcfrance, ugccreator');
+  const [partnerTags, setPartnerTags] = useState('collaborationcommerciale, partenariatremunere, produitoffert, partenariat, collab, ugcfrance, publicite');
   const [tiktokKeywords, setTiktokKeywords] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);
   const { data: tok } = useQuery({ queryKey: ['ext-token'], queryFn: async () => (await api.get('/browser-tasks/token')).data });
@@ -404,6 +448,7 @@ export default function AcquisitionTool() {
   return (
     <div className="space-y-4">
       <DailyQueue kind={kind} />
+      <ShowcaseList />
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
           <div>

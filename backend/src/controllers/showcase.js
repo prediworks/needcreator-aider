@@ -4,8 +4,8 @@ import Lead from '../models/Lead.js';
 import ExternalQuote from '../models/ExternalQuote.js';
 import { uploadFile } from '../services/storage.js';
 import { createQuoteInternal } from './externalQuotes.js';
-import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead } from '../services/showcase.js';
-import { sendShowcaseOffer } from '../services/email.js';
+import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin } from '../services/showcase.js';
+import { notifyAdmins } from '../services/adminAlerts.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -57,6 +57,8 @@ export async function createShowcase(req, res) {
     await sv.save();
     await ExternalQuote.updateOne({ _id: sv.quoteId }, { $set: { status: 'sent', sentAt: new Date() } }); // visible par la marque dès maintenant
     setImmediate(() => processShowcaseVideo(sv._id).catch(err => logger.error('processShowcaseVideo:', err.message)));
+    // L'équipe est prévenue à chaque dépôt : la vidéo attend d'être proposée à la marque
+    notifyAdmins(`Vidéo vitrine déposée pour ${lead.name}`, `<h1>Nouvelle vidéo vitrine</h1><p><strong>${creator.profile?.name || 'Un créateur'}</strong> a déposé une vidéo pour <strong>${value.productName}</strong> (${lead.name}), ${value.price} € HT.</p><p><a href="${SITE()}/admin?tab=acquisition">Ouvrir « Vidéos vitrine à proposer »</a></p>`).catch(() => {});
     res.status(201).json({ message: 'Vidéo déposée : le devis est prêt, le filigrane est en cours. NeedCreator la présente à la marque ; vous serez prévenu si elle l\'achète.', showcase: await serialize(sv) });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
@@ -104,22 +106,19 @@ export async function sendShowcaseToLead(req, res) {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-    const sv = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).sort({ createdAt: -1 }).populate('creatorId', 'profile.name');
+    const sv = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).sort({ createdAt: -1 });
     if (!sv) return res.status(404).json({ error: 'Aucune vidéo vitrine pour cette marque' });
-    if (!sv.watermarkedAt) return res.status(400).json({ error: 'Le filigrane n\'est pas terminé : réessayez dans quelques minutes' });
-    const q = await ExternalQuote.findById(sv.quoteId).select('token').lean();
-    const link = `${SITE()}/q/${q.token}`;
     const via = req.body?.via === 'instagram' ? 'instagram' : 'email';
-    if (via === 'email') {
-      const email = String(req.body?.email || lead.email || '').trim().toLowerCase();
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Il manque : une adresse email pour cette marque' });
-      await sendShowcaseOffer(email, lead.name, sv.creatorId?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
-      if (!lead.email) { lead.email = email; lead.emailSource = 'manuel'; }
-    }
-    sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
-    if (lead.status !== 'replied') { lead.status = 'contacted'; lead.contactedAt = lead.contactedAt || new Date(); lead.contactedVia = lead.contactedVia || via; }
-    lead.notes = [lead.notes, `Vidéo vitrine proposée le ${new Date().toLocaleDateString('fr-FR')} (${via}) : ${sv.productName}, ${sv.price} €`].filter(Boolean).join(' · ').slice(0, 2000);
-    await lead.save();
-    res.json({ message: via === 'email' ? `Vidéo proposée par email à ${lead.email}` : 'Marquée comme proposée en message privé', link, text: showcaseMessage(sv, link) });
-  } catch (error) { logger.error('sendShowcaseToLead failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` }); }
+    const r = await offerShowcase(sv, lead, { via, email: req.body?.email });
+    res.json({ message: via === 'email' ? `Vidéo proposée par email à ${r.to}` : 'Marquée comme proposée en message privé', link: r.link, text: r.text });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('sendShowcaseToLead failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` });
+  }
+}
+
+/** Admin : liste des vidéos vitrine (à proposer, proposées, achetées) */
+export async function listShowcasesAdmin(req, res) {
+  try { res.json({ showcases: await listShowcasesForAdmin({ limit: 100 }) }); }
+  catch (error) { logger.error('listShowcasesAdmin failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
 }

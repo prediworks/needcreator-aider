@@ -8,7 +8,7 @@
 const DEFAULTS = { serverUrl: '', token: '', role: 'reader', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 // role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
-const LIST_TYPES = { list_hashtag: 4, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
+const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
 
 const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
 
@@ -57,11 +57,15 @@ async function readPage(task) {
   await waitLoaded(tabId);
   await sleep(rand(2500, 4500)); // let the page render its content
   const scrolls = LIST_TYPES[task.type] || 0;
-  for (let i = 0; i < scrolls; i++) { await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
+  // Lists are virtualized: items leave the page as it scrolls, so links are collected at every step and merged
+  const collected = new Map();
+  const collect = (p) => { for (const l of p?.links || []) if (!collected.has(l.href)) collected.set(l.href, l); };
+  for (let i = 0; i < scrolls; i++) { collect(await run(tabId, 'extract.js')); await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
   // Pages that fill in after load (single-page apps): read again until there is text, up to ~10 s
   let page = await run(tabId, 'extract.js');
   for (let i = 0; i < 6 && page && !page.blocked && page.text.length < 300; i++) { await sleep(1500); page = await run(tabId, 'extract.js'); }
   if (!page) throw new Error('page unreadable');
+  if (collected.size) { collect(page); page.links = [...collected.values()].slice(0, 800); }
   await sleep(rand(s.minDelay * 1000, s.maxDelay * 1000)); // pause between two pages
   return page;
 }
