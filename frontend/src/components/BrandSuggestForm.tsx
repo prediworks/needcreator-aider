@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -22,6 +22,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 export default function BrandSuggestForm({ onPick }: { onPick: (brand: any) => void }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  // Lien « la suggérer » du tableau de bord (« ?suggerer=1 ») : le formulaire s'ouvre d'office
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('suggerer')) setOpen(true); } catch { /* adresse illisible */ } }, []);
   const [warn, setWarn] = useState('');
   const [f, setF] = useState({ name: '', website: '', instagram: '', product: '' });
   const set = (k: string, v: string) => { setWarn(''); setF((p) => ({ ...p, [k]: v })); };

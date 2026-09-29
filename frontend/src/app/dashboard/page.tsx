@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import { Briefcase, TrendingUp, Star, Clock, Plus, Package, AlertTriangle, Video } from 'lucide-react';
-import SpontaneousCard from '@/components/SpontaneousCard';
+import OpportunitiesCard from '@/components/OpportunitiesCard';
 import { formatCurrency } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, VIDEO_TYPES } from '@/lib/labels';
 import AmbassadorCard from '@/components/AmbassadorCard';
@@ -73,6 +73,7 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
             </NextStepCard>
           );
         })()}
+        {user.status === 'active' && <OpportunitiesCard />}
         {user.status === 'active' && user.verification?.portfolio && <ProgressCard user={user} />}
         {user.status === 'active' && (
           <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap">
@@ -165,8 +166,6 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                 </div>
               </Card>
             )}
-
-            {user.status === 'active' && <SpontaneousCard />}
 
             {/* Campaigns Feed */}
             <Card className="p-6">

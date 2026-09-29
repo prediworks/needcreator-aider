@@ -48,6 +48,7 @@ export default function Header() {
     ? [
         { href: '/dashboard', label: 'Tableau de bord' },
         { href: '/campaigns', label: 'Campagnes' },
+        ...(user?.role === 'creator' ? [{ href: '/vitrine', label: 'Candidature vidéo' }] : []), // candidature spontanée : à égalité avec les campagnes
         { href: '/deliveries', label: user?.role === 'creator' ? 'Missions' : 'Livraisons' },
         ...(user?.role === 'brand' || user?.role === 'creator' ? [{ href: '/messages', label: unreadCount ? `Messages (${unreadCount})` : 'Messages' }] : []),
         ...(user?.role === 'brand' || user?.role === 'admin' ? [{ href: '/creators', label: 'Créateurs' }] : []),
@@ -105,13 +106,13 @@ export default function Header() {
                 </Link>
                 <Link href="/profile" title="Mon profil">
                   <Button variant="ghost" size="sm" aria-label="Mon profil">
-                    <User className="w-4 h-4 xl:mr-2" />
-                    <span className="hidden xl:inline max-w-[160px] truncate">{(user as any)?.actor ? `${(user as any).actor.name || (user as any).actor.email} · ${user?.profile?.companyName}` : (user?.profile?.companyName || user?.profile?.name)}</span>
+                    <User className="w-4 h-4 2xl:mr-2" />
+                    <span className="hidden 2xl:inline max-w-[160px] truncate">{(user as any)?.actor ? `${(user as any).actor.name || (user as any).actor.email} · ${user?.profile?.companyName}` : (user?.profile?.companyName || user?.profile?.name)}</span>
                   </Button>
                 </Link>
                 <Button variant="ghost" size="sm" onClick={handleLogout} aria-label="Déconnexion" title="Déconnexion">
-                  <LogOut className="w-4 h-4 xl:mr-2" />
-                  <span className="hidden xl:inline">Déconnexion</span>
+                  <LogOut className="w-4 h-4 2xl:mr-2" />
+                  <span className="hidden 2xl:inline">Déconnexion</span>
                 </Button>
               </>
             ) : (
