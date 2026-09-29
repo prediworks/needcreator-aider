@@ -2,7 +2,7 @@ import Joi from 'joi';
 import ShowcaseVideo from '../models/ShowcaseVideo.js';
 import Lead from '../models/Lead.js';
 import ExternalQuote from '../models/ExternalQuote.js';
-import { uploadFile } from '../services/storage.js';
+import { uploadFile, createUploadUrl, statObject } from '../services/storage.js';
 import { createQuoteInternal } from './externalQuotes.js';
 import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin } from '../services/showcase.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
@@ -28,11 +28,26 @@ const createSchema = Joi.object({
   territories: Joi.string().trim().max(80).default('France'),
 }).unknown(true);
 
+/** Envoi direct navigateur → stockage (sans la limite de taille du proxy) : URL signée pour la vidéo vitrine */
+export async function getShowcaseUploadUrl(req, res) {
+  try {
+    const { filename, contentType } = req.body || {};
+    if (!/^video\//.test(String(contentType || ''))) return res.status(400).json({ error: 'Seuls les fichiers vidéo sont acceptés' });
+    res.json(await createUploadUrl({ folder: `showcase/${req.user._id}`, originalName: filename, contentType }));
+  } catch (error) { logger.error('getShowcaseUploadUrl failed:', error); res.status(500).json({ error: `Préparation de l'envoi impossible : ${error.message}` }); }
+}
+
 /** Le créateur dépose sa vidéo : stockage, devis client créé d'office au nom de la marque, filigrane en arrière-plan */
 export async function createShowcase(req, res) {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Il manque : le fichier vidéo' });
-    if (!/^video\//.test(req.file.mimetype)) return res.status(400).json({ error: 'Seuls les fichiers vidéo sont acceptés' });
+    // Deux chemins : fichier envoyé au serveur (petites vidéos, tests), ou clé d'un fichier déjà déposé dans le stockage (envoi direct)
+    const key = String(req.body?.key || '');
+    if (!req.file && !key) return res.status(400).json({ error: 'Il manque : le fichier vidéo' });
+    if (req.file && !/^video\//.test(req.file.mimetype)) return res.status(400).json({ error: 'Seuls les fichiers vidéo sont acceptés' });
+    if (key) {
+      if (!key.startsWith(`showcase/${req.user._id}/`)) return res.status(400).json({ error: 'Clé de fichier invalide' });
+      if (!(await statObject(key))) return res.status(400).json({ error: 'Fichier introuvable : l\'envoi n\'a pas abouti, réessayez' });
+    }
     const { error, value } = createSchema.validate(req.body || {});
     if (error) return res.status(400).json({ error: error.message });
     const supports = Array.isArray(value.supports) ? value.supports : String(value.supports || '').split(',').map(s => s.trim()).filter(s => RIGHTS_SUPPORTS.includes(s));
@@ -41,7 +56,7 @@ export async function createShowcase(req, res) {
     const already = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).lean();
     if (already) return res.status(409).json({ error: 'Une vidéo vitrine est déjà proposée à cette marque : choisissez-en une autre' });
     const creator = req.user;
-    const up = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype, `showcase/${creator._id}`);
+    const up = key ? { url: `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}` } : await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype, `showcase/${creator._id}`);
     const sv = new ShowcaseVideo({ creatorId: creator._id, leadId: lead._id, brandName: lead.name, productName: value.productName, note: value.note || '', videoUrl: up.url, price: value.price });
     // Devis client au nom de la marque : la page publique du devis montre la vidéo et permet l'achat
     const quote = await createQuoteInternal(creator, {

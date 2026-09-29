@@ -2845,10 +2845,23 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   form.append('video', fakeVideo('vitrine.mp4')); form.append('leadId', String(lead.insertedId)); form.append('productName', 'Bougie Figuier'); form.append('note', 'Unboxing et allumage, ambiance soirée.'); form.append('price', '120'); form.append('rightsDuration', '1y'); form.append('supports', 'social_organic,paid_ads'); form.append('territories', 'France');
   const dep = await creatorApi('POST', '/showcase', form, { form: true });
   expect(dep.status === 201 && dep.data.showcase.link && dep.data.showcase.quoteStatus === 'sent' && dep.data.showcase.price === 120, 'Le dépôt doit créer la vidéo vitrine et son devis visible par la marque', dep);
+  // Envoi direct vers le stockage (vidéos lourdes, au-delà de la limite du proxy) : lien signé, dépôt, puis création par la clé
+  const badUp = await creatorApi('POST', '/showcase/upload-url', { filename: 'doc.pdf', contentType: 'application/pdf', size: 10 });
+  expect(badUp.status === 400, 'Un fichier non vidéo doit être refusé pour la vitrine', badUp);
+  const preUp = await creatorApi('POST', '/showcase/upload-url', { filename: 'vitrine-directe.mp4', contentType: 'video/mp4', size: 2048 });
+  expect(preUp.status === 200 && preUp.data.uploadUrl && preUp.data.key.startsWith(`showcase/${creatorUser.id}/`), 'Lien signé vitrine invalide', preUp);
+  const ghostSv = await creatorApi('POST', '/showcase', { key: preUp.data.key, leadId: String(lead.insertedId), productName: 'Fantôme', price: 100 });
+  expect(ghostSv.status === 400 || ghostSv.status === 409, 'Une clé non déposée (ou une marque déjà filmée) doit être refusée', ghostSv);
   const form2 = new FormData();
   form2.append('video', fakeVideo('vitrine2.mp4')); form2.append('leadId', String(lead.insertedId)); form2.append('productName', 'Bougie Cèdre'); form2.append('price', '100');
   const dup = await creatorApi('POST', '/showcase', form2, { form: true });
   expect(dup.status === 409, 'Une seule vidéo vitrine par marque à la fois', dup);
+  const lead2 = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-vitrine2-${RUN}`, name: 'E2E Marque Vitrine', website: `https://vitrine2-${RUN}.example.com`, niche: 'décoration', status: 'contacted', score: 70, createdAt: new Date(), updatedAt: new Date() });
+  const putUp = await fetch(preUp.data.uploadUrl, { method: 'PUT', body: Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(2048, 1)]), headers: { 'Content-Type': 'video/mp4' } });
+  expect(putUp.ok, `PUT direct vers le stockage refusé (HTTP ${putUp.status})`, { status: putUp.status });
+  const byKey = await creatorApi('POST', '/showcase', { key: preUp.data.key, leadId: String(lead2.insertedId), productName: 'Bougie Cèdre', price: 110, supports: ['social_organic'] });
+  expect(byKey.status === 201 && byKey.data.showcase.link && byKey.data.showcase.price === 110, 'La vidéo déposée en direct doit créer la vitrine et son devis, même pour une marque déjà contactée', byKey);
+  await db.collection('leads').deleteOne({ _id: lead2.insertedId });
   const brands2 = await creatorApi('GET', '/showcase/brands?q=Vitrine');
   expect(!brands2.data.brands.some(b => String(b.id) === String(lead.insertedId)), 'Une marque déjà filmée sort de la liste', brands2);
   const token = dep.data.showcase.link.split('/q/')[1];

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useRequireAuth } from '@/hooks/useAuth';
 import api, { getErrorMessage } from '@/lib/api';
+import { directUpload } from '@/lib/upload';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -32,6 +33,7 @@ export default function ShowcasePage() {
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState<number | null>(null);
   const [f, setF] = useState<any>({ productName: '', note: '', price: '', rightsDuration: '1y', supports: ['social_organic', 'paid_ads'], territories: 'France' });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const toggle = (v: string) => set('supports', f.supports.includes(v) ? f.supports.filter((x: string) => x !== v) : [...f.supports, v]);
@@ -40,9 +42,10 @@ export default function ShowcasePage() {
   const price = parseFloat(f.price) || 0;
   const missing = [!picked && 'une marque', !file && 'le fichier vidéo', !f.productName.trim() && 'le nom du produit', price < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`].filter(Boolean) as string[];
   const create = useMutation({
-    mutationFn: async () => { const fd = new FormData(); fd.append('video', file as File); fd.append('leadId', picked.id); fd.append('productName', f.productName); fd.append('note', f.note); fd.append('price', String(price)); fd.append('rightsDuration', f.rightsDuration); fd.append('supports', f.supports.join(',')); fd.append('territories', f.territories); return (await api.post('/showcase', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 600000 })).data; },
-    onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setPicked(null); setFile(null); setF({ productName: '', note: '', price: '', rightsDuration: '1y', supports: ['social_organic', 'paid_ads'], territories: 'France' }); queryClient.invalidateQueries({ queryKey: ['showcases'] }); queryClient.invalidateQueries({ queryKey: ['showcase-brands'] }); },
-    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+    // Envoi direct vers le stockage (pas de limite de taille du proxy), puis création de la vidéo vitrine et de son devis
+    mutationFn: async () => { setProgress(0); const { key } = await directUpload('/showcase/upload-url', file as File, (p: number) => setProgress(p)); return (await api.post('/showcase', { key, leadId: picked.id, productName: f.productName, note: f.note, price, rightsDuration: f.rightsDuration, supports: f.supports, territories: f.territories })).data; },
+    onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setPicked(null); setFile(null); setProgress(null); setF({ productName: '', note: '', price: '', rightsDuration: '1y', supports: ['social_organic', 'paid_ads'], territories: 'France' }); queryClient.invalidateQueries({ queryKey: ['showcases'] }); queryClient.invalidateQueries({ queryKey: ['showcase-brands'] }); },
+    onError: (e: any) => { setProgress(null); toast.error(getErrorMessage(e), { duration: 10000 }); },
   });
   const withdraw = useMutation({ mutationFn: async (id: string) => (await api.post(`/showcase/${id}/withdraw`)).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['showcases'] }); queryClient.invalidateQueries({ queryKey: ['showcase-brands'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   if (!ready || !user) return <Spinner />;
@@ -84,6 +87,7 @@ export default function ShowcasePage() {
           <div className="flex gap-2 items-center flex-wrap">
             <Button onClick={() => create.mutate()} isLoading={create.isPending} disabled={missing.length > 0} data-testid="showcase-submit"><Upload className="w-4 h-4 mr-1" /> Déposer la vidéo et créer le devis</Button>
             <MissingHint items={missing} />
+            {create.isPending && progress !== null && <span className="text-sm text-neutral-600" data-testid="showcase-progress">Envoi de la vidéo : {Math.round(progress)} %</span>}
           </div>
           <p className="text-xs text-neutral-500 mt-3">Règles : une vidéo par marque à la fois ; filmez le produit, pas les logos ni les contenus de la marque ; pas de musique protégée. NeedCreator présente la vidéo à la marque ; vous serez prévenu si elle l&apos;achète.</p>
         </Card>
