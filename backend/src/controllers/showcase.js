@@ -4,7 +4,7 @@ import Lead from '../models/Lead.js';
 import ExternalQuote from '../models/ExternalQuote.js';
 import { uploadFile, createUploadUrl, statObject } from '../services/storage.js';
 import { createQuoteInternal } from './externalQuotes.js';
-import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin } from '../services/showcase.js';
+import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin, refuseShowcase, MAX_ACTIVE_SHOWCASES } from '../services/showcase.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -54,7 +54,9 @@ export async function createShowcase(req, res) {
     const lead = await Lead.findById(value.leadId);
     if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
     const already = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).lean();
-    if (already) return res.status(409).json({ error: 'Une vidéo vitrine est déjà proposée à cette marque : choisissez-en une autre' });
+    if (already) return res.status(409).json({ error: 'Une candidature spontanée est déjà en cours pour cette marque : choisissez-en une autre' });
+    const mine = await ShowcaseVideo.countDocuments({ creatorId: req.user._id, status: { $in: ['ready', 'sent'] } });
+    if (mine >= MAX_ACTIVE_SHOWCASES) return res.status(400).json({ error: `Vous avez déjà ${MAX_ACTIVE_SHOWCASES} candidatures spontanées en cours : attendez une réponse ou retirez-en une` });
     const creator = req.user;
     const up = key ? { url: `${process.env.CLOUDFLARE_PUBLIC_URL}/${key}` } : await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype, `showcase/${creator._id}`);
     const sv = new ShowcaseVideo({ creatorId: creator._id, leadId: lead._id, brandName: lead.name, productName: value.productName, note: value.note || '', videoUrl: up.url, price: value.price });
@@ -73,8 +75,8 @@ export async function createShowcase(req, res) {
     await ExternalQuote.updateOne({ _id: sv.quoteId }, { $set: { status: 'sent', sentAt: new Date() } }); // visible par la marque dès maintenant
     setImmediate(() => processShowcaseVideo(sv._id).catch(err => logger.error('processShowcaseVideo:', err.message)));
     // L'équipe est prévenue à chaque dépôt : la vidéo attend d'être proposée à la marque
-    notifyAdmins(`Vidéo vitrine déposée pour ${lead.name}`, `<h1>Nouvelle vidéo vitrine</h1><p><strong>${creator.profile?.name || 'Un créateur'}</strong> a déposé une vidéo pour <strong>${value.productName}</strong> (${lead.name}), ${value.price} € HT.</p><p><a href="${SITE()}/admin?tab=acquisition">Ouvrir « Vidéos vitrine à proposer »</a></p>`).catch(() => {});
-    res.status(201).json({ message: 'Vidéo déposée : le devis est prêt, le filigrane est en cours. NeedCreator la présente à la marque ; vous serez prévenu si elle l\'achète.', showcase: await serialize(sv) });
+    notifyAdmins(`Candidature spontanée déposée pour ${lead.name}`, `<h1>Nouvelle candidature spontanée en vidéo</h1><p><strong>${creator.profile?.name || 'Un créateur'}</strong> a déposé une vidéo pour <strong>${value.productName}</strong> (${lead.name}), ${value.price} € HT.</p><p><a href="${SITE()}/admin?tab=acquisition">Ouvrir « Candidatures spontanées à proposer »</a></p>`).catch(() => {});
+    res.status(201).json({ message: 'Candidature déposée : le devis est prêt, le filigrane est en cours. NeedCreator la présente à la marque ; vous serez prévenu à chaque étape.', showcase: await serialize(sv) });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message, code: error.code });
     logger.error('createShowcase failed:', error); res.status(500).json({ error: `Dépôt impossible : ${error.message}` });
@@ -136,4 +138,15 @@ export async function sendShowcaseToLead(req, res) {
 export async function listShowcasesAdmin(req, res) {
   try { res.json({ showcases: await listShowcasesForAdmin({ limit: 100 }) }); }
   catch (error) { logger.error('listShowcasesAdmin failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
+}
+
+/** Admin : refuser une vidéo avant tout envoi à la marque, avec un mot pour le créateur */
+export async function refuseShowcaseAdmin(req, res) {
+  try {
+    const sv = await refuseShowcase(req.params.id, req.body?.reason);
+    res.json({ message: 'Vidéo refusée, le créateur est prévenu', id: sv._id });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('refuseShowcaseAdmin failed:', error); res.status(500).json({ error: 'Refus impossible' });
+  }
 }

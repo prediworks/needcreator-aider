@@ -124,7 +124,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
           <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.'}</div>
           {showcase && (
             <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50/40 p-3 text-sm" data-testid="daily-showcase">
-              <div className="font-medium text-neutral-900">🎬 Vidéo vitrine disponible : {showcase.productName} · {showcase.price} € HT · par {showcase.creatorName}{showcase.status === 'sent' ? ` · déjà proposée${showcase.sentAt ? ` le ${formatDateTime(showcase.sentAt)}` : ''}` : ''}{!showcase.ready ? ' · filigrane en cours' : ''}</div>
+              <div className="font-medium text-neutral-900">🎬 Candidature spontanée disponible : {showcase.productName} · {showcase.price} € HT · par {showcase.creatorName}{showcase.status === 'sent' ? ` · déjà proposée${showcase.sentAt ? ` le ${formatDateTime(showcase.sentAt)}` : ''}` : ''}{!showcase.ready ? ' · filigrane en cours' : ''}</div>
               {showcase.previewUrl && <video src={showcase.previewUrl} controls playsInline className="mt-2 max-h-64 rounded-lg bg-black" />}
               <div className="flex gap-2 flex-wrap mt-2">
                 {l.email && <Button size="sm" onClick={() => sendShowcase.mutate({ id: l._id, via: 'email' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Envoie à la marque un email avec le lien de la page où la vidéo se regarde et s'achète">Proposer par email</Button>}
@@ -202,13 +202,14 @@ function ShowcaseList() {
     onSuccess: async (d, v: any) => { if (v.via === 'instagram' && d.text) { try { await navigator.clipboard.writeText(d.text); } catch { /* presse-papiers indisponible */ } } toast.success(v.via === 'instagram' ? 'Message copié et vidéo marquée proposée : collez-le dans la conversation' : d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
   });
+  const refuse = useMutation({ mutationFn: async ({ id, reason }: any) => (await api.post(`/admin/acquisition/showcases/${id}/refuse`, { reason })).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const list = data || [];
   const todo = list.filter((s: any) => s.status === 'ready');
   if (!list.length) return null;
   return (
     <Card className="p-6" data-testid="showcase-list">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-1">🎬 Vidéos vitrine à proposer {todo.length > 0 && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-primary-500 text-white">{todo.length}</span>}</h2>
-      <p className="text-sm text-neutral-600 mb-3">Vidéos tournées par des créateurs pour une marque prospectée, avant toute demande. La marque reçoit le lien de la page où la vidéo se regarde en filigrane et s&apos;achète en un clic.</p>
+      <h2 className="text-lg font-semibold text-neutral-900 mb-1">🎬 Candidatures spontanées à proposer {todo.length > 0 && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-primary-500 text-white">{todo.length}</span>}</h2>
+      <p className="text-sm text-neutral-600 mb-3">Vidéos tournées par des créateurs pour une marque prospectée, avant toute demande. Regardez la vidéo avant de la proposer : c&apos;est la première image que la marque a de NeedCreator. Elle reçoit le lien de la page où la vidéo se regarde en filigrane et s&apos;achète en un clic.</p>
       <div className="space-y-3">
         {list.map((s: any) => (
           <div key={s.id} className="border border-neutral-200 rounded-lg p-3 text-sm flex gap-3 flex-wrap items-start">
@@ -227,6 +228,7 @@ function ShowcaseList() {
                   <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'instagram' })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message avec le lien de la vidéo et marque la vidéo comme proposée">Copier le message vitrine</Button>
                   {s.brandInstagram && <a href={s.brandInstagram} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Instagram de la marque</a>}
                   {s.link && <a href={s.link} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Page vue par la marque</a>}
+                  {s.status === 'ready' && <button type="button" className="text-xs text-red-700 underline" onClick={() => { const reason = prompt('Motif du refus, envoyé au créateur (qualité, son, logo ajouté, promesse de résultat…) :'); if (reason !== null) refuse.mutate({ id: s.id, reason }); }} title="La vidéo n'est pas proposée à la marque ; le créateur est prévenu avec le motif">Refuser cette vidéo</button>}
                 </div>
               )}
             </div>

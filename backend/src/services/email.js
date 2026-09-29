@@ -609,6 +609,7 @@ export async function sendApplicationNotSelected(email, name, campaignTitle, tip
     <h1>Bonjour ${name},</h1>
     <p>La marque a choisi un autre créateur pour « ${campaignTitle} ». Merci pour votre devis : cela arrive à tout le monde, et d'autres campagnes sont ouvertes dans vos niches.</p>
     ${button(campaignsUrl, 'Voir les campagnes ouvertes')}
+    <p>Vous pouvez aussi ne pas attendre : avec la <a href="${config.cors.origin}/vitrine">candidature spontanée</a>, vous proposez une vidéo déjà tournée à une marque de votre niche, à votre prix.</p>
     ${tips.length ? `<h2 style="font-size:16px;margin-top:24px">Augmentez vos chances</h2>${tips.map(t => `<p><strong>${t.title}</strong><br>${t.text} <a href="${t.href}">${t.cta || 'En savoir plus'}</a></p>`).join('')}` : ''}
   `;
   return sendEmail(email, subject, html);
@@ -762,7 +763,7 @@ export async function sendVerificationReminder(email, name, link, last = false) 
 
 /** Vidéo vitrine proposée à une marque prospectée : la vidéo est déjà tournée, elle se regarde et s'achète sur la page du devis */
 export async function sendShowcaseOffer(email, brandName, creatorName, productName, price, link, note = '') {
-  const subject = `Une vidéo déjà tournée pour ${productName}`;
+  const subject = `Candidature spontanée : une vidéo déjà tournée pour ${productName}`;
   const html = `
     <h1>Bonjour,</h1>
     <p>${esc(creatorName)}, créateur vérifié sur NeedCreator, a tourné une vidéo pour <strong>${esc(productName)}</strong>${brandName ? ` (${esc(brandName)})` : ''}, sans que personne ne le lui demande.${note ? ` ${esc(note)}` : ''}</p>

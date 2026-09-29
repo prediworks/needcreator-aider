@@ -19,7 +19,7 @@ import { Video, Upload, ExternalLink, Trash2 } from 'lucide-react';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   ready: { label: 'Prête, à proposer', cls: 'bg-blue-100 text-blue-800' }, sent: { label: 'Proposée à la marque', cls: 'bg-yellow-100 text-yellow-800' },
-  accepted: { label: 'Achetée', cls: 'bg-green-100 text-green-800' }, declined: { label: 'Déclinée', cls: 'bg-neutral-100 text-neutral-600' }, withdrawn: { label: 'Retirée', cls: 'bg-neutral-100 text-neutral-600' },
+  accepted: { label: 'Achetée', cls: 'bg-green-100 text-green-800' }, declined: { label: 'Non retenue', cls: 'bg-neutral-100 text-neutral-600' }, withdrawn: { label: 'Retirée', cls: 'bg-neutral-100 text-neutral-600' },
 };
 
 /**
@@ -52,8 +52,8 @@ export default function ShowcasePage() {
   return (
     <div className="min-h-screen bg-neutral-50 py-8">
       <div className="container mx-auto px-4 max-w-4xl">
-        <h1 className="text-2xl font-bold text-neutral-900 mb-1 flex items-center gap-2"><Video className="w-6 h-6 text-primary-500" /> Vidéo vitrine</h1>
-        <p className="text-neutral-600 text-sm mb-6">Vous avez chez vous un produit d&apos;une marque que nous démarchons ? Tournez une vidéo de 15 à 30 secondes, fixez votre prix : la marque la reçoit finie, en filigrane, avec un devis. Si elle lui plaît, elle l&apos;achète en un clic et vous êtes payé comme pour une mission ; sinon, la vidéo reste à vous. <Link href="/academie" className="text-primary-700 underline">Les accroches qui marchent</Link>.</p>
+        <h1 className="text-2xl font-bold text-neutral-900 mb-1 flex items-center gap-2"><Video className="w-6 h-6 text-primary-500" /> Candidature spontanée en vidéo</h1>
+        <p className="text-neutral-600 text-sm mb-6">N&apos;attendez pas qu&apos;une marque vous choisisse. Vous avez chez vous un produit d&apos;une marque que nous démarchons ? Tournez une vidéo de 15 à 30 secondes, fixez votre prix : la marque la reçoit finie, en filigrane, avec un devis. Si elle lui plaît, elle l&apos;achète en un clic et vous êtes payé comme pour une mission ; sinon, la vidéo reste à vous. <Link href="/academie" className="text-primary-700 underline">Les accroches qui marchent</Link>.</p>
 
         <Card className="p-6 mb-6" data-testid="showcase-form">
           <h2 className="font-semibold text-neutral-900 mb-3">1. La marque</h2>
@@ -62,7 +62,7 @@ export default function ShowcasePage() {
             {(brands || []).length === 0 && <div className="p-3 text-sm text-neutral-500">Aucune marque disponible pour l&apos;instant.</div>}
             {(brands || []).map((b: any) => (
               <button key={b.id} type="button" onClick={() => setPicked(b)} className={`w-full text-left p-3 text-sm hover:bg-neutral-50 ${picked?.id === b.id ? 'bg-primary-50' : ''}`} data-testid="showcase-brand">
-                <div className="font-medium text-neutral-900">{b.name} {b.niche && <span className="text-xs text-neutral-500 font-normal">· {b.niche}</span>}</div>
+                <div className="font-medium text-neutral-900">{b.name} {b.niche && <span className="text-xs text-neutral-500 font-normal">· {b.niche}</span>}{b.requested && <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] bg-green-100 text-green-800 font-normal">vidéo demandée par la marque</span>}</div>
                 {b.summary && <div className="text-xs text-neutral-600">{b.summary}</div>}
                 {b.hooks?.length > 0 && <div className="text-xs text-neutral-500 mt-0.5">Accroche possible : « {b.hooks[0]} »</div>}
               </button>
@@ -89,11 +89,11 @@ export default function ShowcasePage() {
             <MissingHint items={missing} />
             {create.isPending && progress !== null && <span className="text-sm text-neutral-600" data-testid="showcase-progress">Envoi de la vidéo : {Math.round(progress)} %</span>}
           </div>
-          <p className="text-xs text-neutral-500 mt-3">Règles : une vidéo par marque à la fois ; filmez le produit, pas les logos ni les contenus de la marque ; pas de musique protégée. NeedCreator présente la vidéo à la marque ; vous serez prévenu si elle l&apos;achète.</p>
+          <p className="text-xs text-neutral-500 mt-3">Règles : une vidéo par marque à la fois, trois candidatures en cours au plus ; filmez un produit que vous possédez, sans logo ajouté ni contenu de la marque ; aucune promesse de résultat ou de santé ; pas de musique protégée. NeedCreator vérifie la vidéo puis la présente à la marque ; vous êtes prévenu à chaque étape : proposée, page ouverte, achetée.</p>
         </Card>
 
         <Card className="p-6">
-          <h2 className="font-semibold text-neutral-900 mb-3">Mes vidéos vitrine</h2>
+          <h2 className="font-semibold text-neutral-900 mb-3">Mes candidatures spontanées</h2>
           {isLoading ? <Spinner fullScreen={false} /> : !mine?.length ? <p className="text-sm text-neutral-500">Aucune vidéo pour l&apos;instant.</p> : (
             <div className="space-y-3">
               {mine.map((s: any) => (

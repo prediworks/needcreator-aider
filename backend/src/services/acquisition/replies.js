@@ -104,6 +104,8 @@ export async function recordReply(lead, text, { via = 'instagram' } = {}) {
   if (emails.length && !lead.email) { lead.email = emails[0]; lead.emailSource = `réponse ${via}`; extracted.email = emails[0]; }
   else if (emails.length) extracted.email = emails[0];
   if (forms.length) { extracted.form = forms[0]; lead.notes = [lead.notes, `Formulaire de collaboration : ${forms[0]}`].filter(Boolean).join(' · '); }
+  // Une marque qui répond positivement demande de fait une vidéo : sa fiche passe en tête de la liste proposée aux créateurs
+  if (lead.kind === 'brand' && (c?.intent === 'interested' || /^\s*(oui|yes|ok|d'accord|volontiers|avec plaisir)\b/i.test(String(text || '')))) lead.showcaseRequestedAt = lead.showcaseRequestedAt || new Date();
   if (c?.intent === 'refusal' || c?.intent === 'unsubscribe') { lead.status = 'rejected'; lead.notes = [lead.notes, c.intent === 'unsubscribe' ? 'Demande de ne plus écrire' : 'A refusé'].filter(Boolean).join(' · '); }
   await lead.save();
   return { lead, extracted, intent: c?.intent || null };

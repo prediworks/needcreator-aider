@@ -161,7 +161,8 @@ export async function publicExternalQuote(req, res) {
   const s = await serialize(q);
   const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
   const sv = await ShowcaseVideo.findOne({ quoteId: q._id }).select('previewUrl watermarkedAt productName note status').lean();
-  if (sv && !sv.viewedAt) ShowcaseVideo.updateOne({ _id: sv._id, viewedAt: null }, { $set: { viewedAt: new Date() } }).catch(() => {});
+  // Première ouverture après la proposition à la marque (pas les aperçus du créateur ou de l'équipe avant l'envoi) : le créateur est prévenu
+  if (sv) import('../services/showcase.js').then(m => m.markShowcaseViewed(q._id)).catch(() => {});
   res.json({ showcase: sv ? { productName: sv.productName, note: sv.note, previewUrl: sv.watermarkedAt ? sv.previewUrl : null, ready: !!sv.watermarkedAt } : null, quote: { id: q._id, status: q.status, client: { companyName: q.client.companyName, contactName: q.client.contactName, email: q.client.email }, mission: q.mission, quote: q.quote, pdf: s.pdf, creator: { name: q.creatorId?.profile?.name, avatar: q.creatorId?.profile?.avatar || null, slug: q.creatorId?.profile?.slug || null, completedJobs: q.creatorId?.profile?.stats?.completedJobs || 0, rating: q.creatorId?.profile?.stats?.rating || 0, totalReviews: q.creatorId?.profile?.stats?.totalReviews || 0 }, deliveryId: q.deliveryId || null } });
 }
 
@@ -213,6 +214,7 @@ export async function convertExternalQuoteToMission(q, brand) {
       result.delivery.compliance = { status: 'pending', items: [] };
       await result.delivery.save();
       sv.status = 'accepted'; sv.acceptedAt = new Date(); await sv.save();
+      notify(sv.creatorId, { type: 'application', title: `${sv.brandName} a acheté votre vidéo`, text: `${sv.productName} · ${sv.price} € HT. Le paiement est bloqué, il vous est versé à la validation.`, href: `/deliveries/${result.delivery._id}` }).catch(() => {});
     }
   } catch (err) { logger.warn(`Showcase attach failed for quote ${q._id}: ${err.message}`); }
   sendExternalQuoteAccepted(creator.email, creator.profile?.name, q.client.companyName, q.mission.title, result.delivery?._id).catch(() => {});

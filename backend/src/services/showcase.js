@@ -8,6 +8,7 @@ import { downloadFile, uploadFile, keyFromUrl } from './storage.js';
 import { watermarkVideoBuffer, videoCodec, transcodePlayable } from './watermark.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { config } from '../config/index.js';
+import { notify } from './notifications.js';
 import logger from '../utils/logger.js';
 
 const MAX_ATTEMPTS = 3;
@@ -58,7 +59,9 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
     await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
     if (!lead.email) { lead.email = to; lead.emailSource = 'manuel'; }
   }
+  const first = sv.status !== 'sent';
   sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
+  if (first) notify(sv.creatorId, { type: 'application', title: `Votre vidéo a été proposée à ${sv.brandName}`, text: `${sv.productName} · ${sv.price} € HT. Vous serez prévenu quand la marque ouvre la page.`, href: '/vitrine' }).catch(() => {});
   if (!['replied', 'registered'].includes(lead.status)) { lead.status = 'contacted'; lead.contactedAt = lead.contactedAt || new Date(); lead.contactedVia = lead.contactedVia || via; }
   lead.notes = [lead.notes, `Vidéo vitrine proposée le ${new Date().toLocaleDateString('fr-FR')} (${via}) : ${sv.productName}, ${sv.price} €`].filter(Boolean).join(' · ').slice(0, 2000);
   await lead.save();
@@ -87,13 +90,13 @@ export async function brandsForShowcase({ niche, q, limit = 200 } = {}) {
   const filter = { kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, _id: { $nin: taken } };
   if (niche) filter.niche = new RegExp(String(niche).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   if (q) filter.$or = [{ name: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { website: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
-  const leads = await Lead.find(filter).sort({ score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score').lean();
-  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null }));
+  const leads = await Lead.find(filter).sort({ showcaseRequestedAt: -1, score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score showcaseRequestedAt').lean();
+  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null, requested: !!l.showcaseRequestedAt }));
 }
 
 /** Message prêt pour la marque (email ou message privé), avec le lien de la page du devis où la vidéo se regarde */
 export function showcaseMessage(sv, link) {
-  return `Bonjour, un créateur vérifié de NeedCreator a tourné cette vidéo pour ${sv.productName} : ${link}\nElle est à vous pour ${sv.price} € HT, droits inclus (durée et supports écrits dans le devis) ; sinon, rien. Le paiement ne part qu'à votre validation.`;
+  return `Bonjour, une candidature spontanée pour vous : un créateur vérifié de NeedCreator a tourné cette vidéo pour ${sv.productName}. ${link}\nElle est à vous pour ${sv.price} € HT, droits inclus (durée et supports écrits dans le devis) ; sinon, rien. Le paiement ne part qu'à votre validation.`;
 }
 
 /** Vidéo vitrine la plus récente d'un prospect (pour la fiche admin et la file du jour) */
@@ -102,4 +105,25 @@ export async function showcaseForLead(leadId) {
   if (!sv) return null;
   const q = sv.quoteId ? await ExternalQuote.findById(sv.quoteId).select('token').lean() : null;
   return { id: sv._id, productName: sv.productName, price: sv.price, previewUrl: sv.previewUrl || null, ready: !!sv.watermarkedAt, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, sentAt: sv.sentAt || null, token: q?.token || null };
+}
+
+export const MAX_ACTIVE_SHOWCASES = 3; // candidatures spontanées en cours par créateur
+
+/** Refus par l'équipe (qualité, règles) : la marque ne reçoit rien, le créateur est prévenu avec le motif */
+export async function refuseShowcase(showcaseId, reason = '') {
+  const sv = await ShowcaseVideo.findById(showcaseId);
+  if (!sv) throw Object.assign(new Error('Vidéo introuvable'), { status: 404 });
+  if (sv.status === 'accepted') throw Object.assign(new Error('Cette vidéo a été achetée : elle ne se refuse plus'), { status: 400 });
+  sv.status = 'declined'; await sv.save();
+  if (sv.quoteId) await ExternalQuote.updateOne({ _id: sv.quoteId, status: { $in: ['draft', 'sent'] } }, { $set: { status: 'declined', declinedAt: new Date(), declineReason: `Refusée par NeedCreator${reason ? ` : ${reason}` : ''}` } });
+  const why = String(reason || '').trim().slice(0, 300);
+  await notify(sv.creatorId, { type: 'application', title: `Votre vidéo pour ${sv.brandName} n'a pas été proposée`, text: why || 'Elle ne respecte pas les règles de la candidature spontanée. Vous pouvez en déposer une autre.', href: '/vitrine' });
+  return sv;
+}
+
+/** La marque ouvre la page du devis pour la première fois : le créateur est prévenu */
+export async function markShowcaseViewed(quoteId) {
+  const sv = await ShowcaseVideo.findOneAndUpdate({ quoteId, viewedAt: null, status: { $in: ['sent'] } }, { $set: { viewedAt: new Date() } });
+  if (sv) notify(sv.creatorId, { type: 'application', title: `${sv.brandName} a ouvert la page de votre vidéo`, text: `${sv.productName} · ${sv.price} € HT`, href: '/vitrine' }).catch(() => {});
+  return !!sv;
 }

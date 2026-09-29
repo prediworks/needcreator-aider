@@ -29,6 +29,7 @@ export default async function CreatorsPage() {
   ];
 
   const tools: [any, string, string][] = [
+    [Briefcase, 'Candidature spontanée en vidéo', 'Pas besoin d\'attendre une campagne : tournez 20 secondes sur un produit que vous possédez, fixez votre prix. La marque reçoit la vidéo finie et l\'achète en un clic. Vous êtes prévenu quand elle ouvre la page.'],
     [Target, 'Suivi de prospection', 'Les marques que vous démarchez : statut, notes, relance à date. Vous êtes prévenu le jour même, et le devis part en un clic depuis la fiche.'],
     [FileSignature, 'Devis et contrat en un clic', 'Devis PDF et contrat de cession de droits générés depuis votre compte. Le client accepte en ligne : il paie via NeedCreator, montant bloqué puis versé à la validation, ou en direct, sans commission.'],
     [ShieldCheck, 'Registre de vos droits et exclusivités', 'Tout ce que vous avez cédé, ici ou ailleurs : durée, supports, exclusivité. Rappel 30 jours avant la fin des droits pour proposer un renouvellement, et le jour où une exclusivité se termine.'],

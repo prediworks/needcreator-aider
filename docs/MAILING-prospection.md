@@ -59,6 +59,7 @@ Trois choses qui changent par rapport à ce que vous connaissez :
 - Vous fixez votre prix. Vous envoyez un devis pour chaque campagne, la marque accepte ou non.
 - Le paiement est bloqué avant que vous tourniez. Vous touchez 90 % de votre devis à la validation, ou automatiquement sous 7 jours si la marque ne répond pas.
 - Un contrat de cession de droits est généré à chaque mission : durée, supports, exclusivité. Vous êtes prévenu quand les droits expirent.
+- Vous n'attendez pas qu'une marque vous choisisse : avec la candidature spontanée, vous lui proposez une vidéo déjà tournée, à votre prix. Elle l'achète en un clic.
 
 Les campagnes ouvertes sont visibles sans compte : https://needcreator.com/campagnes
 
@@ -192,6 +193,8 @@ Si vous me répondez simplement « oui », je vous prépare moi-même un brief d
 
 Et pour une première campagne, vous pouvez ne payer que le produit : vous l'expédiez au créateur, il tourne la vidéo, NeedCreator ne prend rien. Le contrat et les droits sont les mêmes qu'avec un paiement.
 
+Autre possibilité, sans rien engager : un de nos créateurs tourne une vidéo pour l'un de vos produits avant toute commande. Vous la regardez, vous ne payez que si vous la gardez. Répondez « oui vidéo » et nous la proposons à nos créateurs.
+
 Et si vous préférez avancer seul, votre compte marque se crée ici : {{ signup_link }}
 
 Si le sujet n'est pas d'actualité, répondez « plus tard » et je reviens vers vous dans quelques mois ; « non merci » et je n'insiste pas.
@@ -207,6 +210,9 @@ Vous recevez ce message sur l'adresse de contact publique de {{ company_name }},
 ---
 
 ## Ce qui se passe quand quelqu'un répond
+
+Une marque qui répond positivement (« oui », « oui vidéo », intéressée) est marquée « vidéo demandée » : elle passe en tête de la liste proposée
+aux créateurs pour la candidature spontanée, avec un badge.
 
 1. « Synchroniser » (ou la tâche nocturne) ramène la réponse dans Admin → Prospection, pastille « A répondu ».
 2. L'IA la classe (intéressé, question, pas maintenant, refus, ne plus écrire, absence) et propose une réponse.

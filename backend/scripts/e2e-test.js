@@ -2879,9 +2879,34 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);
     const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com` });
     expect([200, 500].includes(sent.status), 'La proposition par email doit être tentée', sent); // l'adresse de test est rejetée par le serveur d'envoi selon l'environnement
+    // Message privé : marquée proposée, le créateur est prévenu ; la première ouverture de la page par la marque le prévient aussi
+    const sentDm = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'instagram' });
+    expect(sentDm.status === 200 && /candidature spontanée/.test(sentDm.data.text) && sentDm.data.link, 'La proposition en message privé doit donner le message avec le lien', sentDm);
+    await fetch(`${API}/external-quotes/public/${token}`);
+    await new Promise(r => setTimeout(r, 800));
+    const bellSv = await creatorApi('GET', '/notifications');
+    const titles = (bellSv.data.notifications || []).map(n => n.title);
+    expect(titles.some(t => /Votre vidéo a été proposée à E2E Marque Vitrine/.test(t)) && titles.some(t => /E2E Marque Vitrine a ouvert la page de votre vidéo/.test(t)), 'Le créateur doit être prévenu de la proposition et de l\'ouverture de la page', { status: 200, data: titles.slice(0, 6) });
     const leadAfter = await db.collection('leads').findOne({ _id: lead.insertedId });
     if (sent.status === 200) expect(leadAfter.status === 'contacted' && /Vidéo vitrine proposée/.test(leadAfter.notes || ''), 'Le prospect passe en contacté avec la trace de la proposition', leadAfter);
   } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  // Refus par l'équipe avant envoi : la vidéo déposée en direct (seconde marque) n'est pas proposée, le créateur est prévenu avec le motif
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const refused = await brandApi('POST', `/admin/acquisition/showcases/${byKey.data.showcase.id}/refuse`, { reason: 'Son inaudible' });
+    expect(refused.status === 200, 'L\'équipe doit pouvoir refuser une vidéo avant envoi', refused);
+  } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const mineAfterRefuse = await creatorApi('GET', '/showcase');
+  const bellRefuse = await creatorApi('GET', '/notifications');
+  expect(mineAfterRefuse.data.showcases.find(x => x.id === byKey.data.showcase.id)?.status === 'declined' && (bellRefuse.data.notifications || []).some(n => /n'a pas été proposée/.test(n.title) && /Son inaudible/.test(n.text)), 'La vidéo refusée passe « non retenue » et le créateur reçoit le motif', { status: 200, data: mineAfterRefuse.data.showcases.map(x => x.status) });
+  // Une marque qui répond « oui » est marquée « vidéo demandée » et passe en tête pour les créateurs
+  const reqLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-vitrine3-${RUN}`, name: 'E2E Marque Vitrine Demande', website: `https://vitrine3-${RUN}.example.com`, status: 'contacted', score: 10, mailing: {}, createdAt: new Date(), updatedAt: new Date() });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try { const pr = await brandApi('POST', `/admin/acquisition/leads/${reqLead.insertedId}/paste-reply`, { text: 'Oui vidéo, avec plaisir.', via: 'email' }); expect(pr.status === 200, 'La réponse collée doit être enregistrée', pr); }
+  finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  const brandsReq = await creatorApi('GET', '/showcase/brands?q=Vitrine Demande');
+  expect(brandsReq.data.brands[0] && String(brandsReq.data.brands[0].id) === String(reqLead.insertedId) && brandsReq.data.brands[0].requested === true, 'La marque qui a dit oui doit apparaître « vidéo demandée »', brandsReq);
+  await db.collection('leads').deleteOne({ _id: reqLead.insertedId });
   // La marque (connectée) accepte : mission créée, vidéo livrée d'office, à valider
   const acc = await brandApi('POST', `/external-quotes/public/${token}/accept`);
   expect(acc.status === 200 && acc.data.deliveryId, 'La marque doit pouvoir acheter la vidéo vitrine', acc);
