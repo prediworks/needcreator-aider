@@ -9,7 +9,7 @@ import {
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
-import { evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
+import { resolveSiretFromSiren, evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
 import { getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { SERVICE_KEYS } from '../../config/services.js';
 import { planInfo } from './billing.js';
@@ -633,7 +633,9 @@ export async function verifyBusiness(req, res) {
   try {
     const user = req.user;
     if (user.role !== 'brand') return res.status(403).json({ error: 'Réservé aux marques' });
-    const { siret, vatNumber, website, country, registrationNumber } = req.body;
+    let { siret, vatNumber, website, country, registrationNumber } = req.body;
+    // 9 chiffres saisis dans le champ SIRET : c'est un SIREN, le SIRET du siège est retrouvé au registre national
+    if (siret && /^\d{9}$/.test(String(siret).replace(/\s/g, ''))) { const r = await resolveSiretFromSiren(siret); if (r.error) return res.status(400).json({ error: r.error }); siret = r.siret; }
     if (website) user.set('profile.website', website);
     user.set('profile.company', {
       siret: siret ? String(siret).replace(/\s/g, '') : undefined,

@@ -113,3 +113,25 @@ export async function lookupRegistry({ siret, siren }, timeoutMs = 6000) {
     clearTimeout(timer);
   }
 }
+
+/** SIREN : 9 chiffres, clé de Luhn valide */
+export function isValidSiren(siren = '') {
+  const digits = String(siren).replace(/\s/g, '');
+  if (!/^\d{9}$/.test(digits)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i++) { let n = parseInt(digits[i], 10); if (i % 2 === 1) { n *= 2; if (n > 9) n -= 9; } sum += n; }
+  return sum % 10 === 0;
+}
+
+/**
+ * Numéro saisi à 9 chiffres (SIREN) : le SIRET du siège est retrouvé au registre national.
+ * Retourne { siret, registry } ou { error } (message à afficher tel quel).
+ */
+export async function resolveSiretFromSiren(siren) {
+  const digits = String(siren || '').replace(/\s/g, '');
+  if (!isValidSiren(digits)) return { error: 'Numéro invalide : 9 chiffres pour un SIREN, 14 pour un SIRET' };
+  const registry = await lookupRegistry({ siren: digits });
+  if (registry.error) return { error: `Votre numéro à 9 chiffres est un SIREN ; le registre national ne répond pas pour retrouver le SIRET (${registry.error}). Saisissez les 14 chiffres du SIRET, visibles sur annuaire-entreprises.data.gouv.fr.` };
+  if (!registry.found || !registry.siret) return { error: 'SIREN introuvable au registre national des entreprises. Vérifiez le numéro, ou saisissez les 14 chiffres du SIRET.' };
+  return { siret: registry.siret, registry };
+}

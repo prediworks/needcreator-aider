@@ -48,7 +48,8 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       await refreshUser();
       setEditing(false);
-      toast.success(data.registry ? `Informations enregistrées (${data.registry.legalName} vérifiée au registre)` : 'Informations enregistrées');
+      toast.success(data.siretResolved ? `Informations enregistrées. SIRET du siège retrouvé : ${data.siretResolved}${data.registry ? ` (${data.registry.legalName})` : ''}` : data.registry ? `Informations enregistrées (${data.registry.legalName} vérifiée au registre)` : 'Informations enregistrées', { duration: 8000 });
+      if (data.siretResolved) setForm((p: any) => ({ ...p, siret: data.siretResolved }));
     },
     onError: (e: any) => toast.error(getErrorMessage(e, 'Enregistrement impossible'), { duration: 8000 }),
   });
@@ -58,7 +59,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     ? (form.signatoryName.trim().length >= 2 ? [] : ['le nom du signataire'])
     : [
         !form.firstName && 'le prénom', !form.lastName && 'le nom',
-        form.status !== 'individual' && form.siret.replace(/\s/g, '').length !== 14 && `un SIRET de 14 chiffres (${form.siret.replace(/\s/g, '').length} saisis)`,
+        form.status !== 'individual' && ![9, 14].includes(form.siret.replace(/\s/g, '').length) && `un SIRET de 14 chiffres, ou votre SIREN de 9 chiffres (${form.siret.replace(/\s/g, '').length} saisis)`,
         form.status === 'individual' && !form.individualAcknowledged && 'la déclaration « activité occasionnelle »',
         form.vatRegistered && form.vatNumber.trim().length < 4 && 'le numéro de TVA intracommunautaire',
         !form.address.line1 && "l'adresse", !form.address.postalCode && 'le code postal', !form.address.city && 'la ville',
@@ -122,7 +123,10 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
           </div>
           {form.status === 'company' && <Input label="Raison sociale" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />}
           {form.status !== 'individual' ? (
-            <Input label="SIRET (14 chiffres, vérifié au registre national)" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="123 456 789 00012" />
+            <div>
+              <Input label="SIRET (14 chiffres) ou SIREN (9 chiffres)" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="123 456 789 00012" />
+              <p className="text-xs text-neutral-500 mt-1">Vous n&apos;avez que 9 chiffres ? C&apos;est votre SIREN : saisissez-le, le SIRET de votre siège est retrouvé au registre national.</p>
+            </div>
           ) : (
             <label className="flex items-start gap-2 text-sm text-neutral-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <input type="checkbox" checked={form.individualAcknowledged} onChange={(e) => set('individualAcknowledged', e.target.checked)} className="mt-0.5" />

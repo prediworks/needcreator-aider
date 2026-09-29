@@ -78,7 +78,7 @@ export const schemas = {
     lastName: Joi.string().trim().min(1).max(80).required(),
     status: Joi.string().valid('micro', 'company', 'individual').required(),
     companyName: Joi.string().trim().max(120).allow(''),
-    siret: Joi.string().trim().pattern(/^[0-9 ]{14,17}$/).allow(''),
+    siret: Joi.string().trim().pattern(/^[0-9 ]{9,17}$/).allow(''),
     address: Joi.object({
       line1: Joi.string().trim().min(2).max(120).required(),
       line2: Joi.string().trim().max(120).allow(''),
@@ -130,7 +130,7 @@ export const schemas = {
 
   // Vérification d'entreprise (marque)
   businessVerification: Joi.object({
-    siret: Joi.string().pattern(/^[0-9 ]{14,17}$/).allow(''),
+    siret: Joi.string().pattern(/^[0-9 ]{9,17}$/).allow(''),
     vatNumber: Joi.string().pattern(/^[A-Za-z]{2}[A-Za-z0-9 ]{2,13}$/).allow(''),
     country: Joi.string().trim().length(2).uppercase().default('FR'),
     registrationNumber: Joi.string().trim().min(4).max(40).allow(''), // hors France : numéro au registre local, contrôle manuel

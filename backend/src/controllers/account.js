@@ -5,6 +5,7 @@ import Delivery from '../models/Delivery.js';
 import Review from '../models/Review.js';
 import Conversation from '../models/Conversation.js';
 import Report from '../models/Report.js';
+import { resolveSiretFromSiren } from '../utils/business.js';
 import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { deleteFile } from '../services/storage.js';
@@ -44,10 +45,17 @@ export async function updateLegalInfo(req, res) {
       return res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo() });
     }
 
-    const siret = (body.siret || '').replace(/\s/g, '');
+    let siret = (body.siret || '').replace(/\s/g, '');
+    let siretResolved = false;
     if (body.status !== 'individual') {
       if (!siret) return res.status(400).json({ error: 'Le SIRET est obligatoire pour un micro-entrepreneur ou une société' });
-      if (!isValidSiret(siret)) return res.status(400).json({ error: 'SIRET invalide (14 chiffres attendus)' });
+      // 9 chiffres : c'est le SIREN ; le SIRET du siège est retrouvé au registre national
+      if (/^\d{9}$/.test(siret)) {
+        const r = await resolveSiretFromSiren(siret);
+        if (r.error) return res.status(400).json({ error: r.error });
+        siret = r.siret; siretResolved = true;
+      }
+      if (!isValidSiret(siret)) return res.status(400).json({ error: 'SIRET invalide : 14 chiffres attendus (ou votre SIREN à 9 chiffres, le SIRET du siège est alors retrouvé pour vous)' });
     } else if (!body.individualAcknowledged) {
       return res.status(400).json({ error: 'En tant que particulier, vous devez confirmer déclarer vous-même vos revenus' });
     }
@@ -81,7 +89,7 @@ export async function updateLegalInfo(req, res) {
       updatedAt: new Date(),
     });
     await user.save();
-    res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo(), registry: registry?.found ? { legalName: registry.legalName, address: registry.address } : null });
+    res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo(), registry: registry?.found ? { legalName: registry.legalName, address: registry.address } : null, siretResolved: siretResolved ? siret : null });
   } catch (error) {
     logger.error('updateLegalInfo failed:', error);
     res.status(500).json({ error: 'Enregistrement impossible pour le moment' });

@@ -1503,6 +1503,11 @@ await step('TVA : créateur assujetti → devis HT, marque paie TTC, créateur r
   await mongoose.connection.db.collection('deliveries').deleteMany({ campaignId: new mongoose.Types.ObjectId(c.data.campaign._id) });
   await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(c.data.campaign._id) });
   // Retour en franchise pour les étapes suivantes (montants sans TVA)
+  // SIREN à 9 chiffres : le SIRET du siège est retrouvé au registre national (si le contrôle registre est actif et joignable)
+  const bySiren = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '356 000 000', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, billingMandate: true });
+  expect((bySiren.status === 200 && /^356000000\d{5}$/.test(bySiren.data.legalInfo.siret) && bySiren.data.siretResolved === bySiren.data.legalInfo.siret) || (bySiren.status === 400 && /SIREN/.test(bySiren.data.error)), 'Un SIREN à 9 chiffres doit donner le SIRET du siège, ou un message clair si le registre ne répond pas', bySiren);
+  const badNine = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '123456789', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, billingMandate: true });
+  expect(badNine.status === 400 && /9 chiffres|SIREN/.test(badNine.data.error), 'Un numéro à 9 chiffres invalide doit être refusé avec une explication', badNine);
   const back = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, vatRegistered: false, billingMandate: true });
   expect(back.status === 200 && back.data.legalInfo.vatRegistered === false, 'Retour en franchise échoué', back);
   return 'devis 100 HT → 120 TTC payés, 108 au créateur, commission 10 HT + 2 TVA';

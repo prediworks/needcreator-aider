@@ -86,7 +86,7 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
           ))}
           {zone === 'FR' && (
             <div className="grid sm:grid-cols-2 gap-3">
-              <Input label="SIRET (14 chiffres)" value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="732 829 320 00074" />
+              <Input label="SIRET (14 chiffres) ou SIREN (9 chiffres)" value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="732 829 320 00074" />
               <Input label="ou numéro de TVA" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="FR40303265045" />
             </div>
           )}
