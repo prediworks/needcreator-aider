@@ -2,7 +2,7 @@ import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
 import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, useContactEmail, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, listShowcaseRequestsAdmin, showcaseRequestAction } from '../controllers/showcase.js';
+import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, listShowcaseRequestsAdmin, showcaseRequestAction, listBrandSuggestionsAdmin, decideBrandSuggestion } from '../controllers/showcase.js';
 import {
   getDashboardStats,
   getPendingCreators,
@@ -113,6 +113,8 @@ router.get('/acquisition/dashboard', acquisitionDashboard);
 router.get('/acquisition/daily-queue', dailyQueue);
 router.get('/acquisition/showcases', listShowcasesAdmin);
 router.post('/acquisition/showcases/:id/refuse', refuseShowcaseAdmin); // refus avant envoi, le créateur est prévenu // toutes les vidéos vitrine à proposer, quel que soit le statut de la marque
+router.get('/acquisition/brand-suggestions', listBrandSuggestionsAdmin); // marques suggérées par les créateurs
+router.post('/acquisition/brand-suggestions/:id', decideBrandSuggestion); // valider ou refuser
 router.get('/acquisition/showcase-requests', listShowcaseRequestsAdmin); // vidéos demandées par les marques (« oui vidéo ») : suivi
 router.post('/acquisition/leads/:id/showcase-request', showcaseRequestAction); // demande saisie à la main, créateurs prévenus, réponse de repli, clôture
 router.get('/acquisition/leads/:id/showcase', showcaseForLeadView); // vidéo vitrine disponible pour ce prospect

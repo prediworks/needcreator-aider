@@ -85,13 +85,17 @@ export async function showcaseBacklog(limit = 2) {
 }
 
 /** Marques que les créateurs peuvent filmer : prospects marques actifs, une vidéo vitrine par marque à la fois */
-export async function brandsForShowcase({ niche, q, limit = 200 } = {}) {
+export async function brandsForShowcase({ niche, q, limit = 200, creatorId = null } = {}) {
   const taken = await ShowcaseVideo.distinct('leadId', { status: { $in: ['ready', 'sent'] } });
   const filter = { kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, _id: { $nin: taken } };
+  // Marque suggérée par un créateur : réservée à ce créateur jusqu'à la date indiquée
+  filter.$and = [{ $or: [{ reservedUntil: null }, { reservedUntil: { $lte: new Date() } }, ...(creatorId ? [{ suggestedBy: creatorId }] : [])] }];
   if (niche) filter.niche = new RegExp(String(niche).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   if (q) filter.$or = [{ name: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { website: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
-  const leads = await Lead.find(filter).sort({ showcaseRequestedAt: -1, score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score showcaseRequestedAt showcaseRequest.product showcaseRequest.closedAt').lean();
-  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null, requested: !!l.showcaseRequestedAt && !l.showcaseRequest?.closedAt, product: l.showcaseRequest?.product || null }));
+  const leads = await Lead.find(filter).sort({ showcaseRequestedAt: -1, score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score showcaseRequestedAt showcaseRequest.product showcaseRequest.closedAt suggestedBy reservedUntil').lean();
+  const mine = (l) => !!creatorId && String(l.suggestedBy || '') === String(creatorId) && l.reservedUntil && l.reservedUntil > new Date();
+  leads.sort((a, b) => Number(mine(b)) - Number(mine(a))); // les marques que le créateur a suggérées en premier (tri stable)
+  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null, requested: !!l.showcaseRequestedAt && !l.showcaseRequest?.closedAt, product: l.showcaseRequest?.product || null, suggestedByMe: mine(l), reservedUntil: mine(l) ? l.reservedUntil : null }));
 }
 
 /** Message prêt pour la marque (email ou message privé), avec le lien de la page du devis où la vidéo se regarde */

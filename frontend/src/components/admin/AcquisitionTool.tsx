@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import ShowcaseRequests, { useShowcaseRequests } from '@/components/admin/ShowcaseRequests';
+import BrandSuggestions, { useBrandSuggestions } from '@/components/admin/BrandSuggestions';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
@@ -400,13 +401,15 @@ export default function AcquisitionTool() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showExt, setShowExt] = useState(false);
   // Vidéos : deux boutons à compteur dans la rangée des filtres ; le panneau des vidéos à envoyer s'ouvre seul quand il y en a
-  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | null>(null);
+  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | null>(null);
   const { data: svList } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
   const { data: reqList } = useShowcaseRequests();
   const svTodo = (svList || []).filter((x: any) => x.status === 'ready').length;
   const reqOpen = (reqList || []).length;
   const reqLate = (reqList || []).filter((x: any) => ['late', 'overdue'].includes(x.state)).length;
-  const shown = panel === null ? (svTodo > 0 ? 'showcases' : '') : panel;
+  const { data: sugList } = useBrandSuggestions();
+  const sugTodo = (sugList || []).filter((x: any) => x.status === 'pending').length;
+  const shown = panel === null ? (svTodo > 0 ? 'showcases' : sugTodo > 0 ? 'suggestions' : '') : panel;
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
@@ -554,8 +557,10 @@ export default function AcquisitionTool() {
           <span className="text-neutral-300">|</span>
           <button type="button" onClick={() => setPanel(shown === 'showcases' ? '' : 'showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
           <button type="button" onClick={() => setPanel(shown === 'requests' ? '' : 'requests')} data-testid="requests-button" title="Marques qui ont répondu « oui vidéo » : produit, créateurs prévenus, vidéos déposées, échéance de dix jours" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'requests' ? 'bg-neutral-900 text-white' : reqLate > 0 ? 'bg-red-100 text-red-800' : reqOpen > 0 ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>Vidéos demandées {reqOpen}{reqLate > 0 ? ` · ${reqLate} en retard` : ''}</button>
+          <button type="button" onClick={() => setPanel(shown === 'suggestions' ? '' : 'suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
         </div>
         {shown === 'showcases' && <div className="mb-4"><ShowcaseList /></div>}
+        {shown === 'suggestions' && <div className="mb-4"><BrandSuggestions /></div>}
         {shown === 'requests' && <div className="mb-4"><ShowcaseRequests /></div>}
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>

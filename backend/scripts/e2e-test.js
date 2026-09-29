@@ -3001,6 +3001,82 @@ await step('Vidéo demandée (« oui vidéo ») : réponse proposée, créateurs
   return 'demande reconnue, réponse proposée, créateurs prévenus, suivi, alerte J+7, produit offert à J+10, campagne brouillon au produit offert';
 });
 
+await step('Marque suggérée par un créateur : doublons, taille (grande, très grande), validation admin, marque réservée, refus motivé', async () => {
+  const db = mongoose.connection.db;
+  const users = db.collection('users');
+  const leads = db.collection('leads');
+  const sugg = db.collection('brandsuggestions');
+  const { tierOf, cleanWebsite, cleanInstagram, suggestionKey } = await import('../src/services/brandSuggestions.js');
+  expect(tierOf({ ads: 10 }) === 'ok' && tierOf({ ads: 60 }) === 'large' && tierOf({ ads: 400 }) === 'huge' && tierOf({ ai: 'large' }) === 'large' && tierOf({ ai: 'huge', ads: 2 }) === 'huge' && tierOf({ blocked: true }) === 'huge' && tierOf({ ai: 'unknown' }) === 'ok' && tierOf({ ads: 60 }, { largeAds: 100, hugeAds: 500 }) === 'ok', 'Les trois niveaux de taille doivent suivre les seuils');
+  expect(cleanWebsite('maisonverveine.fr') === 'https://maisonverveine.fr' && cleanWebsite('https://www.instagram.com/x') === '' && cleanInstagram('@Maison.Verveine') === 'https://www.instagram.com/maison.verveine/' && cleanInstagram('https://instagram.com/maisonverveine?hl=fr') === 'https://www.instagram.com/maisonverveine/' && suggestionKey({ name: 'X', website: 'https://www.maisonverveine.fr/produits' }) === 'd:maisonverveine.fr', 'Site, Instagram et clé de dédoublonnage doivent être remis en forme', [cleanWebsite('maisonverveine.fr'), cleanInstagram('@Maison.Verveine')]);
+  const clean = async () => { await sugg.deleteMany({ name: /^(E2E Suggérée|Nike$)/ }); await leads.deleteMany({ name: /^E2E Suggérée/ }); await db.collection('showcasevideos').deleteMany({ brandName: /^E2E Suggérée/ }); };
+  await clean();
+  const oid = (x) => new mongoose.Types.ObjectId(String(x));
+  try {
+    const bad = await creatorApi('POST', '/showcase/suggestions', { name: 'E2E Suggérée Vide' });
+    expect(bad.status === 400 && /Il manque/.test(bad.data.error) && /produit/.test(bad.data.error) && /site ou le profil Instagram/.test(bad.data.error), 'Les champs manquants doivent être nommés', bad);
+    // Très grande marque : refus d'office, expliqué
+    const huge = await creatorApi('POST', '/showcase/suggestions', { name: 'Nike', instagram: '@nike', product: 'Air Max' });
+    expect(huge.status === 200 && huge.data.outcome === 'refused' && /trop grande/.test(huge.data.message), 'Une très grande marque doit être refusée d\'office', huge);
+    // Marque déjà prospectée : proposée telle quelle, sans suggestion
+    const known = await leads.insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-suggeree-connue-${RUN}`, name: 'E2E Suggérée Connue', website: `https://www.suggeree-connue-${RUN}.example.com`, status: 'contacted', score: 10, mailing: {}, createdAt: new Date(), updatedAt: new Date() });
+    const exist = await creatorApi('POST', '/showcase/suggestions', { name: 'Autre nom', website: `suggeree-connue-${RUN}.example.com/boutique`, product: 'Bougie' });
+    expect(exist.status === 200 && exist.data.outcome === 'existing' && String(exist.data.brand.id) === String(known.insertedId), 'Une marque déjà connue (même site) doit être proposée telle quelle', exist);
+    // Nouvelle marque : en attente de validation
+    const body = { name: `E2E Suggérée ${RUN}`, website: `suggeree-${RUN}.example.com`, instagram: `@suggeree_${RUN}`, product: 'Sérum éclat', confirm: true };
+    const sent = await creatorApi('POST', '/showcase/suggestions', body);
+    expect(sent.status === 200 && sent.data.outcome === 'pending' && sent.data.suggestion.status === 'pending', 'La suggestion doit attendre la validation', sent);
+    const dup = await creatorApi('POST', '/showcase/suggestions', body);
+    expect(dup.status === 409 && /déjà suggéré/.test(dup.data.error), 'La même marque ne se suggère pas deux fois', dup);
+    const second = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Bis ${RUN}`, website: `suggeree-bis-${RUN}.example.com`, product: 'Crème', confirm: true });
+    expect(second.data.outcome === 'pending', 'Seconde suggestion attendue en attente', second);
+    await sugg.insertOne({ creatorId: oid(creatorUser.id), key: `n:e2esuggereeter${RUN}`, name: 'E2E Suggérée Ter', product: 'Huile', tier: 'ok', status: 'pending', createdAt: new Date(), updatedAt: new Date() });
+    const over = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Quater ${RUN}`, website: `suggeree-quater-${RUN}.example.com`, product: 'Baume', confirm: true });
+    expect(over.status === 400 && /3 suggestions en attente/.test(over.data.error), 'Trois suggestions en attente au maximum', over);
+    const mine = await creatorApi('GET', '/showcase/suggestions');
+    expect(mine.status === 200 && mine.data.pending === 3 && mine.data.suggestions.some(x => x.name === 'Nike' && x.status === 'refused'), 'Le créateur doit voir ses suggestions et leur état', mine);
+    // Admin : liste, validation (fiche créée, réservée, créateur prévenu), refus motivé
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+    let leadId;
+    try {
+      const list = await brandApi('GET', '/admin/acquisition/brand-suggestions');
+      const row = list.data.suggestions?.find(x => String(x.id) === String(sent.data.suggestion.id));
+      expect(list.status === 200 && row && row.status === 'pending' && row.creatorName && list.data.suggestions[0].status === 'pending', 'L\'admin doit voir la suggestion, celles à valider en premier', list);
+      const badMail = await brandApi('POST', `/admin/acquisition/brand-suggestions/${sent.data.suggestion.id}`, { action: 'approve', email: 'pas-une-adresse' });
+      expect(badMail.status === 400, 'Une adresse invalide doit être refusée', badMail);
+      const ok = await brandApi('POST', `/admin/acquisition/brand-suggestions/${sent.data.suggestion.id}`, { action: 'approve', email: `contact@suggeree-${RUN}.example.com` });
+      expect(ok.status === 200 && ok.data.lead && ok.data.suggestion.status === 'approved', 'La validation doit créer la fiche de la marque', ok);
+      leadId = ok.data.lead._id;
+      const again = await brandApi('POST', `/admin/acquisition/brand-suggestions/${sent.data.suggestion.id}`, { action: 'refuse', reason: 'x' });
+      expect(again.status === 400, 'Une suggestion traitée ne se traite pas deux fois', again);
+      const no = await brandApi('POST', `/admin/acquisition/brand-suggestions/${second.data.suggestion.id}`, { action: 'refuse', reason: 'Marque déjà cliente d\'une agence' });
+      expect(no.status === 200 && no.data.suggestion.status === 'refused', 'Le refus doit être enregistré', no);
+    } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+    const lead = await leads.findOne({ _id: oid(leadId) });
+    expect(lead.kind === 'brand' && ['qualified'].includes(lead.status) && String(lead.suggestedBy) === String(creatorUser.id) && lead.reservedUntil > new Date() && lead.email === `contact@suggeree-${RUN}.example.com` && /Sérum éclat/.test(lead.notes) && /instagram\.com\/suggeree_/.test(lead.socials?.instagram || ''), 'La fiche doit être réservée au créateur, avec le produit et les coordonnées', lead);
+    const bell = await creatorApi('GET', '/notifications');
+    expect((bell.data.notifications || []).some(n => new RegExp(`E2E Suggérée ${RUN} est validée`).test(n.title) && String(n.href || '').includes(`marque=${leadId}`)) && (bell.data.notifications || []).some(n => /n'a pas été retenue/.test(n.title) && /agence/.test(n.text)), 'Le créateur doit être prévenu de la validation et du refus motivé', (bell.data.notifications || []).slice(0, 4));
+    const brands = await creatorApi('GET', `/showcase/brands?q=E2E Suggérée ${RUN}`);
+    expect(brands.data.brands.some(b => String(b.id) === String(leadId) && b.suggestedByMe === true), 'La marque validée doit apparaître au créateur comme suggérée par lui', brands);
+    // Réservée à un autre créateur : invisible et dépôt refusé
+    await leads.updateOne({ _id: oid(leadId) }, { $set: { suggestedBy: new mongoose.Types.ObjectId() } });
+    const hidden = await creatorApi('GET', `/showcase/brands?q=E2E Suggérée ${RUN}`);
+    expect(!hidden.data.brands.some(b => String(b.id) === String(leadId)), 'Une marque réservée à un autre créateur ne doit pas être proposée', hidden);
+    const form = new FormData();
+    form.append('video', fakeVideo('suggeree.mp4')); form.append('leadId', String(leadId)); form.append('productName', 'Sérum éclat'); form.append('price', '120');
+    const dep = await creatorApi('POST', '/showcase', form, { form: true });
+    expect(dep.status === 409 && /priorité/.test(dep.data.error), 'Le dépôt sur une marque réservée à un autre doit être refusé', dep);
+    await leads.updateOne({ _id: oid(leadId) }, { $set: { reservedUntil: new Date(Date.now() - 1000) } });
+    const free = await creatorApi('GET', `/showcase/brands?q=E2E Suggérée ${RUN}`);
+    expect(free.data.brands.some(b => String(b.id) === String(leadId) && b.suggestedByMe === false), 'Après la période réservée, la marque est proposée à tous', free);
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+    await clean();
+    await db.collection('notifications').deleteMany({ title: /E2E Suggérée/ });
+  }
+  return 'doublons détectés, très grande marque refusée, trois suggestions au plus, validation avec fiche réservée, refus motivé';
+});
+
 await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur → profil → fiche, bibliothèque publicitaire), blocage', async () => {
   const db = mongoose.connection.db;
   const users = db.collection('users');

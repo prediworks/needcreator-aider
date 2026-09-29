@@ -6,6 +6,7 @@ import { uploadFile, createUploadUrl, statObject } from '../services/storage.js'
 import { createQuoteInternal } from './externalQuotes.js';
 import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin, refuseShowcase, MAX_ACTIVE_SHOWCASES } from '../services/showcase.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
+import { suggestBrand, listMySuggestions, listSuggestionsForAdmin, approveSuggestion, refuseSuggestion } from '../services/brandSuggestions.js';
 import { listShowcaseRequests, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest, prepareFallback, sendFallback } from '../services/showcaseRequests.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -14,7 +15,7 @@ const SITE = () => config.cors.origin;
 
 /** Marques à filmer (côté créateur) */
 export async function listShowcaseBrands(req, res) {
-  try { res.json({ brands: await brandsForShowcase({ niche: req.query.niche, q: req.query.q }) }); }
+  try { res.json({ brands: await brandsForShowcase({ niche: req.query.niche, q: req.query.q, creatorId: req.user._id }) }); }
   catch (error) { logger.error('listShowcaseBrands failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
 }
 
@@ -54,6 +55,7 @@ export async function createShowcase(req, res) {
     const supports = Array.isArray(value.supports) ? value.supports : String(value.supports || '').split(',').map(s => s.trim()).filter(s => RIGHTS_SUPPORTS.includes(s));
     const lead = await Lead.findById(value.leadId);
     if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
+    if (lead.reservedUntil && lead.reservedUntil > new Date() && String(lead.suggestedBy || '') !== String(req.user._id)) return res.status(409).json({ error: `Cette marque a été suggérée par un autre créateur, qui a la priorité jusqu'au ${lead.reservedUntil.toLocaleDateString('fr-FR')} : choisissez-en une autre` });
     const already = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).lean();
     if (already) return res.status(409).json({ error: 'Une candidature spontanée est déjà en cours pour cette marque : choisissez-en une autre' });
     const mine = await ShowcaseVideo.countDocuments({ creatorId: req.user._id, status: { $in: ['ready', 'sent'] } });
@@ -197,6 +199,40 @@ export async function showcaseRequestAction(req, res) {
     res.status(400).json({ error: 'Action inconnue' });
   } catch (error) {
     if (!error.status) logger.error('showcaseRequestAction failed:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : `Action impossible : ${error.message}` });
+  }
+}
+
+/** Créateur : ses suggestions de marques */
+export async function listMyBrandSuggestions(req, res) {
+  try { res.json(await listMySuggestions(req.user._id)); }
+  catch (error) { logger.error('listMyBrandSuggestions failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
+}
+
+/** Créateur : suggère une marque dont il possède un produit */
+export async function suggestBrandForShowcase(req, res) {
+  try { res.json(await suggestBrand(req.user, req.body || {})); }
+  catch (error) {
+    if (!error.status) logger.error('suggestBrandForShowcase failed:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : `Suggestion impossible : ${error.message}` });
+  }
+}
+
+/** Admin : marques suggérées par les créateurs */
+export async function listBrandSuggestionsAdmin(req, res) {
+  try { res.json({ suggestions: await listSuggestionsForAdmin() }); }
+  catch (error) { logger.error('listBrandSuggestionsAdmin failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
+}
+
+/** Admin : valide (fiche prospect créée, créateur prévenu) ou refuse (motif envoyé au créateur) une marque suggérée */
+export async function decideBrandSuggestion(req, res) {
+  try {
+    const action = String(req.body?.action || '');
+    if (action === 'approve') { const r = await approveSuggestion(req.params.id, { niche: req.body?.niche, email: req.body?.email }); return res.json({ message: `${r.suggestion.name} validée : le créateur est prévenu, la marque lui est réservée dix jours`, ...r }); }
+    if (action === 'refuse') { const r = await refuseSuggestion(req.params.id, req.body?.reason); return res.json({ message: `${r.suggestion.name} refusée : le créateur est prévenu`, ...r }); }
+    res.status(400).json({ error: 'Action inconnue' });
+  } catch (error) {
+    if (!error.status) logger.error('decideBrandSuggestion failed:', error);
     res.status(error.status || 500).json({ error: error.status ? error.message : `Action impossible : ${error.message}` });
   }
 }

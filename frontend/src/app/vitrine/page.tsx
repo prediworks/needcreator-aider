@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Spinner from '@/components/ui/Spinner';
 import MissingHint from '@/components/ui/MissingHint';
+import BrandSuggestForm from '@/components/BrandSuggestForm';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { RIGHTS_DURATION, RIGHTS_SUPPORTS } from '@/lib/labels';
@@ -73,11 +74,13 @@ export default function ShowcasePage() {
               <button key={b.id} type="button" onClick={() => pick(b)} className={`w-full text-left p-3 text-sm hover:bg-neutral-50 ${picked?.id === b.id ? 'bg-primary-50' : ''}`} data-testid="showcase-brand">
                 <div className="font-medium text-neutral-900">{b.name} {b.niche && <span className="text-xs text-neutral-500 font-normal">· {b.niche}</span>}{b.requested && <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] bg-green-100 text-green-800 font-normal">vidéo demandée par la marque</span>}</div>
                 {b.summary && <div className="text-xs text-neutral-600">{b.summary}</div>}
+                {b.suggestedByMe && <div className="text-xs text-primary-800 mt-0.5">Suggérée par vous : réservée jusqu&apos;au {formatDate(b.reservedUntil)}</div>}
                 {b.requested && b.product && <div className="text-xs text-green-800 mt-0.5">Produit demandé : {/^https?:/.test(b.product) ? 'page indiquée par la marque (lien affiché une fois la marque choisie)' : b.product}</div>}
                 {b.hooks?.length > 0 && <div className="text-xs text-neutral-500 mt-0.5">Accroche possible : « {b.hooks[0]} »</div>}
               </button>
             ))}
           </div>
+          <BrandSuggestForm onPick={pick} />
           {picked && <p className="text-sm text-primary-800 mt-2">Marque choisie : <strong>{picked.name}</strong>{picked.website && <> · <a href={picked.website} target="_blank" rel="noopener noreferrer" className="underline">site</a></>}{picked.product && /^https?:/.test(picked.product) && <> · <a href={picked.product} target="_blank" rel="noopener noreferrer" className="underline">produit demandé</a></>}</p>}
 
           <h2 className="font-semibold text-neutral-900 mt-6 mb-3">2. La vidéo</h2>

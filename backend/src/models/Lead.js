@@ -50,6 +50,9 @@ const leadSchema = new mongoose.Schema({
     fallbackAt: Date, fallbackText: String, fallbackSentAt: Date,
     closedAt: Date, closedReason: String,
   },
+  // Marque suggérée par un créateur : elle lui est réservée quelques jours pour sa candidature spontanée
+  suggestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reservedUntil: Date,
   offeredBriefId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductBrief' }, // brief offert préparé quand une marque répond positivement
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
 }, { timestamps: true });

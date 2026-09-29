@@ -774,6 +774,19 @@ export async function sendShowcaseOffer(email, brandName, creatorName, productNa
   return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.` });
 }
 
+/** La marque suggérée par le créateur est validée : il peut tourner et déposer sa vidéo */
+export async function sendBrandSuggestionApproved(email, name, suggestion, link, until, lang = null) {
+  const subject = `${suggestion.name} est validée : à vous de tourner`;
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    <p>Bonne nouvelle : <strong>${esc(suggestion.name)}</strong>, la marque que vous avez suggérée, est validée. Vous pouvez tourner votre vidéo pour <strong>${esc(suggestion.product)}</strong> et la déposer.</p>
+    <p>La marque vous est réservée jusqu'au <strong>${esc(until)}</strong> : aucun autre créateur ne peut déposer de vidéo pour elle d'ici là.</p>
+    ${button(link, 'Déposer ma vidéo')}
+    <p style="color:#6b7280;font-size:13px">Rappel : 15 à 30 secondes, le produit bien visible, sans logo ajouté ni promesse de résultat. La marque ne paie que si elle garde la vidéo : le dépôt ne garantit pas la vente.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `Votre marque est validée et réservée jusqu'au ${until}.`, lang });
+}
+
 /** Une marque demande une vidéo (« oui vidéo ») : les créateurs de sa niche sont invités à la tourner */
 export async function sendShowcaseRequestAlert(email, name, lead, product, link, lang = null) {
   const subject = `${lead.name} demande une vidéo : à vous de la tourner`;

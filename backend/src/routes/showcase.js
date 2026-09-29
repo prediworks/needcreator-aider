@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { authenticate, authorize, requireVerifiedEmail } from '../middleware/auth.js';
-import { listShowcaseBrands, createShowcase, listMyShowcases, withdrawShowcase, getShowcaseUploadUrl } from '../controllers/showcase.js';
+import { listShowcaseBrands, createShowcase, listMyShowcases, withdrawShowcase, getShowcaseUploadUrl, listMyBrandSuggestions, suggestBrandForShowcase } from '../controllers/showcase.js';
 import { validate, schemas } from '../middleware/validate.js';
 
 /** Vidéos vitrine (côté créateur) : marques à filmer, dépôt, liste, retrait */
@@ -10,6 +10,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500
 
 router.use(authenticate, authorize('creator'));
 router.get('/brands', listShowcaseBrands);
+router.get('/suggestions', listMyBrandSuggestions); // marques suggérées par le créateur
+router.post('/suggestions', requireVerifiedEmail, suggestBrandForShowcase);
 router.get('/', listMyShowcases);
 router.post('/upload-url', requireVerifiedEmail, validate(schemas.uploadUrl), getShowcaseUploadUrl); // envoi direct navigateur → stockage
 router.post('/', requireVerifiedEmail, upload.single('video'), createShowcase);

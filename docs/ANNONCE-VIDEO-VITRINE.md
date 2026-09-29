@@ -11,6 +11,7 @@ Les marques reçoivent dix demandes de collaboration par jour et n'en lisent auc
 
 - **Candidature spontanée** : dans votre tableau de bord, « Proposer une vidéo à une marque ». Choisissez une marque que nous démarchons et dont vous possédez un produit, tournez 15 à 30 secondes, fixez votre prix et les droits que vous cédez.
 - **Nous faisons le reste** : la marque reçoit votre vidéo finie, en filigrane, avec un devis. Si elle lui plaît, elle l'achète en un clic ; vous êtes payé comme pour une mission, la version sans filigrane lui est livrée aussitôt.
+- **Votre marque n'est pas dans la liste ?** Suggérez-la : « Ma marque n'est pas dans la liste ». Nous la validons, en général sous 48 heures, et elle vous est réservée dix jours. Attendez la validation avant de tourner ; les très grandes marques ne sont pas acceptées, elles ne répondent pas.
 - **Sinon, rien** : la vidéo reste à vous, dans votre portfolio.
 - **Vous suivez tout** : vous êtes prévenu quand la vidéo est proposée, quand la marque ouvre la page, quand elle achète.
 
