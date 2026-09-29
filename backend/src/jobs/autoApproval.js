@@ -21,6 +21,7 @@ import { runFollowUps } from './followUps.js';
 import { publishExpiredReviews } from '../controllers/reviews.js';
 import { watermarkBacklog } from '../services/watermark.js';
 import { showcaseBacklog } from '../services/showcase.js';
+import { runShowcaseRequestFollowUp } from '../services/showcaseRequests.js';
 import { notify } from '../services/notifications.js';
 
 /**
@@ -249,6 +250,7 @@ export async function runScheduledJobs() {
     const reviewsPublished = await publishExpiredReviews().catch(err => { logger.error('publishExpiredReviews:', err); return 0; });
     const watermarked = await watermarkBacklog(3).catch(err => { logger.error('watermarkBacklog:', err); return 0; });
     const showcased = await showcaseBacklog(2).catch(err => { logger.error('showcaseBacklog:', err); return 0; });
+    const showcaseRequests = await runShowcaseRequestFollowUp().catch(err => { logger.error('runShowcaseRequestFollowUp:', err); return { alerts: 0, fallbacks: 0 }; });
     const contentReminders = await sendContentExpiryReminders().catch(err => { logger.error('sendContentExpiryReminders:', err); return 0; });
     const adminDigest = await sendAdminDigest().catch(err => ({ sent: false, error: err.message }));
     const backup = await runScheduledBackup().catch(err => ({ ran: false, error: err.message }));
@@ -263,7 +265,7 @@ export async function runScheduledJobs() {
     const brandMessages = await refreshBrandMessages().catch(err => { logger.error('refreshBrandMessages:', err); return 0; });
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport, brandMessages, showcased };
+    return { autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, showcaseRequests, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport, brandMessages, showcased };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

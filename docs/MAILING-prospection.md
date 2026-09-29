@@ -214,6 +214,18 @@ Vous recevez ce message sur l'adresse de contact publique de {{ company_name }},
 Une marque qui répond positivement (« oui », « oui vidéo », intéressée) est marquée « vidéo demandée » : elle passe en tête de la liste proposée
 aux créateurs pour la candidature spontanée, avec un badge.
 
+**Quand la marque répond « oui vidéo »** (par email ou en message privé collé dans sa fiche), tout s'enchaîne sans saisie :
+
+| Moment | Ce qui se passe | Votre geste |
+|---|---|---|
+| Jour 0 | La demande est enregistrée, le produit cité dans la réponse est relevé. Une réponse est proposée : remerciement, question sur le produit (ou confirmation), vidéo annoncée sous dix jours. Les créateurs de la niche reçoivent une notification et un email avec le lien de dépôt. | Relire et envoyer la réponse. |
+| Dès qu'une vidéo est déposée | Elle apparaît dans « Vidéos à envoyer » (bouton à compteur de l'admin). | La regarder, puis la proposer à la marque. |
+| Jour 7 sans vidéo | Vous recevez un email d'alerte. | Relancer les créateurs (« Prévenir à nouveau les créateurs ») ou préciser le produit. |
+| Jour 10 sans vidéo | Une réponse est préparée pour la marque : elle dit franchement qu'aucun créateur n'avait le produit et propose la campagne au produit offert, créée en brouillon à son inscription. | Relire, puis « Envoyer par email » ou « Copier pour un message privé ». |
+
+Le suivi se trouve dans Admin → Prospection, bouton **« Vidéos demandées »**. Une marque qui dit oui autrement (« pourquoi pas », « envoyez »)
+s'ajoute à la main avec le bouton « Vidéo demandée » de sa fiche.
+
 1. « Synchroniser » (ou la tâche nocturne) ramène la réponse dans Admin → Prospection, pastille « A répondu ».
 2. L'IA la classe (intéressé, question, pas maintenant, refus, ne plus écrire, absence) et propose une réponse.
 3. Vous relisez et cliquez « Relire et envoyer » : la réponse part depuis l'expéditeur de l'outil, dans le même fil.

@@ -4,6 +4,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
+import ShowcaseRequests, { useShowcaseRequests } from '@/components/admin/ShowcaseRequests';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
@@ -205,11 +206,11 @@ function ShowcaseList() {
   const refuse = useMutation({ mutationFn: async ({ id, reason }: any) => (await api.post(`/admin/acquisition/showcases/${id}/refuse`, { reason })).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const list = data || [];
   const todo = list.filter((s: any) => s.status === 'ready');
-  if (!list.length) return null;
   return (
     <Card className="p-6" data-testid="showcase-list">
       <h2 className="text-lg font-semibold text-neutral-900 mb-1">🎬 Candidatures spontanées à proposer {todo.length > 0 && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-primary-500 text-white">{todo.length}</span>}</h2>
       <p className="text-sm text-neutral-600 mb-3">Vidéos tournées par des créateurs pour une marque prospectée, avant toute demande. Regardez la vidéo avant de la proposer : c&apos;est la première image que la marque a de NeedCreator. Elle reçoit le lien de la page où la vidéo se regarde en filigrane et s&apos;achète en un clic.</p>
+      {list.length === 0 && <p className="text-sm text-neutral-500">Aucune vidéo à proposer pour l&apos;instant.</p>}
       <div className="space-y-3">
         {list.map((s: any) => (
           <div key={s.id} className="border border-neutral-200 rounded-lg p-3 text-sm flex gap-3 flex-wrap items-start">
@@ -398,6 +399,14 @@ export default function AcquisitionTool() {
   const [showDash, setShowDash] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showExt, setShowExt] = useState(false);
+  // Vidéos : deux boutons à compteur dans la rangée des filtres ; le panneau des vidéos à envoyer s'ouvre seul quand il y en a
+  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | null>(null);
+  const { data: svList } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
+  const { data: reqList } = useShowcaseRequests();
+  const svTodo = (svList || []).filter((x: any) => x.status === 'ready').length;
+  const reqOpen = (reqList || []).length;
+  const reqLate = (reqList || []).filter((x: any) => ['late', 'overdue'].includes(x.state)).length;
+  const shown = panel === null ? (svTodo > 0 ? 'showcases' : '') : panel;
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
@@ -429,6 +438,7 @@ export default function AcquisitionTool() {
     } catch (e: any) { toast.error(getErrorMessage(e)); }
   };
   const pasteReplyList = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.post(`/admin/acquisition/leads/${id}/paste-reply`, body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const videoRequest = useMutation({ mutationFn: async ({ id, product }: any) => (await api.post(`/admin/acquisition/leads/${id}/showcase-request`, { action: 'create', product })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); setPanel('requests'); refresh(); queryClient.invalidateQueries({ queryKey: ['acq-showcase-requests'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const offerBrief = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/leads/${id}/offer-brief`)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }) });
   const enrichEmails = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-emails', { kind })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const enrichSocials = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-socials')).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -450,7 +460,6 @@ export default function AcquisitionTool() {
   return (
     <div className="space-y-4">
       <DailyQueue kind={kind} />
-      <ShowcaseList />
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
           <div>
@@ -542,7 +551,12 @@ export default function AcquisitionTool() {
           {['qualified', 'to_contact', 'contacted', 'replied', 'registered', 'new', 'rejected', 'excluded'].map((st) => <button key={st} type="button" onClick={() => { setStatus(status === st ? '' : st); setSelected([]); }} className={`px-2.5 py-1 rounded-full text-xs ${status === st ? 'bg-neutral-900 text-white' : STATUS[st].cls}`}>{STATUS[st].label} {total(st)}</button>)}
           <select value={hasEmail} onChange={(e) => setHasEmail(e.target.value)} className="border border-neutral-300 rounded-lg px-2 py-1 text-xs"><option value="">Email : tous</option><option value="1">Avec email</option><option value="0">Sans email</option></select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-40" />
+          <span className="text-neutral-300">|</span>
+          <button type="button" onClick={() => setPanel(shown === 'showcases' ? '' : 'showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
+          <button type="button" onClick={() => setPanel(shown === 'requests' ? '' : 'requests')} data-testid="requests-button" title="Marques qui ont répondu « oui vidéo » : produit, créateurs prévenus, vidéos déposées, échéance de dix jours" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'requests' ? 'bg-neutral-900 text-white' : reqLate > 0 ? 'bg-red-100 text-red-800' : reqOpen > 0 ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>Vidéos demandées {reqOpen}{reqLate > 0 ? ` · ${reqLate} en retard` : ''}</button>
         </div>
+        {shown === 'showcases' && <div className="mb-4"><ShowcaseList /></div>}
+        {shown === 'requests' && <div className="mb-4"><ShowcaseRequests /></div>}
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
           <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle" title="Coller une liste (une ligne par prospect) venant de l'assistant Chrome, d'un salon ou d'un fichier : dédoublonnée, réseaux relevés, qualifiée par l'IA"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
@@ -590,6 +604,7 @@ export default function AcquisitionTool() {
                       {l.notes && <div className="text-xs text-neutral-500 mt-1">Note : {l.notes}</div>}
                       {l.mailing?.replyText && <ReplyBox lead={l} onSent={refresh} />}
                       {l.offeredBriefId && <div className="text-xs text-primary-700 mt-1">Brief offert préparé : <a href={`/brief-depuis-url?id=${l.offeredBriefId}`} target="_blank" rel="noopener noreferrer" className="underline">le voir</a> (le lien est dans la réponse proposée)</div>}
+                      {l.showcaseRequest?.explicit && !l.showcaseRequest?.closedAt && <div className="text-xs text-green-700 mt-1">Vidéo demandée{l.showcaseRequest.product ? ` : ${l.showcaseRequest.product}` : ''} · suivi dans « Vidéos demandées »</div>}
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                     </div>
                     <div className="flex gap-1 flex-wrap justify-end shrink-0">
@@ -597,6 +612,7 @@ export default function AcquisitionTool() {
                       {l.message && <button type="button" onClick={() => copy(l.message)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Copier le message"><Copy className="w-4 h-4" /></button>}
                       <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Relance la qualification IA : score, signaux, message, paragraphe email, et complète les réseaux depuis la bio ou la chaîne YouTube"><RefreshCw className="w-4 h-4" /></button>
                       <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs" aria-label="Statut" title="Changer le statut du prospect à la main">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                      {l.kind === 'brand' && !l.showcaseRequest?.explicit && <button type="button" onClick={() => { const p = prompt('La marque demande une vidéo. Produit visé (nom ou lien, vide si inconnu) :', ''); if (p !== null) videoRequest.mutate({ id: l._id, product: p }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600 underline" title="La marque a dit oui à une vidéo : les créateurs de sa niche sont prévenus, la demande entre dans le suivi « Vidéos demandées »" data-testid="video-request">Vidéo demandée</button>}
                       {l.kind === 'brand' && <button type="button" onClick={() => offerBrief.mutate(l._id)} disabled={offerBrief.isPending} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600 disabled:opacity-50" title="Prépare le brief promis dans le troisième email (« répondez oui ») : trouve une fiche produit sur le site de la marque, génère angles, format, budget et consignes, puis ajoute le lien à la réponse proposée. Fait automatiquement quand une marque répond positivement. Environ 30 secondes, une seule génération par marque.">{l.offeredBriefId ? 'Brief offert ✓' : 'Brief offert'}</button>}
                       <button type="button" onClick={() => { const t = prompt('Collez la réponse reçue en message privé'); if (t && t.trim()) pasteReplyList.mutate({ id: l._id, text: t, via: l.contactedVia && l.contactedVia !== 'manuel' ? l.contactedVia : 'instagram' }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Réponse reçue sur un réseau : classée par l'IA, email ou formulaire relevés et ajoutés à la fiche">Réponse</button>
                       <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Ajouter une note interne sur ce prospect">Note</button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -36,9 +36,18 @@ export default function ShowcasePage() {
   const [progress, setProgress] = useState<number | null>(null);
   const [f, setF] = useState<any>({ productName: '', note: '', price: '', rightsDuration: '1y', supports: ['social_organic', 'paid_ads'], territories: 'France' });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
+  const pick = (b: any) => { setPicked(b); if (b?.product && !/^https?:/.test(b.product)) setF((p: any) => (p.productName ? p : { ...p, productName: b.product })); };
   const toggle = (v: string) => set('supports', f.supports.includes(v) ? f.supports.filter((x: string) => x !== v) : [...f.supports, v]);
   const { data: brands } = useQuery({ queryKey: ['showcase-brands', q], queryFn: async () => (await api.get('/showcase/brands', { params: { q: q || undefined } })).data.brands, enabled: ready, staleTime: 60000 });
   const { data: mine, isLoading } = useQuery({ queryKey: ['showcases'], queryFn: async () => (await api.get('/showcase')).data.showcases, enabled: ready });
+  // Lien reçu par email ou notification (« ?marque=… ») : la marque qui demande une vidéo est choisie d'office, son produit prérempli
+  useEffect(() => {
+    if (picked || !brands?.length) return;
+    let id = '';
+    try { id = new URLSearchParams(window.location.search).get('marque') || ''; } catch { /* adresse illisible */ }
+    const b = id ? brands.find((x: any) => String(x.id) === id) : null;
+    if (b) pick(b);
+  }, [brands]); // eslint-disable-line react-hooks/exhaustive-deps
   const price = parseFloat(f.price) || 0;
   const missing = [!picked && 'une marque', !file && 'le fichier vidéo', !f.productName.trim() && 'le nom du produit', price < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`].filter(Boolean) as string[];
   const create = useMutation({
@@ -61,14 +70,15 @@ export default function ShowcasePage() {
           <div className="mt-3 max-h-56 overflow-auto border border-neutral-200 rounded-lg divide-y divide-neutral-100">
             {(brands || []).length === 0 && <div className="p-3 text-sm text-neutral-500">Aucune marque disponible pour l&apos;instant.</div>}
             {(brands || []).map((b: any) => (
-              <button key={b.id} type="button" onClick={() => setPicked(b)} className={`w-full text-left p-3 text-sm hover:bg-neutral-50 ${picked?.id === b.id ? 'bg-primary-50' : ''}`} data-testid="showcase-brand">
+              <button key={b.id} type="button" onClick={() => pick(b)} className={`w-full text-left p-3 text-sm hover:bg-neutral-50 ${picked?.id === b.id ? 'bg-primary-50' : ''}`} data-testid="showcase-brand">
                 <div className="font-medium text-neutral-900">{b.name} {b.niche && <span className="text-xs text-neutral-500 font-normal">· {b.niche}</span>}{b.requested && <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] bg-green-100 text-green-800 font-normal">vidéo demandée par la marque</span>}</div>
                 {b.summary && <div className="text-xs text-neutral-600">{b.summary}</div>}
+                {b.requested && b.product && <div className="text-xs text-green-800 mt-0.5">Produit demandé : {/^https?:/.test(b.product) ? 'page indiquée par la marque (lien affiché une fois la marque choisie)' : b.product}</div>}
                 {b.hooks?.length > 0 && <div className="text-xs text-neutral-500 mt-0.5">Accroche possible : « {b.hooks[0]} »</div>}
               </button>
             ))}
           </div>
-          {picked && <p className="text-sm text-primary-800 mt-2">Marque choisie : <strong>{picked.name}</strong>{picked.website && <> · <a href={picked.website} target="_blank" rel="noopener noreferrer" className="underline">site</a></>}</p>}
+          {picked && <p className="text-sm text-primary-800 mt-2">Marque choisie : <strong>{picked.name}</strong>{picked.website && <> · <a href={picked.website} target="_blank" rel="noopener noreferrer" className="underline">site</a></>}{picked.product && /^https?:/.test(picked.product) && <> · <a href={picked.product} target="_blank" rel="noopener noreferrer" className="underline">produit demandé</a></>}</p>}
 
           <h2 className="font-semibold text-neutral-900 mt-6 mb-3">2. La vidéo</h2>
           <input type="file" accept="video/*" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block text-sm mb-3" data-testid="showcase-file" />

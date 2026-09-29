@@ -90,8 +90,8 @@ export async function brandsForShowcase({ niche, q, limit = 200 } = {}) {
   const filter = { kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, _id: { $nin: taken } };
   if (niche) filter.niche = new RegExp(String(niche).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   if (q) filter.$or = [{ name: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }, { website: new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
-  const leads = await Lead.find(filter).sort({ showcaseRequestedAt: -1, score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score showcaseRequestedAt').lean();
-  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null, requested: !!l.showcaseRequestedAt }));
+  const leads = await Lead.find(filter).sort({ showcaseRequestedAt: -1, score: -1, createdAt: -1 }).limit(limit).select('name website niche aiSummary hooks socials.instagram score showcaseRequestedAt showcaseRequest.product showcaseRequest.closedAt').lean();
+  return leads.map(l => ({ id: l._id, name: l.name, website: l.website || null, niche: l.niche || null, summary: l.aiSummary || null, hooks: l.hooks || [], instagram: l.socials?.instagram || null, requested: !!l.showcaseRequestedAt && !l.showcaseRequest?.closedAt, product: l.showcaseRequest?.product || null }));
 }
 
 /** Message prêt pour la marque (email ou message privé), avec le lien de la page du devis où la vidéo se regarde */

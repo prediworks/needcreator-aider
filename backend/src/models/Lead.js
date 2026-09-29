@@ -43,6 +43,13 @@ const leadSchema = new mongoose.Schema({
   error: String,
   mailing: { provider: String, listId: String, pushedAt: Date, replyAt: Date, replyVia: String, replyText: String, replyIntent: String, replySummary: String, replySuggestion: String, replyMessageId: String, replySentAt: Date, replySentText: String, bounced: Boolean, unsubscribedAt: Date, removedAt: Date },
   showcaseRequestedAt: Date, // la marque a dit oui à une vidéo tournée pour elle : affichée en priorité aux créateurs
+  // Demande explicite (« oui vidéo » ou saisie par l'équipe) : produit visé, créateurs prévenus, alerte à J+7, réponse de repli à J+10, clôture
+  showcaseRequest: {
+    explicit: { type: Boolean, default: false }, product: String, via: String,
+    notifiedAt: Date, notifiedCount: Number, alertAt: Date,
+    fallbackAt: Date, fallbackText: String, fallbackSentAt: Date,
+    closedAt: Date, closedReason: String,
+  },
   offeredBriefId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductBrief' }, // brief offert préparé quand une marque répond positivement
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
 }, { timestamps: true });

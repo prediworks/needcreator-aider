@@ -6,6 +6,7 @@ import { uploadFile, createUploadUrl, statObject } from '../services/storage.js'
 import { createQuoteInternal } from './externalQuotes.js';
 import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin, refuseShowcase, MAX_ACTIVE_SHOWCASES } from '../services/showcase.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
+import { listShowcaseRequests, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest, prepareFallback, sendFallback } from '../services/showcaseRequests.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 
@@ -148,5 +149,54 @@ export async function refuseShowcaseAdmin(req, res) {
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     logger.error('refuseShowcaseAdmin failed:', error); res.status(500).json({ error: 'Refus impossible' });
+  }
+}
+
+/** Admin : suivi des vidéos demandées par les marques (« oui vidéo ») */
+export async function listShowcaseRequestsAdmin(req, res) {
+  try { res.json({ requests: await listShowcaseRequests({ includeClosed: req.query.closed === '1' }) }); }
+  catch (error) { logger.error('listShowcaseRequestsAdmin failed:', error); res.status(500).json({ error: 'Suivi indisponible' }); }
+}
+
+/**
+ * Admin : action sur la demande de vidéo d'une marque.
+ * action = create (demande saisie à la main ou produit précisé), notify (prévenir à nouveau les créateurs), fallback (préparer la réponse de repli),
+ * send (envoyer la réponse de repli : via = email ou copy), close (clore), reopen.
+ */
+export async function showcaseRequestAction(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
+    const action = String(req.body?.action || 'create');
+    const has = !!lead.showcaseRequest?.explicit;
+    if (action !== 'create' && !has) return res.status(400).json({ error: 'Cette marque n\'a pas demandé de vidéo' });
+    if (action === 'create') {
+      const product = String(req.body?.product || '').trim().slice(0, 200);
+      const before = lead.showcaseRequest?.product || '';
+      const isNew = registerShowcaseRequest(lead, { product, via: has ? '' : 'manuel' });
+      if (isNew && !lead.mailing?.replySentAt && !lead.mailing?.replySuggestion) lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), replySuggestion: videoRequestReply(lead, lead.showcaseRequest.product) };
+      await lead.save();
+      // Créateurs prévenus à la création ; à nouveau quand le produit vient d'être précisé
+      const changed = !isNew && product && product !== before;
+      const n = (isNew || changed) && req.body?.notify !== false ? await notifyCreatorsOfRequest(lead, { force: changed }) : { notified: 0 };
+      return res.json({ message: `${isNew ? 'Vidéo demandée enregistrée' : 'Demande mise à jour'}${n.notified ? ` · ${n.notified} créateur(s) prévenu(s)` : ''}`, reply: videoRequestReply(lead, lead.showcaseRequest.product), notified: n.notified });
+    }
+    if (action === 'notify') { const n = await notifyCreatorsOfRequest(lead, { force: true }); return res.json({ message: `${n.notified} créateur(s) prévenu(s)`, notified: n.notified }); }
+    if (action === 'fallback') { const text = await prepareFallback(lead); return res.json({ message: 'Réponse préparée : à relire avant envoi', text }); }
+    if (action === 'send') {
+      const via = req.body?.via === 'copy' ? 'copy' : 'email';
+      const r = await sendFallback(lead, req.body?.text, { via });
+      return res.json({ message: via === 'copy' ? 'Réponse marquée envoyée en message privé' : `Réponse envoyée à ${lead.email}`, via: r.via });
+    }
+    if (action === 'close' || action === 'reopen') {
+      const cur = lead.showcaseRequest?.toObject?.() || lead.showcaseRequest || {};
+      lead.showcaseRequest = action === 'close' ? { ...cur, closedAt: new Date(), closedReason: String(req.body?.reason || '').trim().slice(0, 200) } : { ...cur, closedAt: null, closedReason: '' };
+      await lead.save();
+      return res.json({ message: action === 'close' ? 'Demande close' : 'Demande rouverte' });
+    }
+    res.status(400).json({ error: 'Action inconnue' });
+  } catch (error) {
+    if (!error.status) logger.error('showcaseRequestAction failed:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : `Action impossible : ${error.message}` });
   }
 }

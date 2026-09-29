@@ -5,6 +5,7 @@ import { mailingProvider, mailingConfig } from '../mailing/index.js';
 import { config } from '../../config/index.js';
 import { notifyAdmins } from '../adminAlerts.js';
 import { classifyReply, prepareOfferedBrief } from './replies.js';
+import { isVideoRequest, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest } from '../showcaseRequests.js';
 import logger from '../../utils/logger.js';
 
 export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
@@ -73,11 +74,18 @@ export async function pushToMailing({ limit, force = false, ids = null } = {}) {
 /** Classe une réponse avec l'IA, prépare la réponse, l'envoie si « intéressé » et réponse automatique activée */
 export async function handleReply(lead, provider, s, out = {}) {
   try {
-    const c = await classifyReply(lead, lead.mailing.replyText);
+    // « Oui vidéo » : demande explicite, reconnue même sans IA ; réponse dédiée (produit, délai de dix jours), créateurs prévenus
+    const video = lead.kind === 'brand' && isVideoRequest(lead.mailing.replyText);
+    let c = await classifyReply(lead, lead.mailing.replyText).catch(err => { if (video) return null; throw err; });
+    if (video && !['refusal', 'unsubscribe'].includes(c?.intent)) {
+      const isNew = registerShowcaseRequest(lead, { text: lead.mailing.replyText, via: 'email' });
+      c = { intent: 'interested', summary: c?.summary || 'Demande la vidéo proposée', reply: videoRequestReply(lead, lead.showcaseRequest?.product), needsHuman: false, video: true };
+      if (isNew) { await lead.save(); await notifyCreatorsOfRequest(lead).catch(err => logger.warn(`notifyCreatorsOfRequest ${lead._id}: ${err.message}`)); out.videoRequests = (out.videoRequests || 0) + 1; }
+    }
     if (!c) return lead;
     lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply;
     // Marque intéressée : le brief promis dans la séquence est préparé depuis son site et joint à la réponse proposée
-    if (lead.kind === 'brand' && ['interested', 'question'].includes(c.intent)) { // une question d'une marque appelle aussi le brief offert (il répond à « comment ça marche ? »)
+    if (lead.kind === 'brand' && !c.video && ['interested', 'question'].includes(c.intent)) { // une question d'une marque appelle aussi le brief offert (il répond à « comment ça marche ? »)
       const offer = await prepareOfferedBrief(lead).catch(() => null);
       if (offer) { c.reply = `${c.reply.trim()}\n\n${offer.text}`.slice(0, 2400); lead.mailing.replySuggestion = c.reply; out.briefs = (out.briefs || 0) + 1; }
     }

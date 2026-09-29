@@ -8,6 +8,7 @@ import { config } from '../../config/index.js';
 import { buildProductBrief, findProductPage } from '../productBrief.js';
 import ProductBrief from '../../models/ProductBrief.js';
 import logger from '../../utils/logger.js';
+import { isVideoRequest, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest } from '../showcaseRequests.js';
 
 export const REPLY_INTENTS = ['interested', 'question', 'redirect', 'not_now', 'refusal', 'unsubscribe', 'out_of_office', 'other'];
 const schema = z.object({ intent: z.enum(REPLY_INTENTS), summary: z.string().max(200), reply: z.string().max(1200), needsHuman: z.boolean() });
@@ -37,6 +38,9 @@ Réponds avec :
 export async function createDraftCampaignFromLead(brand, lead) {
   try {
     const fees = await getFeePercents();
+    // Vidéo demandée restée sans créateur : la campagne promise dans la réponse de repli est au produit offert
+    const gifted = !!lead.showcaseRequest?.fallbackAt;
+    const giftedProduct = gifted && lead.showcaseRequest?.product && !/^https?:/.test(lead.showcaseRequest.product) ? lead.showcaseRequest.product : '';
     let brief = null;
     if (aiConfig().configured) {
       brief = await generateBrief({
@@ -46,8 +50,9 @@ export async function createDraftCampaignFromLead(brand, lead) {
       }).catch(err => { logger.warn(`Draft campaign brief failed: ${err.message}`); return null; });
     }
     const campaign = await Campaign.create({
-      brandId: brand._id, platformFeePercent: fees.standard, type: 'paid', status: 'draft', visibility: 'public',
-      title: brief?.title || `Première campagne ${lead.name}`,
+      brandId: brand._id, platformFeePercent: fees.standard, type: gifted ? 'gifting' : 'paid', status: 'draft', visibility: 'public',
+      gifting: gifted ? { productName: giftedProduct || `Produit ${lead.name}`, feePerVideo: brand.isPro?.() ? 0 : config.gifting.feePerVideo } : undefined,
+      title: gifted ? `Vidéo contre produit offert${giftedProduct ? ` : ${giftedProduct}` : ` ${lead.name}`}`.slice(0, 120) : (brief?.title || `Première campagne ${lead.name}`),
       description: brief?.description || `Campagne préparée à partir de votre échange avec NeedCreator. Décrivez votre produit, ce que vous attendez de la vidéo et le ton souhaité.`,
       brief: { videoType: 'testimonial', duration: brief?.suggestedDuration || 30, deliverables: brief?.suggestedDeliverables || 1, requirements: brief?.requirements?.slice(0, 6) || [], deliveryTypes: ['file', 'link'], platforms: ['tiktok', 'instagram'], productShipping: true, productDescription: '' },
       matching: { niches: lead.niche && /^[a-z]+$/.test(lead.niche) ? [lead.niche] : ['lifestyle'], creatorsWanted: 1 },
@@ -104,9 +109,18 @@ export async function recordReply(lead, text, { via = 'instagram' } = {}) {
   if (emails.length && !lead.email) { lead.email = emails[0]; lead.emailSource = `réponse ${via}`; extracted.email = emails[0]; }
   else if (emails.length) extracted.email = emails[0];
   if (forms.length) { extracted.form = forms[0]; lead.notes = [lead.notes, `Formulaire de collaboration : ${forms[0]}`].filter(Boolean).join(' · '); }
+  // « Oui vidéo » : demande explicite, réponse proposée (produit, délai de dix jours), créateurs prévenus
+  let videoRequested = false;
+  if (lead.kind === 'brand' && isVideoRequest(clean) && !['refusal', 'unsubscribe'].includes(c?.intent)) {
+    videoRequested = registerShowcaseRequest(lead, { text: clean, via });
+    lead.mailing.replyIntent = 'interested';
+    lead.mailing.replySummary = lead.mailing.replySummary || 'Demande la vidéo proposée';
+    lead.mailing.replySuggestion = videoRequestReply(lead, lead.showcaseRequest?.product);
+  }
   // Une marque qui répond positivement demande de fait une vidéo : sa fiche passe en tête de la liste proposée aux créateurs
   if (lead.kind === 'brand' && (c?.intent === 'interested' || /^\s*(oui|yes|ok|d'accord|volontiers|avec plaisir)\b/i.test(String(text || '')))) lead.showcaseRequestedAt = lead.showcaseRequestedAt || new Date();
   if (c?.intent === 'refusal' || c?.intent === 'unsubscribe') { lead.status = 'rejected'; lead.notes = [lead.notes, c.intent === 'unsubscribe' ? 'Demande de ne plus écrire' : 'A refusé'].filter(Boolean).join(' · '); }
   await lead.save();
-  return { lead, extracted, intent: c?.intent || null };
+  if (videoRequested) await notifyCreatorsOfRequest(lead).catch(err => logger.warn(`notifyCreatorsOfRequest ${lead._id}: ${err.message}`));
+  return { lead, extracted, intent: lead.mailing.replyIntent || c?.intent || null, videoRequested };
 }

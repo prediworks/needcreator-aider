@@ -439,11 +439,12 @@ export async function pasteReply(req, res) {
     if (text.length < 5) return res.status(400).json({ error: 'Il manque : le texte de la réponse' });
     const via = ['instagram', 'tiktok', 'linkedin', 'facebook', 'email'].includes(req.body?.via) ? req.body.via : 'instagram';
     const { recordReply } = await import('../services/acquisition/replies.js');
-    const { extracted, intent } = await recordReply(lead, text, { via });
+    const { extracted, intent, videoRequested } = await recordReply(lead, text, { via });
     const parts = [
       intent === 'redirect' ? 'La marque renvoie vers un autre canal' : intent === 'interested' ? 'Réponse classée « intéressé »' : intent === 'refusal' ? 'Refus : prospect écarté' : intent === 'question' ? 'Question posée : réponse proposée' : 'Réponse enregistrée',
       extracted.email ? `email ${lead.email === extracted.email ? 'ajouté à la fiche' : 'relevé'} : ${extracted.email}${lead.email === extracted.email ? ' (partira par le mailing)' : ''}` : null,
       extracted.form ? 'formulaire noté sur la fiche' : null,
+      videoRequested ? 'vidéo demandée : créateurs prévenus, réponse proposée à relire' : null,
     ].filter(Boolean);
     res.json({ message: `${parts.join(' · ')}.`, lead, extracted, intent });
   } catch (error) {

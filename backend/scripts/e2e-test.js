@@ -2923,6 +2923,84 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   return 'marque proposée aux créateurs, vidéo déposée, devis visible avec aperçu, admin la propose, achat livré d\'office';
 });
 
+await step('Vidéo demandée (« oui vidéo ») : réponse proposée, créateurs prévenus, suivi admin, alerte à J+7, produit offert proposé à J+10', async () => {
+  const db = mongoose.connection.db;
+  const users = db.collection('users');
+  const leads = db.collection('leads');
+  const { isVideoRequest, extractProduct } = await import('../src/services/showcaseRequests.js');
+  expect(isVideoRequest('Oui vidéo') && isVideoRequest('OUI VIDEO, merci') && isVideoRequest('Ok pour la vidéo') && !isVideoRequest('Non merci, pas de vidéo pour nous') && !isVideoRequest('Oui, envoyez-moi plus d\'informations'), 'La demande de vidéo doit être reconnue, et seulement elle');
+  expect(extractProduct('Oui vidéo, pour notre sérum éclat. Merci') === 'sérum éclat' && extractProduct('oui vidéo https://marque.example.com/produits/serum.') === 'https://marque.example.com/produits/serum' && extractProduct('Oui vidéo') === '', 'Le produit cité doit être relevé', extractProduct('Oui vidéo, pour notre sérum éclat. Merci'));
+  await leads.deleteMany({ name: /^E2E Oui Vidéo/ });
+  const mk = async (n, extra = {}) => (await leads.insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-ouivideo${n}-${RUN}`, name: `E2E Oui Vidéo ${n}`, website: `https://ouivideo${n}-${RUN}.example.com`, niche: 'beauty', status: 'contacted', score: 10, hooks: ['Accroche demande E2E'], mailing: {}, createdAt: new Date(), updatedAt: new Date(), ...extra })).insertedId;
+  const id1 = await mk(1); const id2 = await mk(2, { email: `ouivideo-${RUN}@needcreator-test.com` }); const id3 = await mk(3);
+  const oid = (x) => new mongoose.Types.ObjectId(String(x));
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    // 1. La marque répond « oui vidéo » : demande enregistrée, produit relevé, réponse proposée, créateurs prévenus
+    const pr = await brandApi('POST', `/admin/acquisition/leads/${id1}/paste-reply`, { text: 'Oui vidéo, pour notre sérum éclat. Merci', via: 'instagram' });
+    expect(pr.status === 200 && /vidéo demandée/.test(pr.data.message), 'La réponse « oui vidéo » doit être reconnue', pr);
+    const l1 = await leads.findOne({ _id: oid(id1) });
+    expect(l1.showcaseRequest?.explicit === true && l1.showcaseRequest.product === 'sérum éclat' && l1.showcaseRequestedAt && l1.showcaseRequest.notifiedCount >= 1, 'La demande doit porter le produit et le nombre de créateurs prévenus', l1.showcaseRequest);
+    expect(/sérum éclat/.test(l1.mailing.replySuggestion) && /dix jours/.test(l1.mailing.replySuggestion) && l1.mailing.replyIntent === 'interested', 'La réponse proposée doit citer le produit et le délai de dix jours', l1.mailing);
+    const bell = await creatorApi('GET', '/notifications');
+    expect((bell.data.notifications || []).some(n => /E2E Oui Vidéo 1 demande une vidéo/.test(n.title) && /sérum éclat/.test(n.text) && String(n.href || n.link || '').includes(`marque=${id1}`)), 'Le créateur doit être prévenu de la demande, avec le lien vers la marque', (bell.data.notifications || []).slice(0, 3));
+    const forCreator = await creatorApi('GET', '/showcase/brands?q=E2E Oui Vidéo 1');
+    expect(forCreator.data.brands[0]?.requested === true && forCreator.data.brands[0].product === 'sérum éclat', 'Le créateur doit voir le produit demandé', forCreator);
+    // Un refus n'ouvre pas de demande
+    const no = await brandApi('POST', `/admin/acquisition/leads/${id3}/paste-reply`, { text: 'Non merci, pas de vidéo pour nous.', via: 'instagram' });
+    const l3 = await leads.findOne({ _id: oid(id3) });
+    expect(no.status === 200 && !l3.showcaseRequest?.explicit, 'Un refus ne doit pas ouvrir de demande de vidéo', l3.showcaseRequest);
+    // 2. Demande saisie à la main (la marque a dit oui autrement), sans produit
+    const manual = await brandApi('POST', `/admin/acquisition/leads/${id2}/showcase-request`, { action: 'create', product: '' });
+    expect(manual.status === 200 && /Pour quel produit/.test(manual.data.reply) && manual.data.notified >= 1, 'La demande saisie à la main doit prévenir les créateurs et proposer la réponse', manual);
+    const track = await brandApi('GET', '/admin/acquisition/showcase-requests');
+    const r1 = track.data.requests?.find(r => String(r.id) === String(id1)); const r2 = track.data.requests?.find(r => String(r.id) === String(id2));
+    expect(track.status === 200 && r1 && r1.state === 'waiting' && r1.videos === 0 && r1.product === 'sérum éclat' && r2 && !r2.product, 'Le suivi doit lister les deux demandes, sans vidéo', track);
+    // 3. J+7 sans vidéo : alerte ; J+10 : réponse de repli préparée (produit offert)
+    await leads.updateOne({ _id: oid(id1) }, { $set: { showcaseRequestedAt: new Date(Date.now() - 8 * 86400000) } });
+    await leads.updateOne({ _id: oid(id2) }, { $set: { showcaseRequestedAt: new Date(Date.now() - 11 * 86400000) } });
+    const jobs = await brandApi('POST', '/admin/jobs/run');
+    expect(jobs.status === 200, 'Tâches planifiées injoignables', jobs);
+    const a1 = await leads.findOne({ _id: oid(id1) }); const a2 = await leads.findOne({ _id: oid(id2) });
+    expect(a1.showcaseRequest.alertAt && !a1.showcaseRequest.fallbackAt, 'À J+7 sans vidéo, l\'alerte doit partir sans réponse de repli', a1.showcaseRequest);
+    expect(a2.showcaseRequest.fallbackAt && /produit/.test(a2.showcaseRequest.fallbackText) && a2.showcaseRequest.fallbackText.includes(`lead=${id2}`), 'À J+10 sans vidéo, la réponse « produit offert » doit être prête avec le lien d\'inscription', a2.showcaseRequest);
+    const track2 = await brandApi('GET', '/admin/acquisition/showcase-requests');
+    expect(track2.data.requests.find(r => String(r.id) === String(id1))?.state === 'late' && track2.data.requests.find(r => String(r.id) === String(id2))?.state === 'overdue', 'Le suivi doit signaler le retard et l\'échéance dépassée', track2.data.requests.map(r => [r.name, r.state]));
+    // 4. Réponse de repli envoyée par email ; préparée à la demande et copiée pour un message privé
+    const sent = await brandApi('POST', `/admin/acquisition/leads/${id2}/showcase-request`, { action: 'send', via: 'email' });
+    // Le serveur d'envoi de développement refuse les domaines de test : l'échec doit alors être expliqué, sans marquer la réponse envoyée
+    expect((sent.status === 200 && /Réponse envoyée/.test(sent.data.message)) || (sent.status === 502 && /adresse refusée/.test(sent.data.error)), 'La réponse de repli doit partir par email, ou l\'échec être expliqué', sent);
+    if (sent.status !== 200) { const still = await leads.findOne({ _id: oid(id2) }); expect(!still.showcaseRequest.fallbackSentAt, 'Un envoi refusé ne doit pas être marqué envoyé', still.showcaseRequest); const viaCopy = await brandApi('POST', `/admin/acquisition/leads/${id2}/showcase-request`, { action: 'send', via: 'copy' }); expect(viaCopy.status === 200, 'La réponse doit pouvoir être marquée envoyée en message privé', viaCopy); }
+    const noMail = await brandApi('POST', `/admin/acquisition/leads/${id1}/showcase-request`, { action: 'send', via: 'email', text: 'Bonjour' });
+    expect(noMail.status === 400 && /Il manque/.test(noMail.data.error), 'Sans adresse, l\'envoi par email doit être refusé clairement', noMail);
+    const prep = await brandApi('POST', `/admin/acquisition/leads/${id1}/showcase-request`, { action: 'fallback' });
+    const copied = await brandApi('POST', `/admin/acquisition/leads/${id1}/showcase-request`, { action: 'send', via: 'copy', text: prep.data.text });
+    expect(prep.status === 200 && /sérum éclat/.test(prep.data.text) && copied.status === 200, 'La réponse de repli se prépare à la demande et se copie pour un message privé', { prep, copied });
+    const b2 = await leads.findOne({ _id: oid(id2) });
+    expect(b2.showcaseRequest.fallbackSentAt && /produit offert proposé/.test(b2.notes || ''), 'L\'envoi doit être tracé sur la fiche', b2);
+    // 5. À l'inscription de la marque, la campagne brouillon est au produit offert
+    const { createDraftCampaignFromLead } = await import('../src/services/acquisition/replies.js');
+    const LeadM = (await import('../src/models/Lead.js')).default; const UserM = (await import('../src/models/User.js')).default;
+    const camp = await createDraftCampaignFromLead(await UserM.findOne({ email: brandEmail }), await LeadM.findById(id1));
+    expect(camp && camp.type === 'gifting' && camp.status === 'draft' && camp.gifting?.productName === 'sérum éclat', 'La campagne brouillon doit être au produit offert, avec le produit demandé', camp && { type: camp.type, gifting: camp.gifting });
+    if (camp) await db.collection('campaigns').deleteOne({ _id: camp._id });
+    // 6. Produit précisé après coup : créateurs prévenus à nouveau ; clôture : la demande sort du suivi
+    const upd = await brandApi('POST', `/admin/acquisition/leads/${id2}/showcase-request`, { action: 'create', product: 'Crème de jour' });
+    expect(upd.status === 200 && upd.data.notified >= 1 && /Crème de jour/.test(upd.data.reply), 'Le produit précisé doit relancer les créateurs', upd);
+    const closed = await brandApi('POST', `/admin/acquisition/leads/${id2}/showcase-request`, { action: 'close', reason: 'Test' });
+    const track3 = await brandApi('GET', '/admin/acquisition/showcase-requests');
+    const after = await creatorApi('GET', '/showcase/brands?q=E2E Oui Vidéo 2');
+    expect(closed.status === 200 && !track3.data.requests.some(r => String(r.id) === String(id2)) && after.data.brands[0]?.requested === false, 'La demande close doit sortir du suivi et de la mise en avant', { track3: track3.data.requests.length, after: after.data.brands[0] });
+    const none = await brandApi('POST', `/admin/acquisition/leads/${id3}/showcase-request`, { action: 'notify' });
+    expect(none.status === 400, 'Pas d\'action sur une marque qui n\'a rien demandé', none);
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+    await leads.deleteMany({ name: /^E2E Oui Vidéo/ });
+    await db.collection('notifications').deleteMany({ title: /^E2E Oui Vidéo/ });
+  }
+  return 'demande reconnue, réponse proposée, créateurs prévenus, suivi, alerte J+7, produit offert à J+10, campagne brouillon au produit offert';
+});
+
 await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur → profil → fiche, bibliothèque publicitaire), blocage', async () => {
   const db = mongoose.connection.db;
   const users = db.collection('users');

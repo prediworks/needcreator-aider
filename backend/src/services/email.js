@@ -774,6 +774,22 @@ export async function sendShowcaseOffer(email, brandName, creatorName, productNa
   return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.` });
 }
 
+/** Une marque demande une vidéo (« oui vidéo ») : les créateurs de sa niche sont invités à la tourner */
+export async function sendShowcaseRequestAlert(email, name, lead, product, link, lang = null) {
+  const subject = `${lead.name} demande une vidéo : à vous de la tourner`;
+  const isLink = /^https?:/.test(String(product || ''));
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    <p><strong>${esc(lead.name)}</strong>${lead.website ? ` (<a href="${esc(lead.website)}">${esc(String(lead.website).replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''))}</a>)` : ''} a répondu oui : la marque attend une vidéo tournée par un créateur NeedCreator.</p>
+    ${product ? `<p>Produit visé : ${isLink ? `<a href="${esc(product)}">voir la page du produit</a>` : `<strong>${esc(product)}</strong>`}.</p>` : '<p>La marque n\'a pas encore précisé de produit : choisissez celui que vous possédez et qu\'elle met le plus en avant.</p>'}
+    ${lead.hooks?.length ? `<p>Une accroche possible : « ${esc(lead.hooks[0])} »</p>` : ''}
+    <p>Vous avez le produit chez vous ? Tournez une vidéo de 15 à 30 secondes, fixez votre prix et déposez-la. <strong>La première vidéo déposée est proposée à la marque</strong>, qui s'est engagée à la regarder sous dix jours.</p>
+    ${button(link, 'Déposer ma vidéo')}
+    <p style="color:#6b7280;font-size:13px">La marque ne paie que si elle garde la vidéo : le dépôt ne garantit pas la vente. Vous recevez cet email parce que la marque correspond à vos niches ; les notifications se désactivent dans votre profil.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `${lead.name} attend une vidéo${product && !isLink ? ` pour ${product}` : ''} : la première déposée lui est proposée.`, lang });
+}
+
 /**
  * Réinitialisation du mot de passe (lien Firebase, envoyé par notre SMTP)
  */
