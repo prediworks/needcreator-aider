@@ -150,13 +150,19 @@ function cleanSocials(obj = {}) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already } = req.body || {};
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
   if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
-  if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; } }
-  if (notes !== undefined) lead.notes = String(notes).slice(0, 2000);
+  if (status === 'contacted' && already === true) {
+    // « Déjà contactée » dans la file du jour : le contact a eu lieu avant, sa date est perdue. Date rétablie à sept jours plus tôt : la fiche sort de la file sans entrer dans le décompte du jour.
+    lead.status = 'contacted';
+    lead.contactedAt = new Date(Date.now() - 7 * 86400000);
+    lead.contactedVia = contactedVia || lead.contactedVia || 'manuel';
+    lead.notes = [lead.notes, `Déjà contacté, date rétablie à la main le ${new Date().toLocaleDateString('fr-FR')}`].filter(Boolean).join(' · ').slice(0, 2000);
+  } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; } }
+  if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
   if (email !== undefined) { lead.email = String(email).trim().toLowerCase() || null; lead.emailSource = lead.email ? 'manuel' : null; }
   await lead.save();
   res.json({ message: 'Prospect mis à jour', lead });

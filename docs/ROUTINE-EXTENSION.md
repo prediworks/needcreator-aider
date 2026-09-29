@@ -28,6 +28,7 @@ sur le PC. Options : l'adresse et le jeton affichés dans Admin → Prospection 
 3. Pour chaque marque : **« Préparer dans Chrome »** → la conversation Instagram s'ouvre avec le message collé → relisez, ajoutez un mot si
    le profil vous inspire, **Envoyer** → dans l'admin, **« Contacté, suivant »**. Sans le rôle Messenger, « Copier et ouvrir Instagram » fait
    la même chose avec un collage à la main.
+   Une marque à qui vous avez déjà écrit revient dans la file ? **« Déjà contacté »** : elle passe en « Contacté » avec une date rétablie à sept jours plus tôt, et ne compte pas dans les 15 du jour.
 4. S'arrêter à 15. Les réponses reçues : **« Coller la réponse »** sur la fiche (l'email donné entre dans le mailing) ; quoi répondre selon
    le cas : `docs/REPONSES-MARQUES.md`.
 

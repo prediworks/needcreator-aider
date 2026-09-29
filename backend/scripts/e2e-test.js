@@ -2712,6 +2712,14 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const skipped = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { skip: true });
     const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);
+    // « Déjà contacté » : contact antérieur, date rétablie à sept jours plus tôt, décompte du jour inchangé
+    await db.collection('leads').updateOne({ _id: dq1 }, { $unset: { 'enrich.skippedAt': '' }, $set: { notes: 'Note existante' } });
+    const q4 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
+    const already = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { status: 'contacted', already: true, contactedVia: 'instagram' });
+    const q5 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
+    const days = (Date.now() - new Date(already.data.lead?.contactedAt).getTime()) / 86400000;
+    expect(already.status === 200 && already.data.lead.status === 'contacted' && days > 6.9 && days < 7.1 && already.data.lead.contactedVia === 'instagram' && /Note existante · Déjà contacté, date rétablie/.test(already.data.lead.notes), '« Déjà contacté » doit rétablir une date à sept jours, garder la note et tracer le geste', already);
+    expect(q4.data.leads.some(l => String(l._id) === String(dq1)) && !q5.data.leads.some(l => String(l._id) === String(dq1)) && q5.data.doneToday === q4.data.doneToday && q5.data.left === q4.data.left, '« Déjà contacté » doit sortir le prospect de la file sans entrer dans le décompte du jour', { before: { doneToday: q4.data.doneToday, left: q4.data.left }, after: { doneToday: q5.data.doneToday, left: q5.data.left } });
     await db.collection('leads').deleteMany({ _id: { $in: [dq1, dq2, dq3] } });
     // Réponse reçue en message privé, collée à la main : email « collab » relevé et ajouté à la fiche, statut « A répondu », intention
     const dm = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `dm-${RUN}`, name: `Marque DM ${RUN}`, website: 'https://exemple.fr', description: 'bougies', status: 'contacted', contactedVia: 'instagram', socials: { instagram: `https://www.instagram.com/marquedm${RUN}/` }, createdAt: new Date(), updatedAt: new Date() });
