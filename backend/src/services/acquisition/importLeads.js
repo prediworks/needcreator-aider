@@ -54,7 +54,7 @@ export function parseLeadLines(text) {
 }
 
 /** Enregistre les lignes valides comme prospects « manuel » (source importée), dédoublonnés ; qualification IA en arrière-plan */
-export async function importLeads({ kind, text, rows: givenRows, niche, origin }) {
+export async function importLeads({ kind, text, rows: givenRows, niche, origin, holdForProfile = false }) {
   const rows = givenRows || parseLeadLines(text); // rows : lignes déjà structurées (extension Chrome), même forme que parseLeadLines
   const result = { total: rows.length, created: 0, updated: 0, unchanged: 0, emailsAdded: 0, twins: 0, duplicates: 0, invalid: 0, known: 0, suppressed: 0, ids: [], errors: [] };
   for (const r of rows) {
@@ -116,8 +116,8 @@ export async function importLeads({ kind, text, rows: givenRows, niche, origin }
       else { const ec = await ExternalCreator.findOne({ email: r.email }).select('_id').lean(); if (ec) known = { externalCreatorId: ec._id, status: 'excluded', notes: 'Déjà dans l\'annuaire des créateurs référencés' }; }
     }
     if (known) result.known++;
-    const lead = await Lead.create({ kind, source: 'manual', externalId, name: r.name, handle: r.handle, url: r.url, website: r.website, country: 'FR', description: r.description, email: r.email || null, emailSource: r.email ? 'import' : null, keyword: origin ? `import:${origin}`.slice(0, 60) : 'import', stats: r.subscribers != null ? { subscribers: r.subscribers } : undefined, niche: niche || undefined, socials: r.socials, status: 'new', ...known });
-    result.created++; result.ids.push(lead._id);
+    const lead = await Lead.create({ kind, source: 'manual', externalId, name: r.name, handle: r.handle, url: r.url, website: r.website, country: 'FR', description: r.description, email: r.email || null, emailSource: r.email ? 'import' : null, keyword: origin ? `import:${origin}`.slice(0, 60) : 'import', stats: r.subscribers != null ? { subscribers: r.subscribers } : undefined, niche: niche || undefined, socials: r.socials, status: 'new', ...(holdForProfile ? { profilePending: true } : {}), ...known });
+    result.created++; result.ids.push(lead._id); (result.createdIds = result.createdIds || []).push(lead._id);
   }
   // Qualification IA à la suite, sans bloquer la réponse
   const toQualify = result.ids.slice();
@@ -125,6 +125,7 @@ export async function importLeads({ kind, text, rows: givenRows, niche, origin }
     for (const id of toQualify) {
       const lead = await Lead.findById(id);
       if (!lead) continue;
+      if (lead.profilePending) continue; // marque taguée : qualifiée seulement après la lecture de son profil
       // Prospect importé sans email mais avec un site : l'email est cherché sur le site (contact, mentions légales) avant la qualification
       if (!lead.email) { await enrichLeadFromSite(lead).catch(() => false); lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), noSite: !lead.website }; await lead.save(); } // déjà visité : la passe groupée ne le refera pas avant 30 jours
       if (lead.status === 'new') await qualifyOne(lead, []).catch(err => logger.warn(`import qualify ${id}: ${err.message}`));

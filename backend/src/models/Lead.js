@@ -50,6 +50,9 @@ const leadSchema = new mongoose.Schema({
     fallbackAt: Date, fallbackText: String, fallbackSentAt: Date,
     closedAt: Date, closedReason: String,
   },
+  // Compte cité par un créateur (marque taguée) : tant que son profil n'a pas été lu et reconnu comme celui d'une marque, la fiche n'est ni qualifiée ni proposée
+  profilePending: Boolean,
+  profileCheckedAt: Date,
   sizeTier: { type: String, enum: ['ok', 'large', 'huge'] }, // taille estimée d'une marque (abonnés, annonces, liste des marques refusées) : « large » répond rarement, « huge » est écartée
   // Marque suggérée par un créateur : elle lui est réservée quelques jours pour sa candidature spontanée
   suggestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

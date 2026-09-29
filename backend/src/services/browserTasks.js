@@ -40,7 +40,7 @@ export async function createBatch({ label, kind = 'creator', origin, niche, item
   const valid = (items || []).filter(i => TASK_TYPES.includes(i.type) && (i.url || i.query));
   if (!valid.length) throw new Error('Aucune tâche valide dans le lot');
   const batch = await BrowserTaskBatch.create({ label, kind, origin, niche, createdBy, workspaceId, counts: { total: valid.length } });
-  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
+  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, kind: i.kind, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
   return batch;
 }
 
@@ -92,9 +92,10 @@ export function linkedinWorthy(lead) {
   if (name.length < 3) return false;
   // Pseudo de réseau social (« megane_gil », « wildrefill_fr ») : seulement si le profil a été lu et reconnu comme celui d'une marque
   const handleLike = /[_@]/.test(name) || (/^[a-z0-9.]+$/.test(name) && /[.\d]/.test(name));
-  if (handleLike && !lead.enrich?.socialsSearchedAt) return false;
+  const checked = !lead.profilePending && (!!lead.profileCheckedAt || lead.stats?.subscribers != null || !!lead.sizeTier);
+  if (handleLike && !checked) return false;
   if (/instagram\.com|tiktok\.com|facebook\.com|fb\.me|linktr\.ee|beacons\.ai|youtube\.com|meta\.com/i.test(String(lead.website || ''))) return false;
-  if (/tag/i.test(String(lead.keyword || '')) && !lead.enrich?.socialsSearchedAt) return false; // marque taguée dont le profil n'a pas été lu
+  if (/tag/i.test(String(lead.keyword || '')) && !checked) return false; // marque taguée dont le profil n'a pas été lu
   return true;
 }
 
@@ -102,7 +103,7 @@ export function linkedinWorthy(lead) {
 export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) {
   // Vingt pages LinkedIn par jour : elles vont aux vraies marques. Sont laissés de côté les pseudos (« megane_gil »), les marques taguées
   // dont le profil Instagram n'a pas encore été lu (ce peut être une personne), les très grandes marques et les sites qui sont un réseau social.
-  const found = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, sizeTier: { $ne: 'huge' }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit * 4).select('name website keyword enrich.socialsSearchedAt socials.linkedin').lean();
+  const found = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, sizeTier: { $ne: 'huge' }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit * 4).select('name website keyword profilePending profileCheckedAt sizeTier stats.subscribers socials.linkedin').lean();
   const leads = found.filter(linkedinWorthy).slice(0, limit);
   if (!leads.length) return null;
   await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.linkedinAt': new Date() } });
@@ -119,7 +120,11 @@ export const PARTNERSHIP_HASHTAGS = ['collaborationcommerciale', 'partenariatrem
 export async function batchFromPartnershipHashtags({ hashtags, count = 20, createdBy } = {}) {
   const tags = [...new Set((hashtags && hashtags.length ? hashtags : PARTNERSHIP_HASHTAGS).map(h => String(h).trim().replace(/^#/, '').toLowerCase()).filter(Boolean))].slice(0, 10);
   if (!tags.length) return null;
-  return createBatch({ label: `Marques taguées par les créateurs · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'brand', origin: 'créateurs UGC (tag)', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/`, purpose: 'brands' })) });
+  // Marques taguées en attente de vérification sans lecture prévue (tâche échouée, fiches remises en attente par le nettoyage) : lues en premier
+  const waiting = await Lead.find({ kind: 'brand', profilePending: true, status: 'new', 'socials.instagram': { $nin: [null, ''] } }).sort({ createdAt: 1 }).limit(60).select('socials.instagram').lean();
+  const planned = new Set((await BrowserTask.distinct('input.leadId', { type: 'read_profile', status: { $in: ['pending', 'running'] }, 'input.leadId': { $in: waiting.map(l => l._id) } })).map(String));
+  const checks = waiting.filter(l => !planned.has(String(l._id))).map(l => ({ type: 'read_profile', url: l.socials.instagram, leadId: l._id, kind: 'brand' }));
+  return createBatch({ label: `Marques taguées par les créateurs · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'brand', origin: 'créateurs UGC (tag)', createdBy, items: [...checks, ...tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/`, purpose: 'brands' }))] });
 }
 
 /** Lot « TikTok Creative Center » : meilleures publicités par mot-clé (page publique, sans compte), annonceurs relevés par l'IA */
@@ -368,15 +373,21 @@ export function extractPostBrands(result) {
 }
 
 /** Le compte lu est-il une marque ? Catégorie professionnelle, boutique ou site dans la bio, audience ; un particulier est écarté */
+const LINK_HUB = /linktr\.ee|beacons\.ai|bio\.link|lnk\.bio|taplink|campsite\.bio|msha\.ke|solo\.to|allmylinks|linkin\.bio|hoo\.be|bento\.me|carrd\.co|snipfeed|stan\.store|amzn\.to|amazon\.[a-z.]+\/shop|ltk\.app|shopmy\.us/i;
+const PERSON = /(cr[ée]atrice|cr[ée]ateur|creator|\bugc\b|influenceu|blogueu|blogger|\bblog\b|bookstagram|booktok|lectrice|lecteur|\blectures?\b|chroniques?|maman|\bmum\b|\bmom\b|\bpapa\b|mari[ée]e? à|épouse|digital creator|personal blog|blog personnel|public figure|personnalité publique|\bartiste\b|\bartist\b|athl[eè]te|journaliste|photographe|mod[eè]le photo|\bmodel\b|\bcoach\b|étudiante?|\b\d{2} ?ans\b|ambassadrice|ambassadeur|collabs? ?:|contact pro)/i;
+/**
+ * Le profil est-il celui d'une marque ? Il faut un vrai signe d'entreprise : une catégorie de commerce, ou un vocabulaire de vente avec un site à soi.
+ * Le nombre d'abonnés ne prouve rien (un influenceur est très suivi), un lien de bio vers une page de liens non plus.
+ * Un signe de personne (créatrice, blog, lectures, maman, code promo…) écarte le profil, sauf s'il réunit catégorie de commerce et site à soi.
+ */
 export function looksLikeBrand(profile, text) {
   const t = String(text || '').toLowerCase();
-  const category = /(marque|brand|boutique|shop|magasin|produit\/service|product\/service|e-commerce|cosm[ée]tique|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|restaurant|entreprise|company|soin de la peau|skin care|jewelry|bijouterie|food & beverage|aliments et boissons|health\/beauty|santé\/beauté)/.test(t);
-  const commerce = /(livraison|shipping|code promo|-\d{1,2} ?%|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée] en france|nos produits|notre gamme|site officiel|official)/.test(t);
-  const hasSite = !!profile?.site;
-  const followers = Number(profile?.followers) || 0;
-  let score = 0;
-  if (category) score += 2; if (commerce) score += 1; if (hasSite) score += 1; if (followers >= 2000) score += 1; if (followers >= 20000) score += 1;
-  return score >= 3;
+  const category = /(\bmarque\b|\bbrand\b|boutique|\bshop\b|magasin|produit\/service|product\/service|e-commerce|cosm[ée]tique|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|restaurant|entreprise|company|soin de la peau|skin care|jewel|bijou|maroquinerie|épicerie|alimentation et boissons|food & beverage|health\/beauty|santé\/beauté|shopping (et|&) (vente au détail|retail)|maison et jardin|home & garden)/.test(t);
+  const commerce = /(livraison|shipping|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée] en france|nos produits|notre gamme|site officiel|compte officiel|official account|nos magasins|points? de vente|\bsav\b|service client)/.test(t);
+  const ownSite = !!profile?.site && !LINK_HUB.test(String(profile.site));
+  const person = PERSON.test(t);
+  if (person) return category && ownSite && commerce;
+  return category ? (commerce || ownSite) : (commerce && ownSite);
 }
 
 /** Site et publicités d'une marque connue par son pseudo ou son nom : recherche dans la bibliothèque Meta (serveur, sans page de plus dans le navigateur) */
@@ -546,6 +557,12 @@ export async function submitTaskResult(id, result) {
   }
   let outcome = '';
   try {
+    // Profil Instagram supprimé, renommé ou mal orthographié dans la légende : la page existe mais annonce qu'elle n'est pas disponible
+    const gone = task.type === 'read_profile' && /sorry, this page isn.t available|cette page n.est (malheureusement )?pas disponible|the link you followed may be broken|le lien que vous avez suivi est peut-être rompu/i.test(slim.text.slice(0, 3000));
+    if (gone && task.input.kind === 'brand' && task.input.leadId) {
+      await Lead.updateOne({ _id: task.input.leadId, status: { $nin: ['contacted', 'replied', 'registered'] } }, { $set: { status: 'rejected', profilePending: false, profileCheckedAt: new Date(), notes: 'Écarté : profil Instagram introuvable (compte supprimé, renommé ou pseudo mal écrit)' } });
+    }
+    if (gone) throw new Error('profil introuvable sur Instagram (compte supprimé, renommé ou pseudo mal écrit)');
     if (task.type !== 'prefill_message' && !slim.text.trim() && (/\b404\b|not found|introuvable|page isn.t available|page n.est pas disponible/i.test(slim.title) || !slim.links.length)) throw new Error('page vide ou introuvable');
     if (task.type === 'read_post_author') {
       const profile = extractPostAuthor(slim);
@@ -564,7 +581,9 @@ export async function submitTaskResult(id, result) {
       if (p.site && !lead.website) lead.website = p.site;
       if (p.email && !lead.email) { lead.email = p.email; lead.emailSource = p.emailSource || 'bio'; gotEmail = true; }
       if (p.followers) lead.stats = { ...(lead.stats?.toObject?.() || lead.stats || {}), subscribers: p.followers };
-      if (p.bio && !/\S{20}/.test(lead.description || '')) lead.description = `${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);
+      if (p.bio && !(lead.description || '').includes(clean(p.bio).slice(0, 30))) lead.description = `Bio Instagram : ${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);
+      const held = lead.profilePending === true;
+      lead.profilePending = false; lead.profileCheckedAt = new Date();
       if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
       lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() };
       const paid = /partenariat rémunéré déclaré/.test(lead.description || '');
@@ -586,6 +605,8 @@ export async function submitTaskResult(id, result) {
         outcome = 'compte personnel, pas une marque : fiche écartée';
       } else {
         await lead.save();
+        // Marque confirmée : la qualification (secteur, accroches, message) se fait maintenant, avec la bio, le site et les abonnés
+        if (held && lead.status === 'new') { const id = lead._id; setImmediate(async () => { try { const { qualifyOne } = await import('./acquisition/index.js'); const l = await Lead.findById(id); if (l) await qualifyOne(l, []); } catch (err) { logger.warn(`qualify after profile ${id}: ${err.message}`); } }); }
         if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
         if (size.tier === 'large' && !/Grande marque/.test(lead.notes || '')) lead.notes = [lead.notes, `Grande marque (${audience}) : répond rarement`].filter(Boolean).join(' · ').slice(0, 2000);
         if (size.tier === 'large') await lead.save();
@@ -630,10 +651,11 @@ export async function submitTaskResult(id, result) {
         const desc = [`Marque taguée dans une publication UGC (#${task.input.query || 'partenariat'})`, b.paid ? 'partenariat rémunéré déclaré' : 'compte cité dans la légende', meta?.ads ? `${meta.ads} publicité(s) Meta active(s)` : ''].filter(Boolean).join(' · ');
         rows.push({ line: `${b.handle} ; https://www.instagram.com/${b.handle}/ ; ; ${desc} ; ${meta?.website || ''}`, postCode: null, subscribers: null, name: b.handle, handle: `@${b.handle}`, url: `https://www.instagram.com/${b.handle}/`, website: meta?.website || null, email: null, socials: { instagram: `https://www.instagram.com/${b.handle}/`, ...(meta?.pageUrl ? { facebook: meta.pageUrl } : {}) }, description: desc });
       }
-      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'créateurs UGC (tag)' }) : { created: 0, updated: 0, emailsAdded: 0, ids: [] };
+      const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'créateurs UGC (tag)', holdForProfile: true }) : { created: 0, updated: 0, emailsAdded: 0, ids: [] };
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       // Marques nouvelles sans site : une lecture de leur profil Instagram (lien de bio → site → email), même rythme que pour les créateurs
-      const toRead = await Lead.find({ _id: { $in: imp.ids || [] }, kind: 'brand', $or: [{ website: { $in: [null, ''] } }, { email: { $in: [null, ''] } }], 'socials.instagram': { $nin: [null, ''] } }).select('socials.instagram').lean();
+      // Fiche nouvelle : toujours lue (c'est la lecture qui dit si le compte est une marque) ; fiche connue : lue s'il lui manque le site ou l'email
+      const toRead = await Lead.find({ _id: { $in: imp.ids || [] }, kind: 'brand', $or: [{ profilePending: true }, { website: { $in: [null, ''] } }, { email: { $in: [null, ''] } }], 'socials.instagram': { $nin: [null, ''] } }).select('socials.instagram').lean();
       if (toRead.length) {
         await BrowserTask.insertMany(toRead.map(l => ({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_profile', input: { url: l.socials.instagram, leadId: l._id, kind: 'brand' } })));
         if (batch) batch.counts.total += toRead.length;

@@ -15,6 +15,7 @@ const creatorSchema = z.object({
 const brandSchema = z.object({
   sector: z.string(),
   sellsProducts: z.boolean(),
+  isBrand: z.boolean().default(true), // false : le compte est une personne (créateur, blogueur, particulier), pas une entreprise
   fit: z.number().min(0).max(100),
   signals: z.array(z.string()).max(5),
   summary: z.string().max(300),
@@ -34,7 +35,8 @@ function clip(text, max) {
 const normalizeCommon = (o, messageMax = 320) => ({ ...o, fit: Number(o.fit) || 0, signals: (o.signals || []).map(String).slice(0, 5), summary: clip(o.summary, 300), message: clip(o.message, messageMax), emailParagraph: clip(o.emailParagraph, 500) });
 /** Marques : la question finale est obligatoire ; si l'IA l'a oubliée ou si elle a été coupée, on la rétablit */
 const BRAND_FINAL_QUESTION = "J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ?";
-const normalizeBrand = (o) => {
+export const normalizeBrand = (o) => {
+  if (o.isBrand === false) { o = { ...o, fit: 0, sellsProducts: false }; } else o = { ...o, isBrand: true };
   const base = normalizeCommon(o, 600); // marques : trois phrases complètes (accroche citée comprise), la phrase finale ne doit jamais être coupée
   let msg = String(base.message || '').trim();
   if (!/à quelle adresse puis-je vous les envoyer/i.test(msg)) {
@@ -75,17 +77,27 @@ Réponds avec :
 - emailParagraph : paragraphe de 2 phrases pour un email, qui remplace « je suis tombé sur votre profil », personnalisé de la même façon`;
     return generateJson({ system: SYSTEM, prompt, schema: creatorSchema, normalize: normalizeCommon });
   }
+  // D'où vient la fiche : l'IA ne doit pas tenir pour acquis qu'un compte cité par un créateur est une marque
+  const tagged = /\(tag\)/i.test(String(lead.keyword || ''));
+  const suggested = !!lead.suggestedBy;
+  const intro = tagged
+    ? `Compte Instagram cité par un créateur dans une publication (hashtag de partenariat). Ce peut être une marque, mais aussi une personne : un autre créateur, un ami, un blogueur. Son profil a été lu :`
+    : suggested ? `Marque suggérée par un créateur qui possède l'un de ses produits :`
+    : lead.source === 'meta' ? `Marque française trouvée dans la bibliothèque publicitaire Meta avec le mot-clé « ${lead.keyword} » :`
+    : `Marque ajoutée à la prospection (${lead.keyword || 'saisie à la main'}) :`;
   const prompt = `${common}
-Marque française trouvée dans la bibliothèque publicitaire Meta avec le mot-clé « ${lead.keyword} » :
+${intro}
 - Nom de page : ${lead.name}
 - Site : ${lead.website || 'inconnu'}
+- Abonnés Instagram : ${lead.stats?.subscribers ?? '?'}
 - Annonces actives : ${lead.stats?.ads ?? '?'}
 - Texte d'une annonce : """${(lead.description || '').slice(0, 800)}"""
 
 Réponds avec :
 - sector : secteur en un ou deux mots (ex. cosmétiques, compléments, mode, maison, food, tech, services)
+- isBrand : true si c'est une entreprise ou une marque ; false si le compte est celui d'une personne (créateur de contenu, influenceur, blogueur, lecteur, particulier, artiste), même très suivie, même si elle recommande des produits
 - sellsProducts : true si la marque vend des produits physiques ou une application/service grand public (cible UGC), false si B2B pur, média, association, politique
-- fit : 0 à 100, adéquation avec l'UGC (produit montrable en vidéo, publicité active, grand public)
+- fit : 0 à 100, adéquation avec l'UGC (produit montrable en vidéo, publicité active, grand public). Si les informations ne permettent pas de dire ce que vend la marque, fit ≤ 30 : ne suppose rien. Si isBrand = false, fit = 0
 - signals : 1 à 4 constats factuels courts
 - summary : une phrase sur ce que vend la marque
 - hooks : TROIS accroches de vidéo UGC pour ce produit précis, chacune ≤ 90 caractères, écrites comme la première phrase que dirait un créateur face caméra dans les trois premières secondes (à la première personne, concrètes, sans point d'exclamation, sans emoji, sans nom de marque), inspirées du texte de l'annonce ; trois angles différents : le problème vécu, la promesse ou le résultat, la curiosité

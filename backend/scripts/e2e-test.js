@@ -3213,6 +3213,11 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r6.status === 200 && /1 marque\(s\) taguée\(s\) \(partenariat rémunéré\)/.test(r6.data.outcome), 'La marque en partenariat rémunéré doit être relevée, pas l\'auteur', r6);
     const tagLead = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
     expect(tagLead && tagLead.kind === 'brand' && tagLead.socials?.instagram === 'https://www.instagram.com/e2eextbrandtag/' && /partenariat rémunéré/.test(tagLead.description), 'La marque taguée doit exister en prospect marque avec son Instagram et le contexte', tagLead);
+    // Tant que son profil n'est pas lu, la marque taguée attend : ni qualifiée, ni proposée dans la file du jour
+    await new Promise(r => setTimeout(r, 1500));
+    const held = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
+    const dqHeld = await brandApi('GET', '/admin/acquisition/daily-queue?kind=brand');
+    expect(held.profilePending === true && held.status === 'new' && !held.score && !(dqHeld.data.leads || []).some(l => String(l._id) === String(held._id)), 'Une marque taguée ne doit être ni qualifiée ni proposée avant la lecture de son profil', { status: held.status, profilePending: held.profilePending, score: held.score });
     // Profil de la marque taguée lu ensuite : site depuis le lien de bio et email visible reportés sur la fiche
     const t6b = (await ext('GET', '/next')).data.task;
     expect(t6b && t6b.type === 'read_profile' && t6b.input.kind === 'brand' && /e2eextbrandtag/.test(t6b.input.url), 'Le profil de la marque nouvelle doit être lu à la suite', t6b);
@@ -3220,6 +3225,29 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     expect(r6b.status === 200 && /site trouvé/.test(r6b.data.outcome) && /email trouvé/.test(r6b.data.outcome), 'Site et email de la marque doivent être relevés depuis son profil', r6b);
     const tagLead2 = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
     expect(tagLead2.website === 'https://e2eextbrandtag-test.example/' && tagLead2.email === 'hello@e2eextbrandtag-test.example', 'La fiche marque doit porter le site et l\'email', tagLead2);
+    expect(tagLead2.profilePending === false && tagLead2.profileCheckedAt && /Bio Instagram/.test(tagLead2.description), 'Le profil lu doit lever l\'attente et laisser la bio sur la fiche', tagLead2);
+    {
+      // Marque ou personne : il faut un vrai signe d'entreprise, le nombre d'abonnés ne prouve rien
+      const { looksLikeBrand } = await import('../src/services/browserTasks.js');
+      const { normalizeBrand } = await import('../src/services/acquisition/qualify.js');
+      expect(!looksLikeBrand({ site: 'https://linktr.ee/elise', followers: 25000 }, 'elise_book21 25 k abonnés Lectrice passionnée, chroniques et coups de cœur. Blog personnel'), 'Une blogueuse suivie avec une page de liens n\'est pas une marque');
+      expect(!looksLikeBrand({ site: 'https://monsite.fr', followers: 48000 }, 'revabenn 48 k abonnés Créatrice de contenu UGC, maman de deux enfants. Collabs : contact@revabenn.fr'), 'Une créatrice avec un site n\'est pas une marque');
+      expect(!looksLikeBrand({ site: '', followers: 300 }, 'valette49 300 abonnés'), 'Un profil sans aucun signe d\'entreprise n\'est pas une marque');
+      expect(looksLikeBrand({ site: 'https://wildrefill.fr', followers: 9000 }, 'wildrefill_fr 9 000 abonnés Produit/service Recharges éco-responsables. Livraison offerte dès 30 €'), 'Une boutique avec catégorie et vocabulaire de vente est une marque');
+      expect(looksLikeBrand({ site: 'https://maisonverveine.fr', followers: 800 }, 'maisonverveine 800 abonnés Bougies fabriquées en France. Commande sur notre site'), 'Une petite marque avec son site et un vocabulaire de vente est une marque, même peu suivie');
+      expect(looksLikeBrand({ site: 'https://laboutiquedelise.fr', followers: 30000 }, 'Créatrice de bijoux. Boutique en ligne, livraison en 48 h. Bijoux faits main'), 'Une créatrice qui tient boutique (catégorie, site, vente) reste une marque');
+      const notBrand = normalizeBrand({ sector: 'lifestyle', isBrand: false, sellsProducts: true, fit: 80, signals: [], summary: 'Compte personnel', message: 'Bonjour', emailParagraph: '', hooks: [] });
+      expect(notBrand.fit === 0 && notBrand.sellsProducts === false && notBrand.isBrand === false, 'Un compte reconnu comme une personne par l\'IA doit être noté 0', notBrand);
+      // Profil introuvable sur Instagram : fiche écartée, avec le motif
+      const leadsC = db.collection('leads'); const tasksC = db.collection('browsertasks');
+      const gone = await leadsC.insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-gone-${RUN}`, name: 'e2eextbrandgone', handle: '@e2eextbrandgone', socials: { instagram: 'https://www.instagram.com/e2eextbrandgone/' }, status: 'new', profilePending: true, keyword: 'import:créateurs UGC (tag)', createdAt: new Date(), updatedAt: new Date() });
+      await tasksC.insertOne({ workspaceId: 'default', batchId: new mongoose.Types.ObjectId(String(lot5.data.batch._id)), type: 'read_profile', status: 'pending', attempts: 0, input: { url: 'https://www.instagram.com/e2eextbrandgone/', leadId: gone.insertedId, kind: 'brand' }, createdAt: new Date(Date.now() - 5000), updatedAt: new Date() });
+      const tG = (await ext('GET', '/next')).data.task;
+      const rG = await ext('POST', `/${tG.id}/result`, { url: tG.input.url, title: 'Instagram', text: 'Instagram Accueil Recherche Sorry, this page isn\'t available. The link you followed may be broken, or the page may have been removed. Go back to Instagram.', links: [{ href: 'https://www.instagram.com/', text: 'Instagram' }] });
+      const goneAfter = await leadsC.findOne({ _id: gone.insertedId });
+      expect(/e2eextbrandgone/.test(tG.input.url) && rG.status === 200 && /profil introuvable/.test(rG.data.outcome) && goneAfter.status === 'rejected' && goneAfter.profilePending === false && /profil Instagram introuvable/.test(goneAfter.notes), 'Un profil introuvable doit écarter la fiche, avec le motif', { rG, goneAfter });
+      await leadsC.deleteOne({ _id: gone.insertedId });
+    }
     // Taille des marques : liste des marques refusées ignorée avant toute lecture ; abonnés lus sur le profil → grande (gardée, signalée) ou très grande (écartée)
     {
       const tasks = db.collection('browsertasks'); const leadsC = db.collection('leads');
@@ -3261,7 +3289,7 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     {
       const { companySlugMatches, linkedinWorthy, linkedinQuery } = await import('../src/services/browserTasks.js');
       expect(companySlugMatches('kr-me', 'Krème') && companySlugMatches('%C3%A9lon%C4%B1e-paris', 'Elonie') && companySlugMatches('pierre-cattier-sas', 'Pierre Cattier') && !companySlugMatches('hydros-alumni', 'Hydros') && !companySlugMatches('ecoyoungleaderscamp', 'Young & Eco') && !companySlugMatches('laboratoriovitalis', 'Vitalis') && !companySlugMatches('k-e', 'Krème'), 'L\'identifiant de page LinkedIn doit être rapproché de la marque, lettres accentuées perdues comprises');
-      expect(!linkedinWorthy({ name: 'megane_gil', website: 'https://x.fr' }) && !linkedinWorthy({ name: 'Edson Pina', website: 'https://x.fr', keyword: 'import:créateurs UGC (tag)' }) && !linkedinWorthy({ name: 'Bioskins', website: 'https://www.instagram.com/bioskins' }) && linkedinWorthy({ name: 'Pierre Cattier', website: 'https://pierrecattier.fr', keyword: 'crème bio' }) && linkedinWorthy({ name: 'wildrefill_fr', website: 'https://wild.fr', keyword: 'import:créateurs UGC (tag)', enrich: { socialsSearchedAt: new Date() } }), 'Le lot LinkedIn ne doit retenir que de vraies marques');
+      expect(!linkedinWorthy({ name: 'megane_gil', website: 'https://x.fr' }) && !linkedinWorthy({ name: 'Edson Pina', website: 'https://x.fr', keyword: 'import:créateurs UGC (tag)' }) && !linkedinWorthy({ name: 'Bioskins', website: 'https://www.instagram.com/bioskins' }) && linkedinWorthy({ name: 'Pierre Cattier', website: 'https://pierrecattier.fr', keyword: 'crème bio' }) && linkedinWorthy({ name: 'wildrefill_fr', website: 'https://wild.fr', keyword: 'import:créateurs UGC (tag)', profileCheckedAt: new Date() }) && !linkedinWorthy({ name: 'wildrefill_fr', website: 'https://wild.fr', keyword: 'import:créateurs UGC (tag)', profileCheckedAt: new Date(), profilePending: true }), 'Le lot LinkedIn ne doit retenir que de vraies marques');
       expect(linkedinQuery('wildrefill_fr') === 'wildrefill' && linkedinQuery('cabania.fr') === 'cabania' && linkedinQuery('Pierre Cattier') === 'Pierre Cattier' && linkedinQuery('grain_de_malice') === 'grain de malice', 'Un pseudo doit devenir un nom à chercher', [linkedinQuery('wildrefill_fr'), linkedinQuery('cabania.fr'), linkedinQuery('grain_de_malice')]);
       // Tâche ancienne vers la page d'une autre entreprise : écartée sans être confiée à l'extension, sans compter dans le plafond du jour
       const tasksC = db.collection('browsertasks');

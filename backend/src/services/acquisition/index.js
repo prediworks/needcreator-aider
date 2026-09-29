@@ -77,6 +77,8 @@ async function upsertCandidate(cand, runId) {
 
 /** Qualification IA d'un prospect « new » → « qualified » (ou « rejected » si hors cible) */
 export async function qualifyOne(lead, openNiches) {
+  // Marque taguée dont le profil n'a pas encore été lu : rien ne permet de dire si c'est une marque ou une personne
+  if (lead.profilePending) return lead;
   try {
     // Réseaux cités dans la bio, pour les prospects créés avant l'ajout du champ (requalification)
     const cur = lead.socials?.toObject?.() || lead.socials || {};
@@ -93,7 +95,8 @@ export async function qualifyOne(lead, openNiches) {
     if (Array.isArray(q.hooks)) lead.hooks = q.hooks;
     if (q.firstName) lead.name = lead.name || q.firstName;
     if (q.firstName) lead.firstName = q.firstName;
-    const offTarget = lead.kind === 'brand' ? q.sellsProducts === false : false;
+    const offTarget = lead.kind === 'brand' ? (q.sellsProducts === false || q.isBrand === false) : false;
+    if (lead.kind === 'brand' && q.isBrand === false && !/est une personne, pas une marque/.test(lead.notes || '')) lead.notes = [lead.notes, 'Écarté : ce compte est une personne, pas une marque'].filter(Boolean).join(' · ').slice(0, 2000);
     lead.status = lead.status === 'new' ? (offTarget || lead.score < 30 ? 'rejected' : 'qualified') : lead.status;
     lead.error = undefined;
   } catch (err) {
@@ -207,7 +210,7 @@ export async function runAcquisition({ trigger = 'scheduled', kinds = ['creator'
     job.step = 'qualification';
     const niches = await openNicheKeys();
     // Qualifie aussi les « new » restés en attente d'une exécution précédente (IA indisponible), dans la limite
-    const pending = await Lead.find({ status: 'new', _id: { $nin: created.map(c => c._id) } }).sort({ createdAt: 1 }).limit(Math.max(0, s.dailyLimit - created.length));
+    const pending = await Lead.find({ status: 'new', profilePending: { $ne: true }, _id: { $nin: created.map(c => c._id) } }).sort({ createdAt: 1 }).limit(Math.max(0, s.dailyLimit - created.length));
     for (const lead of [...created, ...pending]) {
       if (!s.ai) break;
       const q = await qualifyOne(lead, niches);
