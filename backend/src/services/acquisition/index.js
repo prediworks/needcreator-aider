@@ -84,6 +84,8 @@ export async function qualifyOne(lead, openNiches) {
     const cur = lead.socials?.toObject?.() || lead.socials || {};
     if (!Object.values(cur).some(Boolean)) { const soc = extractSocials(`${lead.description || ''} ${lead.url || ''}`); if (Object.keys(soc).length) lead.socials = { ...cur, ...soc }; }
     if (lead.source === 'youtube' && lead.url && !lead.socials?.instagram && !lead.socials?.tiktok) { const soc = await channelLinks(lead.url); if (Object.keys(soc).length) lead.socials = { ...(lead.socials?.toObject?.() || lead.socials || {}), ...soc }; }
+    // Annonceur Meta au nom de personne et sans site : signalé sur la fiche et dans la file du jour, jamais écarté (décision du propriétaire)
+    if (lead.kind === 'brand') { const { looksLikePersonName } = await import('./enrich.js'); lead.nameCheck = looksLikePersonName(lead.name) && !lead.website ? 'person' : undefined; }
     const q = await qualifyLead(lead, { openNiches });
     if (!q) return lead;
     lead.niche = q.niche || q.sector || lead.niche;

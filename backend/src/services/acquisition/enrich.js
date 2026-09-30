@@ -45,13 +45,13 @@ const decode = (html) => String(html || '').replace(/&#64;|&commat;/g, '@').repl
 const stripTags = (html) => decode(html).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 const SOCIAL_PATTERNS = {
-  instagram: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9_.]{2,30})\/?(?![\w.])/gi,
+  instagram: /https?:\/\/(?:www\.)?instagram\.com\/([A-Za-z0-9_.]{2,30})\/?(?![\w.:@-])/gi, // un pseudo n'est jamais suivi de « : » (adresse imbriquée « instagram.com/https://… »)
   tiktok: /https?:\/\/(?:www\.)?tiktok\.com\/@([A-Za-z0-9_.]{2,30})/gi,
   youtube: /https?:\/\/(?:www\.)?youtube\.com\/(?:@|c\/|channel\/|user\/)([A-Za-z0-9_.-]{2,40})/gi,
   linkedin: /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:company|in)\/([A-Za-z0-9_.%-]{2,60})/gi,
   facebook: /https?:\/\/(?:www\.|m\.)?facebook\.com\/(?!sharer|share|dialog|plugins|login|policies|privacy|tr\b)([A-Za-z0-9_.-]{3,60})/gi,
 };
-const SOCIAL_IGNORED = { instagram: /^(p|reel|reels|explore|accounts|stories|share|tv|about|legal|developer|api|directory)$/i, tiktok: /^(discover|tag|foryou|explore|search)$/i, youtube: /^(watch|shorts|results|feed|playlist)$/i, facebook: /^(profile\.php|groups|events|pages|photo|watch|marketplace|hashtag|help|business|about|legal)$/i };
+const SOCIAL_IGNORED = { instagram: /^(p|reel|reels|explore|accounts|stories|share|tv|about|legal|developer|api|directory|channel|https?|www|web|embed|oembed)$/i, tiktok: /^(discover|tag|foryou|explore|search)$/i, youtube: /^(watch|shorts|results|feed|playlist)$/i, facebook: /^(profile\.php|groups|events|pages|photo|watch|marketplace|hashtag|help|business|about|legal)$/i };
 const normHandle = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const STOP_WORDS = /^(the|les|le|la|des|de|du|et|and|paris|france|fr|official|officiel|shop|store|boutique|maison|studio|atelier|cosmetics|cosmetiques|beauty|beaute|lab|labo|laboratoire)$/;
 /**
@@ -69,6 +69,26 @@ export function handleMatches(handle, { name = '', website = '' } = {}) {
   return words.some(w => h.includes(w));
 }
 
+// Comptes d'outils et de plateformes affichés sur beaucoup de sites (prestataire, thème, boutique, jeu) : jamais celui d'une marque.
+// Complétés par le réglage « Comptes réseaux toujours ignorés » (chargé par enrichLeadFromSite).
+export const DEFAULT_IGNORED_ACCOUNTS = ['shopify', 'shopifyfr', 'wix', 'wixstudio', 'squarespace', 'wordpress', 'wordpressdotcom', 'woocommerce', 'prestashop', 'webflow', 'google', 'googleplay', 'apple', 'appstore', 'meta', 'facebook', 'instagram', 'tiktok', 'youtube', 'linkedin', 'pinterest', 'snapchat', 'twitter', 'x', 'whatsapp', 'messenger', 'themefullstack', 'pubgmobile', 'klaviyo', 'mailchimp', 'stripe', 'paypal', 'canva', 'notion', 'zapier', 'hubspot', 'trustpilot', 'avisverifies', 'colissimo', 'chronopost', 'mondialrelay', 'laposte', 'amazon', 'amazonfr', 'cdiscount', 'ebay', 'etsy', 'vinted', 'leboncoin', 'lydia', 'alma', 'sumup', 'shopapp'];
+let ignoredAccounts = new Set(DEFAULT_IGNORED_ACCOUNTS);
+export function setIgnoredAccounts(list) { ignoredAccounts = new Set([...DEFAULT_IGNORED_ACCOUNTS, ...String(list || '').split(/[,\n\s]+/).map(v => v.replace(/^@/, '').toLowerCase().trim()).filter(Boolean)]); }
+const isIgnoredAccount = (handle) => ignoredAccounts.has(String(handle || '').toLowerCase().replace(/^@/, ''));
+
+const BRAND_WORDS = /^(maison|studio|atelier|shop|store|boutique|paris|france|cosmetics|cosmetiques|cosmetique|beauty|beaute|lab|labo|laboratoire|laboratoires|group|groupe|company|co|agency|agence|official|officiel|university|universite|school|ecole|institut|clinique|pharma|nutrition|food|foods|home|design|concept|collection|jewelry|bijoux|bio|natural|naturel|skincare|care|sport|sports|fitness|wear|kids|baby|pet|pets|wine|vins|cafe|coffee|tea|the|les|la|le|des|de|du|et|and|by|for|my|mon|ma|eu|fr|com)$/;
+/**
+ * Le nom d'un annonceur ressemble-t-il à un nom de personne ? Deux ou trois mots, lettres seulement, aucun mot de vocabulaire de marque.
+ * Sert à signaler (jamais à écarter) les pages Meta qui portent un nom de personne sans site : souvent des annonceurs douteux.
+ * Une vraie marque peut porter un nom de personne (« Mélusine Besançon Dijon ») : c'est le propriétaire qui tranche, depuis l'avertissement.
+ */
+export function looksLikePersonName(name) {
+  const words = String(name || '').trim().split(/\s+/);
+  if (words.length < 2 || words.length > 3) return false;
+  const norm = (w) => w.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  return words.every(w => /^[A-Za-zÀ-ÿ'-]{2,14}$/.test(w) && !BRAND_WORDS.test(norm(w)));
+}
+
 /**
  * Comptes réseaux sociaux cités dans un texte, une bio ou une page HTML (profils uniquement : pas de publications ni de boutons de partage).
  * Avec `hint` ({ name, website }) : quand une page cite plusieurs comptes d'un même réseau (partenaires, publicités, jeux), celui qui ressemble
@@ -80,7 +100,7 @@ export function extractSocials(text, hint = null) {
     const seen = [];
     for (const m of String(text || '').matchAll(re)) {
       const handle = m[1].replace(/\.$/, '');
-      if (SOCIAL_IGNORED[net]?.test(handle)) continue;
+      if (SOCIAL_IGNORED[net]?.test(handle) || isIgnoredAccount(handle)) continue;
       if (hint && !handleMatches(handle, hint)) { if (!seen.some(x => x[1] === handle)) seen.push([m, handle]); if (seen.length > 40) break; continue; }
       out[net] = net === 'youtube' ? `https://www.youtube.com/${/^UC[\w-]{20,}$/.test(handle) ? 'channel/' : m[0].includes('/c/') ? 'c/' : m[0].includes('/user/') ? 'user/' : '@'}${handle.replace(/^@/, '')}`
         : net === 'tiktok' ? `https://www.tiktok.com/@${handle}` : net === 'instagram' ? `https://www.instagram.com/${handle}/`
@@ -94,7 +114,7 @@ export function extractSocials(text, hint = null) {
   for (const m of String(text || '').matchAll(/\b(tiktok|instagram|insta|ig)\s*[:：]?\s*@([A-Za-z0-9_.]{2,30})/gi)) {
     const net = /tiktok/i.test(m[1]) ? 'tiktok' : 'instagram';
     const h = m[2].replace(/\.$/, "");
-    if (!out[net]) out[net] = net === 'tiktok' ? `https://www.tiktok.com/@${h}` : `https://www.instagram.com/${h}/`;
+    if (!out[net] && !isIgnoredAccount(h)) out[net] = net === 'tiktok' ? `https://www.tiktok.com/@${h}` : `https://www.instagram.com/${h}/`;
   }
   return out;
 }
@@ -168,6 +188,7 @@ export async function enrichLeadFromSite(lead) {
   // Site écrit sans « https:// » et resté dans la description ou le nom (imports anciens) : on le range dans le champ « site »
   if (!site) { site = findBareDomain(`${lead.description || ''} ${lead.name || ''}`); if (site) lead.website = site; }
   if (!site) return false;
+  try { const { getSetting, SETTINGS } = await import('../../models/Setting.js'); setIgnoredAccounts(await getSetting(SETTINGS.ignoredSocialAccounts.key, SETTINGS.ignoredSocialAccounts.default)); } catch { /* réglage indisponible : liste par défaut */ }
   const hint = { name: lead.name, website: site };
   const r = await findEmailOnSite(site, { maxPages: 4, hint });
   if (!r) return false;

@@ -53,7 +53,8 @@ const leadSchema = new mongoose.Schema({
   // Compte cité par un créateur (marque taguée) : tant que son profil n'a pas été lu et reconnu comme celui d'une marque, la fiche n'est ni qualifiée ni proposée
   profilePending: Boolean,
   profileCheckedAt: Date,
-  socialsCheck: { instagram: String, tiktok: String }, // 'ok' ou 'unverified' : compte trouvé sur le site qui ne ressemble pas au nom de la marque
+  socialsCheck: { instagram: String, tiktok: String },
+  nameCheck: String, // 'person' : le nom de l'annonceur ressemble à un nom de personne, sans site (page Meta douteuse) ; signalé, jamais écarté // 'ok' ou 'unverified' : compte trouvé sur le site qui ne ressemble pas au nom de la marque
   sizeTier: { type: String, enum: ['ok', 'large', 'huge'] }, // taille estimée d'une marque (abonnés, annonces, liste des marques refusées) : « large » répond rarement, « huge » est écartée
   // Marque suggérée par un créateur : elle lui est réservée quelques jours pour sa candidature spontanée
   suggestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
