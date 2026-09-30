@@ -171,8 +171,9 @@ export async function sendFallback(lead, text, { via = 'email' } = {}) {
       } catch (err) { logger.warn(`Fallback reply in thread failed for ${lead._id}: ${err.message}`); }
     }
     if (!threaded) {
-      const { sendEmail } = await import('./email.js');
-      try { await sendEmail(lead.email, `Votre vidéo pour ${lead.name} : une autre voie`, html, body, { raw: true, lang: 'fr' }); }
+      const { sendEmail, showcaseSender } = await import('./email.js');
+      const sender = await showcaseSender();
+      try { await sendEmail(lead.email, `Votre vidéo pour ${lead.name} : une autre voie`, html, body, { raw: true, lang: 'fr', from: sender, replyTo: sender }); }
       catch (err) { throw Object.assign(new Error(`Envoi impossible à ${lead.email} : adresse refusée par le serveur d'envoi. Vérifiez l'adresse sur la fiche, ou copiez le texte pour un message privé.`), { status: 502, cause: err }); }
     }
   }

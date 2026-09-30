@@ -90,6 +90,10 @@ export default async function HowItWorksPage() {
               <p className="text-neutral-600">À chaque devis accepté, un contrat PDF reprend les parties, la mission, le prix et les droits cédés. Rappel 30 jours avant expiration, prolongation en un clic.</p>
             </div>
             <div>
+              <div className="font-semibold text-neutral-900 mb-1">Candidature spontanée en vidéo</div>
+              <p className="text-neutral-600">Un créateur tourne une vidéo avec votre produit sans que vous l&apos;ayez demandé. Vous la regardez en filigrane, vous ne payez que si vous la gardez. <Link href="/candidature-spontanee" className="text-primary-600 underline">Comment ça marche</Link></p>
+            </div>
+            <div>
               <div className="font-semibold text-neutral-900 mb-1">Garantie de remplacement</div>
               <p className="text-neutral-600">Un créateur en retard de plus de {cfg.replacementGraceHours} h ? La marque confie la mission à un autre devis, le montant bloqué est libéré, sans frais.</p>
             </div>

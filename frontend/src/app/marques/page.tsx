@@ -18,7 +18,7 @@ export default async function BrandsPage() {
   const days = plural(cfg.autoApprovalDays, 'jour');
 
   const reasons: [any, string, string][] = [
-    [Clapperboard, 'Des vidéos déjà tournées pour vos produits', 'Nos créateurs peuvent vous envoyer une candidature spontanée : une vidéo finie, tournée avec votre produit, que vous regardez en filigrane. Vous ne payez que celles que vous gardez, droits inclus.'],
+    [Clapperboard, 'Des vidéos déjà tournées pour vos produits', 'Nos créateurs peuvent vous envoyer une candidature spontanée : une vidéo finie, tournée avec votre produit, que vous regardez en filigrane. Vous ne payez que celles que vous gardez, droits inclus. Voir la page « Candidature spontanée en vidéo ».'],
     [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
     [Gift, 'Gifting : payez en produit', `Pas de budget vidéo ? Envoyez votre produit (${cfg.giftingMinProductValue} € de valeur minimum) à la place d'une rémunération. Le créateur qui accepte livre ses vidéos, contrôlées comme une mission payée, et vous gardez les droits prévus au brief. Gratuit en Pro, ${cfg.giftingFeePerVideo} € HT par vidéo livrée avec l'offre gratuite.`],
     [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],

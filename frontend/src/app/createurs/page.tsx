@@ -2,7 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
-import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark, Briefcase } from 'lucide-react';
+import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark, Briefcase, Clapperboard } from 'lucide-react';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
@@ -106,6 +106,18 @@ export default async function CreatorsPage() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Candidature spontanée : tourner d'abord, être choisi ensuite */}
+      <section className="py-16 bg-primary-50">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-[auto_1fr_auto] gap-6 items-center">
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center"><Clapperboard className="w-8 h-8 text-primary-600" /></div>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 mb-2">N&apos;attendez pas d&apos;être choisi : la candidature spontanée en vidéo</h2>
+            <p className="text-neutral-700">Vous avez chez vous un produit d&apos;une marque que nous démarchons ? Tournez 20 secondes, fixez votre prix. La marque reçoit la vidéo finie, en filigrane, et l&apos;achète en un clic. Sinon, la vidéo reste à vous. Les marques qui ont demandé une vidéo sont affichées en premier.</p>
+          </div>
+          <Link href="/candidature-spontanee"><Button variant="outline">Découvrir</Button></Link>
         </div>
       </section>
 

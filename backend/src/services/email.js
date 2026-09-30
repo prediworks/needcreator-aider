@@ -133,27 +133,35 @@ async function localize(to, subject, html, { raw, lang }) {
   } catch (err) { logger.warn(`Email translation skipped for ${to}: ${err?.message || err}`); return { subject, html, lang: 'fr' }; }
 }
 
-export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '', lang = null } = {}) {
+export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '', lang = null, from = '' } = {}) {
   try {
     const loc = await localize(to, subject, html, { raw, lang });
     subject = loc.subject; html = loc.html;
     const full = raw ? html : renderLayout(html, { preheader, lang: loc.lang });
-    const info = await transporter.sendMail({
-      from: config.email.fromEmail,
-      to,
-      subject,
-      html: full,
-      text: text || htmlToText(raw ? html : html),
-      ...(attachments.length ? { attachments } : {}),
-      ...(replyTo ? { replyTo } : {}),
-    });
-    
+    const mail = { to, subject, html: full, text: text || htmlToText(raw ? html : html), ...(attachments.length ? { attachments } : {}), ...(replyTo ? { replyTo } : {}) };
+    let info;
+    try {
+      info = await transporter.sendMail({ from: from || config.email.fromEmail, ...mail });
+    } catch (error) {
+      // Expéditeur particulier refusé par le serveur d'envoi (adresse non autorisée sur ce compte) : second essai avec l'adresse habituelle, en gardant l'adresse de réponse
+      if (!from || from === config.email.fromEmail) throw error;
+      logger.warn(`Sender ${from} refused (${error.message}); retrying from ${config.email.fromEmail}`);
+      info = await transporter.sendMail({ from: config.email.fromEmail, ...mail, replyTo: replyTo || from });
+    }
+
     logger.info(`Email sent: ${info.messageId}`);
     return info;
   } catch (error) {
     logger.error('Failed to send email:', error);
     throw error;
   }
+}
+
+/** Adresse d'envoi et de réponse des propositions de vidéo aux marques (réglage), sinon l'adresse habituelle sans réponse possible */
+export async function showcaseSender() {
+  const { getSetting, SETTINGS } = await import('../models/Setting.js');
+  const v = String(await getSetting(SETTINGS.showcaseFromEmail.key, SETTINGS.showcaseFromEmail.default) || '').trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v) ? v : '';
 }
 
 /**
@@ -786,7 +794,8 @@ export async function sendShowcaseOffer(email, brandName, creatorName, productNa
     ${button(link, 'Voir la vidéo et le devis')}
     <p style="color:#666;font-size:13px">Le paiement est bloqué à l'acceptation et versé au créateur seulement après votre validation. La version sans filigrane vous est livrée dans la minute.</p>
   `;
-  return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.` });
+  const sender = await showcaseSender();
+  return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.`, from: sender, replyTo: sender });
 }
 
 /** La marque suggérée par le créateur est validée : il peut tourner et déposer sa vidéo */

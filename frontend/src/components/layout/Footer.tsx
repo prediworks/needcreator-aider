@@ -26,6 +26,7 @@ export default function Footer() {
             <li><Link href="/devis-ugc" className="hover:text-primary-600">Devis UGC gratuit</Link></li>
             <li><Link href="/brief-depuis-url" className="hover:text-primary-600">Brief depuis un lien produit</Link></li>
             <li><Link href="/contenus-et-droits" className="hover:text-primary-600">Contenus &amp; droits</Link></li>
+            <li><Link href="/candidature-spontanee" className="hover:text-primary-600">Candidature spontanée en vidéo</Link></li>
           </ul>
         </div>
         <div>
