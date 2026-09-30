@@ -2719,6 +2719,7 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const qm = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     const ids = qm.data.leads.map(l => String(l._id));
     const iOld = ids.indexOf(String(mailedOld.insertedId)), iFresh = ids.indexOf(String(dq1));
+    expect(iOld < 0 || (/je vous ai écrit par email le/.test(qm.data.leads[iOld].followUpMessage || '') && qm.data.leads[iOld].followUpMessage.length <= 320 && (iFresh < 0 || !qm.data.leads[iFresh].followUpMessage)), 'Un prospect déjà joint par email reçoit un message de relance court, pas la présentation complète', qm.data.leads[iOld]?.followUpMessage);
     expect(iOld >= 0 && !ids.includes(String(mailedNew.insertedId)) && !ids.includes(String(mailedReplied.insertedId)) && (iFresh === -1 || iFresh < iOld) && qm.data.leads[iOld].mailing?.pushedAt, 'Un prospect parti par le mailing depuis plus de 7 jours sans réponse entre dans la file, après ceux jamais joints ; un envoi récent ou une réponse l\'en écartent', { iOld, iFresh, recent: ids.includes(String(mailedNew.insertedId)), replied: ids.includes(String(mailedReplied.insertedId)) });
     const dmDone = await brandApi('PATCH', `/admin/acquisition/leads/${mailedOld.insertedId}`, { status: 'contacted', contactedVia: 'instagram' });
     const qm2 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');

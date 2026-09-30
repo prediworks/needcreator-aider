@@ -434,7 +434,9 @@ export async function dailyQueue(req, res) {
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, contactedAt: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
+    const { followUpMessage } = await import('../services/acquisition/followUp.js');
+    for (const l of leads) { const f = followUpMessage(l); if (f) l.followUpMessage = f; } // relance courte pour les prospects déjà joints par email
     res.json({ kind, goal, doneToday, left, waiting, leads });
   } catch (error) {
     logger.error('dailyQueue failed:', error);

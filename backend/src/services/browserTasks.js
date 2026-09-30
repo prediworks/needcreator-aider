@@ -237,7 +237,9 @@ export async function queuePrefillMessage(lead, { network, createdBy, url: urlOv
   const net = ['instagram', 'tiktok', 'linkedin'].includes(network) ? network : (lead.socials?.instagram ? 'instagram' : lead.socials?.tiktok ? 'tiktok' : 'linkedin');
   const url = urlOverride && /^https:\/\/(www\.)?linkedin\.com\/in\//i.test(urlOverride) ? urlOverride : lead.socials?.[net]; // urlOverride : profil d'un contact LinkedIn de la fiche
   if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
-  if (!lead.message) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
+  const { followUpMessage } = await import('./acquisition/followUp.js');
+  const text = followUpMessage(lead) || lead.message; // prospect déjà joint par email : relance courte plutôt que la présentation complète
+  if (!text) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
   const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;
   // Un seul lot « Messages du jour » par journée : rouvert s'il s'était fermé après le message précédent
   let batch = await BrowserTaskBatch.findOne({ label }).sort({ createdAt: 1 });
@@ -246,7 +248,7 @@ export async function queuePrefillMessage(lead, { network, createdBy, url: urlOv
   // Une seule préparation en attente par prospect
   const existing = await BrowserTask.findOne({ type: 'prefill_message', status: { $in: ['pending', 'running'] }, 'input.leadId': lead._id }).lean();
   if (existing) return { task: existing, batch, already: true };
-  const task = await BrowserTask.create({ workspaceId: 'default', batchId: batch._id, type: 'prefill_message', input: { url, text: lead.message, leadId: lead._id, network: net } });
+  const task = await BrowserTask.create({ workspaceId: 'default', batchId: batch._id, type: 'prefill_message', input: { url, text, leadId: lead._id, network: net } });
   batch.counts.total += 1; await batch.save();
   return { task, batch, already: false };
 }

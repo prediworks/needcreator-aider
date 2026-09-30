@@ -98,7 +98,8 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
   const l = q.leads?.[0];
   const pct = Math.min(100, Math.round((q.doneToday / q.goal) * 100));
   const open = async (net: string, url: string) => {
-    if (l?.message) { try { await navigator.clipboard.writeText(l.message); toast.success('Message copié : collez-le dans la conversation', { duration: 5000 }); } catch { /* presse-papiers indisponible */ } }
+    const text = l?.followUpMessage || l?.message;
+    if (text) { try { await navigator.clipboard.writeText(text); toast.success(l?.followUpMessage ? 'Relance copiée : collez-la dans la conversation' : 'Message copié : collez-le dans la conversation', { duration: 5000 }); } catch { /* presse-papiers indisponible */ } }
     setVia(net);
     window.open(url, '_blank', 'noopener,noreferrer');
   };
@@ -123,7 +124,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
               {l.signals?.length > 0 && <p className="text-xs text-neutral-500 mt-0.5">{l.signals.join(' · ')}</p>}
             </div>
           </div>
-          <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.'}</div>
+          <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-lg p-3 text-sm text-neutral-800 whitespace-pre-line" data-testid="daily-message">{l.followUpMessage ? <><span className="text-xs font-medium text-blue-800">Relance (l&apos;email a déjà tout expliqué) : </span>{l.followUpMessage}</> : (l.message || 'Pas de message préparé : cliquez « Requalifier » sur la fiche.')}</div>
           {showcase && (
             <div className="mt-3 rounded-lg border border-primary-200 bg-primary-50/40 p-3 text-sm" data-testid="daily-showcase">
               <div className="font-medium text-neutral-900">🎬 Candidature spontanée disponible : {showcase.productName} · {showcase.price} € HT · par {showcase.creatorName}{showcase.status === 'sent' ? ` · déjà proposée${showcase.sentAt ? ` le ${formatDateTime(showcase.sentAt)}` : ''}` : ''}{!showcase.ready ? ' · filigrane en cours' : ''}</div>
