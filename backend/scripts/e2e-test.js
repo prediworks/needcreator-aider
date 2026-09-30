@@ -2919,6 +2919,8 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com` });
     expect([200, 500].includes(sent.status), 'La proposition par email doit être tentée', sent); // l'adresse de test est rejetée par le serveur d'envoi selon l'environnement
     // Message privé : marquée proposée, le créateur est prévenu ; la première ouverture de la page par la marque le prévient aussi
+    const sentTt = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'tiktok' });
+    expect(sentTt.status === 200 && /tiktok/.test(sentTt.data.message) && sentTt.data.text, 'La proposition en message privé doit accepter TikTok et LinkedIn', sentTt);
     const sentDm = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'instagram' });
     expect(sentDm.status === 200 && /candidature spontanée/.test(sentDm.data.text) && sentDm.data.link, 'La proposition en message privé doit donner le message avec le lien', sentDm);
     await fetch(`${API}/external-quotes/public/${token}`);

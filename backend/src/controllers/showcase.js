@@ -128,9 +128,9 @@ export async function sendShowcaseToLead(req, res) {
     if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
     const sv = await ShowcaseVideo.findOne({ leadId: lead._id, status: { $in: ['ready', 'sent'] } }).sort({ createdAt: -1 });
     if (!sv) return res.status(404).json({ error: 'Aucune vidéo vitrine pour cette marque' });
-    const via = req.body?.via === 'instagram' ? 'instagram' : 'email';
+    const via = ['instagram', 'tiktok', 'linkedin'].includes(req.body?.via) ? req.body.via : 'email';
     const r = await offerShowcase(sv, lead, { via, email: req.body?.email });
-    res.json({ message: via === 'email' ? `Vidéo proposée par email à ${r.to}` : 'Marquée comme proposée en message privé', link: r.link, text: r.text });
+    res.json({ message: via === 'email' ? `Vidéo proposée par email à ${r.to}` : `Marquée comme proposée en message privé (${via})`, link: r.link, text: r.text });
   } catch (error) {
     if (error.status) return res.status(error.status).json({ error: error.message });
     logger.error('sendShowcaseToLead failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` });
