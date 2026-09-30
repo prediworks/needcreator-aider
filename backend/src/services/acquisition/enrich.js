@@ -52,18 +52,43 @@ const SOCIAL_PATTERNS = {
   facebook: /https?:\/\/(?:www\.|m\.)?facebook\.com\/(?!sharer|share|dialog|plugins|login|policies|privacy|tr\b)([A-Za-z0-9_.-]{3,60})/gi,
 };
 const SOCIAL_IGNORED = { instagram: /^(p|reel|reels|explore|accounts|stories|share|tv|about|legal|developer|api|directory)$/i, tiktok: /^(discover|tag|foryou|explore|search)$/i, youtube: /^(watch|shorts|results|feed|playlist)$/i, facebook: /^(profile\.php|groups|events|pages|photo|watch|marketplace|hashtag|help|business|about|legal)$/i };
-/** Comptes réseaux sociaux cités dans un texte, une bio ou une page HTML (profils uniquement : pas de publications ni de boutons de partage) */
-export function extractSocials(text) {
+const normHandle = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const STOP_WORDS = /^(the|les|le|la|des|de|du|et|and|paris|france|fr|official|officiel|shop|store|boutique|maison|studio|atelier|cosmetics|cosmetiques|beauty|beaute|lab|labo|laboratoire)$/;
+/**
+ * Le pseudo d'un compte (« letempsdescerisesjeans ») ressemble-t-il au nom de la marque (« Le Temps des Cerises ») ou à son domaine (« temps-des-cerises.fr ») ?
+ * Un mot significatif du nom ou du domaine (4 lettres au moins) contenu dans le pseudo suffit, ou l'inverse.
+ */
+export function handleMatches(handle, { name = '', website = '' } = {}) {
+  const h = normHandle(String(handle || '').replace(/^https?:\/\/[^/]+\/@?/, '').replace(/\/.*$/, ''));
+  if (h.length < 3) return false;
+  let domain = '';
+  try { domain = new URL(/^https?:/.test(website) ? website : `https://${website}`).hostname.replace(/^www\./, '').split('.').slice(0, -1).join(''); } catch { /* pas de site */ }
+  const wholes = [normHandle(name), normHandle(domain)].filter(v => v.length >= 4);
+  if (wholes.some(w => h.includes(w) || w.includes(h))) return true;
+  const words = `${name} ${domain.replace(/[-_]/g, ' ')}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !STOP_WORDS.test(w));
+  return words.some(w => h.includes(w));
+}
+
+/**
+ * Comptes réseaux sociaux cités dans un texte, une bio ou une page HTML (profils uniquement : pas de publications ni de boutons de partage).
+ * Avec `hint` ({ name, website }) : quand une page cite plusieurs comptes d'un même réseau (partenaires, publicités, jeux), celui qui ressemble
+ * à la marque est retenu ; sinon le premier, comme avant.
+ */
+export function extractSocials(text, hint = null) {
   const out = {};
   for (const [net, re] of Object.entries(SOCIAL_PATTERNS)) {
+    const seen = [];
     for (const m of String(text || '').matchAll(re)) {
       const handle = m[1].replace(/\.$/, '');
       if (SOCIAL_IGNORED[net]?.test(handle)) continue;
+      if (hint && !handleMatches(handle, hint)) { if (!seen.some(x => x[1] === handle)) seen.push([m, handle]); if (seen.length > 40) break; continue; }
       out[net] = net === 'youtube' ? `https://www.youtube.com/${/^UC[\w-]{20,}$/.test(handle) ? 'channel/' : m[0].includes('/c/') ? 'c/' : m[0].includes('/user/') ? 'user/' : '@'}${handle.replace(/^@/, '')}`
         : net === 'tiktok' ? `https://www.tiktok.com/@${handle}` : net === 'instagram' ? `https://www.instagram.com/${handle}/`
         : net === 'linkedin' ? `https://www.linkedin.com/${m[0].includes('/in/') ? 'in' : 'company'}/${handle}/` : `https://www.facebook.com/${handle}`;
       break;
     }
+    // Aucun compte ne ressemble à la marque : le premier est gardé, à vérifier (signalé par l'appelant)
+    if (!out[net] && seen.length) { const [m, handle] = seen[0]; out[net] = net === 'youtube' ? `https://www.youtube.com/${/^UC[\w-]{20,}$/.test(handle) ? 'channel/' : m[0].includes('/c/') ? 'c/' : m[0].includes('/user/') ? 'user/' : '@'}${handle.replace(/^@/, '')}` : net === 'tiktok' ? `https://www.tiktok.com/@${handle}` : net === 'instagram' ? `https://www.instagram.com/${handle}/` : net === 'linkedin' ? `https://www.linkedin.com/${m[0].includes('/in/') ? 'in' : 'company'}/${handle}/` : `https://www.facebook.com/${handle}`; }
   }
   // Pseudos @tiktok / @instagram écrits dans une bio : « TikTok : @moncompte »
   for (const m of String(text || '').matchAll(/\b(tiktok|instagram|insta|ig)\s*[:：]?\s*@([A-Za-z0-9_.]{2,30})/gi)) {
@@ -75,7 +100,7 @@ export function extractSocials(text) {
 }
 
 /** Cherche un email sur une page, puis sur ses pages contact / mentions légales (même domaine) ; relève aussi les réseaux sociaux affichés */
-export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
+export async function findEmailOnSite(startUrl, { maxPages = 4, hint = null } = {}) {
   if (!startUrl) return null;
   let base;
   try { base = new URL(startUrl.startsWith('http') ? startUrl : `https://${startUrl}`); } catch { return null; }
@@ -90,7 +115,7 @@ export async function findEmailOnSite(startUrl, { maxPages = 4 } = {}) {
     visited.add(url);
     const html = await fetchPage(url, { maxBytes: 6 * 1024 * 1024 }); // boutiques en ligne : pages d'accueil de 1 à 4 Mo, le pied de page (contact, mentions légales) est tout à la fin
     if (!html) continue;
-    for (const [k, v] of Object.entries(extractSocials(html))) if (!socials[k]) socials[k] = v;
+    for (const [k, v] of Object.entries(extractSocials(html, hint))) if (!socials[k] || (hint && !handleMatches(socials[k], hint) && handleMatches(v, hint))) socials[k] = v; // un compte qui ressemble à la marque remplace un compte douteux vu plus tôt
     // mailto: en priorité
     for (const m of html.matchAll(/mailto:([^"'?\s>]+)/gi)) candidates.push(...extractEmails(decodeURIComponent(m[1])));
     candidates.push(...extractEmails(stripTags(html)));
@@ -143,11 +168,16 @@ export async function enrichLeadFromSite(lead) {
   // Site écrit sans « https:// » et resté dans la description ou le nom (imports anciens) : on le range dans le champ « site »
   if (!site) { site = findBareDomain(`${lead.description || ''} ${lead.name || ''}`); if (site) lead.website = site; }
   if (!site) return false;
-  const r = await findEmailOnSite(site, { maxPages: 4 });
+  const hint = { name: lead.name, website: site };
+  const r = await findEmailOnSite(site, { maxPages: 4, hint });
   if (!r) return false;
   const cur = lead.socials?.toObject?.() || lead.socials || {};
   const merged = { ...r.socials, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v)) };
   if (Object.keys(merged).length) lead.socials = merged;
+  // Compte trouvé sur le site qui ne ressemble ni au nom ni au domaine : gardé, mais signalé « à vérifier » (partenaire, publicité, jeu…)
+  const check = lead.socialsCheck?.toObject?.() || lead.socialsCheck || {};
+  for (const net of ['instagram', 'tiktok']) { if (r.socials?.[net] && !cur[net]) check[net] = handleMatches(r.socials[net], hint) ? 'ok' : 'unverified'; }
+  if (Object.keys(check).length) lead.socialsCheck = check;
   if (r.email && !lead.email) { lead.email = r.email; lead.emailSource = r.source; return true; }
   return false;
 }

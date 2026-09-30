@@ -3256,6 +3256,11 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
       expect(!looksLikeBrand({ site: 'https://linktr.ee/elise', followers: 25000 }, 'elise_book21 25 k abonnés Lectrice passionnée, chroniques et coups de cœur. Blog personnel'), 'Une blogueuse suivie avec une page de liens n\'est pas une marque');
       expect(!looksLikeBrand({ site: 'https://monsite.fr', followers: 48000 }, 'revabenn 48 k abonnés Créatrice de contenu UGC, maman de deux enfants. Collabs : contact@revabenn.fr'), 'Une créatrice avec un site n\'est pas une marque');
       expect(!looksLikeBrand({ site: '', followers: 300 }, 'valette49 300 abonnés'), 'Un profil sans aucun signe d\'entreprise n\'est pas une marque');
+      const { handleMatches, extractSocials } = await import('../src/services/acquisition/enrich.js');
+      expect(handleMatches('letempsdescerisesjeans', { name: 'Le Temps des Cerises', website: 'https://www.letempsdescerises.com' }) && handleMatches('verveine_paris', { name: 'Maison Verveine', website: 'https://maisonverveine.fr' }) && !handleMatches('pubgmobile', { name: 'Dhaka University', website: 'https://dhakauni.example.com' }) && !handleMatches('nike', { name: 'Oh My Cream', website: 'https://ohmycream.com' }), 'Un pseudo doit être rapproché du nom ou du domaine de la marque');
+      const htmlSoc = '<a href="https://www.instagram.com/pubgmobile/">jeu</a> <a href="https://www.instagram.com/dhakauni/">nous</a> <a href="https://www.tiktok.com/@pubgmobile">jeu</a>';
+      const picked = extractSocials(htmlSoc, { name: 'Dhaka University', website: 'https://dhakauni.example.com' });
+      expect(picked.instagram === 'https://www.instagram.com/dhakauni/' && picked.tiktok === 'https://www.tiktok.com/@pubgmobile', 'Parmi plusieurs comptes, celui qui ressemble à la marque est retenu ; sans candidat, le premier est gardé', picked);
       const f1 = await extractProfile({ text: 'valette49 300 abonnés Bougies', links: [], emails: [] }, 'https://www.instagram.com/valette49/');
       const f2 = await extractProfile({ text: 'marque_2 1,2 M abonnés Boutique officielle', links: [], emails: [] }, 'https://www.instagram.com/marque_2/');
       expect(f1.followers === 300 && f2.followers === 1200000, 'Le nombre d\'abonnés ne doit pas absorber les chiffres du pseudo', [f1.followers, f2.followers]);

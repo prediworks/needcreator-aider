@@ -133,7 +133,7 @@ export async function listLeads(req, res) {
   if (hasEmail === '1') filter.email = { $ne: null };
   if (hasEmail === '0') filter.email = null;
   if (minScore) filter.score = { $gte: parseInt(minScore, 10) };
-  if (q) filter.$or = [{ name: { $regex: q, $options: 'i' } }, { handle: { $regex: q, $options: 'i' } }, { email: { $regex: q, $options: 'i' } }, { niche: { $regex: q, $options: 'i' } }];
+  if (q) filter.$or = [{ name: { $regex: q, $options: 'i' } }, { handle: { $regex: q, $options: 'i' } }, { email: { $regex: q, $options: 'i' } }, { niche: { $regex: q, $options: 'i' } }, { website: { $regex: q, $options: 'i' } }, { 'socials.instagram': { $regex: q, $options: 'i' } }, { 'socials.tiktok': { $regex: q, $options: 'i' } }]; // la recherche couvre aussi le site et les comptes : retrouver toutes les fiches qui portent un même compte
   const lim = Math.min(500, parseInt(limit, 10) || 100);
   const [leads, total] = await Promise.all([Lead.find(filter).sort({ score: -1, createdAt: -1 }).skip((parseInt(page, 10) - 1) * lim).limit(lim).lean(), Lead.countDocuments(filter)]);
   res.json({ leads, total, page: parseInt(page, 10), limit: lim });
@@ -428,7 +428,7 @@ export async function dailyQueue(req, res) {
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
     res.json({ kind, goal, doneToday, left, waiting, leads });
   } catch (error) {
     logger.error('dailyQueue failed:', error);
