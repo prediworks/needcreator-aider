@@ -16,7 +16,7 @@ const schema = z.object({ intent: z.enum(REPLY_INTENTS), summary: z.string().max
 const SYSTEM = `Tu aides NeedCreator (plateforme française qui met en relation marques et créateurs de vidéos UGC : le créateur fixe son prix, le paiement est bloqué avant tournage, contrat de cession de droits, commission uniquement sur les missions payées via la plateforme, inscription gratuite). Tu lis la réponse d'un prospect à un email de prospection et tu proposes une réponse courte, en français, vouvoiement, sans emoji, signée « L'équipe NeedCreator ». Réponds en JSON.`;
 
 /** Classe une réponse et propose un texte : intent, résumé, réponse (texte brut), besoin d'un humain */
-export async function classifyReply(lead, text) {
+export async function classifyReply(lead, text, { via = 'email', emailFound = '' } = {}) {
   if (!aiConfig().configured) return null;
   const signup = lead.kind === 'creator' ? `${config.cors.origin}/register?role=creator&from=${encodeURIComponent((lead.handle || '').replace(/^@/, ''))}` : `${config.cors.origin}/register?role=brand&lead=${lead._id}&email=${encodeURIComponent(lead.email || '')}&company=${encodeURIComponent(lead.name || '')}`;
   const prompt = `Prospect : ${lead.kind === 'creator' ? 'créateur' : 'marque'} « ${lead.name} »${lead.niche ? ` (${lead.niche})` : ''}. Résumé : ${lead.aiSummary || 'inconnu'}.
@@ -27,7 +27,10 @@ Réponds avec :
 - intent : interested (veut en savoir plus, s'inscrire, discuter), question (pose une question précise), redirect (renvoie vers une adresse email, un formulaire ou une autre personne pour ce type de demande, y compris par réponse automatique : c'est une porte ouverte, pas un refus), not_now (pas maintenant, plus tard), refusal (non), unsubscribe (demande de ne plus écrire), out_of_office (réponse automatique d'absence), other
 - summary : une phrase
 - reply : texte brut (pas de HTML, sauts de ligne autorisés), 3 à 6 phrases, qui répond précisément ; si intent = redirect, remercie en une phrase et confirme qu'on écrit à l'adresse ou remplit le formulaire indiqué (ne pas réexpliquer NeedCreator) ; si intent = interested, invite à s'inscrire avec ce lien exact : ${signup} ; si question, réponds à la question avec ce que tu sais de NeedCreator et propose le même lien ; si refusal ou unsubscribe, remercie en une phrase et confirme qu'on ne réécrira pas ; si not_now, propose de reprendre contact plus tard ; si out_of_office, reply vide
-- needsHuman : true si la question dépasse ce que tu sais (tarifs précis d'un créateur, juridique, partenariat spécial) ou si le ton demande une réponse humaine`;
+${lead.kind === 'brand' ? `
+Cas particulier, prioritaire sur les règles ci-dessus : si la marque demande des prix, des tarifs ou une grille (« envoyez-nous vos prix »), intent = question et reply suit exactement ce plan, en 8 à 12 phrases : 1) merci ; 2) les prix sont fixés par chaque créateur dans un devis, en général entre 80 et 250 € HT la vidéo de 15 à 30 secondes, droits inclus, payés seulement après validation de la vidéo ; 3) « Deux façons de recevoir ces devis : » ; 4) la plus rapide : un créateur qui possède déjà un produit de la marque tourne une vidéo, la marque la reçoit finie avec son prix et ne paie que si elle la garde ; demander quel produit elle préfère, lien sous dix jours ; 5) pour un besoin précis : son compte est prêt avec une première campagne préparée d'après sa publicité, elle relit, publie, et les créateurs vérifiés envoient leurs devis, avec ce lien exact : ${signup} ; 6) terminer par « Quelle voie vous convient ? ». needsHuman = false dans ce cas.` : ''}
+${via !== 'email' && emailFound ? `Cette réponse a été reçue en message privé (${via}) et donne l'adresse ${emailFound} : reply est le texte complet de l'email à envoyer à cette adresse (salutation, corps, sans objet), pas un message privé, et il ne se contente pas de confirmer qu'on écrit : il répond sur le fond selon les règles ci-dessus.` : ''}
+- needsHuman : true si la question dépasse ce que tu sais (juridique, partenariat spécial) ou si le ton demande une réponse humaine ; false pour une demande de prix ou de fonctionnement`;
   return generateJson({ system: SYSTEM, prompt, schema, normalize: (o) => ({ ...o, summary: String(o.summary || '').slice(0, 200), reply: String(o.reply || '').slice(0, 1200), needsHuman: !!o.needsHuman }) });
 }
 
@@ -101,10 +104,10 @@ export async function recordReply(lead, text, { via = 'instagram' } = {}) {
   if (!clean) return { lead, extracted: {} };
   lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), replyText: clean.slice(0, 4000), replyAt: new Date(), replyVia: via };
   lead.status = 'replied';
-  const c = await classifyReply(lead, clean).catch(() => null);
-  if (c) { lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply; }
   const extracted = {};
   const emails = (clean.match(EMAIL_RE) || []).map(e => e.toLowerCase()).filter(e => !/noreply|no-reply|@needcreator\./.test(e));
+  const c = await classifyReply(lead, clean, { via, emailFound: emails[0] || '' }).catch(() => null);
+  if (c) { lead.mailing.replyIntent = c.intent; lead.mailing.replySummary = c.summary; lead.mailing.replySuggestion = c.reply; }
   const forms = (clean.match(URL_RE) || []).filter(u => !/instagram\.com|tiktok\.com|facebook\.com|linkedin\.com/.test(u));
   if (emails.length && !lead.email) { lead.email = emails[0]; lead.emailSource = `réponse ${via}`; extracted.email = emails[0]; }
   else if (emails.length) extracted.email = emails[0];

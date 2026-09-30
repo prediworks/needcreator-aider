@@ -41,7 +41,7 @@ const leadSchema = new mongoose.Schema({
   externalCreatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalCreator' },
   notes: String,
   error: String,
-  mailing: { provider: String, listId: String, pushedAt: Date, replyAt: Date, replyVia: String, replyText: String, replyIntent: String, replySummary: String, replySuggestion: String, replyMessageId: String, replySentAt: Date, replySentText: String, bounced: Boolean, unsubscribedAt: Date, removedAt: Date },
+  mailing: { provider: String, listId: String, pushedAt: Date, replyAt: Date, replyVia: String, replyText: String, replyIntent: String, replySummary: String, replySuggestion: String, replyMessageId: String, replySentAt: Date, replySentText: String, replySentVia: String, bounced: Boolean, unsubscribedAt: Date, removedAt: Date },
   showcaseRequestedAt: Date, // la marque a dit oui à une vidéo tournée pour elle : affichée en priorité aux créateurs
   // Demande explicite (« oui vidéo » ou saisie par l'équipe) : produit visé, créateurs prévenus, alerte à J+7, réponse de repli à J+10, clôture
   showcaseRequest: {

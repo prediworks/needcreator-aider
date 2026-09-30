@@ -110,15 +110,26 @@ export async function handleReply(lead, provider, s, out = {}) {
 
 /** Envoie une réponse (texte brut → HTML) dans le fil du prospect */
 export async function sendLeadReply(lead, text) {
+  const body = String(text).trim();
+  const html = body.split(/\n{2,}/).map(p => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('');
   const provider = mailingProvider();
-  if (!provider) throw new Error('Outil de mailing non configuré');
-  if (!lead.mailing?.replyMessageId) lead.mailing.replyMessageId = await provider.findThread(lead.email);
-  if (!lead.mailing.replyMessageId) throw new Error('Fil de discussion introuvable dans l\'outil de mailing');
-  const html = String(text).trim().split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-  await provider.sendReply(lead.mailing.replyMessageId, html);
-  lead.mailing.replySentAt = new Date(); lead.mailing.replySentText = String(text).trim().slice(0, 2000);
+  // Dans le fil de l'outil de mailing quand la marque a été jointe par email ; sinon (réponse reçue en message privé qui donne une adresse) : email direct
+  let via = 'direct';
+  if (provider && lead.mailing?.pushedAt) {
+    if (!lead.mailing.replyMessageId) lead.mailing.replyMessageId = await provider.findThread(lead.email).catch(() => null);
+    if (lead.mailing.replyMessageId) { await provider.sendReply(lead.mailing.replyMessageId, html); via = provider.name; }
+  }
+  if (via === 'direct') {
+    if (!lead.email) throw Object.assign(new Error('Il manque : une adresse email sur la fiche (collez la réponse qui la donne, ou saisissez-la)'), { status: 400 });
+    const { sendEmail, showcaseSender } = await import('../email.js');
+    const sender = await showcaseSender();
+    try { await sendEmail(lead.email, `Suite à votre message · NeedCreator`, html, body, { raw: true, lang: 'fr', from: sender, replyTo: sender }); }
+    catch (err) { throw Object.assign(new Error(`Envoi impossible à ${lead.email} : adresse refusée par le serveur d'envoi. Vérifiez l'adresse sur la fiche.`), { status: 502, cause: err }); }
+  }
+  lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), replySentAt: new Date(), replySentText: body.slice(0, 2000), replySentVia: via };
+  if (!['replied', 'registered'].includes(lead.status)) lead.status = 'replied';
   await lead.save();
-  return lead;
+  return { lead, via };
 }
 
 /**

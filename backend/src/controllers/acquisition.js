@@ -82,10 +82,10 @@ export async function replyToLead(req, res) {
     if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
     const text = String(req.body?.text || lead.mailing?.replySuggestion || '').trim();
     if (!text) return res.status(400).json({ error: 'Il manque : le texte de la réponse' });
-    await sendLeadReply(lead, text);
-    res.json({ message: 'Réponse envoyée depuis l\'outil de mailing', lead });
+    const r = await sendLeadReply(lead, text);
+    res.json({ message: r.via === 'direct' ? `Réponse envoyée par email à ${lead.email}` : 'Réponse envoyée dans le fil de l\'outil de mailing', lead: r.lead });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(error.status || 400).json({ error: error.message });
   }
 }
 

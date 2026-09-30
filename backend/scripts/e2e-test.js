@@ -2726,6 +2726,10 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const dmPasted = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/paste-reply`, { via: 'instagram', text: `Hello, merci pour ton message ! Pour tout ce qui concerne les collaborations et l'UGC, écris-nous à influence-${RUN}@needcreator-test.com ou remplis https://exemple.fr/pages/collab 🙏` });
     const dmDoc = await db.collection('leads').findOne({ _id: dm.insertedId });
     expect(dmPasted.status === 200 && dmDoc.status === 'replied' && dmDoc.email === `influence-${RUN}@needcreator-test.com` && /réponse instagram/.test(dmDoc.emailSource) && /pages\/collab/.test(dmDoc.notes || '') && dmDoc.mailing?.replyVia === 'instagram' && /email ajouté/.test(dmPasted.data.message), 'Réponse collée : email relevé, formulaire noté, statut « A répondu »', { status: dmPasted.status, data: { message: dmPasted.data.message, dmDoc } });
+    // Réponse reçue en message privé avec une adresse : l'envoi part par email direct, sans fil dans l'outil de mailing
+    const dmReply = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/reply`, { text: 'Bonjour,\n\nMerci pour votre retour. Les prix sont fixés par chaque créateur dans un devis.\n\nQuelle voie vous convient ?' });
+    const dmAfter = await db.collection('leads').findOne({ _id: dm.insertedId });
+    expect((dmReply.status === 200 && /par email à/.test(dmReply.data.message) && dmAfter.mailing?.replySentVia === 'direct' && dmAfter.mailing.replySentAt) || (dmReply.status === 502 && /adresse refusée/.test(dmReply.data.error)), 'La réponse à un message privé doit partir par email direct à l\'adresse relevée (ou l\'échec être expliqué)', dmReply);
     if (aiOn) expect(dmDoc.mailing?.replyIntent === 'redirect' && dmDoc.mailing?.replySuggestion, 'Une réponse « écrivez-nous à… » doit être classée « renvoie vers un autre canal »', dmDoc.mailing);
     const tooShort = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/paste-reply`, { text: 'ok' });
     expect(tooShort.status === 400, 'Une réponse vide doit être refusée', tooShort);
