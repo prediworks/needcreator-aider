@@ -411,6 +411,8 @@ export default function AcquisitionTool() {
   const { data: sugList } = useBrandSuggestions();
   const sugTodo = (sugList || []).filter((x: any) => x.status === 'pending').length;
   const shown = panel === null ? (svTodo > 0 ? 'showcases' : sugTodo > 0 ? 'suggestions' : '') : panel;
+  // Un panneau ouvert de lui-même (vidéo à envoyer, marque à valider) reste ouvert après l'action : il ne se referme pas quand le compteur tombe à zéro
+  useEffect(() => { if (panel === null && shown) setPanel(shown); }, [panel, shown]);
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
