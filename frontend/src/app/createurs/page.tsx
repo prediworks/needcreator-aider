@@ -38,8 +38,14 @@ export default async function CreatorsPage() {
     [Lock, 'Paiement sécurisé pour vos clients', 'Votre client paie via NeedCreator : le montant est bloqué avant que vous ne tourniez et vous est versé à la validation. Fini les factures impayées, même avec un client qui ne connaît pas la plateforme.'],
   ];
 
-  const steps: [string, string, string][] = [
+  const stepsSpontaneous: [string, string, string][] = [
     ['1', 'Créez votre profil', `Nom, niches, ${cfg.minCreatorVideos} vidéos de portfolio. Validation sous 24 h.`],
+    ['2', 'Choisissez une marque', 'Parmi celles que nous démarchons, ou suggérez celle dont vous possédez un produit. Celles qui ont demandé une vidéo sont en premier.'],
+    ['3', 'Tournez, fixez votre prix', 'Vingt secondes, le produit bien visible. Vous fixez le prix et les droits cédés : le devis et le contrat sont générés pour vous.'],
+    ['4', 'La marque achète, ou non', 'Elle regarde la vidéo en filigrane. Un clic : le paiement est bloqué, vous livrez, vous encaissez. Sinon, la vidéo reste à vous.'],
+  ];
+  const stepsCampaign: [string, string, string][] = [
+    ['1', 'Créez votre profil', 'Le même profil sert aux deux chemins.'],
     ['2', 'Envoyez vos devis', 'Un fil de campagnes selon vos niches. Votre prix, votre délai, vos conditions.'],
     ['3', 'Tournez sereinement', 'Sélectionné ? Le paiement est déjà bloqué et le contrat signé. Votre page « Mes missions » affiche l\'échéance et le montant de chacune.'],
     ['4', 'Livrez, encaissez', `Envoyez vos vidéos. Validation par la marque ou automatique sous ${days}, puis virement Stripe.`],
@@ -73,7 +79,7 @@ export default async function CreatorsPage() {
             Vendez vos vidéos aux marques, <span className="text-primary-500">sans avoir d&apos;audience</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Une source de revenus en plus : vous fixez votre prix, le paiement est bloqué avant de tourner, un contrat protège vos droits. Quelle que soit la taille de votre audience.
+            Deux façons de vendre : proposez une vidéo déjà tournée d&apos;un produit que vous possédez, ou répondez à une campagne. Dans les deux cas, votre prix, votre contrat, et le paiement bloqué avant que vous tourniez.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=creator"><Button size="lg" className="w-full sm:w-auto">Créer mon profil créateur <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
@@ -87,6 +93,18 @@ export default async function CreatorsPage() {
           <a href="#outils" className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-neutral-900 text-white text-sm hover:bg-neutral-800">
             <Briefcase className="w-4 h-4 text-primary-400" /> Et pour vos clients hors NeedCreator : prospection, devis, contrats, droits, calculateur de tarif, gratuits <ArrowRight className="w-4 h-4" />
           </a>
+        </div>
+      </section>
+
+      {/* Candidature spontanée : tourner d'abord, être choisi ensuite */}
+      <section className="py-16 bg-primary-50">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-[auto_1fr_auto] gap-6 items-center">
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center"><Clapperboard className="w-8 h-8 text-primary-600" /></div>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 mb-2">N&apos;attendez pas d&apos;être choisi : la candidature spontanée en vidéo</h2>
+            <p className="text-neutral-700">Vous avez chez vous un produit d&apos;une marque que nous démarchons ? Tournez 20 secondes, fixez votre prix. La marque reçoit la vidéo finie, en filigrane, et l&apos;achète en un clic. Sinon, la vidéo reste à vous. Les marques qui ont demandé une vidéo sont affichées en premier.</p>
+          </div>
+          <Link href="/candidature-spontanee"><Button variant="outline">Découvrir</Button></Link>
         </div>
       </section>
 
@@ -106,18 +124,6 @@ export default async function CreatorsPage() {
               </Card>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Candidature spontanée : tourner d'abord, être choisi ensuite */}
-      <section className="py-16 bg-primary-50">
-        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-[auto_1fr_auto] gap-6 items-center">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center"><Clapperboard className="w-8 h-8 text-primary-600" /></div>
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 mb-2">N&apos;attendez pas d&apos;être choisi : la candidature spontanée en vidéo</h2>
-            <p className="text-neutral-700">Vous avez chez vous un produit d&apos;une marque que nous démarchons ? Tournez 20 secondes, fixez votre prix. La marque reçoit la vidéo finie, en filigrane, et l&apos;achète en un clic. Sinon, la vidéo reste à vous. Les marques qui ont demandé une vidéo sont affichées en premier.</p>
-          </div>
-          <Link href="/candidature-spontanee"><Button variant="outline">Découvrir</Button></Link>
         </div>
       </section>
 
@@ -148,17 +154,24 @@ export default async function CreatorsPage() {
       {/* Étapes */}
       <section className="py-20 bg-neutral-50">
         <div className="container mx-auto px-4 max-w-5xl">
-          <h2 className="text-3xl font-bold text-neutral-900 text-center mb-12">De votre profil à votre premier virement</h2>
-          <div className="grid md:grid-cols-4 gap-8">
-            {steps.map(([n, title, sub]) => (
-              <div key={n} className="text-center">
-                <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center mx-auto mb-4 text-lg font-bold">{n}</div>
-                <h3 className="font-semibold text-neutral-900 mb-1">{title}</h3>
-                <p className="text-sm text-neutral-600">{sub}</p>
+          <h2 className="text-3xl font-bold text-neutral-900 text-center mb-3">De votre profil à votre premier virement</h2>
+          <p className="text-lg text-neutral-600 text-center mb-12">Deux chemins, le même profil, le même paiement bloqué avant de tourner.</p>
+          <div className="grid md:grid-cols-2 gap-8">
+            {[['Candidature spontanée : vous tournez d\'abord', stepsSpontaneous, true], ['Campagne : la marque publie un brief', stepsCampaign, false]].map(([label, list, main]: any) => (
+              <div key={label} className={`rounded-2xl p-6 ${main ? 'bg-white border-2 border-primary-300' : 'bg-white border border-neutral-200'}`}>
+                <h3 className="text-lg font-semibold text-neutral-900 mb-6 text-center">{label}</h3>
+                <div className="space-y-5">
+                  {(list as [string, string, string][]).map(([n, title, sub]) => (
+                    <div key={n} className="flex gap-4">
+                      <div className={`w-9 h-9 shrink-0 rounded-full ${main ? 'bg-primary-500' : 'bg-neutral-800'} text-white flex items-center justify-center font-bold`}>{n}</div>
+                      <div><div className="font-semibold text-neutral-900">{title}</div><p className="text-sm text-neutral-600">{sub}</p></div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-center text-sm text-neutral-500 mt-10 flex items-center justify-center gap-2"><Clock className="w-4 h-4" /> Votre premier devis peut partir le jour de la validation de votre profil.</p>
+          <p className="text-center text-sm text-neutral-500 mt-10 flex items-center justify-center gap-2"><Clock className="w-4 h-4" /> Votre première vidéo ou votre premier devis peut partir le jour de la validation de votre profil.</p>
         </div>
       </section>
 
