@@ -792,7 +792,7 @@ export async function sendShowcaseOffer(email, brandName, creatorName, productNa
     <p>${esc(creatorName)}, créateur vérifié sur NeedCreator, a tourné une vidéo pour <strong>${esc(productName)}</strong>${brandName ? ` (${esc(brandName)})` : ''}, sans que personne ne le lui demande.${note ? ` ${esc(note)}` : ''}</p>
     <p>Elle se regarde ici, en filigrane, avec le devis : <strong>${price} € HT</strong>, droits inclus (durée et supports écrits dans le devis). Si elle vous plaît, elle est à vous en un clic ; sinon, rien, et personne ne vous relancera.</p>
     ${button(link, 'Voir la vidéo et le devis')}
-    <p style="color:#666;font-size:13px">Le paiement est bloqué à l'acceptation et versé au créateur seulement après votre validation. La version sans filigrane vous est livrée dans la minute.</p>
+    <p style="color:#666;font-size:13px">Le paiement est bloqué à l'acceptation et versé au créateur seulement après votre validation. La version sans filigrane vous est livrée dans la minute ; vous pouvez demander une modification (coupe, texte à l'écran, son) avant de valider.</p>
   `;
   const sender = await showcaseSender();
   return sendEmail(email, subject, html, null, { preheader: `${creatorName} a tourné une vidéo pour ${productName} : à vous pour ${price} € si elle vous plaît.`, from: sender, replyTo: sender });

@@ -44,29 +44,30 @@ Cible : créateurs UGC débutants ou confirmés, trouvés sur YouTube et Instagr
 
 ## Créateurs · Email 1 · jour 0
 
+Refondu le 30/09/2026 : la candidature spontanée en tête, les campagnes ensuite. À reporter dans SalesBlink.
+
 **Objet** (tester les deux) :
-- `Des missions UGC payées pour @{{ username }}`
-- `{{ niche }} : des marques cherchent des créateurs comme vous`
+- `Un produit chez vous, une vidéo de 20 secondes, une marque qui l'achète`
+- `@{{ username }} : vendez une vidéo sans attendre une campagne`
 
 ```
 Bonjour,
 
-Je m'appelle {{name_of_sender}}, je lance NeedCreator, une plateforme française qui met en relation des marques et des créateurs pour des vidéos UGC : témoignages, unboxings, démonstrations. Pas besoin d'audience, les marques regardent votre portfolio.
+Je m'appelle {{name_of_sender}}, je lance NeedCreator, une plateforme française où des créateurs vendent leurs vidéos aux marques. Pas besoin d'audience : la marque regarde la vidéo, pas vos abonnés.
 
 {{ paragraph }}
 
-Trois choses qui changent par rapport à ce que vous connaissez :
-- Vous fixez votre prix. Vous envoyez un devis pour chaque campagne, la marque accepte ou non.
+Ce que vous pouvez faire dès votre inscription, sans attendre qu'une marque vous choisisse : la candidature spontanée. Vous avez chez vous un produit d'une marque que nous démarchons ? Vous tournez 20 secondes, vous fixez votre prix. La marque reçoit la vidéo finie, en filigrane, et l'achète en un clic. Sinon, la vidéo reste à vous.
+
+Et pour la suite :
+- Les campagnes : une marque publie un brief, vous envoyez un devis à votre prix, elle accepte ou non.
 - Le paiement est bloqué avant que vous tourniez. Vous touchez 90 % de votre devis à la validation, ou automatiquement sous 7 jours si la marque ne répond pas.
-- Un contrat de cession de droits est généré à chaque mission : durée, supports, exclusivité. Vous êtes prévenu quand les droits expirent.
-- Vous n'attendez pas qu'une marque vous choisisse : avec la candidature spontanée, vous lui proposez une vidéo déjà tournée, à votre prix. Elle l'achète en un clic.
+- Un contrat de cession de droits accompagne chaque vidéo vendue : durée, supports, exclusivité.
 
-Les campagnes ouvertes sont visibles sans compte : https://needcreator.com/campagnes
-
-Si cela vous parle, l'inscription prend trois minutes : {{ signup_link }}
+Les marques à filmer et les campagnes ouvertes sont visibles dès l'inscription, qui prend trois minutes : {{ signup_link }}
 
 {{name_of_sender}}
-NeedCreator · https://needcreator.com
+NeedCreator · https://needcreator.com/candidature-spontanee
 
 Vous recevez ce message parce que votre adresse de contact professionnelle est publique sur votre profil de créateur. Un clic pour ne plus rien recevoir : [lien de désinscription de l'outil].
 ```

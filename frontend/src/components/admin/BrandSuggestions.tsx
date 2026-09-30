@@ -51,9 +51,13 @@ export default function BrandSuggestions() {
               <div className="text-xs text-neutral-600 mt-0.5">
                 {s.size?.ads != null ? `${s.size.ads} annonce(s) active(s) sur Meta` : 'annonces Meta : inconnu'} · taille selon l&apos;IA : {AI_SIZE[s.size?.ai] || 'non estimée'}{s.size?.group ? ` · groupe : ${s.size.group}` : ''}{s.size?.reason ? ` · ${s.size.reason}` : ''}
               </div>
+              <div className="text-xs mt-0.5">
+                {s.check ? <span className={s.check.isBrand ? 'text-green-700' : 'text-red-700'}>Profil lu par l&apos;extension le {formatDate(s.check.at)} : {s.check.note ? s.check.note : s.check.isBrand ? 'marque' : 'personne'}{s.check.followers != null ? ` · ${Number(s.check.followers).toLocaleString('fr-FR')} abonnés` : ''}{s.check.bio ? ` · « ${s.check.bio} »` : ''}</span> : <span className="text-neutral-500">Profil Instagram pas encore lu : l&apos;extension le lira au prochain Start (lot « Marques suggérées »)</span>}
+              </div>
               <div className="flex gap-3 flex-wrap mt-1 text-xs">
                 {s.website && <a href={s.website} target="_blank" rel="noopener noreferrer" className="underline text-primary-700">Site</a>}
                 {s.instagram && <a href={s.instagram} target="_blank" rel="noopener noreferrer" className="underline text-primary-700">Instagram</a>}
+                {s.tiktok && <a href={s.tiktok} target="_blank" rel="noopener noreferrer" className="underline text-primary-700">TikTok</a>}
               </div>
               {s.status === 'refused' && s.reason && <div className="text-xs text-neutral-500 mt-1">Motif : {s.reason}</div>}
               {s.status === 'pending' && (

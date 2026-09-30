@@ -73,7 +73,7 @@ Réponds avec :
 - signals : 1 à 4 constats factuels courts tirés de la description
 - summary : une phrase sur ce qu'il fait
 - firstName : son prénom s'il apparaît, sinon null
-- message : message privé de 300 caractères maximum, personnalisé (cite un élément concret de ${ig ? 'sa publication' : 'sa chaîne'}), qui présente NeedCreator en une phrase et propose de s'inscrire ; pas d'emoji, pas de lien
+- message : message privé de 300 caractères maximum, personnalisé (cite un élément concret de ${ig ? 'sa publication' : 'sa chaîne'}), qui présente NeedCreator en une phrase (des créateurs vendent leurs vidéos aux marques ; on peut proposer une vidéo déjà tournée d'un produit qu'on possède, à son prix, sans attendre une campagne) et propose de s'inscrire ; pas d'emoji, pas de lien
 - emailParagraph : paragraphe de 2 phrases pour un email, qui remplace « je suis tombé sur votre profil », personnalisé de la même façon`;
     return generateJson({ system: SYSTEM, prompt, schema: creatorSchema, normalize: normalizeCommon });
   }

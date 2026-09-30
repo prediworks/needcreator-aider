@@ -23,6 +23,7 @@ const taskSchema = new mongoose.Schema({
     network: String,   // prefill_message : instagram, tiktok, linkedin
     purpose: String,   // list_hashtag : 'creators' (auteurs) ou 'brands' (marques taguées dans les publications)
     kind: String,      // read_profile : 'brand' quand la fiche à compléter est une marque
+    suggestionId: { type: mongoose.Schema.Types.ObjectId, ref: 'BrandSuggestion' }, // read_profile : marque suggérée par un créateur, lue avant validation
     verified: Boolean, // read_company_people : la page entreprise a déjà été rapprochée de la marque (nom affiché dans la recherche, ou lien venu du site)
   },
   status: { type: String, enum: TASK_STATUSES, default: 'pending', index: true },

@@ -45,6 +45,7 @@ export default function PublicQuotePage() {
               <div className="text-sm font-medium text-neutral-900 mb-2">La vidéo est déjà tournée : regardez-la ici, en filigrane. La version sans filigrane vous est livrée dès l&apos;acceptation.</div>
               {q.showcase.previewUrl ? <video src={q.showcase.previewUrl} controls playsInline className="w-full max-h-[70vh] rounded-lg bg-black" /> : <div className="text-sm text-neutral-600">Aperçu en préparation, revenez dans quelques minutes.</div>}
               {q.showcase.note && <p className="text-sm text-neutral-700 mt-2">{q.showcase.note}</p>}
+              <p className="text-xs text-neutral-600 mt-2">Après acceptation, vous pouvez demander une modification (coupe, texte à l&apos;écran, son) avant de valider : le paiement reste bloqué jusque-là. Et si la vidéo vous plaît, vous pourrez commander une autre vidéo à ce créateur depuis la page de la mission.</p>
             </div>
           )}
           {q.mission.description && <p className="text-neutral-700 whitespace-pre-line mb-4">{q.mission.description}</p>}

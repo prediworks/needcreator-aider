@@ -38,6 +38,14 @@ export function cleanInstagram(v) {
   return `https://www.instagram.com/${m[1].toLowerCase()}/`;
 }
 
+/** Profil TikTok remis en forme (https://www.tiktok.com/@pseudo), depuis une adresse ou un @pseudo */
+export function cleanTiktok(v) {
+  const raw = String(v || '').trim();
+  if (!raw) return '';
+  const m = raw.match(/tiktok\.com\/@([A-Za-z0-9._]{2,30})/i) || raw.match(/^@?([A-Za-z0-9._]{2,30})$/);
+  return m ? `https://www.tiktok.com/@${m[1].toLowerCase()}` : '';
+}
+
 /** Clé de dédoublonnage : domaine du site, sinon pseudo Instagram, sinon nom */
 export function suggestionKey({ name, website, instagram }) {
   if (website) { try { return `d:${new URL(website).hostname.replace(/^www\./, '')}`; } catch { /* adresse illisible */ } }
@@ -119,7 +127,9 @@ export async function suggestBrand(creator, input = {}) {
   const product = String(input.product || '').trim().slice(0, 120);
   const website = cleanWebsite(input.website);
   const instagram = cleanInstagram(input.instagram);
-  const missing = [name.length < 2 && 'le nom de la marque', product.length < 2 && 'le produit que vous possédez', !website && !instagram && 'le site ou le profil Instagram de la marque'].filter(Boolean);
+  const tiktok = cleanTiktok(input.tiktok);
+  // L'Instagram est indispensable : c'est là que la vidéo sera présentée à la marque, et c'est ce que l'extension lit pour vérifier qu'il s'agit bien d'une marque
+  const missing = [name.length < 2 && 'le nom de la marque', product.length < 2 && 'le produit que vous possédez', !instagram && 'le profil Instagram de la marque (indispensable : c\'est là que nous lui présentons votre vidéo)'].filter(Boolean);
   if (missing.length) throw fail(400, `Il manque : ${missing.join(', ')}`);
   const key = suggestionKey({ name, website, instagram });
   // Déjà un prospect : proposé tel quel s'il est actif, sinon explication
@@ -137,18 +147,19 @@ export async function suggestBrand(creator, input = {}) {
   if (pending >= MAX_PENDING_SUGGESTIONS) throw fail(400, `Vous avez déjà ${MAX_PENDING_SUGGESTIONS} suggestions en attente de validation : attendez une réponse avant d'en proposer une autre.`);
   const { size, tier } = await estimateSize({ name, website, instagram });
   if (tier === 'huge') {
-    const s = await BrandSuggestion.create({ creatorId: creator._id, key, name, website, instagram, product, tier, size, status: 'refused', auto: true, reason: HUGE_TEXT, decidedAt: new Date() });
+    const s = await BrandSuggestion.create({ creatorId: creator._id, key, name, website, instagram, tiktok, product, tier, size, status: 'refused', auto: true, reason: HUGE_TEXT, decidedAt: new Date() });
     return { outcome: 'refused', message: HUGE_TEXT, suggestion: serialize(s) };
   }
   if (tier === 'large' && !input.confirm) return { outcome: 'confirm', message: LARGE_TEXT, tier };
-  const s = await BrandSuggestion.create({ creatorId: creator._id, key, name, website, instagram, product, tier, size });
+  const s = await BrandSuggestion.create({ creatorId: creator._id, key, name, website, instagram, tiktok, product, tier, size });
+  await queueSuggestionCheck(s).catch(err => logger.warn(`Suggestion check not queued ${s._id}: ${err.message}`));
   const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   notifyAdmins(`Marque suggérée par un créateur : ${name}`, `<h1>Nouvelle marque suggérée</h1><p><strong>${esc(creator.profile?.name || 'Un créateur')}</strong> possède « ${esc(product)} » et propose de tourner une vidéo pour <strong>${esc(name)}</strong>${website ? ` (${esc(website)})` : ''}${instagram ? ` · ${esc(instagram)}` : ''}.</p><p>Taille estimée : ${tier === 'large' ? 'grande marque (le créateur a été prévenu)' : 'accessible'}${size.ads != null ? ` · ${size.ads} annonce(s) active(s)` : ''}${size.reason ? ` · ${esc(size.reason)}` : ''}</p><p><a href="${SITE()}/admin?tab=acquisition">Valider ou refuser dans l'admin (bouton « Marques suggérées »)</a></p>`).catch(() => {});
   return { outcome: 'pending', message: `${name} est proposée à l'équipe NeedCreator. Vous serez prévenu dès sa validation, en général sous 48 heures : attendez-la avant de tourner.`, suggestion: serialize(s) };
 }
 
 export function serialize(s) {
-  return { id: s._id, name: s.name, website: s.website || null, instagram: s.instagram || null, product: s.product, tier: s.tier, status: s.status, reason: s.reason || '', leadId: s.leadId || null, createdAt: s.createdAt, decidedAt: s.decidedAt || null };
+  return { id: s._id, name: s.name, website: s.website || null, instagram: s.instagram || null, tiktok: s.tiktok || null, check: s.check?.at ? { at: s.check.at, isBrand: s.check.isBrand, followers: s.check.followers ?? null, site: s.check.site || null, bio: s.check.bio || '', note: s.check.note || '' } : null, product: s.product, tier: s.tier, status: s.status, reason: s.reason || '', leadId: s.leadId || null, createdAt: s.createdAt, decidedAt: s.decidedAt || null };
 }
 
 export async function listMySuggestions(creatorId) {
@@ -176,10 +187,10 @@ export async function approveSuggestion(id, { niche = '', email = '' } = {}) {
   if (lead) { lead.suggestedBy = lead.suggestedBy || s.creatorId; lead.reservedUntil = reservedUntil; if (['new', 'rejected', 'excluded'].includes(lead.status)) lead.status = 'qualified'; if (to && !lead.email) { lead.email = to; lead.emailSource = 'manuel'; } await lead.save(); }
   else {
     lead = await Lead.create({
-      kind: 'brand', source: 'manual', externalId: `suggestion-${s.key}`, name: s.name, website: s.website || undefined, url: s.website || s.instagram || undefined, country: 'FR',
-      socials: s.instagram ? { instagram: s.instagram } : {}, niche: String(niche || creator?.profile?.niches?.[0] || '').trim() || undefined,
+      kind: 'brand', source: 'manual', externalId: `suggestion-${s.key}`, name: s.name, website: s.website || s.check?.site || undefined, url: s.website || s.instagram || undefined, country: 'FR',
+      socials: { ...(s.instagram ? { instagram: s.instagram } : {}), ...(s.tiktok ? { tiktok: s.tiktok } : {}) }, niche: String(niche || creator?.profile?.niches?.[0] || '').trim() || undefined,
       description: `Marque suggérée par un créateur NeedCreator qui possède le produit « ${s.product} ».`, status: 'qualified', score: 50, email: to || undefined, emailSource: to ? 'manuel' : undefined,
-      stats: s.size?.ads != null ? { ads: s.size.ads } : undefined, notes: `Suggérée par ${creator?.profile?.name || 'un créateur'} (produit possédé : ${s.product})`, suggestedBy: s.creatorId, reservedUntil,
+      stats: { ...(s.size?.ads != null ? { ads: s.size.ads } : {}), ...(s.check?.followers != null ? { subscribers: s.check.followers } : {}) }, ...(s.check?.at ? { profileCheckedAt: s.check.at } : {}), notes: `Suggérée par ${creator?.profile?.name || 'un créateur'} (produit possédé : ${s.product})`, suggestedBy: s.creatorId, reservedUntil,
     });
     // Qualification (secteur, accroches, message) et recherche de l'email sur le site : en arrière-plan, la validation n'attend pas
     const leadId = lead._id;
@@ -202,6 +213,49 @@ export async function approveSuggestion(id, { niche = '', email = '' } = {}) {
     sendBrandSuggestionApproved(creator.email, creator.profile?.name || '', s, `${SITE()}${href}`, until, creator.preferences?.language === 'en' ? 'en' : 'fr').catch(err => logger.warn(`Suggestion approved email ${s._id}: ${err.message}`));
   }
   return { suggestion: serialize(s), lead };
+}
+
+/**
+ * Lecture du profil Instagram par l'extension avant la validation : une tâche dans le lot du jour « Marques suggérées »,
+ * lue au prochain passage de l'extension (rôle « lecture »). Le résultat renseigne la suggestion (marque ou personne, abonnés, site, bio).
+ */
+export async function queueSuggestionCheck(s) {
+  if (!s.instagram || s.status !== 'pending') return null;
+  const { default: BrowserTask } = await import('../models/BrowserTask.js');
+  const { BrowserTaskBatch } = await import('../models/BrowserTask.js');
+  const label = `Marques suggérées · ${new Date().toLocaleDateString('fr-FR')}`;
+  let batch = await BrowserTaskBatch.findOne({ label }).sort({ createdAt: 1 });
+  if (!batch) batch = await BrowserTaskBatch.create({ label, kind: 'brand', origin: 'marques suggérées', counts: { total: 0 } });
+  else if (batch.closedAt) batch.closedAt = null;
+  const task = await BrowserTask.create({ workspaceId: 'default', batchId: batch._id, type: 'read_profile', input: { url: s.instagram, kind: 'brand', suggestionId: s._id } });
+  batch.counts.total += 1; await batch.save();
+  return task;
+}
+
+/** Résultat de la lecture du profil : la suggestion est renseignée ; une personne ou une très grande marque est refusée d'office, le créateur prévenu */
+export async function applySuggestionCheck(suggestionId, profile, pageText) {
+  const s = await BrandSuggestion.findById(suggestionId);
+  if (!s) throw new Error('suggestion introuvable');
+  const { looksLikeBrand } = await import('./browserTasks.js');
+  const isBrand = looksLikeBrand(profile, pageText);
+  s.check = { at: new Date(), isBrand, followers: profile?.followers || null, site: profile?.site || '', bio: String(profile?.bio || '').slice(0, 300), note: '' };
+  if (!s.website && profile?.site) s.website = String(profile.site).slice(0, 300);
+  let outcome;
+  if (s.status !== 'pending') { await s.save(); return { suggestion: s, outcome: 'profil lu (suggestion déjà traitée)' }; }
+  const st = await sizeSettings();
+  const tier = tierOf({ blocked: isBlockedBrand(st.blockedList, s.name, s.instagram), ads: s.size?.ads ?? null, ai: s.size?.ai || '', followers: profile?.followers || null }, st);
+  s.tier = tier;
+  if (!isBrand) {
+    s.status = 'refused'; s.auto = true; s.decidedAt = new Date();
+    s.reason = 'Ce compte Instagram est celui d\'une personne, pas d\'une marque : la candidature spontanée s\'adresse aux marques qui vendent un produit.';
+    outcome = 'compte personnel, pas une marque : suggestion refusée';
+  } else if (tier === 'huge') {
+    s.status = 'refused'; s.auto = true; s.decidedAt = new Date(); s.reason = HUGE_TEXT;
+    outcome = `très grande marque (${(profile?.followers || 0).toLocaleString('fr-FR')} abonnés) : suggestion refusée`;
+  } else outcome = `marque confirmée${profile?.followers ? ` (${profile.followers.toLocaleString('fr-FR')} abonnés)` : ''}${tier === 'large' ? ' · grande marque' : ''} : à valider dans l'admin`;
+  await s.save();
+  if (s.status === 'refused') notify(s.creatorId, { type: 'application', title: `${s.name} n'a pas été retenue`, text: `${s.reason} Vous pouvez suggérer une autre marque.`, href: '/vitrine' }).catch(() => {});
+  return { suggestion: s, outcome };
 }
 
 /** Refus par l'équipe : le créateur est prévenu avec le motif */

@@ -3058,13 +3058,15 @@ await step('Marque suggérée par un créateur : doublons, taille (grande, très
   const oid = (x) => new mongoose.Types.ObjectId(String(x));
   try {
     const bad = await creatorApi('POST', '/showcase/suggestions', { name: 'E2E Suggérée Vide' });
-    expect(bad.status === 400 && /Il manque/.test(bad.data.error) && /produit/.test(bad.data.error) && /site ou le profil Instagram/.test(bad.data.error), 'Les champs manquants doivent être nommés', bad);
+    expect(bad.status === 400 && /Il manque/.test(bad.data.error) && /produit/.test(bad.data.error) && /profil Instagram/.test(bad.data.error), 'Les champs manquants doivent être nommés, Instagram compris', bad);
+    const noIg = await creatorApi('POST', '/showcase/suggestions', { name: 'E2E Suggérée Sans Insta', website: `suggeree-sans-${RUN}.example.com`, product: 'Bougie' });
+    expect(noIg.status === 400 && /Instagram/.test(noIg.data.error), 'Sans Instagram, la suggestion doit être refusée', noIg);
     // Très grande marque : refus d'office, expliqué
     const huge = await creatorApi('POST', '/showcase/suggestions', { name: 'Nike', instagram: '@nike', product: 'Air Max' });
     expect(huge.status === 200 && huge.data.outcome === 'refused' && /trop grande/.test(huge.data.message), 'Une très grande marque doit être refusée d\'office', huge);
     // Marque déjà prospectée : proposée telle quelle, sans suggestion
     const known = await leads.insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-suggeree-connue-${RUN}`, name: 'E2E Suggérée Connue', website: `https://www.suggeree-connue-${RUN}.example.com`, status: 'contacted', score: 10, mailing: {}, createdAt: new Date(), updatedAt: new Date() });
-    const exist = await creatorApi('POST', '/showcase/suggestions', { name: 'Autre nom', website: `suggeree-connue-${RUN}.example.com/boutique`, product: 'Bougie' });
+    const exist = await creatorApi('POST', '/showcase/suggestions', { name: 'Autre nom', website: `suggeree-connue-${RUN}.example.com/boutique`, instagram: `@suggereeconnue${RUN}`, product: 'Bougie' });
     expect(exist.status === 200 && exist.data.outcome === 'existing' && String(exist.data.brand.id) === String(known.insertedId), 'Une marque déjà connue (même site) doit être proposée telle quelle', exist);
     // Nouvelle marque : en attente de validation
     const body = { name: `E2E Suggérée ${RUN}`, website: `suggeree-${RUN}.example.com`, instagram: `@suggeree_${RUN}`, product: 'Sérum éclat', confirm: true };
@@ -3072,11 +3074,30 @@ await step('Marque suggérée par un créateur : doublons, taille (grande, très
     expect(sent.status === 200 && sent.data.outcome === 'pending' && sent.data.suggestion.status === 'pending', 'La suggestion doit attendre la validation', sent);
     const dup = await creatorApi('POST', '/showcase/suggestions', body);
     expect(dup.status === 409 && /déjà suggéré/.test(dup.data.error), 'La même marque ne se suggère pas deux fois', dup);
-    const second = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Bis ${RUN}`, website: `suggeree-bis-${RUN}.example.com`, product: 'Crème', confirm: true });
+    const second = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Bis ${RUN}`, website: `suggeree-bis-${RUN}.example.com`, instagram: `@suggeree_bis_${RUN}`, tiktok: `@suggeree_bis_${RUN}`, product: 'Crème', confirm: true });
     expect(second.data.outcome === 'pending', 'Seconde suggestion attendue en attente', second);
     await sugg.insertOne({ creatorId: oid(creatorUser.id), key: `n:e2esuggereeter${RUN}`, name: 'E2E Suggérée Ter', product: 'Huile', tier: 'ok', status: 'pending', createdAt: new Date(), updatedAt: new Date() });
-    const over = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Quater ${RUN}`, website: `suggeree-quater-${RUN}.example.com`, product: 'Baume', confirm: true });
+    const over = await creatorApi('POST', '/showcase/suggestions', { name: `E2E Suggérée Quater ${RUN}`, instagram: `@suggeree_quater_${RUN}`, product: 'Baume', confirm: true });
     expect(over.status === 400 && /3 suggestions en attente/.test(over.data.error), 'Trois suggestions en attente au maximum', over);
+    // Lecture du profil par l'extension avant validation : une tâche par suggestion, dans le lot « Marques suggérées » ; personne → refusée, marque → renseignée
+    {
+      const tasksC = db.collection('browsertasks');
+      const t1 = await tasksC.findOne({ type: 'read_profile', 'input.suggestionId': oid(sent.data.suggestion.id) });
+      const t2 = await tasksC.findOne({ type: 'read_profile', 'input.suggestionId': oid(second.data.suggestion.id) });
+      expect(t1 && t1.status === 'pending' && /suggeree_/.test(t1.input.url) && t2, 'Chaque suggestion doit donner une lecture de profil à l\'extension', { t1, t2 });
+      await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+      let extToken = '';
+      try { extToken = (await brandApi('POST', '/browser-tasks/token')).data.token; } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+      const extH = async (m, path, body) => { const r = await fetch(`${API}/browser-tasks/ext${path}`, { method: m, headers: { 'Content-Type': 'application/json', 'X-Extension-Token': extToken }, body: body ? JSON.stringify(body) : undefined }); return { status: r.status, data: await r.json().catch(() => ({})) }; };
+      await tasksC.updateMany({ _id: { $in: [t1._id, t2._id] } }, { $set: { status: 'running', claimedAt: new Date() }, $inc: { attempts: 1 } }); // comme après une remise à l'extension
+      const rB = await extH('POST', `/${t2._id}/result`, { url: t2.input.url, title: `E2E Bis (@suggeree_bis_${RUN})`, text: `suggeree_bis_${RUN} 12 400 abonnés Boutique en ligne. Crèmes fabriquées en France, livraison offerte dès 40 €`, links: [{ href: 'https://l.instagram.com/?u=https%3A%2F%2Fsuggeree-bis-site.example%2F', text: 'site' }] });
+      const rP = await extH('POST', `/${t1._id}/result`, { url: t1.input.url, title: `Léa (@suggeree_${RUN})`, text: `suggeree_${RUN} 32 k abonnés Créatrice de contenu UGC, maman de deux enfants. Collabs : contact par mail`, links: [{ href: 'https://linktr.ee/lea', text: 'liens' }] });
+      const sB = await sugg.findOne({ _id: oid(second.data.suggestion.id) }); const sP = await sugg.findOne({ _id: oid(sent.data.suggestion.id) });
+      expect(rB.status === 200 && /marque confirmée/.test(rB.data.outcome) && sB.status === 'pending' && sB.check?.isBrand === true && sB.check.followers === 12400, 'Un profil de marque doit renseigner la suggestion et la laisser à valider', { rB, check: sB.check });
+      expect(rP.status === 200 && /compte personnel/.test(rP.data.outcome) && sP.status === 'refused' && sP.auto === true && /une personne/.test(sP.reason), 'Un profil de personne doit refuser la suggestion d\'office, avec le motif', { rP, status: sP.status, reason: sP.reason });
+      // La suite du test valide la première suggestion : remise en attente, comme si le profil avait confirmé une marque
+      await sugg.updateOne({ _id: sP._id }, { $set: { status: 'pending', auto: false, reason: '', 'check.isBrand': true } });
+    }
     const mine = await creatorApi('GET', '/showcase/suggestions');
     expect(mine.status === 200 && mine.data.pending === 3 && mine.data.suggestions.some(x => x.name === 'Nike' && x.status === 'refused'), 'Le créateur doit voir ses suggestions et leur état', mine);
     // Admin : liste, validation (fiche créée, réservée, créateur prévenu), refus motivé
@@ -3235,6 +3256,9 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
       expect(!looksLikeBrand({ site: 'https://linktr.ee/elise', followers: 25000 }, 'elise_book21 25 k abonnés Lectrice passionnée, chroniques et coups de cœur. Blog personnel'), 'Une blogueuse suivie avec une page de liens n\'est pas une marque');
       expect(!looksLikeBrand({ site: 'https://monsite.fr', followers: 48000 }, 'revabenn 48 k abonnés Créatrice de contenu UGC, maman de deux enfants. Collabs : contact@revabenn.fr'), 'Une créatrice avec un site n\'est pas une marque');
       expect(!looksLikeBrand({ site: '', followers: 300 }, 'valette49 300 abonnés'), 'Un profil sans aucun signe d\'entreprise n\'est pas une marque');
+      const f1 = await extractProfile({ text: 'valette49 300 abonnés Bougies', links: [], emails: [] }, 'https://www.instagram.com/valette49/');
+      const f2 = await extractProfile({ text: 'marque_2 1,2 M abonnés Boutique officielle', links: [], emails: [] }, 'https://www.instagram.com/marque_2/');
+      expect(f1.followers === 300 && f2.followers === 1200000, 'Le nombre d\'abonnés ne doit pas absorber les chiffres du pseudo', [f1.followers, f2.followers]);
       expect(looksLikeBrand({ site: 'https://wildrefill.fr', followers: 9000 }, 'wildrefill_fr 9 000 abonnés Produit/service Recharges éco-responsables. Livraison offerte dès 30 €'), 'Une boutique avec catégorie et vocabulaire de vente est une marque');
       expect(looksLikeBrand({ site: 'https://maisonverveine.fr', followers: 800 }, 'maisonverveine 800 abonnés Bougies fabriquées en France. Commande sur notre site'), 'Une petite marque avec son site et un vocabulaire de vente est une marque, même peu suivie');
       expect(looksLikeBrand({ site: 'https://laboutiquedelise.fr', followers: 30000 }, 'Créatrice de bijoux. Boutique en ligne, livraison en 48 h. Bijoux faits main'), 'Une créatrice qui tient boutique (catégorie, site, vente) reste une marque');

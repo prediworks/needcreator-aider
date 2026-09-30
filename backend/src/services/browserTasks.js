@@ -40,7 +40,7 @@ export async function createBatch({ label, kind = 'creator', origin, niche, item
   const valid = (items || []).filter(i => TASK_TYPES.includes(i.type) && (i.url || i.query));
   if (!valid.length) throw new Error('Aucune tâche valide dans le lot');
   const batch = await BrowserTaskBatch.create({ label, kind, origin, niche, createdBy, workspaceId, counts: { total: valid.length } });
-  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, kind: i.kind, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
+  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, kind: i.kind, suggestionId: i.suggestionId, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
   return batch;
 }
 
@@ -263,7 +263,8 @@ const ttProfileFromHref = (href) => { const m = String(href || '').match(/^https
 /** Lien de bio Instagram : « l.instagram.com/?u=https%3A%2F%2F… » → l'adresse réelle */
 const unwrapRedirect = (href) => { try { const u = new URL(href); const t = u.searchParams.get('u') || u.searchParams.get('q') || u.searchParams.get('url'); return t && /^https?:\/\//i.test(t) ? t : href; } catch { return href; } };
 const followersFromText = (text) => {
-  const m = String(text || '').match(/(\d[\d\s\u00a0\u202f.,]*)\s*([kKmM])?\s*(?:abonn[ée]s?|followers|subscribers|abonnements)/i);
+  // Le nombre ne doit pas être la fin d'un pseudo (« valette49 300 abonnés » : 300, pas 49 300)
+  const m = String(text || '').match(/(?<![\p{L}\p{N}_.@])(\d[\d\s\u00a0\u202f.,]*?)\s*([kKmM])?\s*(?:abonn[ée]s?|followers|subscribers|abonnements)/iu);
   if (!m) return null;
   const n = parseFloat(m[1].replace(/[\s  ]/g, '').replace(',', '.'));
   return Number.isFinite(n) ? Math.round(n * (m[2] ? (/m/i.test(m[2]) ? 1e6 : 1e3) : 1)) : null;
@@ -559,6 +560,10 @@ export async function submitTaskResult(id, result) {
   try {
     // Profil Instagram supprimé, renommé ou mal orthographié dans la légende : la page existe mais annonce qu'elle n'est pas disponible
     const gone = task.type === 'read_profile' && /sorry, this page isn.t available|cette page n.est (malheureusement )?pas disponible|the link you followed may be broken|le lien que vous avez suivi est peut-être rompu/i.test(slim.text.slice(0, 3000));
+    if (gone && task.input.suggestionId) {
+      const { default: BrandSuggestion } = await import('../models/BrandSuggestion.js');
+      await BrandSuggestion.updateOne({ _id: task.input.suggestionId, status: 'pending' }, { $set: { status: 'refused', auto: true, decidedAt: new Date(), reason: 'Le profil Instagram indiqué est introuvable (compte supprimé, renommé ou pseudo mal écrit). Vérifiez l\'adresse et suggérez à nouveau la marque.', 'check.at': new Date(), 'check.note': 'profil introuvable' } });
+    }
     if (gone && task.input.kind === 'brand' && task.input.leadId) {
       await Lead.updateOne({ _id: task.input.leadId, status: { $nin: ['contacted', 'replied', 'registered'] } }, { $set: { status: 'rejected', profilePending: false, profileCheckedAt: new Date(), notes: 'Écarté : profil Instagram introuvable (compte supprimé, renommé ou pseudo mal écrit)' } });
     }
@@ -571,6 +576,14 @@ export async function submitTaskResult(id, result) {
       await BrowserTask.create({ workspaceId: task.workspaceId, batchId: task.batchId, parentId: task._id, type: 'read_profile', input: { url: profile, leadId: task.input.leadId, postUrl: task.input.postUrl || task.input.url } });
       if (batch) { batch.counts.total += 1; }
       outcome = `auteur ${profile.replace(/^https?:\/\/(www\.)?instagram\.com\//, '@').replace(/\/$/, '')} : profil à lire`;
+    } else if (task.type === 'read_profile' && task.input.suggestionId) {
+      // Marque suggérée par un créateur : le profil dit si c'est une marque, sa taille, son site ; la suggestion est renseignée pour la validation
+      const p = await extractProfile(slim, task.input.url);
+      task.extracted = p;
+      const { applySuggestionCheck } = await import('./brandSuggestions.js');
+      const r = await applySuggestionCheck(task.input.suggestionId, p, slim.text);
+      if (batch) batch.imported.updated += 1;
+      outcome = r.outcome;
     } else if (task.type === 'read_profile' && task.input.kind === 'brand' && task.input.leadId) {
       // Profil d'une marque : site (lien de bio), email visible, abonnés ; puis recherche de l'email sur le site
       const p = await extractProfile(slim, task.input.url);

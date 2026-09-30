@@ -69,9 +69,9 @@ export async function createShowcase(req, res) {
       title: `Vidéo vitrine : ${value.productName}`,
       description: `${value.note ? `${value.note} ` : ''}Vidéo déjà tournée par le créateur, livrée dès l'acceptation du devis.`.trim(),
       videoType: 'testimonial', deliverables: 1, duration: 30, platforms: ['instagram', 'tiktok'],
-      price: value.price, estimatedDeliveryDays: 1, revisions: 0,
+      price: value.price, estimatedDeliveryDays: 1, revisions: 1, // une modification possible après acceptation : la marque qui aime la vidéo à 80 % l'achète
       rights: { duration: value.rightsDuration, supports: supports.length ? supports : ['social_organic', 'paid_ads'], territories: value.territories, exclusivity: false },
-      terms: 'Vidéo déjà réalisée : elle est livrée immédiatement après acceptation, sans révision.',
+      terms: 'Vidéo déjà réalisée : elle est livrée immédiatement après acceptation. Une modification peut être demandée avant validation (coupe, texte à l\'écran, son) ; le paiement reste bloqué jusqu\'à la validation.',
     });
     sv.quoteId = quote.id || quote._id;
     await sv.save();

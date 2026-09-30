@@ -100,7 +100,7 @@ export async function brandsForShowcase({ niche, q, limit = 200, creatorId = nul
 
 /** Message prêt pour la marque (email ou message privé), avec le lien de la page du devis où la vidéo se regarde */
 export function showcaseMessage(sv, link) {
-  return `Bonjour, une candidature spontanée pour vous : un créateur vérifié de NeedCreator a tourné cette vidéo pour ${sv.productName}. ${link}\nElle est à vous pour ${sv.price} € HT, droits inclus (durée et supports écrits dans le devis) ; sinon, rien. Le paiement ne part qu'à votre validation.`;
+  return `Bonjour, une candidature spontanée pour vous : un créateur vérifié de NeedCreator a tourné cette vidéo pour ${sv.productName}. ${link}\nElle est à vous pour ${sv.price} € HT, droits inclus (durée et supports écrits dans le devis) ; sinon, rien. Une modification peut être demandée après acceptation, et le paiement ne part qu'à votre validation.`;
 }
 
 /** Vidéo vitrine la plus récente d'un prospect (pour la fiche admin et la file du jour) */
