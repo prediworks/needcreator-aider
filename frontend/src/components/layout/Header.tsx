@@ -59,10 +59,11 @@ export default function Header() {
       ]
     : [
         { href: '/marques', label: 'Marques' },
+        { href: '/candidature-spontanee', label: 'Vidéo avant paiement' }, // candidature spontanée : l'argument le plus concret, visible depuis toutes les pages
         { href: '/createurs', label: 'Devenir créateur' },
         { href: '/nos-createurs', label: 'Créateurs' }, // annuaire : inscrits (à partir d'un seuil réglé dans l'admin) et référencés
         { href: '/campagnes', label: 'Campagnes' },
-        { href: '/contenus-et-droits', label: 'Contenus & droits' },
+        // « Contenus & droits » reste accessible par la bande de l'accueil et le pied de page : huit entrées ne tiennent pas sur un écran d'ordinateur portable
         { href: '/how-it-works', label: 'Comment ça marche' },
         { href: '/pricing', label: 'Tarifs' },
       ];

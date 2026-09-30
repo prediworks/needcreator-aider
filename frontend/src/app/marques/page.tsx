@@ -89,6 +89,18 @@ export default async function BrandsPage() {
         </div>
       </section>
 
+      {/* Candidature spontanée : une vidéo déjà tournée, à regarder avant de payer */}
+      <section className="py-16 bg-white border-y border-neutral-100">
+        <div className="container mx-auto px-4 max-w-5xl grid md:grid-cols-[auto_1fr_auto] gap-6 items-center">
+          <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center"><Clapperboard className="w-8 h-8 text-primary-600" /></div>
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-neutral-900 mb-2">Ou recevez une vidéo déjà tournée, à regarder avant de payer</h2>
+            <p className="text-neutral-700">Un créateur vérifié tourne une vidéo avec votre produit, sans commande de votre part. Vous la regardez en filigrane, avec son prix et ses droits. Elle vous plaît ? Elle est à vous en un clic. Sinon, rien, et personne ne vous relance.</p>
+          </div>
+          <Link href="/candidature-spontanee"><Button variant="outline">Découvrir</Button></Link>
+        </div>
+      </section>
+
       {/* Raisons */}
       <section className="py-20">
         <div className="container mx-auto px-4 max-w-6xl">
