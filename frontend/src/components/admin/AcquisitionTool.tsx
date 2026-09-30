@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
 import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
-import { formatDateTime, shortUrl } from '@/lib/utils';
+import { formatDate, formatDateTime, shortUrl } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
 
@@ -145,6 +145,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
           )}
           {l.hooks?.length > 0 && <div className="mt-2 text-xs text-neutral-600" data-testid="daily-hooks" title="Trois accroches de créateur pour ce produit, rédigées par l'IA d'après la publicité de la marque : la première est dans le message, les trois partent dans l'email d'ouverture"><span className="font-medium text-neutral-700">Accroches :</span> {l.hooks.map((h: string, i: number) => <span key={i} className="block">{i + 1}) {h}</span>)}</div>}
           <div className="mt-3 flex items-center gap-2 flex-wrap">
+            {l.mailing?.pushedAt && <div className="basis-full text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded px-2 py-1 mb-1" data-testid="daily-mailed">Déjà jointe par email le {formatDate(l.mailing.pushedAt)}, sans réponse : un message privé pour relancer. Ne réexpliquez pas tout, rappelez l&apos;email et posez la question.</div>}
             {l.nameCheck === 'person' && <div className="basis-full text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1 mb-1" data-testid="daily-name-warning">Annonceur à vérifier : le nom ressemble à un nom de personne et la fiche n&apos;a pas de site. Souvent une page Meta douteuse, parfois une vraie marque au nom de sa fondatrice. Regardez le profil avant d&apos;écrire, ou « Hors cible ».</div>}
             {(l.socialsCheck?.instagram === 'unverified' || l.socialsCheck?.tiktok === 'unverified') && <div className="basis-full text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded px-2 py-1 mb-1" data-testid="daily-socials-warning">Compte à vérifier avant d&apos;écrire : {[l.socialsCheck?.instagram === 'unverified' && `Instagram @${String(l.socials?.instagram || '').replace(/^https:\/\/www\.instagram\.com\//, '').replace(/\/$/, '')}`, l.socialsCheck?.tiktok === 'unverified' && `TikTok ${String(l.socials?.tiktok || '').replace(/^https:\/\/www\.tiktok\.com\//, '')}`].filter(Boolean).join(', ')} ne ressemble pas au nom de la marque (trouvé sur son site : partenaire, publicité ou jeu possible). Corrigez avec « Réseaux » dans la liste, ou « Hors cible ».</div>}
             {l.socials?.instagram && <Button size="sm" onClick={() => open('instagram', l.socials.instagram)} title="Copie le message et ouvre le profil Instagram dans un nouvel onglet. Commentez une publication récente avant d'écrire si vous ne l'avez jamais fait : le message passe mieux." data-testid="daily-open-instagram"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}

@@ -29,6 +29,7 @@ sur le PC. Options : l'adresse et le jeton affichés dans Admin → Prospection 
    le profil vous inspire, **Envoyer** → dans l'admin, **« Contacté, suivant »**. Sans le rôle Messenger, « Copier et ouvrir Instagram » fait
    la même chose avec un collage à la main.
    Une marque à qui vous avez déjà écrit revient dans la file ? **« Déjà contacté »** : elle passe en « Contacté » avec une date rétablie à sept jours plus tôt, et ne compte pas dans les 15 du jour.
+   Les marques parties par le mailing depuis plus de 7 jours sans réponse reviennent dans la file, après les autres, avec la mention « Déjà jointe par email le … » : un message privé court qui rappelle l'email et pose la question.
 4. S'arrêter à 15. Les réponses reçues : **« Coller la réponse »** sur la fiche (l'email donné entre dans le mailing) ; quoi répondre selon
    le cas : `docs/REPONSES-MARQUES.md`.
 

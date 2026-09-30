@@ -424,11 +424,17 @@ export async function dailyQueue(req, res) {
     const goal = Math.min(40, Math.max(1, Number(await getSetting(SETTINGS.manualDailyGoal.key, 15)) || 15));
     const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
     const doneToday = await Lead.countDocuments({ kind, contactedAt: { $gte: startOfDay }, contactedVia: { $in: ['instagram', 'tiktok', 'linkedin', 'facebook', 'youtube'] } });
-    const filter = { kind, status: { $in: ['qualified', 'to_contact'] }, 'mailing.pushedAt': null, $and: [{ $or: [{ 'socials.instagram': { $nin: [null, ''] } }, { 'socials.tiktok': { $nin: [null, ''] } }, ...(kind === 'brand' ? [{ 'socials.linkedin': { $nin: [null, ''] } }] : [])] }, { $or: [{ 'enrich.skippedAt': { $exists: false } }, { 'enrich.skippedAt': null }, { 'enrich.skippedAt': { $lt: new Date(Date.now() - 7 * 86400000) } }] }] };
+    const NETWORKS = ['instagram', 'tiktok', 'linkedin', 'facebook', 'youtube'];
+    const weekAgo = new Date(Date.now() - 7 * 86400000);
+    // Deux publics : les prospects jamais joints (sans email, le message privé est leur seul canal), puis ceux partis par le mailing
+    // il y a plus de 7 jours sans réponse ni rebond : un message privé après un email sans réponse est souvent ce qui débloque
+    const fresh = { status: { $in: ['qualified', 'to_contact'] }, 'mailing.pushedAt': null };
+    const mailed = { status: 'contacted', contactedVia: { $nin: NETWORKS }, 'mailing.pushedAt': { $lte: weekAgo }, 'mailing.replyAt': null, 'mailing.bounced': { $ne: true }, 'mailing.unsubscribedAt': null };
+    const filter = { kind, $and: [{ $or: [fresh, mailed] }, { $or: [{ 'socials.instagram': { $nin: [null, ''] } }, { 'socials.tiktok': { $nin: [null, ''] } }, ...(kind === 'brand' ? [{ 'socials.linkedin': { $nin: [null, ''] } }] : [])] }, { $or: [{ 'enrich.skippedAt': { $exists: false } }, { 'enrich.skippedAt': null }, { 'enrich.skippedAt': { $lt: weekAgo } }] }] };
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] } } }, { $sort: { hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, contactedAt: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
     res.json({ kind, goal, doneToday, left, waiting, leads });
   } catch (error) {
     logger.error('dailyQueue failed:', error);
