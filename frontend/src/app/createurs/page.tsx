@@ -79,7 +79,7 @@ export default async function CreatorsPage() {
             Vendez vos vidéos aux marques, <span className="text-primary-500">sans avoir d&apos;audience</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Deux façons de vendre : proposez une vidéo déjà tournée d&apos;un produit que vous possédez, ou répondez à une campagne. Dans les deux cas, votre prix, votre contrat, et le paiement bloqué avant que vous tourniez.
+            Deux façons de vendre : proposez une vidéo déjà tournée d&apos;un produit que vous possédez, ou répondez à une campagne. Dans les deux cas, votre prix, votre contrat, et le paiement bloqué par la marque avant toute livraison.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=creator"><Button size="lg" className="w-full sm:w-auto">Créer mon profil créateur <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
@@ -155,7 +155,7 @@ export default async function CreatorsPage() {
       <section className="py-20 bg-neutral-50">
         <div className="container mx-auto px-4 max-w-5xl">
           <h2 className="text-3xl font-bold text-neutral-900 text-center mb-3">De votre profil à votre premier virement</h2>
-          <p className="text-lg text-neutral-600 text-center mb-12">Deux chemins, le même profil, le même paiement bloqué avant de tourner.</p>
+          <p className="text-lg text-neutral-600 text-center mb-12">Deux chemins, le même profil, le même paiement bloqué par la marque avant toute livraison.</p>
           <div className="grid md:grid-cols-2 gap-8">
             {[['Candidature spontanée : vous tournez d\'abord', stepsSpontaneous, true], ['Campagne : la marque publie un brief', stepsCampaign, false]].map(([label, list, main]: any) => (
               <div key={label} className={`rounded-2xl p-6 ${main ? 'bg-white border-2 border-primary-300' : 'bg-white border border-neutral-200'}`}>
