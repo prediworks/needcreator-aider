@@ -1,0 +1,16 @@
+{
+  "M1": { "public": "brand", "slides": [
+    { "kind": "hook", "title": "Et si vous regardiez la vidéo avant de la payer ?" },
+    { "kind": "text", "title": "Un créateur qui possède déjà votre produit tourne une vidéo.", "text": "Sans brief, sans commande de votre part." },
+    { "kind": "text", "title": "Vous la recevez finie, en filigrane.", "text": "Avec son prix et ses droits, écrits avant que vous regardiez." },
+    { "kind": "text", "title": "Elle vous plaît ? Un clic.", "text": "Sinon, rien. Et personne ne vous relance." },
+    { "kind": "end" }
+  ]},
+  "C1": { "public": "creator", "slides": [
+    { "kind": "hook", "title": "Ouvrez votre placard.", "text": "Il y a des vidéos à vendre dedans." },
+    { "kind": "text", "title": "Chaque produit que vous possédez d'une marque est une vidéo que cette marque peut acheter." },
+    { "kind": "text", "title": "Vous tournez 20 secondes. Vous fixez votre prix.", "text": "La marque reçoit la vidéo finie, en filigrane." },
+    { "kind": "text", "title": "Elle achète en un clic.", "text": "Sinon, la vidéo reste à vous. Rien à perdre, aucune audience demandée." },
+    { "kind": "end" }
+  ]}
+}
