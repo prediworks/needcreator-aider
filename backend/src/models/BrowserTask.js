@@ -25,6 +25,8 @@ const taskSchema = new mongoose.Schema({
     kind: String,      // read_profile : 'brand' quand la fiche à compléter est une marque
     suggestionId: { type: mongoose.Schema.Types.ObjectId, ref: 'BrandSuggestion' }, // read_profile : marque suggérée par un créateur, lue avant validation
     verified: Boolean, // read_company_people : la page entreprise a déjà été rapprochée de la marque (nom affiché dans la recherche, ou lien venu du site)
+    slugOk: Boolean,   // read_company_people : la page inscrite sur la fiche a été comparée au nom et au site de la marque
+    nameOk: Boolean,   // find_company : le nom a été contrôlé (lisible, pas une personne, pas une très grande enseigne)
   },
   status: { type: String, enum: TASK_STATUSES, default: 'pending', index: true },
   attempts: { type: Number, default: 0 },

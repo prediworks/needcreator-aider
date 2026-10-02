@@ -19,6 +19,12 @@ sur le PC. Options : l'adresse et le jeton affichés dans Admin → Prospection 
 **Mise à jour** : quand je vous dis qu'une nouvelle version est poussée, sur le PC `git pull` dans le dossier du projet, puis « recharger »
 (flèche circulaire) sur la carte de l'extension, dans les deux profils. Le numéro de version doit changer.
 
+**Fenêtre de l'extension (0.2.7)** : le rôle du profil est affiché en haut, en vert « Reader » ou en jaune « Messenger ». Si des lots
+restent en attente alors que la fenêtre dit « No message to prepare », Start a été cliqué dans le profil Messenger. Les compteurs
+donnent les pages lues et leur plafond (« 60 / 60 », « 150 / 150 »). À l'arrêt, la ligne d'état dit pourquoi : « session cap reached,
+press Start for a new session » (pause voulue après 60 pages : attendre une vingtaine de minutes puis Start) ou « daily cap reached,
+back tomorrow » (150 pages : la suite reste en file jusqu'au lendemain).
+
 ---
 
 ## Chaque jour · 10 minutes
@@ -75,6 +81,7 @@ file du jour.
 - **Fenêtre de l'extension** : « Stopped: login / captcha / consent » → ouvrir l'onglet qu'elle utilise, régler la page à la main (se
   connecter, accepter les cookies), puis Start. « Daily cap reached » → demain.
 - **Pages de hashtag** (extension 0.2.6) : pendant la lecture d'une liste, l'onglet de l'extension passe au premier plan une vingtaine de secondes, puis votre onglet revient. C'est voulu : Instagram ne charge la suite des publications que si la page est affichée. Dans le détail du lot, un hashtag doit donner une vingtaine de publications ; « page peu chargée » signale une liste restée sur ses premières publications.
+- **Lot LinkedIn** : avant toute lecture, le serveur écarte sans consommer de page les noms illisibles (« Mindlyra、zz »), les noms de personne sans site à ce nom, les très grandes enseignes (liste dans Réglages → Prospection → « Taille des marques ») et remplace par une recherche la page entreprise inscrite sur la fiche quand elle ne porte ni le nom ni le site de la marque. Dans le détail du lot : « nom de personne : écartée sans lecture », « très grande enseigne : écartée sans lecture ».
 - **Marque ou personne** : une marque taguée par un créateur reste « en attente de vérification » tant que l'extension n'a pas lu son profil. Elle n'apparaît ni dans la file du jour ni dans le mailing. Dans le détail du lot : « fiche marque complétée » (marque confirmée, qualifiée dans les minutes qui suivent), « compte personnel, pas une marque (…) : fiche écartée » ou « profil introuvable sur Instagram ». Les parenthèses donnent les signes lus (« site au nom du compte », « compte d'entreprise selon l'IA », « mot de personne “maman” », « aucun signe d'entreprise »…) : une vraie marque écartée à tort se repère ainsi tout de suite. Une personne passée entre les mailles : « Hors cible ».
 - **Taille des marques** : dans le détail du lot, « très grande marque : fiche écartée » (plus de 500 000 abonnés, ou liste des marques refusées) et « grande marque » (plus de 100 000 : gardée, signalée). Seuils et liste dans Réglages → Prospection → « Taille des marques ».
 - **Adresse de contact Instagram** : lecture coupée par défaut depuis la 0.2.6. Instagram l'a refusée (« 429 ») au premier passage réel ; ne pas la réactiver.

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import BrowserTask, { BrowserTaskBatch, TASK_TYPES, LINKEDIN_TYPES } from '../models/BrowserTask.js';
 import Lead from '../models/Lead.js';
 import { getSetting, setSetting } from '../models/Setting.js';
-import { extractEmails, pickEmail, extractSocials } from './acquisition/enrich.js';
+import { extractEmails, pickEmail, extractSocials, looksLikePersonName } from './acquisition/enrich.js';
 import { importLeads } from './acquisition/importLeads.js';
 import { generateJson, aiConfig } from './ai.js';
 import { searchBrands, metaConfigured } from './acquisition/meta.js';
@@ -40,7 +40,7 @@ export async function createBatch({ label, kind = 'creator', origin, niche, item
   const valid = (items || []).filter(i => TASK_TYPES.includes(i.type) && (i.url || i.query));
   if (!valid.length) throw new Error('Aucune tâche valide dans le lot');
   const batch = await BrowserTaskBatch.create({ label, kind, origin, niche, createdBy, workspaceId, counts: { total: valid.length } });
-  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, kind: i.kind, suggestionId: i.suggestionId, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose } })));
+  await BrowserTask.insertMany(valid.map(i => ({ workspaceId, batchId: batch._id, type: i.type, input: { verified: i.verified, kind: i.kind, suggestionId: i.suggestionId, url: i.url, query: i.query, count: i.count, leadId: i.leadId, postUrl: i.postUrl, purpose: i.purpose, slugOk: i.slugOk, nameOk: i.nameOk } })));
   return batch;
 }
 
@@ -99,17 +99,53 @@ export function linkedinWorthy(lead) {
   return true;
 }
 
+/** Mot le plus long du domaine d'un site (« https://www.levona-paris.com » → « levona-paris ») */
+const siteLabel = (site) => { try { return new URL(/^https?:/i.test(site) ? site : `https://${site}`).hostname.replace(/^www\./, '').split('.').slice(0, -1).sort((a, b) => b.length - a.length)[0] || ''; } catch { return ''; } };
+
+/**
+ * Pourquoi cette fiche ne mérite pas une page LinkedIn, ou null si elle en mérite une. Vingt pages par jour : elles vont aux entreprises
+ * qu'on a une chance de trouver. Un nom illisible (« Mindlyra、zz », « Neo/Growarcx ») ou un nom de personne sans site à ce nom
+ * (« Edson Pina ») est un petit annonceur sans page entreprise.
+ */
+export function linkedinSkipReason(lead) {
+  if (!linkedinWorthy(lead)) return 'pseudo ou profil non vérifié';
+  const name = String(lead?.name || '').trim();
+  if (/[^\p{Script=Latin}\p{N}\s&'’.+!°-]/u.test(name)) return 'nom illisible';
+  if (looksLikePersonName(name) && !sameCompany(siteLabel(lead.website), name)) return 'nom de personne';
+  return null;
+}
+
+/** La page entreprise inscrite sur la fiche est-elle celle de la marque ? (son identifiant ressemble au nom, ou au domaine du site) */
+export function companyPageMatches(url, lead) {
+  const slug = (String(url || '').match(/linkedin\.com\/company\/([^/?#]+)/i) || [])[1] || '';
+  return companySlugMatches(slug, lead?.name) || (!!siteLabel(lead?.website) && companySlugMatches(slug, siteLabel(lead.website)));
+}
+
 /** Lot « contacts LinkedIn » : marques avec un site et sans contact connu ; recherche de la page entreprise, puis lecture des personnes marketing */
 export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) {
   // Vingt pages LinkedIn par jour : elles vont aux vraies marques. Sont laissés de côté les pseudos (« megane_gil »), les marques taguées
   // dont le profil Instagram n'a pas encore été lu (ce peut être une personne), les très grandes marques et les sites qui sont un réseau social.
-  const found = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, sizeTier: { $ne: 'huge' }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit * 4).select('name website keyword profilePending profileCheckedAt sizeTier stats.subscribers socials.linkedin').lean();
-  const leads = found.filter(linkedinWorthy).slice(0, limit);
+  const found = await Lead.find({ kind: 'brand', status: { $in: ['qualified', 'to_contact', 'contacted', 'replied'] }, website: { $nin: [null, ''] }, sizeTier: { $ne: 'huge' }, $or: [{ contacts: { $size: 0 } }, { contacts: { $exists: false } }], $nor: [{ 'enrich.linkedinAt': { $gte: new Date(Date.now() - 60 * 86400000) } }] }).sort({ score: -1 }).limit(limit * 8).select('name website keyword profilePending profileCheckedAt sizeTier stats.subscribers stats.ads socials.linkedin socials.instagram').lean();
+  const { sizeSettings, tierOf, isBlockedBrand } = await import('./brandSuggestions.js');
+  const st = await sizeSettings();
+  const leads = []; const huge = [];
+  for (const l of found) {
+    if (leads.length >= limit) break;
+    if (linkedinSkipReason(l)) continue;
+    // Très grande enseigne (liste des marques refusées, annonces, abonnés) : agences et services achats, aucun contact utile à relever
+    if (tierOf({ blocked: isBlockedBrand(st.blockedList, l.name, l.socials?.instagram || ''), ads: l.stats?.ads ?? null, followers: l.stats?.subscribers ?? null }, st) === 'huge') { huge.push(l._id); continue; }
+    leads.push(l);
+  }
+  if (huge.length) await Lead.updateMany({ _id: { $in: huge } }, { $set: { sizeTier: 'huge' } });
   if (!leads.length) return null;
   await Lead.updateMany({ _id: { $in: leads.map(l => l._id) } }, { $set: { 'enrich.linkedinAt': new Date() } });
-  const items = leads.map(l => l.socials?.linkedin && /linkedin\.com\/company\//i.test(l.socials.linkedin)
-    ? { type: 'read_company_people', url: `${l.socials.linkedin.replace(/\/+$/, '')}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: l._id, query: l.name, verified: true }
-    : { type: 'find_company', url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(linkedinQuery(l.name))}`, leadId: l._id, query: linkedinQuery(l.name) });
+  // Page entreprise déjà inscrite sur la fiche : lue directement si elle porte le nom de la marque ; sinon elle est retirée et la marque est cherchée
+  const stored = (l) => (l.socials?.linkedin && /linkedin\.com\/company\//i.test(l.socials.linkedin) ? l.socials.linkedin.replace(/\/+$/, '') : null);
+  const foreign = leads.filter(l => stored(l) && !companyPageMatches(stored(l), l));
+  if (foreign.length) await Lead.updateMany({ _id: { $in: foreign.map(l => l._id) } }, { $unset: { 'socials.linkedin': '' } });
+  const items = leads.map(l => stored(l) && !foreign.includes(l)
+    ? { type: 'read_company_people', url: `${stored(l)}/people/?keywords=${encodeURIComponent('marketing')}`, leadId: l._id, query: l.name, verified: true, slugOk: true }
+    : { type: 'find_company', url: `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(linkedinQuery(l.name))}`, leadId: l._id, query: linkedinQuery(l.name), nameOk: true });
   return createBatch({ label: `Contacts LinkedIn · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, items });
 }
 
@@ -194,6 +230,31 @@ export async function skipForeignCompanyTasks(workspaceId = 'default') {
     if (companySlugMatches(slug, t.input.query)) { await BrowserTask.updateOne({ _id: t._id }, { $set: { 'input.verified': true } }); continue; }
     let shown = slug; try { shown = decodeURIComponent(slug); } catch { /* identifiant illisible */ }
     await BrowserTask.updateOne({ _id: t._id, status: 'pending' }, { $set: { status: 'failed', skipped: true, finishedAt: new Date(), error: 'autre entreprise', outcome: `page d'une autre entreprise (${shown}) : écartée sans lecture` } });
+    n++;
+  }
+  // Tâches créées avant ces contrôles : page inscrite sur la fiche jamais comparée au nom, recherche d'un nom illisible, d'une personne ou d'une très grande enseigne
+  const direct = await BrowserTask.find({ workspaceId, status: 'pending', type: 'read_company_people', parentId: null, 'input.slugOk': { $ne: true }, 'input.leadId': { $ne: null } }).select('input').limit(100).lean();
+  const searches = await BrowserTask.find({ workspaceId, status: 'pending', type: 'find_company', 'input.nameOk': { $ne: true }, 'input.leadId': { $ne: null } }).select('input').limit(100).lean();
+  if (!direct.length && !searches.length) return n;
+  const leads = new Map((await Lead.find({ _id: { $in: [...direct, ...searches].map(t => t.input.leadId) } }).select('name website keyword profilePending profileCheckedAt sizeTier stats.subscribers stats.ads socials.linkedin socials.instagram').lean()).map(l => [String(l._id), l]));
+  const { sizeSettings, tierOf, isBlockedBrand } = await import('./brandSuggestions.js');
+  const st = await sizeSettings();
+  for (const t of direct) {
+    const lead = leads.get(String(t.input.leadId));
+    const page = String(t.input.url || '').replace(/\/people\/.*$/, '');
+    if (!lead || companyPageMatches(page, lead)) { await BrowserTask.updateOne({ _id: t._id }, { $set: { 'input.slugOk': true } }); continue; }
+    // Page d'une autre entreprise inscrite sur la fiche : retirée, et la marque est cherchée par son nom à la place
+    const query = linkedinQuery(lead.name);
+    await Lead.updateOne({ _id: lead._id, 'socials.linkedin': new RegExp(`^${page.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`, 'i') }, { $unset: { 'socials.linkedin': '' } });
+    await BrowserTask.updateOne({ _id: t._id, status: 'pending' }, { $set: { type: 'find_company', 'input.url': `https://www.linkedin.com/search/results/companies/?keywords=${encodeURIComponent(query)}`, 'input.query': query, 'input.verified': false } });
+    searches.push({ _id: t._id, input: { ...t.input, leadId: t.input.leadId } });
+  }
+  for (const t of searches) {
+    const lead = leads.get(String(t.input.leadId));
+    let why = lead ? linkedinSkipReason(lead) : null;
+    if (lead && !why && tierOf({ blocked: isBlockedBrand(st.blockedList, lead.name, lead.socials?.instagram || ''), ads: lead.stats?.ads ?? null, followers: lead.stats?.subscribers ?? null }, st) === 'huge') { why = 'très grande enseigne'; await Lead.updateOne({ _id: lead._id }, { $set: { sizeTier: 'huge' } }); }
+    if (!why) { await BrowserTask.updateOne({ _id: t._id }, { $set: { 'input.nameOk': true } }); continue; }
+    await BrowserTask.updateOne({ _id: t._id, status: 'pending' }, { $set: { status: 'failed', skipped: true, finishedAt: new Date(), error: why, outcome: `${why} : écartée sans lecture` } });
     n++;
   }
   return n;

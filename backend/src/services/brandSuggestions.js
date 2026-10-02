@@ -247,9 +247,8 @@ export async function applySuggestionCheck(suggestionId, profile, pageText) {
   const tier = tierOf({ blocked: isBlockedBrand(st.blockedList, s.name, s.instagram), ads: s.size?.ads ?? null, ai: s.size?.ai || '', followers: profile?.followers || null }, st);
   s.tier = tier;
   if (!isBrand) {
-    s.status = 'refused'; s.auto = true; s.decidedAt = new Date();
-    s.reason = 'Ce compte Instagram est celui d\'une personne, pas d\'une marque : la candidature spontanée s\'adresse aux marques qui vendent un produit.';
-    outcome = `compte personnel, pas une marque (${verdict.reason}) : suggestion refusée`;
+    // Le contrôle peut se tromper sur une vraie marque, et un refus d'office décourage le créateur : la suggestion reste à valider, avec l'avertissement
+    outcome = `le profil ressemble à un compte personnel (${verdict.reason}) : à trancher dans l'admin`;
   } else if (tier === 'huge') {
     s.status = 'refused'; s.auto = true; s.decidedAt = new Date(); s.reason = HUGE_TEXT;
     outcome = `très grande marque (${(profile?.followers || 0).toLocaleString('fr-FR')} abonnés) : suggestion refusée`;

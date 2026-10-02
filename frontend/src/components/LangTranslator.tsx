@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { detectLang, writeLangCookie, type Lang } from '@/lib/i18n';
+import { detectLang, type Lang } from '@/lib/i18n';
 import { EN } from '@/lib/i18n/en';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -72,7 +72,6 @@ export default function LangTranslator() {
     if (loading) return;
     const lang: Lang = frenchOnly ? 'fr' : detectLang();
     document.documentElement.lang = lang;
-    if (!frenchOnly && !document.cookie.includes('nc_lang=')) writeLangCookie(lang);
     // Connexion d'un créateur sur une page déjà passée en anglais : les textes remplacés ne reviennent qu'au rechargement
     if (frenchOnly && applied) { applied = false; window.location.reload(); return; }
     if (lang !== 'en') return;

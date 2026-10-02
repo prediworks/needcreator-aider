@@ -1,9 +1,12 @@
 const $ = (id) => document.getElementById(id);
 function render(s) {
-  $('state').textContent = !s.running ? 'Stopped' : s.paused ? 'Paused' : s.busy ? `Working · ${s.lastTask ? s.lastTask.type : ''}` : 'Waiting for tasks';
+  const why = { session: 'session cap reached, press Start for a new session', day: 'daily cap reached, back tomorrow' }[s.stopReason] || '';
+  $('state').textContent = !s.running ? `Stopped${why ? ` · ${why}` : ''}` : s.paused ? 'Paused' : s.busy ? `Working · ${s.lastTask ? s.lastTask.type : ''}` : 'Waiting for tasks';
+  $('role').textContent = s.role === 'messenger' ? 'Messenger · prepares messages only' : 'Reader · reads pages only';
+  $('role').className = s.role === 'messenger' ? 'role messenger' : 'role';
+  $('session').textContent = `${s.session ?? 0}${s.sessionCap ? ` / ${s.sessionCap}` : ''}`;
+  $('day').textContent = `${s.day ?? 0}${s.dayCap ? ` / ${s.dayCap}` : ''}`;
   $('pending').textContent = s.queue ? s.queue.pending : '–';
-  $('session').textContent = s.session ?? 0;
-  $('day').textContent = s.day ?? 0;
   $('error').textContent = s.lastError || '';
   $('log').textContent = (s.log || []).slice().reverse().join('\n');
   $('start').disabled = !!s.running && !s.paused;

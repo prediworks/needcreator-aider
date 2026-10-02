@@ -14,6 +14,7 @@ import Card from '@/components/ui/Card';
 import { NICHES, NICHE_OPTIONS, COUNTRIES, LANGUAGES } from '@/lib/labels';
 import Turnstile, { turnstileEnabled } from '@/components/Turnstile';
 import { toast } from 'sonner';
+import { detectLang } from '@/lib/i18n';
 import { isFreeEmail } from '@/lib/email';
 import MissingHint from '@/components/ui/MissingHint';
 
@@ -39,7 +40,7 @@ function RegisterForm() {
   const [companyName, setCompanyName] = useState('');
   const [country, setCountry] = useState('FR');
   const [language, setLanguage] = useState('fr');
-  useEffect(() => { try { const m = document.cookie.match(/(?:^|; )nc_lang=(fr|en)/); if (m) setLanguage(m[1]); } catch { /* cookie illisible */ } }, []);
+  useEffect(() => { try { setLanguage(detectLang()); } catch { /* langue illisible : français */ } }, []);
   const referralCode = searchParams.get('ref') || '';
   const teamToken = searchParams.get('team') || '';
   const campaignInviteToken = searchParams.get('campaignInvite') || '';

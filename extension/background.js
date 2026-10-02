@@ -10,7 +10,7 @@ const DEFAULTS = { serverUrl: '', token: '', role: 'reader', contactLookup: 'off
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
 const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
 
-const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, queue: { pending: 0, running: 0 }, log: [] };
+const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, stopReason: '', queue: { pending: 0, running: 0 }, log: [] };
 
 async function settings() { return { ...DEFAULTS, ...(await chrome.storage.local.get(Object.keys(DEFAULTS))) }; }
 async function loadState() {
@@ -202,12 +202,13 @@ async function tick() {
   state.busy = true;
   try {
     const s = await settings();
-    if (state.session >= s.sessionCap) { state.running = false; log(`Session cap reached (${s.sessionCap} pages). Stopped.`); await saveState(); return; }
-    if (state.day >= s.dayCap) { state.running = false; log(`Daily cap reached (${s.dayCap} pages). Stopped.`); await saveState(); return; }
+    // Daily cap first: at the daily cap a new session would stop at once, the message must say so
+    if (state.day >= s.dayCap) { state.running = false; state.stopReason = 'day'; log(`Daily cap reached (${s.dayCap} pages). Stopped until tomorrow: the remaining tasks stay in the queue.`); await saveState(); return; }
+    if (state.session >= s.sessionCap) { state.running = false; state.stopReason = 'session'; log(`Session cap reached (${s.sessionCap} pages). Stopped on purpose: take a break, then press Start for a new session (${Math.max(0, s.dayCap - state.day)} pages left today).`); await saveState(); return; }
     const roleTypes = ROLE_TYPES[s.role] || '';
     const next = await api(`/ext/next${roleTypes ? `?types=${roleTypes}` : ''}`);
     state.queue = { pending: next.pending || 0, running: next.running || 0 };
-    if (!next.task) { log('No task waiting. Polling again in a moment.'); state.lastTask = null; state.idle = true; return; }
+    if (!next.task) { log(s.role === 'messenger' ? `No message to prepare${state.queue.pending ? ` (${state.queue.pending} reading task(s) wait for the Reader profile)` : ''}. Polling again in a moment.` : 'No reading task waiting. Polling again in a moment.'); state.lastTask = null; state.idle = true; return; }
     state.idle = false;
     const task = next.task;
     state.lastTask = { type: task.type, url: task.input.url };
@@ -255,13 +256,14 @@ async function ensureLoaded() { if (!loaded) { await loadState(); loaded = true;
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   (async () => {
     await ensureLoaded();
-    if (msg.type === 'start') { state.running = true; state.paused = false; state.session = 0; state.lastError = ''; chrome.action.setBadgeText({ text: '' }); log('Started.'); await saveState(); await schedulePoll(); tick(); }
+    if (msg.type === 'start') { state.running = true; state.paused = false; state.session = 0; state.lastError = ''; state.stopReason = ''; chrome.action.setBadgeText({ text: '' }); log('Started.'); await saveState(); await schedulePoll(); tick(); }
     else if (msg.type === 'pause') { state.paused = !state.paused; log(state.paused ? 'Paused.' : 'Resumed.'); await saveState(); if (!state.paused) tick(); }
     else if (msg.type === 'stop') { state.running = false; state.paused = false; log('Stopped.'); await saveState(); }
     else if (msg.type === 'status') {
       try { const st = await api('/ext/status'); state.queue = { pending: st.pending || 0, running: st.running || 0 }; state.lastError = ''; } catch (err) { state.lastError = err.message; }
     }
-    reply({ ...state, log: state.log.slice(-12) });
+    const s = await settings();
+    reply({ ...state, role: s.role, sessionCap: s.sessionCap, dayCap: s.dayCap, log: state.log.slice(-12) });
   })();
   return true;
 });
