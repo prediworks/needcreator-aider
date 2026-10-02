@@ -302,8 +302,9 @@ export function extractPostAuthor(result) {
 }
 
 // Liens présents sur les pages des réseaux eux-mêmes (menus, pied de page, modules) : jamais le site du compte lu
-const NETWORK_HOSTS = ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'muse.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com'];
-const BARE_LINK = /^((?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\/[^\s…]*)?)…?(?:\s+(?:and|et|\+)\s*\d+\s.*)?$/i;
+const NETWORK_HOSTS = ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'muse.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com', 'gmail.com', 'hotmail.com', 'hotmail.fr', 'outlook.com', 'outlook.fr', 'yahoo.com', 'yahoo.fr', 'icloud.com'];
+// Une adresse se reconnaît à sa terminaison : un pseudo cité sur la page (« as.pasquier », « hugo.bawer ») n'en est pas une
+const BARE_LINK = /^((?:[a-z0-9-]+\.)+(?:com|fr|net|org|eu|io|co|be|ch|de|es|it|uk|lu|nl|pt|ca|us|at|ie|se|dk|no|pl|ma|tn|re|nc|pf|shop|store|boutique|paris|bzh|alsace|corsica|app|me|bio|link|ee|ly|to|tv|fm|ai|info|biz|online|site|club|studio|design|art|tech|pro|xyz|run|kiwi|page|world|life|fit|beauty|cafe|bar|restaurant|immo|care|eco|green|love|blog|media|agency|live|fun|one|dev|cc|gg)(?:\/[^\s…]*)?)…?(?:\s+(?:and|et|\+)\s*\d+\s.*)?$/i;
 
 /**
  * Site du compte lu. Sur Instagram, seul le lien de la bio compte : la ligne du profil écrite comme une adresse
@@ -318,6 +319,8 @@ export function profileSite(result, url) {
   // La zone commence par le pseudo, qui peut ressembler à une adresse (« thankyoulab.fr ») : seule cette première ligne est sautée
   for (const [i, raw] of profileZone(result?.text, url).split('\n').entries()) {
     const line = raw.trim();
+    // Le lien de la bio précède toujours « Suivi(e) par… » : la suite cite d'autres comptes, pas le site
+    if (/^(followed by|suivi\(e\) par|suivi par)\b/i.test(line)) break;
     const m = !line.includes('@') && !(i === 0 && line.toLowerCase() === handle) && line.match(BARE_LINK);
     if (!m || !outside(`https://${m[1]}`)) continue;
     const shown = m[1].toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
@@ -405,8 +408,10 @@ export function extractPostBrands(result) {
 }
 
 /** Le compte lu est-il une marque ? Signes d'entreprise (catégorie, vente, site) contre signes de personne, lus dans la seule zone du profil */
-const LINK_HUB = /linktr\.ee|beacons\.ai|bio\.link|lnk\.bio|taplink|campsite\.bio|msha\.ke|solo\.to|allmylinks|linkin\.bio|hoo\.be|bento\.me|carrd\.co|snipfeed|stan\.store|amzn\.to|amazon\.[a-z.]+\/shop|ltk\.app|shopmy\.us/i;
-const PERSON = /(cr[ée]atrice|cr[ée]ateur|creator|\bugc\b|influenceu|blogueu|blogger|\bblog\b|bookstagram|booktok|lectrice|lecteur|\blectures?\b|chroniques?|maman|\bmum\b|\bmom\b|\bpapa\b|mari[ée]e? à|épouse|public figure|personnalité publique|\bartiste\b|\bartist\b|athl[eè]te|journaliste|photographe|mod[eè]le photo|\bmodel\b|\bcoach\b|étudiante?|(?<!depuis )(?<!since )\b\d{2} ?ans\b|ambassadrice|ambassadeur|collabs? ?:|contact pro)/i;
+const LINK_HUB = /linktr\.ee|beacons\.ai|bio\.link|lnk\.bio|taplink|campsite\.bio|msha\.ke|solo\.to|allmylinks|linkin\.bio|hoo\.be|bento\.me|carrd\.co|snipfeed|stan\.store|amzn\.to|amazon\.[a-z.]+(\/|$)|ltk\.app|shopmy\.us/i;
+/** Le lien de la bio est-il le site du compte lui-même ? (ni page de liens, ni boutique sur une place de marché) */
+export const isOwnSite = (site) => !!site && !LINK_HUB.test(String(site));
+const PERSON = /(cr[ée]atrice|cr[ée]ateur|creator|\bugc\b|influenceu|blogueu|blogger|\bblog\b|bookstagram|booktok|lectrice|lecteur|\blectures?\b|chroniques?|maman|\bmum\b|\bmom\b|\bpapa\b|mari[ée]e? à|épouse|public figure|personnalité publique|\bartiste\b|\bartist\b|athl[eè]te|journaliste|photographe|mod[eè]le photo|\bmodel\b|\bcoach\b|étudiante?|ambassadrice|ambassadeur|collabs? ?:|contact pro)/i;
 const CATEGORY = /(\bmarque\b|\bbrand\b|boutique|\be?-?shop\b|magasin|enseigne|fabricant|produit\/service|product\/service|e-commerce|cosm[ée]ti|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|pr[êe]t-[àa]-porter|restaurant|entreprise|company|soins? de la peau|skin ?care|jewel|bijou|maroquinerie|épicerie|alimentation et boissons|food & beverage|health\/beauty|santé\/beauté|shopping (et|&) (vente au détail|retail)|maison et jardin|home & garden)/i;
 const COMMERCE = /(livraison|shipping|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée]e?s? en france|nos produits|notre gamme|site officiel|compte officiel|official account|nos magasins|points? de vente|\bsav\b|service client)/i;
 // Pied de page d'Instagram (« Meta · À propos · Blog · Emplois… ») : présent sur toutes les pages, il ne dit rien du compte lu
@@ -660,7 +665,8 @@ export async function submitTaskResult(id, result) {
       const lead = await Lead.findById(task.input.leadId);
       if (!lead) throw new Error('fiche marque introuvable');
       let gotEmail = false;
-      if (p.site && !lead.website) lead.website = p.site;
+      // Une page de liens ou une boutique Amazon n'est pas le site de la marque : la recherche d'email n'y trouverait rien
+      if (isOwnSite(p.site) && !lead.website) lead.website = p.site;
       if (p.email && !lead.email) { lead.email = p.email; lead.emailSource = p.emailSource || 'bio'; gotEmail = true; }
       if (p.followers) lead.stats = { ...(lead.stats?.toObject?.() || lead.stats || {}), subscribers: p.followers };
       if (p.bio && !(lead.description || '').includes(clean(p.bio).slice(0, 30))) lead.description = `Bio Instagram : ${clean(p.bio)}\n${lead.description || ''}`.slice(0, 2000);

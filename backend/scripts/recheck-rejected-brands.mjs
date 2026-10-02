@@ -1,7 +1,7 @@
 /**
  * Répare les deux défauts de lecture des profils Instagram du 29/09 au 02/10/2026 :
  *   A. marques écartées comme « compte personnel » : le contrôle lisait le pied de page d'Instagram (« Blog ») ;
- *   B. site lu à tort : un lien présent sur toutes les pages (muse.ai) était pris pour le site du compte, et inscrit sur les fiches.
+ *   B. site lu à tort : un lien présent sur toutes les pages (muse.ai, meta.ai) était pris pour le site du compte, et inscrit sur les fiches.
  * Le texte et les liens de chaque page lue sont gardés avec la tâche : tout est rejugé sans relire Instagram.
  * Usage : node --env-file=.env scripts/recheck-rejected-brands.mjs [--apply] [--show <pseudo>] [--host <domaine>]
  * Sans --apply : listes et raisons, rien n'est modifié (l'IA est interrogée une fois par profil écarté : comptez quelques minutes).
@@ -9,7 +9,7 @@
  *   les suggestions de créateurs refusées à tort reviennent « à valider » ; les comptes personnels restent écartés.
  *   B. le faux site est retiré des fiches, avec l'email et les comptes sociaux qui en venaient ; le vrai lien de bio le remplace quand il est connu.
  * --show <pseudo> : zone de profil lue, site retenu et verdict pour ce compte.
- * --host <domaine> : autre faux site à retirer (muse.ai par défaut), à répéter au besoin.
+ * --host <domaine> : autre faux site à retirer (muse.ai et meta.ai par défaut), à répéter au besoin.
  * Jamais touchées en A : les fiches sorties ou rétablies à la main depuis (seules celles encore « Hors cible » avec la note du contrôle).
  */
 import mongoose from 'mongoose';
@@ -17,12 +17,12 @@ import { config } from '../src/config/index.js';
 import Lead from '../src/models/Lead.js';
 import BrowserTask from '../src/models/BrowserTask.js';
 import BrandSuggestion from '../src/models/BrandSuggestion.js';
-import { brandVerdict, profileZone, profileSite, extractProfile } from '../src/services/browserTasks.js';
+import { brandVerdict, profileZone, profileSite, extractProfile, isOwnSite } from '../src/services/browserTasks.js';
 
 const apply = process.argv.includes('--apply');
 const arg = (name) => process.argv.flatMap((a, i) => (a === name && process.argv[i + 1] ? [process.argv[i + 1]] : []));
 const show = String(arg('--show')[0] || '').replace(/^@/, '').trim().toLowerCase();
-const WRONG = ['muse.ai', ...arg('--host').map(h => h.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, ''))];
+const WRONG = ['muse.ai', 'meta.ai', ...arg('--host').map(h => h.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, ''))];
 const NOTE = /(?: · )?Écarté : le compte Instagram est un particulier, pas une marque \([^)]*\)/;
 const at = (url) => `@${(String(url || '').match(/instagram\.com\/([^/?#]+)/i) || [])[1] || url}`;
 const hostOf = (u) => { try { return new URL(/^https?:/i.test(u) ? u : `https://${u}`).hostname.replace(/^www\./, '').toLowerCase(); } catch { return ''; } };
@@ -107,7 +107,7 @@ else {
     const cur = l.socials?.toObject?.() || l.socials || {}; const check = l.socialsCheck?.toObject?.() || l.socialsCheck || {};
     for (const net of badSocials(l)) { delete cur[net]; delete check[net]; }
     l.socials = cur; l.socialsCheck = check;
-    l.website = real && !wrongSite(real) ? real : undefined;
+    l.website = isOwnSite(real) && !wrongSite(real) ? real : undefined;
     if (l.website) fixedSite += 1;
     // La recherche d'email sur le site est à refaire, sur le bon site cette fois
     if (l.enrich) { l.enrich.emailSearchedAt = undefined; l.enrich.socialsSearchedAt = undefined; }
@@ -122,7 +122,8 @@ else {
     const lead = await Lead.findById(stale._id);
     lead.status = 'new'; lead.profilePending = false;
     lead.notes = [String(lead.notes || '').replace(NOTE, '').trim(), `Rétablie le ${new Date().toLocaleDateString('fr-FR')} : marque reconnue (${v.reason})`].filter(Boolean).join(' · ').slice(0, 2000);
-    if (p.site && (!lead.website || wrongSite(lead.website))) lead.website = p.site;
+    if (wrongSite(lead.website)) lead.website = undefined;
+    if (isOwnSite(p.site) && !lead.website) lead.website = p.site;
     if (!lead.email && lead.website) await enrichLeadFromSite(lead).catch(() => false);
     await lead.save();
     const done = await qualifyOne(lead, []);
