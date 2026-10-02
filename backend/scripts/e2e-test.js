@@ -3287,6 +3287,17 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
       expect(looksLikeBrand({ site: 'https://wildrefill.fr', followers: 9000 }, 'wildrefill_fr 9 000 abonnés Produit/service Recharges éco-responsables. Livraison offerte dès 30 €'), 'Une boutique avec catégorie et vocabulaire de vente est une marque');
       expect(looksLikeBrand({ site: 'https://maisonverveine.fr', followers: 800 }, 'maisonverveine 800 abonnés Bougies fabriquées en France. Commande sur notre site'), 'Une petite marque avec son site et un vocabulaire de vente est une marque, même peu suivie');
       expect(looksLikeBrand({ site: 'https://laboutiquedelise.fr', followers: 30000 }, 'Créatrice de bijoux. Boutique en ligne, livraison en 48 h. Bijoux faits main'), 'Une créatrice qui tient boutique (catégorie, site, vente) reste une marque');
+      // Page réelle : menus et pied de page d'Instagram (« Blog ») entourent le profil et ne doivent rien dire du compte
+      const { brandVerdict, profileZone } = await import('../src/services/browserTasks.js');
+      const igPage = (h, body) => `Instagram\nAccueil\nRecherche\nDécouvrir\nReels\nMessages\nCréer\nProfil\n${h}\nSuivre\nContacter\n${body}\nPublications\nReels\nIdentifié(e)\nMeta\nÀ propos\nBlog\nEmplois\nAide\nAPI\nConfidentialité\n© 2026 Instagram from Meta`;
+      const vBrand = brandVerdict({ site: 'https://www.sobio-etic.com/' }, igPage('sobio_etic', '61,2 k abonnés\nSO\'BiO étic\nLa beauté bio, efficace et accessible'), { handle: 'https://www.instagram.com/sobio_etic/' });
+      const vShop = brandVerdict({ site: 'https://osloskinlab.fr/' }, igPage('osloskinlab', '48K followers\nOslo Skin Lab\nSkincare backed by science').replace('Meta\nÀ propos\nBlog\nEmplois', 'Meta About Blog Jobs'), { handle: '@osloskinlab' });
+      const vPerson = brandVerdict({ site: 'https://linktr.ee/elise' }, igPage('elise_book21', '25 k abonnés\nElise\nLectrice passionnée, chroniques et coups de cœur'), { handle: 'elise_book21' });
+      const vEmpty = brandVerdict({ site: '' }, igPage('valette49', '300 abonnés\nValette'), { handle: 'valette49' });
+      expect(!/blog/i.test(profileZone(igPage('sobio_etic', 'La beauté bio'), 'sobio_etic')) && /beauté bio/.test(profileZone(igPage('sobio_etic', 'La beauté bio'), 'sobio_etic')), 'La zone de profil doit garder la bio et laisser le pied de page d\'Instagram');
+      expect(vBrand.brand && vShop.brand && /site au nom du compte/.test(vBrand.reason), 'Une marque dont le site porte le nom du compte doit être reconnue malgré le « Blog » du pied de page', [vBrand, vShop]);
+      expect(!vPerson.brand && /lectrice/.test(vPerson.reason) && !vEmpty.brand && /aucun signe/.test(vEmpty.reason), 'Une personne reste écartée, avec la raison du verdict', [vPerson, vEmpty]);
+      expect(brandVerdict({ site: '' }, 'Artisan savonnier depuis 20 ans. Nos produits sont fabriqués en France, boutique à Lyon', {}).brand, 'Une ancienneté (« depuis 20 ans ») n\'est pas un âge');
       const notBrand = normalizeBrand({ sector: 'lifestyle', isBrand: false, sellsProducts: true, fit: 80, signals: [], summary: 'Compte personnel', message: 'Bonjour', emailParagraph: '', hooks: [] });
       expect(notBrand.fit === 0 && notBrand.sellsProducts === false && notBrand.isBrand === false, 'Un compte reconnu comme une personne par l\'IA doit être noté 0', notBrand);
       // Profil introuvable sur Instagram : fiche écartée, avec le motif

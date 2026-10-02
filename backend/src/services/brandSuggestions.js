@@ -236,9 +236,10 @@ export async function queueSuggestionCheck(s) {
 export async function applySuggestionCheck(suggestionId, profile, pageText) {
   const s = await BrandSuggestion.findById(suggestionId);
   if (!s) throw new Error('suggestion introuvable');
-  const { looksLikeBrand } = await import('./browserTasks.js');
-  const isBrand = looksLikeBrand(profile, pageText);
-  s.check = { at: new Date(), isBrand, followers: profile?.followers || null, site: profile?.site || '', bio: String(profile?.bio || '').slice(0, 300), note: '' };
+  const { brandVerdict } = await import('./browserTasks.js');
+  const verdict = brandVerdict(profile, pageText, { handle: s.instagram });
+  const isBrand = verdict.brand;
+  s.check = { at: new Date(), isBrand, followers: profile?.followers || null, site: profile?.site || '', bio: String(profile?.bio || '').slice(0, 300), note: `${isBrand ? 'marque' : 'personne'} (${verdict.reason})`.slice(0, 200) };
   if (!s.website && profile?.site) s.website = String(profile.site).slice(0, 300);
   let outcome;
   if (s.status !== 'pending') { await s.save(); return { suggestion: s, outcome: 'profil lu (suggestion déjà traitée)' }; }
@@ -248,7 +249,7 @@ export async function applySuggestionCheck(suggestionId, profile, pageText) {
   if (!isBrand) {
     s.status = 'refused'; s.auto = true; s.decidedAt = new Date();
     s.reason = 'Ce compte Instagram est celui d\'une personne, pas d\'une marque : la candidature spontanée s\'adresse aux marques qui vendent un produit.';
-    outcome = 'compte personnel, pas une marque : suggestion refusée';
+    outcome = `compte personnel, pas une marque (${verdict.reason}) : suggestion refusée`;
   } else if (tier === 'huge') {
     s.status = 'refused'; s.auto = true; s.decidedAt = new Date(); s.reason = HUGE_TEXT;
     outcome = `très grande marque (${(profile?.followers || 0).toLocaleString('fr-FR')} abonnés) : suggestion refusée`;

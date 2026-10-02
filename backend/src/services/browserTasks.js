@@ -375,23 +375,59 @@ export function extractPostBrands(result) {
   return [...out.values()].slice(0, 3);
 }
 
-/** Le compte lu est-il une marque ? Catégorie professionnelle, boutique ou site dans la bio, audience ; un particulier est écarté */
+/** Le compte lu est-il une marque ? Signes d'entreprise (catégorie, vente, site) contre signes de personne, lus dans la seule zone du profil */
 const LINK_HUB = /linktr\.ee|beacons\.ai|bio\.link|lnk\.bio|taplink|campsite\.bio|msha\.ke|solo\.to|allmylinks|linkin\.bio|hoo\.be|bento\.me|carrd\.co|snipfeed|stan\.store|amzn\.to|amazon\.[a-z.]+\/shop|ltk\.app|shopmy\.us/i;
-const PERSON = /(cr[ée]atrice|cr[ée]ateur|creator|\bugc\b|influenceu|blogueu|blogger|\bblog\b|bookstagram|booktok|lectrice|lecteur|\blectures?\b|chroniques?|maman|\bmum\b|\bmom\b|\bpapa\b|mari[ée]e? à|épouse|digital creator|personal blog|blog personnel|public figure|personnalité publique|\bartiste\b|\bartist\b|athl[eè]te|journaliste|photographe|mod[eè]le photo|\bmodel\b|\bcoach\b|étudiante?|\b\d{2} ?ans\b|ambassadrice|ambassadeur|collabs? ?:|contact pro)/i;
+const PERSON = /(cr[ée]atrice|cr[ée]ateur|creator|\bugc\b|influenceu|blogueu|blogger|\bblog\b|bookstagram|booktok|lectrice|lecteur|\blectures?\b|chroniques?|maman|\bmum\b|\bmom\b|\bpapa\b|mari[ée]e? à|épouse|public figure|personnalité publique|\bartiste\b|\bartist\b|athl[eè]te|journaliste|photographe|mod[eè]le photo|\bmodel\b|\bcoach\b|étudiante?|(?<!depuis )(?<!since )\b\d{2} ?ans\b|ambassadrice|ambassadeur|collabs? ?:|contact pro)/i;
+const CATEGORY = /(\bmarque\b|\bbrand\b|boutique|\be?-?shop\b|magasin|enseigne|fabricant|produit\/service|product\/service|e-commerce|cosm[ée]ti|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|pr[êe]t-[àa]-porter|restaurant|entreprise|company|soins? de la peau|skin ?care|jewel|bijou|maroquinerie|épicerie|alimentation et boissons|food & beverage|health\/beauty|santé\/beauté|shopping (et|&) (vente au détail|retail)|maison et jardin|home & garden)/i;
+const COMMERCE = /(livraison|shipping|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée]e?s? en france|nos produits|notre gamme|site officiel|compte officiel|official account|nos magasins|points? de vente|\bsav\b|service client)/i;
+// Pied de page d'Instagram (« Meta · À propos · Blog · Emplois… ») : présent sur toutes les pages, il ne dit rien du compte lu
+const IG_FOOTER = /(?:\bMeta\s+)?(?:À propos|About)\s+Blog\s+(?:Emplois|Jobs)\b|©\s*\d{4}\s+Instagram/i;
+const squash = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+const handleOf = (v) => (String(v || '').match(/(?:instagram\.com\/|tiktok\.com\/@|^@?)([A-Za-z0-9_.]{2,30})\/?(?:[?#].*)?$/i) || [])[1] || '';
+
 /**
- * Le profil est-il celui d'une marque ? Il faut un vrai signe d'entreprise : une catégorie de commerce, ou un vocabulaire de vente avec un site à soi.
- * Le nombre d'abonnés ne prouve rien (un influenceur est très suivi), un lien de bio vers une page de liens non plus.
- * Un signe de personne (créatrice, blog, lectures, maman, code promo…) écarte le profil, sauf s'il réunit catégorie de commerce et site à soi.
+ * Zone du profil dans le texte d'une page : de l'en-tête (pseudo) au pied de page exclu. Les menus et le pied de page d'Instagram
+ * sont les mêmes pour tous les comptes : les lire ferait prendre chaque profil pour un blog.
  */
-export function looksLikeBrand(profile, text) {
-  const t = String(text || '').toLowerCase();
-  const category = /(\bmarque\b|\bbrand\b|boutique|\bshop\b|magasin|produit\/service|product\/service|e-commerce|cosm[ée]tique|beaut[ée], cosm|v[êe]tements \(marque\)|clothing \(brand\)|restaurant|entreprise|company|soin de la peau|skin care|jewel|bijou|maroquinerie|épicerie|alimentation et boissons|food & beverage|health\/beauty|santé\/beauté|shopping (et|&) (vente au détail|retail)|maison et jardin|home & garden)/.test(t);
-  const commerce = /(livraison|shipping|commande|shop now|acheter|boutique en ligne|made in france|fabriqu[ée] en france|nos produits|notre gamme|site officiel|compte officiel|official account|nos magasins|points? de vente|\bsav\b|service client)/.test(t);
-  const ownSite = !!profile?.site && !LINK_HUB.test(String(profile.site));
-  const person = PERSON.test(t);
-  if (person) return category && ownSite && commerce;
-  return category ? (commerce || ownSite) : (commerce && ownSite);
+export function profileZone(text, handle) {
+  let t = String(text || '');
+  const foot = t.search(IG_FOOTER);
+  if (foot > 0) t = t.slice(0, foot);
+  const h = handleOf(handle);
+  const start = h ? t.toLowerCase().indexOf(h.toLowerCase()) : -1;
+  return t.slice(Math.max(start, 0)).slice(0, 1500);
 }
+
+/** Le site de la bio porte-t-il le nom du compte ? (sobio_etic → sobio-etic.com) : le signe le plus sûr d'un compte d'entreprise */
+const siteMatchesHandle = (site, handle) => {
+  const h = squash(handleOf(handle));
+  let host = ''; try { host = new URL(site).hostname.replace(/^www\./, ''); } catch { return false; }
+  const l = squash(host.split('.').slice(0, -1).sort((x, y) => y.length - x.length)[0]);
+  if (h.length < 4 || l.length < 4) return false;
+  let common = 0; while (common < h.length && common < l.length && h[common] === l[common]) common += 1;
+  return h.includes(l) || l.includes(h) || common >= 6;
+};
+
+/**
+ * Verdict « marque ou personne » avec ses raisons. Chaque signe pèse : catégorie de commerce +2, vocabulaire de vente +2, site à soi +1,
+ * site au nom du compte +2 ; mot de personne (créatrice, blog, maman…) −2, page de liens −1. Marque à partir de 3.
+ * Le nombre d'abonnés ne prouve rien (un influenceur est très suivi). opts : { handle, extra } (extra : description de la page).
+ */
+export function brandVerdict(profile, text, opts = {}) {
+  const zone = `${profileZone(text, opts.handle)}\n${opts.extra || ''}`;
+  const site = String(profile?.site || '');
+  const signs = []; let score = 0;
+  const add = (points, label) => { score += points; signs.push(label); };
+  const word = (re) => (zone.match(re) || [])[0]?.trim().toLowerCase();
+  const cat = word(CATEGORY); if (cat) add(2, `catégorie « ${cat} »`);
+  const sell = word(COMMERCE); if (sell) add(2, `vente « ${sell} »`);
+  if (site && LINK_HUB.test(site)) add(-1, 'page de liens');
+  else if (site) { add(1, 'site à soi'); if (siteMatchesHandle(site, opts.handle)) add(2, 'site au nom du compte'); }
+  const who = word(PERSON); if (who) add(-2, `mot de personne « ${who} »`);
+  return { brand: score >= 3, score, signs, reason: signs.length ? signs.join(', ') : 'aucun signe d\'entreprise' };
+}
+
+export function looksLikeBrand(profile, text, opts = {}) { return brandVerdict(profile, text, opts).brand; }
 
 /** Site et publicités d'une marque connue par son pseudo ou son nom : recherche dans la bibliothèque Meta (serveur, sans page de plus dans le navigateur) */
 export async function lookupBrandOnMeta(nameOrHandle) {
@@ -602,6 +638,7 @@ export async function submitTaskResult(id, result) {
       if (!lead.email && lead.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); if (await enrichLeadFromSite(lead).catch(() => false)) gotEmail = true; }
       lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date(), socialsSearchedAt: new Date() };
       const paid = /partenariat rémunéré déclaré/.test(lead.description || '');
+      let verdict = null;
       const { brandTier } = await import('./brandSuggestions.js');
       const size = await brandTier({ name: lead.name, handle: lead.socials?.instagram || task.input.url, followers: p.followers || null, ads: lead.stats?.ads ?? null });
       lead.sizeTier = size.tier;
@@ -612,12 +649,12 @@ export async function submitTaskResult(id, result) {
         lead.notes = [lead.notes, `Écartée : très grande marque (${audience})`].filter(Boolean).join(' · ').slice(0, 2000);
         await lead.save();
         outcome = `très grande marque (${audience}) : fiche écartée`;
-      } else if (!paid && !looksLikeBrand(p, slim.text)) {
-        // Compte personnel cité dans une légende : pas un prospect marque
+      } else if (!paid && !(verdict = brandVerdict(p, slim.text, { handle: lead.socials?.instagram || task.input.url, extra: `${slim.meta?.description || ''} ${slim.meta?.ogDescription || ''}` })).brand) {
+        // Compte personnel cité dans une légende : pas un prospect marque ; les signes lus sont gardés pour juger le contrôle
         lead.status = 'rejected';
-        lead.notes = [lead.notes, 'Écarté : le compte Instagram est un particulier, pas une marque (catégorie, site, audience)'].filter(Boolean).join(' · ').slice(0, 2000);
+        lead.notes = [lead.notes, `Écarté : le compte Instagram est un particulier, pas une marque (${verdict.reason})`].filter(Boolean).join(' · ').slice(0, 2000);
         await lead.save();
-        outcome = 'compte personnel, pas une marque : fiche écartée';
+        outcome = `compte personnel, pas une marque (${verdict.reason}) : fiche écartée`;
       } else {
         await lead.save();
         // Marque confirmée : la qualification (secteur, accroches, message) se fait maintenant, avec la bio, le site et les abonnés
@@ -625,7 +662,7 @@ export async function submitTaskResult(id, result) {
         if (batch) { batch.imported.updated += 1; if (gotEmail) batch.imported.emailsAdded += 1; }
         if (size.tier === 'large' && !/Grande marque/.test(lead.notes || '')) lead.notes = [lead.notes, `Grande marque (${audience}) : répond rarement`].filter(Boolean).join(' · ').slice(0, 2000);
         if (size.tier === 'large') await lead.save();
-        outcome = `fiche marque complétée${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ` · email trouvé${p.emailSource === 'bouton e-mail' && lead.email === p.email ? ' (bouton e-mail)' : ''}` : ''}${size.tier === 'large' ? ` · grande marque (${audience})` : ''}`;
+        outcome = `fiche marque complétée${verdict ? ` (${verdict.reason})` : ''}${lead.website ? ' · site trouvé' : ' · pas de site dans la bio'}${gotEmail ? ` · email trouvé${p.emailSource === 'bouton e-mail' && lead.email === p.email ? ' (bouton e-mail)' : ''}` : ''}${size.tier === 'large' ? ` · grande marque (${audience})` : ''}`;
       }
     } else if (task.type === 'read_profile') {
       const url = task.input.url;
