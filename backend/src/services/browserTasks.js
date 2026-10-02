@@ -301,28 +301,57 @@ export function extractPostAuthor(result) {
   return best ? `https://www.instagram.com/${best.h}/` : null;
 }
 
-/** Fiche de profil (Instagram ou TikTok) : email, abonnés, lien de bio, bio courte (IA si disponible, sinon début du texte) */
+// Liens présents sur les pages des réseaux eux-mêmes (menus, pied de page, modules) : jamais le site du compte lu
+const NETWORK_HOSTS = ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'muse.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com'];
+const BARE_LINK = /^((?:[a-z0-9-]+\.)+[a-z]{2,24}(?:\/[^\s…]*)?)…?(?:\s+(?:and|et|\+)\s*\d+\s.*)?$/i;
+
+/**
+ * Site du compte lu. Sur Instagram, seul le lien de la bio compte : la ligne du profil écrite comme une adresse
+ * (« sobio-etic.com », « linktr.ee/marque and 1 more »), sinon un lien de bio enveloppé par Instagram (« l.instagram.com/?u=… »).
+ * Un lien quelconque de la page ne prouve rien : menus et modules en portent sur tous les profils.
+ */
+export function profileSite(result, url) {
+  const links = result?.links || [];
+  const outside = (h) => /^https?:\/\//i.test(h) && !NETWORK_HOSTS.some(x => linkHost(h).endsWith(x)) && !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h);
+  if (!/instagram\.com/i.test(String(url || ''))) return links.map(l => unwrapRedirect(l.href)).find(outside) || null;
+  const handle = handleOf(url).toLowerCase();
+  // La zone commence par le pseudo, qui peut ressembler à une adresse (« thankyoulab.fr ») : seule cette première ligne est sautée
+  for (const [i, raw] of profileZone(result?.text, url).split('\n').entries()) {
+    const line = raw.trim();
+    const m = !line.includes('@') && !(i === 0 && line.toLowerCase() === handle) && line.match(BARE_LINK);
+    if (!m || !outside(`https://${m[1]}`)) continue;
+    const shown = m[1].toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
+    const full = links.map(l => unwrapRedirect(l.href)).find(h => h.toLowerCase().replace(/^https?:\/\/(www\.)?/, '').startsWith(shown));
+    return full || `https://${m[1]}`;
+  }
+  return links.filter(l => /^https?:\/\/l\.(instagram|facebook)\.com\//i.test(l.href)).map(l => unwrapRedirect(l.href)).find(outside) || null;
+}
+
+/** Fiche de profil (Instagram ou TikTok) : email, abonnés, lien de bio, bio courte et nature du compte (IA si disponible, sinon début du texte) */
 export async function extractProfile(result, url) {
   const text = String(result?.text || '');
   // Adresse de contact publiée par le compte professionnel (bouton « E-mail ») d'abord, puis texte visible, liens mailto, emails du code de la page
   const contact = pickEmail(extractEmails(String(result?.contact?.email || '')));
   const email = contact || pickEmail(extractEmails(text)) || pickEmail(extractEmails((result?.links || []).filter(l => /^mailto:/i.test(l.href)).map(l => l.href.replace(/^mailto:/i, '')).join(' '))) || pickEmail(extractEmails((result?.emails || []).join(' ')));
   const followers = followersFromText(text);
-  const site = externalLinks(result?.links, ['instagram.com', 'tiktok.com', 'facebook.com', 'youtube.com', 'youtu.be', 'threads.net', 'threads.com', 'meta.com', 'meta.ai', 'fb.com', 'fb.me', 'messenger.com', 'oculus.com', 'apple.com', 'google.com', 'microsoft.com', 'linkedin.com', 'twitter.com', 'x.com', 'snapchat.com', 'pinterest.com', 'whatsapp.com', 'wa.me', 'spotify.com', 'cloudflare.com', 'bytedance.com', 'tiktokv.com']).find(h => !/\/(privacy|terms|legal|policies|help|about|press|copyright|contact-us|creators|advertise|developers|jobs)\b/i.test(h)) || null;
-  let bio = '';
+  const site = profileSite(result, url);
+  // Sur Instagram, l'IA ne lit que la zone du profil : les menus et le pied de page ne disent rien du compte
+  const zone = /instagram\.com/i.test(String(url || '')) ? profileZone(text, url) : text.slice(0, 6000);
+  let bio = ''; let account;
   if (aiConfig().configured) {
     try {
       const out = await generateJson({
         system: 'Tu lis le texte visible d\'un profil de réseau social. Réponds en JSON strict.',
-        prompt: `Texte de la page (${url}) :\n"""\n${text.slice(0, 6000)}\n"""\nDonne : bio (la présentation du créateur en une phrase, telle qu'écrite ou résumée, ≤ 160 caractères, vide si absente), email (adresse visible, vide sinon).`,
-        schema: z.object({ bio: z.string().default(''), email: z.string().default('') }),
+        prompt: `Texte du profil (${url}) :\n"""\n${zone}\n"""\nDonne : bio (la présentation du compte en une phrase, telle qu'écrite ou résumée, ≤ 160 caractères, vide si absente), email (adresse visible, vide sinon), account : "brand" si le compte parle au nom d'une entreprise, d'une marque, d'une enseigne, d'un commerce, d'un club ou d'une organisation (ses produits, sa gamme, sa boutique, ses services) ; "person" si c'est un particulier, un créateur de contenu, un influenceur ou un blogueur, même s'il a des partenariats ou un code promo ; "unknown" si le texte ne permet pas de trancher.`,
+        schema: z.object({ bio: z.string().default(''), email: z.string().default(''), account: z.string().default('unknown') }),
       });
       bio = out.bio || '';
-      if (!email && /@/.test(out.email)) return { email: out.email.toLowerCase(), emailSource: 'bio', followers, site, bio };
+      account = ['brand', 'person'].includes(String(out.account).toLowerCase()) ? String(out.account).toLowerCase() : undefined;
+      if (!email && /@/.test(out.email)) return { email: out.email.toLowerCase(), emailSource: 'bio', followers, site, bio, account };
     } catch (err) { logger.warn(`extractProfile AI: ${err.message}`); }
   }
-  if (!bio) bio = text.replace(/\s+/g, ' ').slice(0, 160);
-  return { email, emailSource: email ? (contact ? 'bouton e-mail' : 'bio') : null, followers, site, bio };
+  if (!bio) bio = zone.replace(/\s+/g, ' ').slice(0, 160);
+  return { email, emailSource: email ? (contact ? 'bouton e-mail' : 'bio') : null, followers, site, bio, account };
 }
 
 /** Annonceurs d'une page de bibliothèque publicitaire : IA sur le texte, complétée par les liens de pages Facebook */
@@ -410,7 +439,7 @@ const siteMatchesHandle = (site, handle) => {
 
 /**
  * Verdict « marque ou personne » avec ses raisons. Chaque signe pèse : catégorie de commerce +2, vocabulaire de vente +2, site à soi +1,
- * site au nom du compte +2 ; mot de personne (créatrice, blog, maman…) −2, page de liens −1. Marque à partir de 3.
+ * site au nom du compte +2 ; mot de personne (créatrice, blog, maman…) −2, page de liens −1 ; avis de l'IA ±4. Marque à partir de 3.
  * Le nombre d'abonnés ne prouve rien (un influenceur est très suivi). opts : { handle, extra } (extra : description de la page).
  */
 export function brandVerdict(profile, text, opts = {}) {
@@ -424,6 +453,8 @@ export function brandVerdict(profile, text, opts = {}) {
   if (site && LINK_HUB.test(site)) add(-1, 'page de liens');
   else if (site) { add(1, 'site à soi'); if (siteMatchesHandle(site, opts.handle)) add(2, 'site au nom du compte'); }
   const who = word(PERSON); if (who) add(-2, `mot de personne « ${who} »`);
+  // Avis de l'IA sur la zone du profil (extractProfile) : il pèse plus qu'un mot, moins que l'ensemble des signes contraires
+  if (profile?.account === 'brand') add(4, 'compte d\'entreprise selon l\'IA'); else if (profile?.account === 'person') add(-4, 'compte personnel selon l\'IA');
   return { brand: score >= 3, score, signs, reason: signs.length ? signs.join(', ') : 'aucun signe d\'entreprise' };
 }
 
