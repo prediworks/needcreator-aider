@@ -4,12 +4,16 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { detectLang, writeLangCookie, type Lang } from '@/lib/i18n';
 import { EN } from '@/lib/i18n/en';
+import { useAuth } from '@/hooks/useAuth';
 
 /**
  * Applique l'anglais à l'affichage : remplace les textes français connus (dictionnaire `en.ts`) dans les nœuds texte
  * et les attributs placeholder, title, aria-label et alt, puis surveille les changements de page.
  * Les textes qui contiennent des nombres sont reconnus par gabarit (« 3 devis » ↔ « {n} devis »).
+ * L'espace créateur et l'admin n'existent qu'en français : pour eux, rien n'est traduit, quelle que soit la langue mémorisée
+ * (sinon les quelques textes communs passent en anglais et le reste demeure en français).
  */
+let applied = false; // l'anglais a déjà été appliqué à cette page : un retour au français demande un rechargement
 const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
 const cache = new Map<string, string | null>();
 const EN_VALUES = new Set(Object.values(EN)); // déjà traduit : ne pas retraduire ni signaler
@@ -61,11 +65,18 @@ function climb(walker: TreeWalker): Node | null { let p = walker.parentNode(); w
 
 export default function LangTranslator() {
   const pathname = usePathname();
+  const { user, loading } = useAuth();
+  const frenchOnly = !!user && user.role !== 'brand';
   useEffect(() => {
-    const lang = detectLang();
+    // Tant que le compte n'est pas connu, rien n'est traduit : un créateur ne doit pas voir l'anglais apparaître puis disparaître
+    if (loading) return;
+    const lang: Lang = frenchOnly ? 'fr' : detectLang();
     document.documentElement.lang = lang;
-    if (!document.cookie.includes('nc_lang=')) writeLangCookie(lang);
+    if (!frenchOnly && !document.cookie.includes('nc_lang=')) writeLangCookie(lang);
+    // Connexion d'un créateur sur une page déjà passée en anglais : les textes remplacés ne reviennent qu'au rechargement
+    if (frenchOnly && applied) { applied = false; window.location.reload(); return; }
     if (lang !== 'en') return;
+    applied = true;
     applyTo(document.body, lang);
     const obs = new MutationObserver((muts) => {
       for (const m of muts) {
@@ -76,6 +87,6 @@ export default function LangTranslator() {
     });
     obs.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS });
     return () => obs.disconnect();
-  }, [pathname]);
+  }, [pathname, loading, frenchOnly]);
   return null;
 }
