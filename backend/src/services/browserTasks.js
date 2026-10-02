@@ -149,6 +149,17 @@ export async function batchFromLinkedinContacts({ limit = 20, createdBy } = {}) 
   return createBatch({ label: `Contacts LinkedIn · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, items });
 }
 
+/** Lot « Groupes Facebook » : la page de chaque groupe suivi, publications récentes d'abord ; une lecture par groupe et par jour */
+export async function batchFromFacebookGroups({ createdBy, workspaceId = 'default' } = {}) {
+  const { groupsToRead, GROUPS_PER_LOT } = await import('./groupWatch.js');
+  const groups = await groupsToRead({ workspaceId, limit: GROUPS_PER_LOT * 2 });
+  // Un groupe déjà dans un lot en attente n'y entre pas deux fois
+  const queued = new Set((await BrowserTask.find({ workspaceId, type: 'list_group_posts', status: { $in: ['pending', 'running'] } }).select('input.query').lean()).map(t => t.input?.query));
+  const items = groups.filter(g => !queued.has(g.key)).slice(0, GROUPS_PER_LOT).map(g => ({ type: 'list_group_posts', url: `${g.url}?sorting_setting=CHRONOLOGICAL`, query: g.key }));
+  if (!items.length) return null;
+  return createBatch({ label: `Groupes Facebook · ${new Date().toLocaleDateString('fr-FR')}`, kind: 'brand', createdBy, workspaceId, items });
+}
+
 // « Collaboration commerciale » et « publicité » sont les mentions légales d'un partenariat en France : ces hashtags ciblent les marques qui paient
 export const PARTNERSHIP_HASHTAGS = ['collaborationcommerciale', 'partenariatremunere', 'produitoffert', 'partenariat', 'collab', 'ugcfrance', 'publicite'];
 
@@ -825,6 +836,13 @@ export async function submitTaskResult(id, result) {
       const imp = rows.length ? await importLeads({ kind: 'brand', rows, niche: batch?.niche, origin: batch?.origin || 'TikTok Creative Center' }) : { created: 0, updated: 0, emailsAdded: 0 };
       if (batch) { batch.imported.created += imp.created; batch.imported.updated += imp.updated; batch.imported.emailsAdded += imp.emailsAdded; }
       outcome = `${advertisers.length} annonceur(s) relevé(s), ${imp.created} nouvelle(s) marque(s), ${imp.emailsAdded} email(s)`;
+    } else if (task.type === 'list_group_posts') {
+      // Groupe Facebook suivi : seules les publications qui expriment un besoin sont gardées, avec un commentaire proposé
+      const { applyGroupRead } = await import('./groupWatch.js');
+      const r = await applyGroupRead(task, slim);
+      task.extracted = { added: r.added, permalinks: r.permalinks };
+      if (batch) batch.imported.created += r.added;
+      outcome = r.outcome;
     } else if (task.type === 'find_company') {
       const company = extractCompanyLink(slim, task.input.query || '');
       if (!company) throw new Error(`aucune page entreprise au nom de « ${task.input.query || 'la marque'} » dans les résultats`);

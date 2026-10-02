@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
  * File de tâches pour l'extension Chrome de prospection (dossier extension/).
  * Isolé du reste : l'extension ne connaît que ce protocole (tâche → résultat brut : texte visible, liens, blocage).
  */
-export const TASK_TYPES = ['read_post_author', 'read_profile', 'list_hashtag', 'list_ad_library', 'prefill_message', 'read_post_brands', 'list_tiktok_ads', 'find_company', 'read_company_people'];
+export const TASK_TYPES = ['read_post_author', 'read_profile', 'list_hashtag', 'list_ad_library', 'prefill_message', 'read_post_brands', 'list_tiktok_ads', 'find_company', 'read_company_people', 'list_group_posts'];
 export const LINKEDIN_TYPES = ['find_company', 'read_company_people'];
 export const TASK_STATUSES = ['pending', 'running', 'done', 'failed', 'cancelled'];
 

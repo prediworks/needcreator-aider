@@ -6,6 +6,7 @@ import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import ShowcaseRequests, { useShowcaseRequests } from '@/components/admin/ShowcaseRequests';
 import BrandSuggestions, { useBrandSuggestions } from '@/components/admin/BrandSuggestions';
+import GroupWatch, { useGroupWatch } from '@/components/admin/GroupWatch';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
@@ -93,6 +94,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
   const { data: showcase } = useQuery({ queryKey: ['acq-showcase', q?.leads?.[0]?._id], queryFn: async () => (await api.get(`/admin/acquisition/leads/${q.leads[0]._id}/showcase`)).data.showcase, enabled: !!q?.leads?.[0]?._id, staleTime: 30000 });
   const sendShowcase = useMutation({ mutationFn: async ({ id, via }: any) => (await api.post(`/admin/acquisition/leads/${id}/showcase/send`, { via })).data, onSuccess: async (d) => { if (d.text && !/par email/.test(d.message)) { try { await navigator.clipboard.writeText(d.text); } catch { /* presse-papiers indisponible */ } } toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acq-showcase'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const useEmail = useMutation({ mutationFn: async ({ id, email }: any) => (await api.post(`/admin/acquisition/leads/${id}/use-contact-email`, { email })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
+  const fixLink = useMutation({ mutationFn: async ({ id, value }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, { fixLink: value })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const prefill = useMutation({ mutationFn: async ({ id, network, url }: any) => (await api.post(`/admin/acquisition/leads/${id}/prefill`, { network, url })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   if (isLoading || !q) return null;
   const l = q.leads?.[0];
@@ -153,6 +155,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
             {l.socials?.tiktok && <Button size="sm" variant={l.socials?.instagram ? 'outline' : 'primary'} onClick={() => open('tiktok', l.socials.tiktok)} title="Copie le message et ouvre le profil TikTok dans un nouvel onglet"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
             {(l.socials?.instagram || l.socials?.tiktok) && <Button size="sm" variant="outline" onClick={() => { const network = l.socials?.instagram ? 'instagram' : 'tiktok'; setVia(network); prefill.mutate({ id: l._id, network }); }} isLoading={prefill.isPending} title="Envoie le message à l'extension installée dans le Chrome du compte principal (rôle « Messages ») : elle ouvre la conversation et colle le texte, vous relisez et envoyez. Sans cette extension, utilisez « Copier et ouvrir »." data-testid="prefill-message">Préparer dans Chrome</Button>}
             {kind === 'brand' && l.socials?.linkedin && <Button size="sm" variant="outline" onClick={() => open('linkedin', l.socials.linkedin)} title="Copie le message et ouvre la page LinkedIn"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
+            <Button size="sm" variant="ghost" onClick={() => { const t = prompt('Le lien ne mène pas au bon profil, ou il manque ? Collez la bonne adresse (Instagram, TikTok ou LinkedIn), ou le pseudo Instagram.'); if (t && t.trim()) fixLink.mutate({ id: l._id, value: t }); }} isLoading={fixLink.isPending} title="Profil introuvable, mauvais compte ou lien manquant : collez la bonne adresse. La fiche est corrigée et reste dans la file, avec le bon bouton « Copier et ouvrir »." data-testid="daily-fix-link">Corriger le lien</Button>
             <span className="text-neutral-300">|</span>
             <Button size="sm" variant="outline" onClick={() => act.mutate({ id: l._id, status: 'contacted', contactedVia: via || (l.socials?.instagram ? 'instagram' : l.socials?.tiktok ? 'tiktok' : 'linkedin') })} isLoading={act.isPending} title="Message envoyé : le prospect passe en « Contacté » (il ne recevra pas l'email de prospection) et la file affiche le suivant" data-testid="daily-done">Contacté, suivant</Button>
             <Button size="sm" variant="ghost" onClick={() => { const t = prompt('Collez la réponse reçue (le texte du message de la marque ou du créateur)'); if (t && t.trim()) pasteReply.mutate({ id: l._id, text: t, via: via || 'instagram' }); }} isLoading={pasteReply.isPending} title="La réponse est classée par l'IA ; si elle donne une adresse email, l'email est ajouté à la fiche et la réponse proposée est l'email à envoyer à cette adresse (bouton « Relire et envoyer ») ; une demande de prix reçoit la fourchette et les deux voies (vidéo spontanée, campagne)" data-testid="daily-paste-reply">Coller la réponse</Button>
@@ -408,7 +411,7 @@ export default function AcquisitionTool() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showExt, setShowExt] = useState(false);
   // Vidéos : deux boutons à compteur dans la rangée des filtres ; le panneau des vidéos à envoyer s'ouvre seul quand il y en a
-  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | null>(null);
+  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | 'groups' | null>(null);
   const { data: svList } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
   const { data: reqList } = useShowcaseRequests();
   const svTodo = (svList || []).filter((x: any) => x.status === 'ready').length;
@@ -416,6 +419,8 @@ export default function AcquisitionTool() {
   const reqLate = (reqList || []).filter((x: any) => ['late', 'overdue'].includes(x.state)).length;
   const { data: sugList } = useBrandSuggestions();
   const sugTodo = (sugList || []).filter((x: any) => x.status === 'pending').length;
+  const { data: groupData } = useGroupWatch();
+  const groupTodo = groupData?.todo || 0;
   const shown = panel === null ? (svTodo > 0 ? 'showcases' : sugTodo > 0 ? 'suggestions' : '') : panel;
   // Un panneau ouvert de lui-même (vidéo à envoyer, marque à valider) reste ouvert après l'action : il ne se referme pas quand le compteur tombe à zéro
   useEffect(() => { if (panel === null && shown) setPanel(shown); }, [panel, shown]);
@@ -567,9 +572,11 @@ export default function AcquisitionTool() {
           <button type="button" onClick={() => setPanel(shown === 'showcases' ? '' : 'showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
           <button type="button" onClick={() => setPanel(shown === 'requests' ? '' : 'requests')} data-testid="requests-button" title="Marques qui ont répondu « oui vidéo » : produit, créateurs prévenus, vidéos déposées, échéance de dix jours" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'requests' ? 'bg-neutral-900 text-white' : reqLate > 0 ? 'bg-red-100 text-red-800' : reqOpen > 0 ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>Vidéos demandées {reqOpen}{reqLate > 0 ? ` · ${reqLate} en retard` : ''}</button>
           <button type="button" onClick={() => setPanel(shown === 'suggestions' ? '' : 'suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
+          <button type="button" onClick={() => setPanel(shown === 'groups' ? '' : 'groups')} data-testid="groups-button" title="Groupes Facebook suivis : publications où une marque cherche des créateurs ou pose une question, avec un commentaire proposé" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'groups' ? 'bg-neutral-900 text-white' : groupTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Groupes Facebook {groupTodo}</button>
         </div>
         {shown === 'showcases' && <div className="mb-4"><ShowcaseList /></div>}
         {shown === 'suggestions' && <div className="mb-4"><BrandSuggestions /></div>}
+        {shown === 'groups' && <div className="mb-4"><GroupWatch /></div>}
         {shown === 'requests' && <div className="mb-4"><ShowcaseRequests /></div>}
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>

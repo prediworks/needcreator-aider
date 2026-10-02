@@ -1,5 +1,5 @@
 import Joi from 'joi';
-import { createBatch, batchFromPostsWithoutAuthor, batchFromProfilesWithoutEmail, batchFromAdLibrary, batchFromHashtags, batchFromPartnershipHashtags, batchFromTiktokAds, batchFromLinkedinContacts, listBatches, batchDetail, cancelBatch, claimNextTask, submitTaskResult, queueStatus, getExtensionToken, rotateExtensionToken, checkExtensionToken } from '../services/browserTasks.js';
+import { createBatch, batchFromPostsWithoutAuthor, batchFromProfilesWithoutEmail, batchFromAdLibrary, batchFromHashtags, batchFromPartnershipHashtags, batchFromTiktokAds, batchFromLinkedinContacts, batchFromFacebookGroups, listBatches, batchDetail, cancelBatch, claimNextTask, submitTaskResult, queueStatus, getExtensionToken, rotateExtensionToken, checkExtensionToken } from '../services/browserTasks.js';
 import logger from '../utils/logger.js';
 
 /* ---------- Côté extension : jeton dédié (en-tête X-Extension-Token) ---------- */
@@ -68,7 +68,7 @@ export async function tokenRotate(req, res) {
 }
 
 const batchSchema = Joi.object({
-  preset: Joi.string().valid('posts_without_author', 'profiles_without_email', 'ad_library', 'hashtags', 'partnerships', 'tiktok_ads', 'linkedin_contacts', 'custom').required(),
+  preset: Joi.string().valid('posts_without_author', 'profiles_without_email', 'ad_library', 'hashtags', 'partnerships', 'tiktok_ads', 'linkedin_contacts', 'facebook_groups', 'custom').required(),
   limit: Joi.number().integer().min(1).max(100),
   keywords: Joi.array().items(Joi.string().max(60)).max(12),
   hashtags: Joi.array().items(Joi.string().max(60)).max(10),
@@ -93,6 +93,7 @@ export async function createBatchView(req, res) {
     else if (value.preset === 'hashtags') batch = await batchFromHashtags({ hashtags: value.hashtags, count: value.count || 20, createdBy });
     else if (value.preset === 'partnerships') batch = await batchFromPartnershipHashtags({ hashtags: value.hashtags, count: value.count || 20, createdBy });
     else if (value.preset === 'linkedin_contacts') batch = await batchFromLinkedinContacts({ limit: Math.min(value.limit || 20, 20), createdBy });
+    else if (value.preset === 'facebook_groups') batch = await batchFromFacebookGroups({ createdBy });
     else if (value.preset === 'tiktok_ads') batch = await batchFromTiktokAds({ keywords: value.keywords, count: value.count || 15, country: value.country || 'FR', createdBy });
     else batch = await createBatch({ label: value.label || 'Lot personnalisé', kind: value.kind, origin: value.origin, niche: value.niche, items: value.items, createdBy });
     if (!batch) return res.status(404).json({ error: 'Rien à traiter pour ce lot : aucune fiche ne correspond (ou déjà remises il y a moins de 30 jours)' });

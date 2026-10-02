@@ -2709,6 +2709,12 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(q2.data.doneToday === q1.data.doneToday + 1 && !q2.data.leads.some(l => String(l._id) === String(dq2)) && q2.data.waiting === q1.data.waiting - 1, 'La file avance (le prospect contacté en sort) et le compteur du jour augmente', { status: 200, data: { doneToday: q2.data.doneToday, waiting: q2.data.waiting } });
     const iE = q2.data.leads.findIndex(l => l.email), iN = q2.data.leads.map(l => !l.email).lastIndexOf(true);
     expect(iE === -1 || iN < iE, 'Les prospects sans email passent avant ceux qui en ont un', { status: 200, data: q2.data.leads.map(l => !!l.email) });
+    // « Corriger le lien » : adresse ou pseudo collé tel quel, réseau reconnu, avertissement « compte à vérifier » levé
+    await db.collection('leads').updateOne({ _id: dq1 }, { $set: { 'socialsCheck.instagram': 'unverified' } });
+    const fix1 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { fixLink: '@Le.Bon_Compte' });
+    const fix2 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { fixLink: 'https://www.tiktok.com/@lebon?lang=fr' });
+    const fix3 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { fixLink: 'https://exemple.fr/pas-un-profil' });
+    expect(fix1.status === 200 && fix1.data.lead.socials.instagram === 'https://www.instagram.com/le.bon_compte/' && fix1.data.lead.socialsCheck?.instagram === 'ok' && /corrigé à la main/.test(fix1.data.lead.notes) && fix2.status === 200 && fix2.data.lead.socials.tiktok === 'https://www.tiktok.com/@lebon' && fix2.data.lead.socials.instagram === 'https://www.instagram.com/le.bon_compte/' && fix3.status === 400, 'Corriger le lien : le bon profil doit remplacer l\'ancien, un autre réseau s\'ajouter, une adresse quelconque être refusée', { fix1: fix1.data, fix2: fix2.data, fix3 });
     const skipped = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { skip: true });
     const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);
@@ -3266,6 +3272,39 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     const tagLead2 = await db.collection('leads').findOne({ handle: '@e2eextbrandtag' });
     expect(tagLead2.website === 'https://e2eextbrandtag-test.example/' && tagLead2.email === 'hello@e2eextbrandtag-test.example', 'La fiche marque doit porter le site et l\'email', tagLead2);
     expect(tagLead2.profilePending === false && tagLead2.profileCheckedAt && /Bio Instagram/.test(tagLead2.description), 'Le profil lu doit lever l\'attente et laisser la bio sur la fiche', tagLead2);
+    {
+      // Groupes Facebook : groupe suivi, lot de lecture, demandes relevées avec un commentaire proposé, « Répondu » / « Passer »
+      const gKey = `e2egroup${RUN}`;
+      const gBad = await brandApi('POST', '/admin/acquisition/groups', { url: 'https://www.facebook.com/pages/pas-un-groupe' });
+      const gAdd = await brandApi('POST', '/admin/acquisition/groups', { url: `https://m.facebook.com/groups/${gKey}/posts/123456/?ref=share`, audience: 'creators' });
+      const gDup = await brandApi('POST', '/admin/acquisition/groups', { url: `https://www.facebook.com/groups/${gKey}` });
+      expect(gBad.status === 400 && gAdd.status === 201 && gAdd.data.group.url === `https://www.facebook.com/groups/${gKey}/` && gDup.status === 409, 'Un groupe s\'ajoute par son adresse, quelle que soit sa forme, une seule fois', { gBad: gBad.status, gAdd: gAdd.data, gDup: gDup.status });
+      const gLot = await brandApi('POST', '/browser-tasks/batches', { preset: 'facebook_groups' });
+      const gTask = await db.collection('browsertasks').findOne({ type: 'list_group_posts', 'input.query': gKey, status: 'pending' });
+      const gLot2 = await brandApi('POST', '/browser-tasks/batches', { preset: 'facebook_groups' });
+      const gTwice = await db.collection('browsertasks').countDocuments({ type: 'list_group_posts', 'input.query': gKey });
+      expect(gLot.status === 201 && gTask && /sorting_setting=CHRONOLOGICAL/.test(gTask.input.url) && gTwice === 1 && [201, 404].includes(gLot2.status), 'Le lot « Groupes Facebook » doit lire chaque groupe une fois, publications récentes d\'abord', { gLot: gLot.data, gTask, gTwice });
+      await db.collection('browsertasks').updateOne({ _id: gTask._id }, { $set: { status: 'running', claimedAt: new Date() }, $inc: { attempts: 1 } });
+      const feed = `Créateurs UGC France\nGroupe public · 12 400 membres\nÉcrivez quelque chose…\nClaire Martin\n2 h\nBonjour à tous, nous sommes une marque de cosmétiques naturels et nous cherchons trois créatrices UGC pour tourner des vidéos de nos soins visage. Budget prévu, envoyez-moi vos tarifs en message.\nJ'aime\nCommenter\nJulie Petit\n5 h\nCoucou, je débute en UGC, combien facturez-vous une vidéo de trente secondes avec les droits pour la publicité ? Je ne sais pas du tout quoi répondre à la marque.\nJ'aime\nCommenter\nMarc Durand\n1 j\nFormation UGC à moins cinquante pour cent, inscrivez-vous vite, lien en commentaire.`;
+      const gRes = await ext('POST', `/${gTask._id}/result`, { url: gTask.input.url, title: '(3) Créateurs UGC France | Facebook', text: feed, links: [{ href: `https://www.facebook.com/groups/${gKey}/posts/987654321/`, text: '2 h' }] });
+      const gView = await brandApi('GET', '/admin/acquisition/groups');
+      const gRow = gView.data.groups?.find(x => x.key === gKey);
+      const gPosts = (gView.data.posts || []).filter(x => x.group === 'Créateurs UGC France');
+      expect(gRes.status === 200 && /demande\(s\) relevée\(s\)|aucun tri/.test(gRes.data.outcome) && gRow && gRow.name === 'Créateurs UGC France' && gRow.stats.reads === 1 && gRow.stats.requests === gPosts.length && gView.data.todo >= gPosts.length, 'La lecture d\'un groupe doit relever son nom, compter la lecture et ranger les demandes dans la file', { gRes, gRow, gPosts });
+      expect(gPosts.every(x => x.text.length >= 30 && feed.includes(x.text.slice(0, 30)) && x.comment && /search\/\?q=/.test(x.searchUrl) && !/Formation UGC/.test(x.text)), 'Chaque demande gardée doit citer la publication mot pour mot, proposer un commentaire et mener à la publication ; une publicité n\'est pas une demande', gPosts);
+      // « Répondu », retour dans la file, « Passer » : la file et les compteurs du groupe suivent (demande posée en base : le tri par l'IA peut n'en garder aucune)
+      const gp = await db.collection('groupposts').insertOne({ workspaceId: 'default', groupId: new mongoose.Types.ObjectId(String(gRow.id)), key: `e2e-${RUN}`, author: 'Claire Martin', text: 'Marque de bougies cherche créatrices UGC', kind: 'brand_seeks_creators', comment: 'Bonjour…', searchUrl: `https://www.facebook.com/groups/${gKey}/search/?q=Marque`, status: 'todo', foundAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
+      const gAns = await brandApi('POST', `/admin/acquisition/group-posts/${gp.insertedId}`, { action: 'answered' });
+      const gAfter = (await brandApi('GET', '/admin/acquisition/groups')).data.groups.find(x => x.key === gKey);
+      const gBack = await brandApi('POST', `/admin/acquisition/group-posts/${gp.insertedId}`, { action: 'todo' });
+      const gSkip = await brandApi('POST', `/admin/acquisition/group-posts/${gp.insertedId}`, { action: 'skipped' });
+      const gEnd = (await brandApi('GET', '/admin/acquisition/groups')).data.groups.find(x => x.key === gKey);
+      expect(gAns.status === 200 && gAns.data.post.status === 'answered' && gAfter.stats.answered === 1 && gBack.status === 200 && gSkip.status === 200 && gEnd.stats.answered === 0 && gEnd.stats.skipped === 1, '« Répondu » et « Passer » doivent sortir la demande de la file et tenir les compteurs du groupe', { gAns: gAns.data, gAfter, gEnd });
+      const gPause = await brandApi('PATCH', `/admin/acquisition/groups/${gRow.id}`, { active: false, audience: 'brands' });
+      const gDel = await brandApi('DELETE', `/admin/acquisition/groups/${gRow.id}`);
+      const gLeft = await db.collection('groupposts').countDocuments({ groupId: new mongoose.Types.ObjectId(String(gRow.id)) });
+      expect(gPause.status === 200 && gPause.data.group.active === false && gPause.data.group.audience === 'brands' && gDel.status === 200 && gLeft === 0, 'Un groupe se met en pause et se retire, avec ses demandes', { gPause: gPause.data, gDel: gDel.status, gLeft });
+    }
     {
       // Marque ou personne : il faut un vrai signe d'entreprise, le nombre d'abonnés ne prouve rien
       const { looksLikeBrand } = await import('../src/services/browserTasks.js');

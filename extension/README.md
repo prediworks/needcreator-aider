@@ -17,6 +17,8 @@ Header on every call: `X-Extension-Token: <token>`.
 Task types the extension knows: `read_post_author`, `read_profile` (one page, no scroll), `list_hashtag` (4 scrolls),
 `list_ad_library` (6 scrolls), `list_tiktok_ads` (6 scrolls), `read_post_brands` (one page), and `prefill_message` (opens the profile in a visible tab, opens the conversation, pastes `input.text`, stops; result `{ prefilled, copied, error }`). Any other type is read as a single page.
 
+**Feeds (0.2.8).** `list_group_posts` reads a feed whose items are text, not links (a Facebook group, most recent posts first). A feed drops what scrolls out of view, so the visible text is kept line by line across five scrolls, each line once, in reading order, and returned as `text` (capped at 20,000 characters). The extension never joins, posts, comments or reacts.
+
 **Popup (0.2.7).** The popup shows the role of this installation (Reader or Messenger), the pages read against each cap, and why it stopped: session cap (press Start again after a break) or daily cap (back tomorrow). The idle line is worded per role: a Messenger installation says how many reading tasks wait for the Reader profile.
 
 **List pages (0.2.6).** Lists (`list_hashtag`, `list_ad_library`, `list_tiktok_ads`) load their next items only while the page is displayed: in a background tab the scroll moves and nothing new is rendered. The working tab and its window come to the front for the reading of a list, then the tab and the window the user was on are put back (option « List pages », on by default). The result carries `list: { steps, links, visibility }`: the number of links seen after each scroll and the visibility of the page, so that the server can tell a list that stayed on its first items.

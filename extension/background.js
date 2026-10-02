@@ -8,7 +8,8 @@
 const DEFAULTS = { serverUrl: '', token: '', role: 'reader', contactLookup: 'off', listFocus: 'on', minDelay: 5, maxDelay: 10, sessionCap: 60, dayCap: 150, pollSeconds: 25 };
 // role 'reader' (secondary account): reads pages, never touches conversations. role 'messenger' (main account): only opens a conversation and pastes the prepared text.
 const ROLE_TYPES = { reader: '', messenger: 'prefill_message' };
-const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6 }; // number of scrolls for list pages
+const LIST_TYPES = { list_hashtag: 8, list_ad_library: 6, list_tiktok_ads: 6, list_group_posts: 5 }; // number of scrolls for list pages
+const TEXT_LIST_TYPES = ['list_group_posts']; // feeds whose items are text, not links: the visible text is merged across scrolls
 
 const state = { running: false, paused: false, busy: false, idle: false, tabId: null, session: 0, day: 0, dayKey: '', last: '', lastError: '', lastTask: null, stopReason: '', queue: { pending: 0, running: 0 }, log: [] };
 
@@ -127,16 +128,20 @@ async function readPage(task) {
   // Lists are virtualized: items leave the page as it scrolls, so links are collected at every step and merged
   const collected = new Map();
   const collect = (p) => { for (const l of p?.links || []) if (!collected.has(l.href)) collected.set(l.href, l); };
+  // A feed drops what scrolls out of view: its text is kept line by line, in reading order, each line once
+  const lines = []; const seenLines = new Set();
+  const collectText = (p) => { if (!TEXT_LIST_TYPES.includes(task.type)) return; for (const raw of String(p?.text || '').split('\n')) { const l = raw.trim(); if (l && !seenLines.has(l)) { seenLines.add(l); lines.push(l); } } };
   const steps = []; // links seen after each scroll: tells a page that loads from one that stays on its first items
   let shown = null;
   try {
-    for (let i = 0; i < scrolls; i++) { const p = await run(tabId, 'extract.js'); collect(p); steps.push(collected.size); shown = p?.visibility || shown; await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
+    for (let i = 0; i < scrolls; i++) { const p = await run(tabId, 'extract.js'); collect(p); collectText(p); steps.push(collected.size); shown = p?.visibility || shown; await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
   } finally { if (before) await restoreTab(before); }
   // Pages that fill in after load (single-page apps): read again until there is text, up to ~10 s
   let page = await run(tabId, 'extract.js');
   for (let i = 0; i < 6 && page && !page.blocked && page.text.length < 300; i++) { await sleep(1500); page = await run(tabId, 'extract.js'); }
   if (!page) throw new Error('page unreadable');
   if (collected.size) { collect(page); page.links = [...collected.values()].slice(0, 800); }
+  if (lines.length) { collectText(page); page.text = lines.join('\n').slice(0, 20000); }
   if (scrolls) page.list = { steps, links: collected.size, visibility: shown || page.visibility || null };
   // Instagram profile: public contact address of the professional account. Off by default (the site answers 429 to this reading); one refusal stops it for the session
   if (task.type === 'read_profile' && !page.blocked && s.contactLookup === 'on' && !state.contactRefused && /^https?:\/\/(www\.)?instagram\.com\//i.test(task.input.url)) {

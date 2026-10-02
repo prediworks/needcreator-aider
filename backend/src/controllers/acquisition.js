@@ -150,11 +150,29 @@ function cleanSocials(obj = {}) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip, already } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink } = req.body || {};
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
   if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
+  // « Corriger le lien » dans la file du jour : le bon profil, collé tel quel (adresse Instagram, TikTok ou LinkedIn, ou pseudo Instagram)
+  if (typeof fixLink === 'string' && fixLink.trim()) {
+    const { cleanInstagram, cleanTiktok } = await import('../services/brandSuggestions.js');
+    const v = fixLink.trim();
+    const net = /tiktok\.com/i.test(v) ? 'tiktok' : /linkedin\.com/i.test(v) ? 'linkedin' : 'instagram';
+    const li = (v.match(/linkedin\.com\/(company|in)\/[^/?#\s]+/i) || [])[0];
+    const url = net === 'tiktok' ? cleanTiktok(v) : net === 'linkedin' ? (li ? `https://www.${li.toLowerCase().replace(/^www\./, '')}` : '') : (/^https?:\/\//i.test(v) && !/instagram\.com/i.test(v) ? '' : cleanInstagram(v));
+    if (!url) return res.status(400).json({ error: 'Adresse non reconnue. Collez le lien du profil Instagram, TikTok ou LinkedIn, ou le pseudo Instagram (@marque).' });
+    const cur = lead.socials?.toObject?.() || lead.socials || {};
+    const before = cur[net];
+    lead.socials = cleanSocials({ ...cur, [net]: url });
+    // Lien posé à la main : il n'est plus « à vérifier », et la lecture de profil déjà faite portait sur l'ancien compte
+    const check = lead.socialsCheck?.toObject?.() || lead.socialsCheck || {};
+    if (net === 'instagram' || net === 'tiktok') { check[net] = 'ok'; lead.socialsCheck = check; }
+    if (before !== url) lead.notes = [lead.notes, `Lien ${net} corrigé à la main le ${new Date().toLocaleDateString('fr-FR')}${before ? ` (avant : ${before})` : ''}`].filter(Boolean).join(' · ').slice(0, 2000);
+    await lead.save();
+    return res.json({ message: `Lien ${net === 'instagram' ? 'Instagram' : net === 'tiktok' ? 'TikTok' : 'LinkedIn'} ${before ? 'corrigé' : 'ajouté'} : ${url}`, lead, network: net });
+  }
   if (status === 'contacted' && already === true) {
     // « Déjà contactée » dans la file du jour : le contact a eu lieu avant, sa date est perdue. Date rétablie à sept jours plus tôt : la fiche sort de la file sans entrer dans le décompte du jour.
     lead.status = 'contacted';
