@@ -39,7 +39,30 @@ mention d'un service. Quinze groupes au départ, pas cinquante.
 5. « Répondu », ou « Passer » si la demande est trop ancienne, hors sujet ou déjà couverte.
 6. **Message privé seulement après un échange public** : quand la personne a répondu à votre commentaire ou l'a demandé. Jamais à froid.
 
-## Les quatre types de demande
+## Quand l'annonce donne une adresse email
+
+Une marque qui met son adresse dans « cherche créateurs » dit « écrivez-moi ». Un email direct vaut alors mieux qu'un commentaire public.
+
+1. Sur la demande, **« Créer la fiche marque »** : un prospect marque est créé avec le nom relevé, l'adresse, le lien de la publication et
+   le texte de la demande. Si l'adresse est déjà connue, la demande est ajoutée à la fiche existante.
+2. Un **premier email rédigé pour cette demande** s'affiche : il cite ce qu'elle cherche et propose ce qui y répond. Relisez, modifiez,
+   puis **« Relire et envoyer »** : il part de l'adresse d'envoi des vidéos.
+3. La fiche passe « Contactée ». Sans réponse, elle revient dans la file du jour au bout de sept jours, pour une seule relance à la main.
+4. La fiche n'entre **jamais** dans les envois automatiques de nuit : on répond à une demande, on ne l'ajoute pas à une liste.
+
+Les adresses personnelles (gmail, hotmail) sont traitées de la même façon ; on ne cherche ni le site ni les réseaux de la personne.
+
+## Les annonces d'agences : à relayer, pas à démarcher
+
+Une agence ou une production qui recrute des créateurs pour un tournage rémunéré n'est pas une marque à démarcher : elle a son client,
+son processus, son vidéaste. En revanche, c'est une vraie opportunité pour vos créateurs. Ces publications sont classées
+**« Opportunité pour les créateurs »**, sans commentaire proposé, avec deux boutons :
+
+- **« Relayer aux créateurs »** : prépare le message aux inscrits (l'annonce, l'adresse, le lien) et ouvre « Messages aux inscrits »
+  pour le relire et l'envoyer. La demande passe « Relayée ».
+- **« Créer la fiche »** si l'annonce donne une adresse : l'email proposé parle alors de créateurs vérifiés pour ses tournages, pas de vidéos à acheter.
+
+## Les cinq types de demande
 
 | Type | Priorité | Ce que propose le commentaire |
 |---|---|---|
@@ -47,6 +70,7 @@ mention d'un service. Quinze groupes au départ, pas cinquante.
 | Question d'une marque | 2 | Une réponse à sa question, puis la candidature spontanée |
 | Créateur cherche des marques | 3 | Proposer une vidéo à une marque sans attendre une campagne |
 | Question d'un créateur | 4 | Une réponse chiffrée, puis le calculateur et le devis gratuits |
+| Opportunité pour les créateurs | à relayer | Pas de commentaire : le message aux créateurs inscrits |
 
 Tout le reste est ignoré : créateurs qui se présentent, publicités, formations, règles du groupe.
 
@@ -69,4 +93,5 @@ Tout le reste est ignoré : créateurs qui se présentent, publicités, formatio
 
 - Le lien direct vers la publication : la première version passe par la recherche du groupe. À améliorer après les premières lectures réelles.
 - La préparation d'un message Messenger par l'extension : à faire si les échanges publics débouchent sur des conversations.
+- Le suivi des réponses aux emails envoyés depuis une demande : il passe par la fiche marque, comme pour les autres prospects.
 - La recherche de nouveaux groupes par l'extension : elle se fait à la main pour l'instant.

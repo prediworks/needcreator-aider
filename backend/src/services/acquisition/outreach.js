@@ -44,7 +44,7 @@ export async function pushToMailing({ limit, force = false, ids = null } = {}) {
   const provider = mailingProvider();
   if (!provider) return { pushed: 0, reason: 'mailing non configuré' };
   const max = limit ?? s.dailyLimit;
-  const base = { email: { $ne: null }, 'mailing.pushedAt': null, status: { $in: ids ? ['new', 'to_contact', 'qualified'] : ['to_contact', 'qualified'] } };
+  const base = { email: { $ne: null }, 'mailing.pushedAt': null, 'mailing.hold': { $ne: true }, status: { $in: ids ? ['new', 'to_contact', 'qualified'] : ['to_contact', 'qualified'] } };
   const filter = ids ? { ...base, _id: { $in: ids } } : base;
   const candidates = await Lead.find(filter).sort({ status: -1, score: -1 }).limit(max * 3).lean(); // to_contact avant qualified (ordre alphabétique inverse)
   const blocked = new Set(await provider.blocklist().catch(() => []));
@@ -109,7 +109,7 @@ export async function handleReply(lead, provider, s, out = {}) {
 }
 
 /** Envoie une réponse (texte brut → HTML) dans le fil du prospect */
-export async function sendLeadReply(lead, text) {
+export async function sendLeadReply(lead, text, { subject = 'Suite à votre message · NeedCreator', first = false } = {}) {
   const body = String(text).trim();
   const html = body.split(/\n{2,}/).map(p => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('');
   const provider = mailingProvider();
@@ -123,8 +123,16 @@ export async function sendLeadReply(lead, text) {
     if (!lead.email) throw Object.assign(new Error('Il manque : une adresse email sur la fiche (collez la réponse qui la donne, ou saisissez-la)'), { status: 400 });
     const { sendEmail, showcaseSender } = await import('../email.js');
     const sender = await showcaseSender();
-    try { await sendEmail(lead.email, `Suite à votre message · NeedCreator`, html, body, { raw: true, lang: 'fr', from: sender, replyTo: sender }); }
+    try { await sendEmail(lead.email, subject, html, body, { raw: true, lang: 'fr', from: sender, replyTo: sender }); }
     catch (err) { throw Object.assign(new Error(`Envoi impossible à ${lead.email} : adresse refusée par le serveur d'envoi. Vérifiez l'adresse sur la fiche.`), { status: 502, cause: err }); }
+  }
+  if (first) {
+    // Premier email, envoyé à la main en réponse à une demande publique : la fiche est « contactée », et reviendra dans la file du jour au bout de sept jours sans réponse
+    lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), pushedAt: new Date(), provider: 'direct', hold: true };
+    lead.status = ['replied', 'registered'].includes(lead.status) ? lead.status : 'contacted'; lead.contactedAt = new Date(); lead.contactedVia = 'email';
+    lead.notes = [lead.notes, `Email envoyé à la main le ${new Date().toLocaleDateString('fr-FR')} : « ${body.slice(0, 120)}… »`].filter(Boolean).join(' · ').slice(0, 2000);
+    await lead.save();
+    return { lead, via };
   }
   lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), replySentAt: new Date(), replySentText: body.slice(0, 2000), replySentVia: via };
   if (!['replied', 'registered'].includes(lead.status)) lead.status = 'replied';

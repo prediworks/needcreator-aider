@@ -14,9 +14,11 @@ const KIND: Record<string, { label: string; cls: string }> = {
   brand_question: { label: 'Question d\'une marque', cls: 'bg-blue-100 text-blue-800' },
   creator_seeks_brands: { label: 'Créateur cherche des marques', cls: 'bg-purple-100 text-purple-800' },
   creator_question: { label: 'Question d\'un créateur', cls: 'bg-neutral-100 text-neutral-700' },
+  creator_opportunity: { label: 'Opportunité pour les créateurs', cls: 'bg-yellow-100 text-yellow-800' },
 };
 const AUDIENCE: Record<string, string> = { creators: 'Créateurs UGC', brands: 'Marques et e-commerçants', ads: 'Annonceurs (publicité)', other: 'Autre' };
-const STATUS: Record<string, string> = { answered: 'Répondu', skipped: 'Passée' };
+const STATUS: Record<string, string> = { lead: 'Fiche créée, email à envoyer', answered: 'Répondu', relayed: 'Relayée aux créateurs', skipped: 'Passée' };
+const OPEN = ['todo', 'lead'];
 
 /** Requête partagée avec le bouton à compteur de l'outil de prospection */
 export function useGroupWatch() {
@@ -39,13 +41,17 @@ export default function GroupWatch() {
   const edit = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/groups/${id}`, body)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError });
   const remove = useMutation({ mutationFn: async (id: string) => (await api.delete(`/admin/acquisition/groups/${id}`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError });
   const decide = useMutation({ mutationFn: async ({ id, action }: any) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action })).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError });
+  const [drafts, setDrafts] = useState<Record<string, { subject: string; text: string }>>({});
+  const toLead = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'lead' })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); }, onError });
+  const sendMail = useMutation({ mutationFn: async ({ id, subject, text }: any) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'send', subject, text })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); }, onError });
+  const relay = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'relay' })).data, onSuccess: async (d, id) => { try { sessionStorage.setItem('memberMessageDraft', JSON.stringify(d.draft)); } catch { /* stockage indisponible */ } await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'relayed' }).catch(() => null); toast.success(d.message, { duration: 8000 }); refresh(); window.location.assign('/admin?tab=messages'); }, onError });
   const read = useMutation({ mutationFn: async () => (await api.post('/browser-tasks/batches', { preset: 'facebook_groups' })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); queryClient.invalidateQueries({ queryKey: ['ext-batches'] }); refresh(); }, onError });
   const copyOpen = async (p: any) => {
     try { await navigator.clipboard.writeText(p.comment || ''); toast.success('Commentaire copié : relisez-le, adaptez-le, puis publiez-le sous la publication', { duration: 6000 }); } catch { /* presse-papiers indisponible */ }
     window.open(p.searchUrl || p.groupUrl, '_blank', 'noopener,noreferrer');
   };
   const groups = data?.groups || [];
-  const posts = (data?.posts || []).filter((p: any) => showDone || p.status === 'todo');
+  const posts = (data?.posts || []).filter((p: any) => showDone || OPEN.includes(p.status));
   return (
     <Card className="p-6" data-testid="group-watch">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
@@ -66,16 +72,29 @@ export default function GroupWatch() {
                 <div key={p.id} className={`border rounded-lg p-3 text-sm ${p.status === 'todo' ? 'border-neutral-200' : 'border-neutral-100 bg-neutral-50'}`} data-testid="group-post">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${KIND[p.kind]?.cls}`}>{KIND[p.kind]?.label}</span>
-                    {p.status !== 'todo' && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-200 text-neutral-700">{STATUS[p.status]}</span>}
+                    {p.status !== 'todo' && <span className={`px-2 py-0.5 rounded-full text-xs ${p.status === 'lead' ? 'bg-blue-100 text-blue-800' : 'bg-neutral-200 text-neutral-700'}`}>{STATUS[p.status]}</span>}
+                    {p.brand && <span className="text-xs font-medium text-neutral-800">{p.brand}</span>}
                     <span className="text-xs text-neutral-600">{p.group} · {p.author || 'auteur non relevé'}{p.when ? ` · publiée : ${p.when}` : ''} · relevée le {formatDate(p.foundAt)}</span>
                   </div>
                   <p className="mt-2 text-neutral-800 whitespace-pre-line">« {p.text} »</p>
+                  {(p.email || p.website) && <p className="mt-1 text-xs text-neutral-700" data-testid="group-email">{p.email && <>Adresse donnée dans l&apos;annonce : <a href={`mailto:${p.email}`} className="underline text-primary-700">{p.email}</a></>}{p.email && p.website ? ' · ' : ''}{p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" className="underline text-primary-700">Site</a>}</p>}
+                  {p.status === 'lead' && !p.sentAt && (
+                    <div className="mt-2 border border-blue-200 bg-blue-50/40 rounded-lg p-2" data-testid="group-draft">
+                      <div className="text-xs font-medium text-blue-900 mb-1">Premier email, rédigé pour cette demande · à relire avant d&apos;envoyer à {p.email}</div>
+                      <input value={drafts[p.id]?.subject ?? p.draft?.subject ?? ''} onChange={(e) => setDrafts({ ...drafts, [p.id]: { subject: e.target.value, text: drafts[p.id]?.text ?? p.draft?.text ?? '' } })} className="w-full border border-neutral-300 rounded px-2 py-1 text-xs mb-1" placeholder="Objet" />
+                      <textarea value={drafts[p.id]?.text ?? p.draft?.text ?? ''} onChange={(e) => setDrafts({ ...drafts, [p.id]: { subject: drafts[p.id]?.subject ?? p.draft?.subject ?? '', text: e.target.value } })} rows={9} className="w-full border border-neutral-300 rounded px-2 py-1 text-xs" />
+                    </div>
+                  )}
+                  {p.sentAt && <p className="mt-1 text-xs text-green-700">Email envoyé le {formatDate(p.sentAt)} : « {p.draft?.subject} »</p>}
                   {p.comment && <div className="mt-2 bg-primary-50/50 border border-primary-200 rounded-lg p-2 text-neutral-800 whitespace-pre-line" data-testid="group-comment"><span className="text-xs font-medium text-primary-800">Commentaire proposé · </span>{p.comment}</div>}
                   <div className="flex gap-2 flex-wrap mt-2">
                     <Button size="sm" onClick={() => copyOpen(p)} title="Copie le commentaire et ouvre la recherche du groupe sur les premiers mots de la publication : elle apparaît en tête. Relisez et publiez vous-même." data-testid="group-open"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir</Button>
-                    {p.status === 'todo' ? (
+                    {p.status === 'todo' && p.email && <Button size="sm" variant="outline" onClick={() => toLead.mutate(p.id)} isLoading={toLead.isPending} title="Crée une fiche marque avec cette adresse et rédige un premier email pour cette demande. La fiche n'entre jamais dans les envois automatiques." data-testid="group-to-lead">{p.kind === 'creator_opportunity' ? 'Créer la fiche' : 'Créer la fiche marque'}</Button>}
+                    {p.status === 'todo' && p.kind === 'creator_opportunity' && <Button size="sm" variant="outline" onClick={() => relay.mutate(p.id)} isLoading={relay.isPending} title="Prépare le message aux créateurs inscrits avec cette annonce, et ouvre « Messages aux inscrits » pour le relire et l'envoyer" data-testid="group-relay">Relayer aux créateurs</Button>}
+                    {p.status === 'lead' && !p.sentAt && <Button size="sm" variant="outline" onClick={() => sendMail.mutate({ id: p.id, subject: drafts[p.id]?.subject ?? p.draft?.subject, text: drafts[p.id]?.text ?? p.draft?.text })} isLoading={sendMail.isPending} title="Envoie cet email depuis l'adresse d'envoi des vidéos. La fiche passe « Contactée » et reviendra dans la file du jour au bout de sept jours sans réponse." data-testid="group-send">Relire et envoyer</Button>}
+                    {OPEN.includes(p.status) ? (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => decide.mutate({ id: p.id, action: 'answered' })} isLoading={decide.isPending} data-testid="group-answered">Répondu</Button>
+                        {p.status === 'todo' && <Button size="sm" variant="outline" onClick={() => decide.mutate({ id: p.id, action: 'answered' })} isLoading={decide.isPending} data-testid="group-answered">Répondu</Button>}
                         <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: p.id, action: 'skipped' })} isLoading={decide.isPending} title="Demande trop ancienne, hors sujet ou déjà couverte : elle quitte la file">Passer</Button>
                       </>
                     ) : <Button size="sm" variant="ghost" onClick={() => decide.mutate({ id: p.id, action: 'todo' })} isLoading={decide.isPending}>Remettre dans la file</Button>}
@@ -89,7 +108,7 @@ export default function GroupWatch() {
           {groups.length > 0 && (
             <div className="overflow-x-auto mb-3">
               <table className="w-full text-xs">
-                <thead><tr className="text-left text-neutral-500 border-b border-neutral-200"><th className="py-1 pr-2">Groupe</th><th className="py-1 pr-2">Public</th><th className="py-1 pr-2">Lectures</th><th className="py-1 pr-2">Demandes</th><th className="py-1 pr-2">Répondues</th><th className="py-1 pr-2">Dernière lecture</th><th className="py-1"></th></tr></thead>
+                <thead><tr className="text-left text-neutral-500 border-b border-neutral-200"><th className="py-1 pr-2">Groupe</th><th className="py-1 pr-2">Public</th><th className="py-1 pr-2">Lectures</th><th className="py-1 pr-2">Demandes</th><th className="py-1 pr-2">Répondues</th><th className="py-1 pr-2">Relayées</th><th className="py-1 pr-2">Dernière lecture</th><th className="py-1"></th></tr></thead>
                 <tbody>
                   {groups.map((g: any) => (
                     <tr key={g.id} className={`border-b border-neutral-100 align-top ${g.active ? '' : 'text-neutral-400'}`} data-testid="group-row">
@@ -98,6 +117,7 @@ export default function GroupWatch() {
                       <td className="py-1.5 pr-2">{g.stats?.reads ?? 0}</td>
                       <td className="py-1.5 pr-2">{g.stats?.requests ?? 0}</td>
                       <td className="py-1.5 pr-2">{g.stats?.answered ?? 0}</td>
+                      <td className="py-1.5 pr-2">{g.stats?.relayed ?? 0}</td>
                       <td className="py-1.5 pr-2">{g.lastReadAt ? `${formatDate(g.lastReadAt)} · ${g.lastOutcome}` : 'jamais lu'}</td>
                       <td className="py-1.5 whitespace-nowrap">
                         <button type="button" className="underline mr-2" onClick={() => edit.mutate({ id: g.id, active: !g.active })}>{g.active ? 'Pause' : 'Reprendre'}</button>

@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { z } from 'zod';
 import FacebookGroup, { GroupPost, GROUP_AUDIENCES, GROUP_POST_KINDS } from '../models/GroupWatch.js';
+import Lead from '../models/Lead.js';
+import { extractEmails, pickEmail } from './acquisition/enrich.js';
 import { generateJson, aiConfig } from './ai.js';
 import logger from '../utils/logger.js';
 
@@ -66,7 +68,7 @@ const AUDIENCE_HINT = {
   other: 'un groupe professionnel',
 };
 
-const postsSchema = z.object({ posts: z.array(z.object({ author: z.string().default(''), when: z.string().default(''), excerpt: z.string().default(''), kind: z.string().default('other'), comment: z.string().default('') })).default([]) });
+const postsSchema = z.object({ posts: z.array(z.object({ author: z.string().default(''), when: z.string().default(''), excerpt: z.string().default(''), kind: z.string().default('other'), comment: z.string().default(''), brand: z.string().default(''), email: z.string().default(''), website: z.string().default('') })).default([]) });
 // Fin d'un extrait : boutons et mentions d'interface qui suivent une publication dans le texte de la page
 const EXCERPT_END = /\s*(…\s*)?(en voir plus|see more|afficher plus|voir la traduction|see translation|j'aime|commenter|partager|\d+\s+commentaires?)\b.*$/i;
 
@@ -87,9 +89,11 @@ Relève au plus 8 publications (pas les commentaires) qui expriment l'un de ces 
 - "brand_seeks_creators" : une marque ou une boutique cherche des créateurs pour des vidéos sur ses produits ou ses services (rémunérées, ou en échange de produits) ;
 - "brand_question" : une marque ou un e-commerçant demande comment obtenir des vidéos, combien ça coûte, ou un conseil pour ses publicités ;
 - "creator_seeks_brands" : un créateur demande comment trouver des marques, des missions ou des clients ;
-- "creator_question" : un créateur demande combien facturer, comment faire un devis, un contrat ou céder ses droits.
-Ignore tout le reste, en particulier : les créateurs qui se présentent ou proposent leurs services ; les offres d'emploi, de stage ou d'alternance ; les castings de modèles, de figurants ou d'acteurs ; la couverture d'un événement (reportage, photos sur place) ; les publicités, formations et coachings à vendre ; les annonces en anglais ou hors France, Belgique et Suisse ; tout ce qui renvoie vers Discord, Telegram ou WhatsApp ou promet un revenu mensuel ; les règles du groupe, sondages, remerciements.
-Pour chaque publication retenue : author (le nom affiché de son auteur), when (la date ou l'ancienneté affichée près du nom, telle quelle : « 2 h », « 3 sept. », vide si absente), excerpt (les 200 à 300 premiers caractères de la publication, recopiés mot pour mot, sans les mots d'interface comme « En voir plus »), kind, comment.
+- "creator_question" : un créateur demande combien facturer, comment faire un devis, un contrat ou céder ses droits ;
+- "creator_opportunity" : une agence, une production ou un intermédiaire recrute des créateurs pour un tournage ou une mission rémunérée, en France, en Belgique ou en Suisse (journée de tournage, casting rémunéré de créateurs UGC) : ce n'est pas une marque à démarcher, c'est une opportunité à transmettre à nos créateurs.
+Ignore tout le reste, en particulier : les créateurs qui se présentent ou proposent leurs services ; les offres d'emploi, de stage ou d'alternance ; les castings de modèles, de figurants ou d'acteurs sans vidéo UGC ; la couverture d'un événement (reportage, photos sur place) ; les publicités, formations et coachings à vendre ; les annonces en anglais ou hors France, Belgique et Suisse ; tout ce qui renvoie vers Discord, Telegram ou WhatsApp ou promet un revenu mensuel ; les règles du groupe, sondages, remerciements.
+Pour chaque publication retenue : author (le nom affiché de son auteur), when (la date ou l'ancienneté affichée près du nom, telle quelle : « 2 h », « 3 sept. », vide si absente), excerpt (les 200 à 300 premiers caractères de la publication, recopiés mot pour mot, sans les mots d'interface comme « En voir plus »), kind, comment, brand (le nom de la marque, de la boutique ou de l'agence si la publication le dit, sinon vide), email (l'adresse email écrite dans la publication pour être contacté, sinon vide), website (le site écrit dans la publication, sinon vide).
+Pour "creator_opportunity", comment reste vide : on ne commente pas, on transmet.
 comment = un commentaire à publier sous la publication, en français, 2 à 3 phrases, 350 caractères au plus, sans lien, sans émoji. Il répond au besoin exprimé, il ne commente jamais la façon dont l'annonce est rédigée et ne donne aucun conseil sur ce qu'elle devrait préciser. Première phrase : ce que la personne peut obtenir, concrètement, en rapport avec sa demande (ses produits, son secteur, son objectif). Deuxième phrase : NeedCreator, nommé une fois. Dernière phrase : proposer d'en dire plus en message privé. Vouvoiement pour une marque, tutoiement pour un créateur.
 Ce que tu peux dire de NeedCreator, sans rien ajouter : plateforme française de vidéos UGC. Pour une marque : des créateurs qui possèdent déjà son produit lui envoient une vidéo déjà tournée, qu'elle regarde avant de payer et ne paie que si elle la garde, droits inclus ; ou elle publie un brief et reçoit des devis de créateurs vérifiés ; une vidéo coûte en général 80 à 250 € HT ; elle peut aussi payer en produit. Pour un créateur : inscription gratuite, il fixe son prix, il peut proposer une vidéo à une marque sans attendre une campagne, le paiement est bloqué par la marque avant la livraison ; un calculateur de tarif et un devis avec contrat de droits sont gratuits.
 Exemple de bon commentaire sous « marque de soins cherche créatrices UGC » : « Des créatrices beauté qui utilisent déjà vos soins peuvent vous envoyer une vidéo finie, que vous regardez avant de payer et ne gardez que si elle vous plaît, droits inclus. C'est ce que propose NeedCreator, plateforme française de vidéos UGC. Je vous explique en message si ça vous intéresse. »
@@ -110,7 +114,10 @@ Réponds par un seul objet JSON de cette forme exacte : {"posts":[{"author":"…
     if (/\b(discord|telegram|whatsapp)\b|\$\s?\d|\d\s?\$|\/month|per month|\bASAP\b/i.test(excerpt)) continue;
     const key = postKey(excerpt);
     if (seen.has(key)) continue; seen.add(key);
-    posts.push({ key, author: String(p.author || '').replace(/\s+/g, ' ').trim().slice(0, 120), when: String(p.when || '').trim().slice(0, 40), text: excerpt.slice(0, 900), kind: p.kind, comment: String(p.comment || '').trim().slice(0, 900) });
+    // Adresse et site : seulement s'ils figurent bien dans la page (l'IA ne doit pas les deviner)
+    const email = pickEmail(extractEmails(String(p.email || '')));
+    const site = String(p.website || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
+    posts.push({ key, author: String(p.author || '').replace(/\s+/g, ' ').trim().slice(0, 120), when: String(p.when || '').trim().slice(0, 40), text: excerpt.slice(0, 900), kind: p.kind, comment: p.kind === 'creator_opportunity' ? '' : String(p.comment || '').trim().slice(0, 900), brand: String(p.brand || '').replace(/\s+/g, ' ').trim().slice(0, 120), email: email && text.toLowerCase().includes(email) ? email : '', website: site && /\./.test(site) && text.toLowerCase().includes(site) ? `https://${site}` : '' });
   }
   return posts;
 }
@@ -149,28 +156,111 @@ export async function groupWatchOverview({ workspaceId = 'default' } = {}) {
   const [groups, posts, todo] = await Promise.all([
     FacebookGroup.find({ workspaceId }).sort({ active: -1, 'stats.requests': -1, createdAt: 1 }).lean(),
     GroupPost.find({ workspaceId }).sort({ status: -1, foundAt: -1 }).limit(120).lean(),
-    GroupPost.countDocuments({ workspaceId, status: 'todo' }),
+    GroupPost.countDocuments({ workspaceId, status: { $in: ['todo', 'lead'] } }),
   ]);
   const names = new Map(groups.map(g => [String(g._id), g]));
-  const order = { todo: 0, answered: 1, skipped: 2 };
-  const view = posts.map(p => ({ id: p._id, when: p.when || '', group: names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré', groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.searchUrl, status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
+  const order = { todo: 0, lead: 0, answered: 1, relayed: 1, skipped: 2 };
+  const view = posts.map(p => ({ id: p._id, when: p.when || '', brand: p.brand || '', email: p.email || '', website: p.website || '', leadId: p.leadId, draft: p.draft || null, sentAt: p.sentAt, group: names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré', groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.searchUrl, status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
     .sort((a, b) => order[a.status] - order[b.status] || new Date(b.foundAt) - new Date(a.foundAt));
   const toRead = (await groupsToRead({ workspaceId, limit: MAX_GROUPS })).length;
   return { groups: groups.map(g => ({ id: g._id, key: g.key, url: g.url, name: g.name || '', audience: g.audience, active: g.active, lastReadAt: g.lastReadAt, lastOutcome: g.lastOutcome || '', stats: g.stats })), posts: view, todo, toRead, perLot: GROUPS_PER_LOT, maxGroups: MAX_GROUPS };
 }
 
-/** « Répondu » ou « Passer » sur une demande : elle quitte la file, le groupe garde le compte */
+/** « Répondu », « Relayée », « Passer », ou retour dans la file : la demande change d'état, le groupe tient ses compteurs */
 export async function decideGroupPost(id, action) {
-  const map = { answered: 'answered', skipped: 'skipped', todo: 'todo' };
-  if (!map[action]) throw fail(400, 'Action inconnue');
+  if (!['todo', 'answered', 'relayed', 'skipped'].includes(action)) throw fail(400, 'Action inconnue');
   const p = await GroupPost.findById(id);
   if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
-  if (p.status === map[action]) return p;
+  if (p.status === action) return p;
+  const counted = (st) => ['answered', 'relayed', 'skipped'].includes(st);
   const inc = {};
-  if (p.status !== 'todo') inc[`stats.${p.status}`] = -1;
-  if (map[action] !== 'todo') inc[`stats.${map[action]}`] = 1;
-  p.status = map[action]; p.decidedAt = map[action] === 'todo' ? undefined : new Date();
+  if (counted(p.status)) inc[`stats.${p.status}`] = -1;
+  if (counted(action)) inc[`stats.${action}`] = 1;
+  p.status = action; p.decidedAt = action === 'todo' ? undefined : new Date();
   await p.save();
   if (Object.keys(inc).length) await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: inc });
   return p;
+}
+
+const SIGN = '\n\nBonne journée,\nL\'équipe NeedCreator\nneedcreator.com';
+/** Premier email à la personne qui a publié la demande : il part de sa demande, pas d'un modèle ; rédigé par l'IA, avec un texte de repli */
+async function draftEmail(post, group) {
+  const agency = post.kind === 'creator_opportunity';
+  const fallback = agency
+    ? { subject: 'Vos tournages UGC : des créateurs vérifiés, et votre annonce relayée', text: `Bonjour,\n\nNous avons vu votre annonce dans le groupe « ${group.name || 'Facebook'} » : vous cherchez des créateurs UGC pour un tournage.\n\nNeedCreator est une plateforme française de vidéos UGC : des créateurs vérifiés, avec portfolio, en France et en Belgique. Nous relayons votre annonce à nos créateurs inscrits, et vous pouvez aussi publier vos briefs chez nous pour recevoir des devis, avec le contrat de droits et le paiement à la validation.\n\nSi vous voulez en parler, répondez simplement à cet email.${SIGN}` }
+    : { subject: 'Vos vidéos UGC : à regarder avant de payer', text: `Bonjour,\n\nNous avons vu votre message dans le groupe « ${group.name || 'Facebook'} » : vous cherchez des créateurs pour des vidéos sur vos produits.\n\nSur NeedCreator, des créateurs qui possèdent déjà votre produit peuvent vous envoyer une vidéo finie, que vous regardez en filigrane avant de payer : vous ne gardez que celles qui vous plaisent, droits inclus, en général 80 à 250 € HT la vidéo. Vous pouvez aussi publier un brief et recevoir des devis de créateurs vérifiés.\n\nComment ça marche : https://needcreator.com/candidature-spontanee\n\nSi vous préférez, répondez simplement à cet email avec le produit concerné.${SIGN}` };
+  if (!aiConfig().configured) return fallback;
+  try {
+    const out = await generateJson({
+      system: 'Tu rédiges, en français, un premier email court envoyé par l\'équipe de NeedCreator à une personne qui a publié une demande dans un groupe Facebook. Tu réponds en JSON strict : {"subject":"…","text":"…"}.',
+      prompt: `Demande publiée dans le groupe « ${group.name || group.key} » par ${post.author || 'une personne'}${post.brand ? ` (${post.brand})` : ''}, type « ${post.kind} » :\n"""\n${post.text}\n"""\n${agency
+        ? 'C\'est une agence ou une production qui recrute des créateurs pour un tournage. On ne lui vend pas de vidéos : on lui propose des créateurs vérifiés (portfolio, France et Belgique) pour ses tournages, on lui dit que son annonce est relayée à nos créateurs inscrits, et qu\'elle peut publier ses briefs sur NeedCreator pour recevoir des devis, avec contrat de droits et paiement à la validation.'
+        : 'C\'est une marque ou une boutique qui cherche des créateurs pour des vidéos. On lui propose ce qui répond à sa demande : des créateurs qui possèdent déjà son produit lui envoient une vidéo finie, qu\'elle regarde en filigrane avant de payer et ne paie que si elle la garde, droits inclus, en général 80 à 250 € HT ; ou elle publie un brief et reçoit des devis de créateurs vérifiés ; elle peut aussi payer en produit. Lien à donner : https://needcreator.com/candidature-spontanee'}\nRègles : commencer par « Bonjour, » ; première phrase : dire qu'on a vu sa demande dans ce groupe, en reprenant ce qu'elle cherche (produit, secteur, format) ; 5 à 8 phrases en tout, paragraphes séparés par une ligne vide ; aucun conseil sur la rédaction de son annonce ; pas de superlatif, pas d'émoji ; finir par une question simple ou « répondez simplement à cet email » ; ne pas signer (la signature est ajoutée). subject : 6 à 10 mots, sans majuscules partout, qui reprend sa demande.`,
+      schema: z.object({ subject: z.string().default(''), text: z.string().default('') }),
+    });
+    const text = String(out.text || '').trim();
+    if (text.length < 80) return fallback;
+    return { subject: String(out.subject || '').trim().slice(0, 200) || fallback.subject, text: `${text.replace(/\n{3,}/g, '\n\n')}${SIGN}`.slice(0, 4000) };
+  } catch (err) { logger.warn(`draftEmail ${post._id}: ${err.message}`); return fallback; }
+}
+
+/**
+ * « Créer la fiche marque » : la demande devient un prospect marque avec l'adresse donnée dans l'annonce, et un premier email rédigé pour elle.
+ * La fiche n'entre jamais dans les envois automatiques (hold) : on répond à une demande, on n'ajoute pas à une liste.
+ */
+export async function createLeadFromPost(id, createdBy) {
+  const p = await GroupPost.findById(id);
+  if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
+  if (!p.email) throw fail(400, 'Cette demande ne donne pas d\'adresse email : répondez par un commentaire');
+  if (p.leadId && await Lead.exists({ _id: p.leadId })) throw fail(400, 'La fiche existe déjà pour cette demande');
+  const group = await FacebookGroup.findById(p.groupId).lean();
+  const agency = p.kind === 'creator_opportunity';
+  const name = (p.brand || p.author || p.email.split('@')[1]).slice(0, 120);
+  const description = `Demande publiée dans le groupe Facebook « ${group?.name || group?.key || ''} »${p.when ? ` (${p.when})` : ''} par ${p.author || 'un membre'} : « ${p.text} »${agency ? '\nAgence ou production : recrute des créateurs pour des tournages.' : ''}`;
+  let lead = await Lead.findOne({ email: p.email });
+  const existing = !!lead;
+  if (lead) {
+    lead.description = `${description}\n${lead.description || ''}`.slice(0, 2000);
+    lead.mailing = { ...(lead.mailing?.toObject?.() || lead.mailing || {}), hold: true };
+    if (!lead.website && p.website) lead.website = p.website;
+    await lead.save();
+  } else {
+    lead = await Lead.create({ kind: 'brand', source: 'manual', externalId: `fbgroup:${p.key}`, name, email: p.email, emailSource: 'groupe Facebook', website: p.website || undefined, url: p.searchUrl, description: description.slice(0, 2000), status: 'to_contact', score: 70, niche: agency ? 'agence' : undefined, country: 'FR', keyword: `groupe Facebook ${group?.key || ''}`.trim(), mailing: { hold: true }, notes: 'Fiche créée depuis une demande publiée dans un groupe Facebook : premier email à la main, jamais dans les envois automatiques', createdBy });
+  }
+  p.leadId = lead._id; p.status = 'lead';
+  p.draft = await draftEmail(p, group || {});
+  await p.save();
+  return { post: p, lead, existing };
+}
+
+/** « Relire et envoyer » : l'email part de l'adresse d'envoi des vidéos ; la fiche passe « contactée » et la demande « répondue » */
+export async function sendPostEmail(id, { subject, text }) {
+  const p = await GroupPost.findById(id);
+  if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
+  if (!p.leadId) throw fail(400, 'Créez d\'abord la fiche marque');
+  if (p.sentAt) throw fail(400, `Email déjà envoyé le ${p.sentAt.toLocaleDateString('fr-FR')}`);
+  const lead = await Lead.findById(p.leadId);
+  if (!lead) throw fail(404, 'Fiche marque introuvable');
+  const body = String(text || p.draft?.text || '').trim();
+  if (body.length < 40) throw fail(400, 'Il manque : le texte de l\'email');
+  const { sendLeadReply } = await import('./acquisition/outreach.js');
+  await sendLeadReply(lead, body, { subject: String(subject || p.draft?.subject || 'Votre demande de créateurs UGC').trim().slice(0, 200), first: true });
+  p.sentAt = new Date(); p.draft = { subject: String(subject || p.draft?.subject || ''), text: body };
+  const was = p.status; p.status = 'answered'; p.decidedAt = new Date();
+  await p.save();
+  if (was !== 'answered') await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: { 'stats.answered': 1 } });
+  return { post: p, lead };
+}
+
+/** Message aux créateurs inscrits pour une opportunité (agence, tournage rémunéré) : texte prêt, l'envoi se fait depuis « Messages aux inscrits » */
+export async function relayDraft(id) {
+  const p = await GroupPost.findById(id).lean();
+  if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
+  const group = await FacebookGroup.findById(p.groupId).lean();
+  const who = p.brand || p.author || 'une agence';
+  return {
+    audience: 'creators',
+    subject: `Tournage UGC : ${who} cherche des créateurs`.slice(0, 120),
+    body: `Une opportunité repérée dans le groupe Facebook « ${group?.name || group?.key || ''} »${p.when ? ` (${p.when})` : ''} :\n\n« ${p.text} »\n\nPour candidater, suivez les consignes de l'annonce${p.email ? ` (adresse indiquée : ${p.email})` : ''}. La publication : ${p.searchUrl}\n\nNous ne sommes pas intermédiaires sur ce tournage : nous vous le transmettons parce qu'il peut vous intéresser. Si vous le décrochez, dites-le-nous, cela nous aide à repérer les bonnes opportunités.`,
+  };
 }

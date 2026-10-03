@@ -1,4 +1,4 @@
-import { addGroup, updateGroup, removeGroup, groupWatchOverview, decideGroupPost } from '../services/groupWatch.js';
+import { addGroup, updateGroup, removeGroup, groupWatchOverview, decideGroupPost, createLeadFromPost, sendPostEmail, relayDraft } from '../services/groupWatch.js';
 import logger from '../utils/logger.js';
 
 /** Groupes Facebook suivis et demandes à répondre (admin). Les messages d'erreur du service sont rédigés pour être affichés tels quels. */
@@ -30,7 +30,17 @@ export async function removeGroupView(req, res) {
 
 export async function decideGroupPostView(req, res) {
   try {
-    const post = await decideGroupPost(req.params.id, req.body?.action);
-    res.json({ post, message: post.status === 'answered' ? 'Noté : commentaire publié' : post.status === 'skipped' ? 'Demande passée' : 'Demande remise dans la file' });
+    const action = req.body?.action;
+    if (action === 'lead') {
+      const r = await createLeadFromPost(req.params.id, req.user._id);
+      return res.status(201).json({ post: r.post, lead: r.lead, message: r.existing ? 'Fiche marque déjà connue par son adresse : la demande y est ajoutée. Relisez l\'email proposé, puis envoyez-le.' : 'Fiche marque créée. Relisez l\'email proposé, puis envoyez-le : il part de l\'adresse d\'envoi des vidéos.' });
+    }
+    if (action === 'send') {
+      const r = await sendPostEmail(req.params.id, { subject: req.body?.subject, text: req.body?.text });
+      return res.json({ post: r.post, lead: r.lead, message: `Email envoyé à ${r.lead.email}. La fiche est « Contactée » ; sans réponse, elle reviendra dans la file du jour dans sept jours.` });
+    }
+    if (action === 'relay') return res.json({ draft: await relayDraft(req.params.id), message: 'Message préparé : relisez-le dans « Messages aux inscrits », puis envoyez-le aux créateurs' });
+    const post = await decideGroupPost(req.params.id, action);
+    res.json({ post, message: post.status === 'answered' ? 'Noté : commentaire publié' : post.status === 'relayed' ? 'Noté : annonce relayée aux créateurs' : post.status === 'skipped' ? 'Demande passée' : 'Demande remise dans la file' });
   } catch (error) { send(res, error, 'Demande non modifiée'); }
 }

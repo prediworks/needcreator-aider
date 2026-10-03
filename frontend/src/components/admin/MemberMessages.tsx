@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
@@ -17,6 +17,8 @@ export default function MemberMessages() {
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const { data } = useQuery({ queryKey: ['member-messages'], queryFn: async () => (await api.get('/admin/member-messages')).data });
+  // Message préparé ailleurs (opportunité relevée dans un groupe Facebook) : pré-rempli une fois, à relire avant l'envoi
+  useEffect(() => { try { const raw = sessionStorage.getItem('memberMessageDraft'); if (!raw) return; sessionStorage.removeItem('memberMessageDraft'); const d = JSON.parse(raw); if (d.audience === 'creators' || d.audience === 'brands') setAudience(d.audience); if (d.subject) setSubject(String(d.subject)); if (d.body) setBody(String(d.body)); } catch { /* rien à pré-remplir */ } }, []);
   const preview = useMutation({ mutationFn: async () => (await api.post('/admin/member-messages?preview=1', { audience, subject, body })).data, onSuccess: (d) => toast.success(d.message, { duration: 8000 }), onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const send = useMutation({ mutationFn: async () => (await api.post('/admin/member-messages', { audience, subject, body })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSubject(''); setBody(''); queryClient.invalidateQueries({ queryKey: ['member-messages'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const weekly = useMutation({ mutationFn: async () => (await api.post('/admin/weekly-report')).data, onSuccess: (d) => toast.success(d.message, { duration: 8000 }), onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
