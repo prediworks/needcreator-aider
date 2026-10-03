@@ -67,7 +67,7 @@ export default function GroupWatch() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${KIND[p.kind]?.cls}`}>{KIND[p.kind]?.label}</span>
                     {p.status !== 'todo' && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-200 text-neutral-700">{STATUS[p.status]}</span>}
-                    <span className="text-xs text-neutral-600">{p.group} · {p.author || 'auteur non relevé'} · relevée le {formatDate(p.foundAt)}</span>
+                    <span className="text-xs text-neutral-600">{p.group} · {p.author || 'auteur non relevé'}{p.when ? ` · publiée : ${p.when}` : ''} · relevée le {formatDate(p.foundAt)}</span>
                   </div>
                   <p className="mt-2 text-neutral-800 whitespace-pre-line">« {p.text} »</p>
                   {p.comment && <div className="mt-2 bg-primary-50/50 border border-primary-200 rounded-lg p-2 text-neutral-800 whitespace-pre-line" data-testid="group-comment"><span className="text-xs font-medium text-primary-800">Commentaire proposé · </span>{p.comment}</div>}

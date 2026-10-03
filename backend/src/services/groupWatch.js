@@ -66,7 +66,9 @@ const AUDIENCE_HINT = {
   other: 'un groupe professionnel',
 };
 
-const postsSchema = z.object({ posts: z.array(z.object({ author: z.string().default(''), excerpt: z.string().default(''), kind: z.string().default('other'), comment: z.string().default('') })).default([]) });
+const postsSchema = z.object({ posts: z.array(z.object({ author: z.string().default(''), when: z.string().default(''), excerpt: z.string().default(''), kind: z.string().default('other'), comment: z.string().default('') })).default([]) });
+// Fin d'un extrait : boutons et mentions d'interface qui suivent une publication dans le texte de la page
+const EXCERPT_END = /\s*(…\s*)?(en voir plus|see more|afficher plus|voir la traduction|see translation|j'aime|commenter|partager|\d+\s+commentaires?)\b.*$/i;
 
 /**
  * Publications qui expriment un besoin, avec un commentaire proposé. L'extrait doit être recopié mot pour mot : il sert à retrouver la
@@ -76,21 +78,22 @@ export async function extractGroupPosts(result, group) {
   const text = String(result?.text || '');
   if (text.length < 200 || !aiConfig().configured) return [];
   const out = await generateJson({
-    system: 'Tu lis le texte visible d\'un groupe Facebook francophone et tu relèves seulement les publications qui expriment un besoin. Tu réponds en JSON strict, sans rien inventer.',
+    system: 'Tu lis le texte visible d\'un groupe Facebook francophone et tu relèves seulement les publications qui expriment un besoin auquel une plateforme de vidéos UGC peut répondre. Tu réponds en JSON strict, sans rien inventer.',
     prompt: `Texte de la page (${AUDIENCE_HINT[group?.audience] || AUDIENCE_HINT.other}) :
 """
 ${text.slice(0, 14000)}
 """
 Relève au plus 8 publications (pas les commentaires) qui expriment l'un de ces besoins :
-- "brand_seeks_creators" : une marque, une boutique ou une agence cherche des créateurs ou des vidéos UGC ;
+- "brand_seeks_creators" : une marque ou une boutique cherche des créateurs pour des vidéos sur ses produits ou ses services (rémunérées, ou en échange de produits) ;
 - "brand_question" : une marque ou un e-commerçant demande comment obtenir des vidéos, combien ça coûte, ou un conseil pour ses publicités ;
 - "creator_seeks_brands" : un créateur demande comment trouver des marques, des missions ou des clients ;
 - "creator_question" : un créateur demande combien facturer, comment faire un devis, un contrat ou céder ses droits.
-Ignore tout le reste : créateurs qui se présentent ou proposent leurs services, publicités, formations à vendre, règles du groupe, sondages, remerciements.
-Pour chaque publication retenue : author (le nom affiché de son auteur), excerpt (les 200 à 300 premiers caractères de la publication, recopiés mot pour mot), kind, comment.
-comment = un commentaire à publier sous la publication, en français, 2 à 4 phrases, 400 caractères au plus, sans lien, sans émoji, sans formule commerciale. D'abord une réponse utile à la demande, puis une seule phrase sur NeedCreator, puis une proposition d'en dire plus en message. Vouvoiement pour une marque, tutoiement pour un créateur.
-Ce que tu peux dire de NeedCreator, sans rien ajouter : plateforme française de vidéos UGC. Pour une marque : des créateurs qui possèdent déjà son produit lui envoient une vidéo déjà tournée, qu'elle regarde avant de payer et ne paie que si elle la garde, droits inclus ; ou elle publie un brief et reçoit des devis ; une vidéo coûte en général 80 à 250 € HT. Pour un créateur : inscription gratuite, il fixe son prix, il peut proposer une vidéo à une marque sans attendre une campagne, le paiement est bloqué par la marque avant la livraison ; un calculateur de tarif et un devis avec contrat de droits sont gratuits.
-Réponds par un seul objet JSON de cette forme exacte : {"posts":[{"author":"…","excerpt":"…","kind":"…","comment":"…"}]}. Aucune publication à retenir : {"posts":[]}.`,
+Ignore tout le reste, en particulier : les créateurs qui se présentent ou proposent leurs services ; les offres d'emploi, de stage ou d'alternance ; les castings de modèles, de figurants ou d'acteurs ; la couverture d'un événement (reportage, photos sur place) ; les publicités, formations et coachings à vendre ; les annonces en anglais ou hors France, Belgique et Suisse ; tout ce qui renvoie vers Discord, Telegram ou WhatsApp ou promet un revenu mensuel ; les règles du groupe, sondages, remerciements.
+Pour chaque publication retenue : author (le nom affiché de son auteur), when (la date ou l'ancienneté affichée près du nom, telle quelle : « 2 h », « 3 sept. », vide si absente), excerpt (les 200 à 300 premiers caractères de la publication, recopiés mot pour mot, sans les mots d'interface comme « En voir plus »), kind, comment.
+comment = un commentaire à publier sous la publication, en français, 2 à 3 phrases, 350 caractères au plus, sans lien, sans émoji. Il répond au besoin exprimé, il ne commente jamais la façon dont l'annonce est rédigée et ne donne aucun conseil sur ce qu'elle devrait préciser. Première phrase : ce que la personne peut obtenir, concrètement, en rapport avec sa demande (ses produits, son secteur, son objectif). Deuxième phrase : NeedCreator, nommé une fois. Dernière phrase : proposer d'en dire plus en message privé. Vouvoiement pour une marque, tutoiement pour un créateur.
+Ce que tu peux dire de NeedCreator, sans rien ajouter : plateforme française de vidéos UGC. Pour une marque : des créateurs qui possèdent déjà son produit lui envoient une vidéo déjà tournée, qu'elle regarde avant de payer et ne paie que si elle la garde, droits inclus ; ou elle publie un brief et reçoit des devis de créateurs vérifiés ; une vidéo coûte en général 80 à 250 € HT ; elle peut aussi payer en produit. Pour un créateur : inscription gratuite, il fixe son prix, il peut proposer une vidéo à une marque sans attendre une campagne, le paiement est bloqué par la marque avant la livraison ; un calculateur de tarif et un devis avec contrat de droits sont gratuits.
+Exemple de bon commentaire sous « marque de soins cherche créatrices UGC » : « Des créatrices beauté qui utilisent déjà vos soins peuvent vous envoyer une vidéo finie, que vous regardez avant de payer et ne gardez que si elle vous plaît, droits inclus. C'est ce que propose NeedCreator, plateforme française de vidéos UGC. Je vous explique en message si ça vous intéresse. »
+Réponds par un seul objet JSON de cette forme exacte : {"posts":[{"author":"…","when":"…","excerpt":"…","kind":"…","comment":"…"}]}. Aucune publication à retenir : {"posts":[]}.`,
     schema: postsSchema,
     // Le modèle rend parfois la liste seule, ou sous un autre nom : on la range sous « posts »
     normalize: (raw) => (Array.isArray(raw) ? { posts: raw } : raw && !Array.isArray(raw.posts) ? { posts: Object.values(raw).find(Array.isArray) || [] } : raw),
@@ -99,13 +102,15 @@ Réponds par un seul objet JSON de cette forme exacte : {"posts":[{"author":"…
   const seen = new Set();
   const posts = [];
   for (const p of out.posts) {
-    const excerpt = String(p.excerpt || '').replace(/\s+/g, ' ').trim();
+    const excerpt = String(p.excerpt || '').replace(/\s+/g, ' ').replace(EXCERPT_END, '').trim();
     if (!GROUP_POST_KINDS.includes(p.kind) || excerpt.length < 30) continue;
     // Extrait introuvable dans la page : inventé ou trop reformulé, la publication ne pourrait pas être retrouvée
     if (!page.includes(squash(excerpt).slice(0, 40))) continue;
+    // Garde-fous sur ce que l'IA laisse passer : annonce en anglais, lien de messagerie, revenu mensuel
+    if (/\b(discord|telegram|whatsapp)\b|\$\s?\d|\d\s?\$|\/month|per month|\bASAP\b/i.test(excerpt)) continue;
     const key = postKey(excerpt);
     if (seen.has(key)) continue; seen.add(key);
-    posts.push({ key, author: String(p.author || '').replace(/\s+/g, ' ').trim().slice(0, 120), text: excerpt.slice(0, 900), kind: p.kind, comment: String(p.comment || '').trim().slice(0, 900) });
+    posts.push({ key, author: String(p.author || '').replace(/\s+/g, ' ').trim().slice(0, 120), when: String(p.when || '').trim().slice(0, 40), text: excerpt.slice(0, 900), kind: p.kind, comment: String(p.comment || '').trim().slice(0, 900) });
   }
   return posts;
 }
@@ -132,9 +137,11 @@ export async function applyGroupRead(task, result) {
     if (r.upsertedCount) added++;
   }
   group.stats.reads += 1; group.stats.requests += added;
-  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
+  // Une page presque vide n'a pas été lue : groupe non rejoint, fil pas chargé, ou page de connexion passée inaperçue
+  const thin = text.length < 1500 ? ` · page presque vide (${text.length} caractères) : groupe non rejoint par ce compte, ou fil pas chargé` : '';
+  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${posts.length ? '' : ` · page de ${text.length.toLocaleString('fr-FR')} caractères lue, rien de pertinent`}${thin}${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
   await note(outcome);
-  return { outcome, added, permalinks: (result?.links || []).filter(l => /\/groups\/[^/]+\/(posts|permalink)\/\d+/i.test(l.href)).length };
+  return { outcome, added, chars: text.length, permalinks: (result?.links || []).filter(l => /\/groups\/[^/]+\/(posts|permalink)\/\d+/i.test(l.href)).length };
 }
 
 /** File « À répondre » et groupes suivis, pour l'admin */
@@ -146,7 +153,7 @@ export async function groupWatchOverview({ workspaceId = 'default' } = {}) {
   ]);
   const names = new Map(groups.map(g => [String(g._id), g]));
   const order = { todo: 0, answered: 1, skipped: 2 };
-  const view = posts.map(p => ({ id: p._id, group: names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré', groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.searchUrl, status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
+  const view = posts.map(p => ({ id: p._id, when: p.when || '', group: names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré', groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.searchUrl, status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
     .sort((a, b) => order[a.status] - order[b.status] || new Date(b.foundAt) - new Date(a.foundAt));
   const toRead = (await groupsToRead({ workspaceId, limit: MAX_GROUPS })).length;
   return { groups: groups.map(g => ({ id: g._id, key: g.key, url: g.url, name: g.name || '', audience: g.audience, active: g.active, lastReadAt: g.lastReadAt, lastOutcome: g.lastOutcome || '', stats: g.stats })), posts: view, todo, toRead, perLot: GROUPS_PER_LOT, maxGroups: MAX_GROUPS };

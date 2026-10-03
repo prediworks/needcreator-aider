@@ -86,7 +86,9 @@ export function looksLikePersonName(name) {
   const words = String(name || '').trim().split(/\s+/);
   if (words.length < 2 || words.length > 3) return false;
   const norm = (w) => w.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  return words.every(w => /^[A-Za-zÀ-ÿ'-]{2,14}$/.test(w) && !BRAND_WORDS.test(norm(w)));
+  // Un mot tout en majuscules (« LIFT ») ou un mot de commerce par sa terminaison (« Shoewear », « Cosmetic ») est un nom de marque
+  const brandish = (w) => (w.length >= 3 && w === w.toUpperCase() && /[A-Z]/.test(w)) || /(wear|shop|store|labs?|box|club|care|cosmetics?|times|market|brand|concept|skin|naturals?|organics?|paris|france)$/i.test(norm(w));
+  return words.every(w => /^[A-Za-zÀ-ÿ'-]{2,14}$/.test(w) && !BRAND_WORDS.test(norm(w)) && !brandish(w));
 }
 
 /**

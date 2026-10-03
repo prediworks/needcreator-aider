@@ -28,6 +28,7 @@ const postSchema = new mongoose.Schema({
   groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'FacebookGroup', required: true, index: true },
   key: { type: String, required: true },   // empreinte du début du texte : une même publication n'est relevée qu'une fois
   author: { type: String, trim: true, maxlength: 120 }, // nom affiché sur la publication, pour la retrouver
+  when: { type: String, trim: true, maxlength: 40 },    // date ou ancienneté affichée sur la publication (« 2 h », « 3 sept. »)
   text: { type: String, maxlength: 900 },  // début de la publication, tel qu'écrit
   kind: { type: String, enum: GROUP_POST_KINDS, required: true },
   comment: { type: String, maxlength: 900 }, // commentaire proposé : à relire et à publier soi-même

@@ -576,7 +576,7 @@ export async function extractTiktokAdvertisers(result, count = 15) {
 }
 
 /** Page entreprise LinkedIn dans une page de résultats de recherche : premier lien /company/ */
-const normName = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(sas|sarl|sa|paris|france|officiel|official|cosmetics|cosmetiques|laboratoire|laboratoires|the|la|le|les)\b/g, ' ').replace(/[^a-z0-9]/g, '');
+const normName = (v) => String(v || '').replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(sas|sarl|sa|paris|france|officiel|official|cosmetics|cosmetiques|laboratoire|laboratoires|the|la|le|les)\b/g, ' ').replace(/[^a-z0-9]/g, '');
 /** Deux noms désignent-ils la même entreprise ? (égalité, ou l'un contient l'autre sur au moins 4 caractères) */
 export function sameCompany(a, b) {
   if (/alumni|recrut|careers|jobs|\bfans?\b|anciens/i.test(`${a} ${b}`)) return false; // pages d'anciens, de recrutement ou de fans : jamais la marque elle-même
@@ -596,7 +596,7 @@ export function companySlugMatches(slug, brandName) {
   let raw = String(slug || ''); try { raw = decodeURIComponent(raw); } catch { /* identifiant déjà décodé */ }
   if (sameCompany(raw.replace(/-/g, ' '), brandName)) return true;
   if (/alumni|recrut|careers|jobs|\bfans?\b|anciens/i.test(`${raw} ${brandName}`)) return false;
-  const tokens = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split('-').filter(t => t && !SLUG_STOP.test(t));
+  const tokens = raw.replace(/ı/g, 'i').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split('-').filter(t => t && !SLUG_STOP.test(t));
   const name = normName(brandName);
   if (!tokens.length || name.length < 3) return false;
   const pattern = tokens.map(t => t.replace(/[^a-z0-9]/g, '.?')).join('.?');
@@ -840,7 +840,7 @@ export async function submitTaskResult(id, result) {
       // Groupe Facebook suivi : seules les publications qui expriment un besoin sont gardées, avec un commentaire proposé
       const { applyGroupRead } = await import('./groupWatch.js');
       const r = await applyGroupRead(task, slim);
-      task.extracted = { added: r.added, permalinks: r.permalinks };
+      task.extracted = { added: r.added, chars: r.chars, permalinks: r.permalinks };
       if (batch) batch.imported.created += r.added;
       outcome = r.outcome;
     } else if (task.type === 'find_company') {
