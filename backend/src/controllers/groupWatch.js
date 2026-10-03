@@ -1,4 +1,4 @@
-import { addGroup, updateGroup, removeGroup, groupWatchOverview, decideGroupPost, createLeadFromPost, sendPostEmail, relayDraft } from '../services/groupWatch.js';
+import { addGroup, updateGroup, removeGroup, groupWatchOverview, decideGroupPost, createLeadFromPost, sendPostEmail, relayDraft, pasteRequest } from '../services/groupWatch.js';
 import logger from '../utils/logger.js';
 
 /** Groupes Facebook suivis et demandes à répondre (admin). Les messages d'erreur du service sont rédigés pour être affichés tels quels. */
@@ -43,4 +43,11 @@ export async function decideGroupPostView(req, res) {
     const post = await decideGroupPost(req.params.id, action);
     res.json({ post, message: post.status === 'answered' ? 'Noté : commentaire publié' : post.status === 'relayed' ? 'Noté : annonce relayée aux créateurs' : post.status === 'skipped' ? 'Demande passée' : 'Demande remise dans la file' });
   } catch (error) { send(res, error, 'Demande non modifiée'); }
+}
+
+export async function pasteRequestView(req, res) {
+  try {
+    const post = await pasteRequest({ text: req.body?.text, source: req.body?.source });
+    res.status(201).json({ post, message: `Annonce ajoutée à la file (${post.email})${post.brand ? ` · ${post.brand}` : ''}. Créez la fiche marque pour rédiger le premier email.` });
+  } catch (error) { send(res, error, 'Annonce non ajoutée'); }
 }

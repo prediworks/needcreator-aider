@@ -52,6 +52,16 @@ Une marque qui met son adresse dans « cherche créateurs » dit « écrivez-moi
 
 Les adresses personnelles (gmail, hotmail) sont traitées de la même façon ; on ne cherche ni le site ni les réseaux de la personne.
 
+## Une annonce vue ailleurs : « Coller une annonce »
+
+Ce qui a de la valeur n'est pas le groupe, c'est une demande exprimée avec une adresse. Une annonce vue dans un autre groupe, sur
+LinkedIn, dans une story ou une newsletter se colle dans le panneau (« Coller une annonce », avec sa source si vous l'avez). L'IA relève
+le type de demande, la marque, l'adresse et le site, propose un commentaire, et l'annonce entre dans la même file : « Créer la fiche
+marque », email rédigé pour elle, « Relire et envoyer », relance à sept jours. Sans adresse, l'annonce est refusée : la fiche manuelle de
+l'onglet Marques suffit. Pas de listes de contacts : l'email est écrit pour une demande précise.
+
+Le panneau s'appelle désormais « Demandes de marques » (bouton du même nom dans la rangée des compteurs).
+
 ## Les annonces d'agences : à relayer, pas à démarcher
 
 Une agence ou une production qui recrute des créateurs pour un tournage rémunéré n'est pas une marque à démarcher : elle a son client,

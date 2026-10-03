@@ -3275,6 +3275,8 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     {
       // Groupes Facebook : groupe suivi, lot de lecture, demandes relevées avec un commentaire proposé, « Répondu » / « Passer »
       const gKey = `e2egroup${RUN}`;
+      // Restes d'anciens passages interrompus : groupes de test et leurs demandes
+      { const old = await db.collection('facebookgroups').find({ key: /^e2egroup/ }).project({ _id: 1 }).toArray(); if (old.length) { await db.collection('groupposts').deleteMany({ groupId: { $in: old.map(g => g._id) } }); await db.collection('facebookgroups').deleteMany({ _id: { $in: old.map(g => g._id) } }); } await db.collection('groupposts').deleteMany({ groupId: null, text: /Thés de Lune/ }); }
       const gBad = await brandApi('POST', '/admin/acquisition/groups', { url: 'https://www.facebook.com/pages/pas-un-groupe' });
       const gAdd = await brandApi('POST', '/admin/acquisition/groups', { url: `https://m.facebook.com/groups/${gKey}/posts/123456/?ref=share`, audience: 'creators' });
       const gDup = await brandApi('POST', '/admin/acquisition/groups', { url: `https://www.facebook.com/groups/${gKey}` });
@@ -3289,8 +3291,11 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
       const gRes = await ext('POST', `/${gTask._id}/result`, { url: gTask.input.url, title: '(3) Créateurs UGC France | Facebook', text: feed, links: [{ href: `https://www.facebook.com/groups/${gKey}/posts/987654321/`, text: '2 h' }] });
       const gView = await brandApi('GET', '/admin/acquisition/groups');
       const gRow = gView.data.groups?.find(x => x.key === gKey);
-      const gPosts = (gView.data.posts || []).filter(x => x.group === 'Créateurs UGC France');
-      expect(gRes.status === 200 && /demande\(s\) relevée\(s\)|aucun tri/.test(gRes.data.outcome) && gRow && gRow.name === 'Créateurs UGC France' && gRow.stats.reads === 1 && gRow.stats.requests === gPosts.length && gView.data.todo >= gPosts.length, 'La lecture d\'un groupe doit relever son nom, compter la lecture et ranger les demandes dans la file', { gRes, gRow, gPosts });
+      const gPosts = (gView.data.posts || []).filter(x => x.groupUrl === `https://www.facebook.com/groups/${gKey}/`);
+      expect(gRes.status === 200 && /demande\(s\) relevée\(s\)|aucun tri/.test(gRes.data.outcome) && gRow && gRow.name === 'Créateurs UGC France' && gRow.stats.reads === 1 && gRow.stats.requests === gPosts.length && gView.data.todo >= gPosts.length, 'La lecture d\'un groupe doit relever son nom, compter la lecture et ranger les demandes dans la file', { outcome: gRes.data?.outcome, name: gRow?.name, stats: gRow?.stats, posts: gPosts.length, todo: gView.data.todo, groups: (gView.data.posts || []).map(x => x.group) });
+      const { searchUrl: gSearch } = await import('../src/services/groupWatch.js');
+      const gQ = decodeURIComponent(gSearch({ url: `https://www.facebook.com/groups/${gKey}/` }, 'Offre d\'emploi : Stage Content Creation (Vidéographie & Photographie) – CEO content').split('q=')[1]);
+      expect(gQ === 'Offre emploi Stage Content Creation Vidéographie Photographie', 'Le lien de recherche ne garde que des mots : Facebook refuse la ponctuation', gQ);
       expect(gPosts.every(x => x.text.length >= 30 && feed.includes(x.text.slice(0, 30)) && x.comment && /search\/\?q=/.test(x.searchUrl) && !/Formation UGC/.test(x.text)), 'Chaque demande gardée doit citer la publication mot pour mot, proposer un commentaire et mener à la publication ; une publicité n\'est pas une demande', gPosts);
       // « Répondu », retour dans la file, « Passer » : la file et les compteurs du groupe suivent (demande posée en base : le tri par l'IA peut n'en garder aucune)
       const gp = await db.collection('groupposts').insertOne({ workspaceId: 'default', groupId: new mongoose.Types.ObjectId(String(gRow.id)), key: `e2e-${RUN}`, author: 'Claire Martin', text: 'Marque de bougies cherche créatrices UGC', kind: 'brand_seeks_creators', comment: 'Bonjour…', brand: 'Maison Bougie', email: `contact@maison-bougie-${RUN}.example.com`, searchUrl: `https://www.facebook.com/groups/${gKey}/search/?q=Marque`, status: 'todo', foundAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
@@ -3313,6 +3318,17 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
       const gRelay = await brandApi('POST', `/admin/acquisition/group-posts/${gp.insertedId}`, { action: 'relay' });
       expect(gRelay.status === 200 && gRelay.data.draft?.audience === 'creators' && /Maison Bougie/.test(gRelay.data.draft.subject) && /Marque de bougies cherche/.test(gRelay.data.draft.body) && new RegExp(`contact@maison-bougie-${RUN}`).test(gRelay.data.draft.body), 'Relayer aux créateurs : message prêt pour « Messages aux inscrits », avec l\'annonce, l\'adresse et le lien', gRelay.data);
       await db.collection('leads').deleteOne({ _id: gLeadDoc._id });
+      // Annonce collée à la main : refusée sans adresse, acceptée avec, une seule fois, puis fiche et email comme pour un groupe
+      const pNo = await brandApi('POST', '/admin/acquisition/group-posts', { text: 'Bonjour, nous cherchons des créatrices UGC pour notre marque de thés bio, envoyez vos portfolios en message privé.' });
+      const pText = `Bonjour, Thés de Lune cherche deux créatrices UGC pour des vidéos sur nos infusions bio, droits 6 mois, rémunéré. Écrivez-nous à collab@thes-de-lune-${RUN}.needcreator-test.com avec votre portfolio.`;
+      const pOk = await brandApi('POST', '/admin/acquisition/group-posts', { text: pText, source: 'https://www.linkedin.com/posts/thes-de-lune-exemple' });
+      const pDup = await brandApi('POST', '/admin/acquisition/group-posts', { text: pText });
+      expect(pNo.status === 400 && /adresse email/.test(pNo.data.error) && pOk.status === 201 && pOk.data.post.email === `collab@thes-de-lune-${RUN}.needcreator-test.com` && !pOk.data.post.groupId && pOk.data.post.searchUrl === 'https://www.linkedin.com/posts/thes-de-lune-exemple' && pDup.status === 409, 'Une annonce collée entre dans la file si elle donne une adresse, une seule fois', { pNo: pNo.data, pOk: pOk.data.post, pDup: pDup.status });
+      const pView = (await brandApi('GET', '/admin/acquisition/groups')).data.posts.find(x => String(x.id) === String(pOk.data.post._id));
+      const pLead = await brandApi('POST', `/admin/acquisition/group-posts/${pOk.data.post._id}`, { action: 'lead' });
+      expect(pView && /Annonce collée|linkedin/.test(pView.group) && pLead.status === 201 && pLead.data.lead.email === `collab@thes-de-lune-${RUN}.needcreator-test.com` && /relevée dans/.test(pLead.data.lead.description) && pLead.data.post.draft?.text?.length > 80, 'Une annonce collée se traite comme une demande de groupe : fiche marque et premier email', { pView, lead: pLead.data.lead && { email: pLead.data.lead.email, description: pLead.data.lead.description }, status: pLead.status });
+      await db.collection('leads').deleteOne({ _id: new mongoose.Types.ObjectId(String(pLead.data.lead._id)) });
+      await db.collection('groupposts').deleteOne({ _id: new mongoose.Types.ObjectId(String(pOk.data.post._id)) });
       const gPause = await brandApi('PATCH', `/admin/acquisition/groups/${gRow.id}`, { active: false, audience: 'brands' });
       const gDel = await brandApi('DELETE', `/admin/acquisition/groups/${gRow.id}`);
       const gLeft = await db.collection('groupposts').countDocuments({ groupId: new mongoose.Types.ObjectId(String(gRow.id)) });

@@ -58,8 +58,14 @@ export async function groupsToRead({ workspaceId = 'default', limit = GROUPS_PER
 
 const squash = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, ' ').trim();
 const postKey = (text) => crypto.createHash('sha1').update(squash(text).slice(0, 160)).digest('hex').slice(0, 24);
-/** Recherche dans le groupe sur les premiers mots de la publication : le chemin le plus sûr pour la retrouver */
-const searchUrl = (group, text) => `${group.url}search/?q=${encodeURIComponent(String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(w => !/^https?:/i.test(w)).slice(0, 8).join(' '))}`;
+/**
+ * Recherche dans le groupe sur les premiers mots de la publication : le chemin le plus sûr pour la retrouver.
+ * Mots seulement : la recherche de Facebook ne supporte ni « : », ni parenthèses, ni « & », ni apostrophes ; les mots d'une ou deux lettres n'aident pas.
+ */
+export const searchUrl = (group, text) => {
+  const words = String(text || '').replace(/https?:\/\/\S+/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').split(/\s+/).filter(w => w.length >= 3);
+  return `${String(group?.url || '').replace(/\/?$/, '/')}search/?q=${encodeURIComponent(words.slice(0, 7).join(' '))}`;
+};
 
 const AUDIENCE_HINT = {
   creators: 'un groupe de créateurs UGC : des marques y publient parfois « cherche créateurs », des créateurs y demandent comment trouver des marques ou combien facturer',
@@ -160,7 +166,7 @@ export async function groupWatchOverview({ workspaceId = 'default' } = {}) {
   ]);
   const names = new Map(groups.map(g => [String(g._id), g]));
   const order = { todo: 0, lead: 0, answered: 1, relayed: 1, skipped: 2 };
-  const view = posts.map(p => ({ id: p._id, when: p.when || '', brand: p.brand || '', email: p.email || '', website: p.website || '', leadId: p.leadId, draft: p.draft || null, sentAt: p.sentAt, group: names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré', groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.searchUrl, status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
+  const view = posts.map(p => ({ id: p._id, when: p.when || '', source: p.source || '', brand: p.brand || '', email: p.email || '', website: p.website || '', leadId: p.leadId, draft: p.draft || null, sentAt: p.sentAt, group: p.groupId ? (names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré') : (p.source || 'annonce collée'), groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.groupId && names.get(String(p.groupId)) ? searchUrl(names.get(String(p.groupId)), p.text) : (p.searchUrl || ''), status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
     .sort((a, b) => order[a.status] - order[b.status] || new Date(b.foundAt) - new Date(a.foundAt));
   const toRead = (await groupsToRead({ workspaceId, limit: MAX_GROUPS })).length;
   return { groups: groups.map(g => ({ id: g._id, key: g.key, url: g.url, name: g.name || '', audience: g.audience, active: g.active, lastReadAt: g.lastReadAt, lastOutcome: g.lastOutcome || '', stats: g.stats })), posts: view, todo, toRead, perLot: GROUPS_PER_LOT, maxGroups: MAX_GROUPS };
@@ -178,7 +184,7 @@ export async function decideGroupPost(id, action) {
   if (counted(action)) inc[`stats.${action}`] = 1;
   p.status = action; p.decidedAt = action === 'todo' ? undefined : new Date();
   await p.save();
-  if (Object.keys(inc).length) await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: inc });
+  if (Object.keys(inc).length && p.groupId) await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: inc });
   return p;
 }
 
@@ -213,10 +219,10 @@ export async function createLeadFromPost(id, createdBy) {
   if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
   if (!p.email) throw fail(400, 'Cette demande ne donne pas d\'adresse email : répondez par un commentaire');
   if (p.leadId && await Lead.exists({ _id: p.leadId })) throw fail(400, 'La fiche existe déjà pour cette demande');
-  const group = await FacebookGroup.findById(p.groupId).lean();
+  const group = p.groupId ? await FacebookGroup.findById(p.groupId).lean() : { name: p.source || 'annonce collée', key: '' };
   const agency = p.kind === 'creator_opportunity';
   const name = (p.brand || p.author || p.email.split('@')[1]).slice(0, 120);
-  const description = `Demande publiée dans le groupe Facebook « ${group?.name || group?.key || ''} »${p.when ? ` (${p.when})` : ''} par ${p.author || 'un membre'} : « ${p.text} »${agency ? '\nAgence ou production : recrute des créateurs pour des tournages.' : ''}`;
+  const description = `Demande ${p.groupId ? 'publiée dans le groupe Facebook' : 'relevée dans'} « ${group?.name || group?.key || ''} »${p.when ? ` (${p.when})` : ''} par ${p.author || 'un membre'} : « ${p.text} »${agency ? '\nAgence ou production : recrute des créateurs pour des tournages.' : ''}`;
   let lead = await Lead.findOne({ email: p.email });
   const existing = !!lead;
   if (lead) {
@@ -248,7 +254,7 @@ export async function sendPostEmail(id, { subject, text }) {
   p.sentAt = new Date(); p.draft = { subject: String(subject || p.draft?.subject || ''), text: body };
   const was = p.status; p.status = 'answered'; p.decidedAt = new Date();
   await p.save();
-  if (was !== 'answered') await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: { 'stats.answered': 1 } });
+  if (was !== 'answered' && p.groupId) await FacebookGroup.updateOne({ _id: p.groupId }, { $inc: { 'stats.answered': 1 } });
   return { post: p, lead };
 }
 
@@ -256,11 +262,44 @@ export async function sendPostEmail(id, { subject, text }) {
 export async function relayDraft(id) {
   const p = await GroupPost.findById(id).lean();
   if (!p) throw fail(404, 'Demande introuvable (effacée après soixante jours)');
-  const group = await FacebookGroup.findById(p.groupId).lean();
+  const group = p.groupId ? await FacebookGroup.findById(p.groupId).lean() : null;
   const who = p.brand || p.author || 'une agence';
   return {
     audience: 'creators',
     subject: `Tournage UGC : ${who} cherche des créateurs`.slice(0, 120),
-    body: `Une opportunité repérée dans le groupe Facebook « ${group?.name || group?.key || ''} »${p.when ? ` (${p.when})` : ''} :\n\n« ${p.text} »\n\nPour candidater, suivez les consignes de l'annonce${p.email ? ` (adresse indiquée : ${p.email})` : ''}. La publication : ${p.searchUrl}\n\nNous ne sommes pas intermédiaires sur ce tournage : nous vous le transmettons parce qu'il peut vous intéresser. Si vous le décrochez, dites-le-nous, cela nous aide à repérer les bonnes opportunités.`,
+    body: `Une opportunité repérée ${group ? `dans le groupe Facebook « ${group.name || group.key} »` : `(${p.source || 'annonce transmise'})`}${p.when ? ` (${p.when})` : ''} :\n\n« ${p.text} »\n\nPour candidater, suivez les consignes de l'annonce${p.email ? ` (adresse indiquée : ${p.email})` : ''}. ${group ? `La publication : ${searchUrl(group, p.text)}` : p.searchUrl ? `L'annonce : ${p.searchUrl}` : ''}\n\nNous ne sommes pas intermédiaires sur ce tournage : nous vous le transmettons parce qu'il peut vous intéresser. Si vous le décrochez, dites-le-nous, cela nous aide à repérer les bonnes opportunités.`,
   };
+}
+
+const pasteSchema = z.object({ kind: z.string().default('brand_seeks_creators'), brand: z.string().default(''), author: z.string().default(''), website: z.string().default(''), comment: z.string().default('') });
+/**
+ * « Coller une annonce » : une demande vue n'importe où (autre groupe, LinkedIn, story, newsletter) qui donne une adresse email.
+ * Même file, mêmes boutons que les demandes lues dans les groupes. Sans adresse, la fiche manuelle suffit : l'annonce est refusée.
+ */
+export async function pasteRequest({ text, source = '', workspaceId = 'default' }) {
+  const body = String(text || '').replace(/\r/g, '').trim();
+  if (body.length < 40) throw fail(400, 'Il manque : le texte de l\'annonce (quelques lignes au moins)');
+  const email = pickEmail(extractEmails(body));
+  if (!email) throw fail(400, 'Cette annonce ne donne pas d\'adresse email. Sans adresse, ajoutez la marque à la main dans l\'onglet Marques.');
+  const src = String(source || '').trim().slice(0, 300);
+  const link = /^https?:\/\//i.test(src) ? src : '';
+  const excerpt = body.replace(/\s+/g, ' ').slice(0, 900);
+  const key = postKey(excerpt);
+  const dup = await GroupPost.findOne({ workspaceId, groupId: null, key });
+  if (dup) throw fail(409, `Cette annonce est déjà dans la file (${dup.status === 'todo' ? 'à répondre' : dup.status})`);
+  let meta = { kind: 'brand_seeks_creators', brand: '', author: '', website: '', comment: '' };
+  if (aiConfig().configured) {
+    try {
+      const out = await generateJson({
+        system: 'Tu lis une annonce copiée depuis un réseau social ou un email et tu la décris en JSON strict, sans rien inventer.',
+        prompt: `Annonce${src ? ` (source : ${src})` : ''} :\n"""\n${body.slice(0, 4000)}\n"""\nDonne : kind parmi "brand_seeks_creators" (une marque ou une boutique cherche des créateurs pour des vidéos sur ses produits ou services), "brand_question" (une marque demande comment obtenir des vidéos ou combien ça coûte), "creator_opportunity" (une agence, une production ou un intermédiaire recrute des créateurs pour un tournage rémunéré), "creator_seeks_brands", "creator_question" ; brand (nom de la marque, de la boutique ou de l'agence, vide si absent) ; author (nom de la personne qui signe, vide si absent) ; website (site écrit dans l'annonce, vide sinon) ; comment (pour les types marque : 2 à 3 phrases, 350 caractères au plus, qui répondent au besoin sans commenter la rédaction de l'annonce, nomment NeedCreator une fois et proposent d'en dire plus en message ; vide pour "creator_opportunity"). Ce que tu peux dire de NeedCreator : plateforme française de vidéos UGC ; des créateurs qui possèdent déjà le produit envoient une vidéo déjà tournée, que la marque regarde avant de payer et ne paie que si elle la garde, droits inclus, en général 80 à 250 € HT ; ou elle publie un brief et reçoit des devis.\nRéponds par un seul objet JSON : {"kind":"…","brand":"…","author":"…","website":"…","comment":"…"}.`,
+        schema: pasteSchema,
+      });
+      meta = { ...meta, ...out };
+    } catch (err) { logger.warn(`pasteRequest AI: ${err.message}`); }
+  }
+  const kind = GROUP_POST_KINDS.includes(meta.kind) ? meta.kind : 'brand_seeks_creators';
+  const site = String(meta.website || '').trim().toLowerCase().replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '');
+  const post = await GroupPost.create({ workspaceId, groupId: undefined, source: src || undefined, key, author: String(meta.author || '').trim().slice(0, 120) || undefined, text: excerpt, kind, comment: kind === 'creator_opportunity' ? '' : String(meta.comment || '').trim().slice(0, 900), brand: String(meta.brand || '').trim().slice(0, 120) || undefined, email, website: site && /\./.test(site) && body.toLowerCase().includes(site) ? `https://${site}` : undefined, searchUrl: link || undefined, status: 'todo', foundAt: new Date() });
+  return post;
 }

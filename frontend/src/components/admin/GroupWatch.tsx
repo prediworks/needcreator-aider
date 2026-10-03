@@ -35,6 +35,9 @@ export default function GroupWatch() {
   const [url, setUrl] = useState('');
   const [audience, setAudience] = useState('creators');
   const [showDone, setShowDone] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [pasteSource, setPasteSource] = useState('');
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['acq-groups'] });
   const onError = (e: any) => toast.error(getErrorMessage(e), { duration: 8000 });
   const add = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/groups', { url, audience })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); setUrl(''); refresh(); }, onError });
@@ -45,6 +48,7 @@ export default function GroupWatch() {
   const toLead = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'lead' })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); }, onError });
   const sendMail = useMutation({ mutationFn: async ({ id, subject, text }: any) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'send', subject, text })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); }, onError });
   const relay = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'relay' })).data, onSuccess: async (d, id) => { try { sessionStorage.setItem('memberMessageDraft', JSON.stringify(d.draft)); } catch { /* stockage indisponible */ } await api.post(`/admin/acquisition/group-posts/${id}`, { action: 'relayed' }).catch(() => null); toast.success(d.message, { duration: 8000 }); refresh(); window.location.assign('/admin?tab=messages'); }, onError });
+  const paste = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/group-posts', { text: pasteText, source: pasteSource })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setPasteText(''); setPasteSource(''); setPasteOpen(false); refresh(); }, onError });
   const read = useMutation({ mutationFn: async () => (await api.post('/browser-tasks/batches', { preset: 'facebook_groups' })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); queryClient.invalidateQueries({ queryKey: ['ext-batches'] }); refresh(); }, onError });
   const copyOpen = async (p: any) => {
     try { await navigator.clipboard.writeText(p.comment || ''); toast.success('Commentaire copié : relisez-le, adaptez-le, puis publiez-le sous la publication', { duration: 6000 }); } catch { /* presse-papiers indisponible */ }
@@ -55,10 +59,23 @@ export default function GroupWatch() {
   return (
     <Card className="p-6" data-testid="group-watch">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
-        <h2 className="text-lg font-semibold text-neutral-900">Groupes Facebook : demandes à répondre</h2>
+        <h2 className="text-lg font-semibold text-neutral-900">Demandes de marques : groupes Facebook et annonces collées</h2>
         <Button size="sm" onClick={() => read.mutate()} isLoading={read.isPending} disabled={!data?.toRead} data-testid="groups-read" title="Crée le lot « Groupes Facebook » : l'extension (profil de lecture) ouvre la page de chaque groupe à lire, une fois par jour au plus">Lire les groupes ({data?.toRead ?? 0})</Button>
       </div>
-      <p className="text-sm text-neutral-600 mb-4">L&apos;extension lit les publications récentes des groupes suivis. Ne sont gardées que celles qui expriment un besoin, avec un commentaire proposé. Vous relisez, vous publiez vous-même, depuis votre compte : l&apos;outil ne publie rien et ne garde aucune liste de membres. Un message privé seulement après un échange public.</p>
+      <p className="text-sm text-neutral-600 mb-3">L&apos;extension lit les publications récentes des groupes suivis. Ne sont gardées que celles qui expriment un besoin, avec un commentaire proposé. Vous relisez, vous publiez vous-même, depuis votre compte : l&apos;outil ne publie rien et ne garde aucune liste de membres. Une annonce vue ailleurs (autre groupe, LinkedIn, story, newsletter) qui donne une adresse se colle ci-dessous : même file, mêmes boutons.</p>
+      <div className="mb-4">
+        {!pasteOpen ? <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)} data-testid="paste-open">Coller une annonce</Button> : (
+          <div className="border border-neutral-200 rounded-lg p-3" data-testid="paste-box">
+            <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} rows={6} placeholder="Collez le texte de l'annonce, avec l'adresse email qu'elle donne" className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm" data-testid="paste-text" />
+            <div className="flex gap-2 flex-wrap items-center mt-2">
+              <input value={pasteSource} onChange={(e) => setPasteSource(e.target.value)} placeholder="D'où elle vient : lien ou nom (facultatif)" className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm flex-1 min-w-[220px]" data-testid="paste-source" />
+              <Button size="sm" onClick={() => paste.mutate()} isLoading={paste.isPending} disabled={pasteText.trim().length < 40} title="L'IA relève le type de demande, la marque, l'adresse et le site, et propose un commentaire. L'annonce entre dans la file à répondre." data-testid="paste-send">Analyser et ajouter</Button>
+              <Button size="sm" variant="ghost" onClick={() => setPasteOpen(false)}>Fermer</Button>
+            </div>
+            <p className="text-xs text-neutral-500 mt-1">Seulement des annonces qui donnent une adresse : sans adresse, ajoutez la marque à la main dans l&apos;onglet Marques. Pas de listes de contacts : l&apos;email est rédigé pour une demande précise.</p>
+          </div>
+        )}
+      </div>
 
       {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : (
         <>
@@ -74,7 +91,7 @@ export default function GroupWatch() {
                     <span className={`px-2 py-0.5 rounded-full text-xs ${KIND[p.kind]?.cls}`}>{KIND[p.kind]?.label}</span>
                     {p.status !== 'todo' && <span className={`px-2 py-0.5 rounded-full text-xs ${p.status === 'lead' ? 'bg-blue-100 text-blue-800' : 'bg-neutral-200 text-neutral-700'}`}>{STATUS[p.status]}</span>}
                     {p.brand && <span className="text-xs font-medium text-neutral-800">{p.brand}</span>}
-                    <span className="text-xs text-neutral-600">{p.group} · {p.author || 'auteur non relevé'}{p.when ? ` · publiée : ${p.when}` : ''} · relevée le {formatDate(p.foundAt)}</span>
+                    <span className="text-xs text-neutral-600">{p.groupUrl ? p.group : <>Annonce collée{p.source ? ` · ${p.source}` : ''}</>} · {p.author || 'auteur non relevé'}{p.when ? ` · publiée : ${p.when}` : ''} · relevée le {formatDate(p.foundAt)}</span>
                   </div>
                   <p className="mt-2 text-neutral-800 whitespace-pre-line">« {p.text} »</p>
                   {(p.email || p.website) && <p className="mt-1 text-xs text-neutral-700" data-testid="group-email">{p.email && <>Adresse donnée dans l&apos;annonce : <a href={`mailto:${p.email}`} className="underline text-primary-700">{p.email}</a></>}{p.email && p.website ? ' · ' : ''}{p.website && <a href={p.website} target="_blank" rel="noopener noreferrer" className="underline text-primary-700">Site</a>}</p>}
@@ -88,8 +105,8 @@ export default function GroupWatch() {
                   {p.sentAt && <p className="mt-1 text-xs text-green-700">Email envoyé le {formatDate(p.sentAt)} : « {p.draft?.subject} »</p>}
                   {p.comment && <div className="mt-2 bg-primary-50/50 border border-primary-200 rounded-lg p-2 text-neutral-800 whitespace-pre-line" data-testid="group-comment"><span className="text-xs font-medium text-primary-800">Commentaire proposé · </span>{p.comment}</div>}
                   <div className="flex gap-2 flex-wrap mt-2">
-                    <Button size="sm" onClick={() => copyOpen(p)} title="Copie le commentaire et ouvre la recherche du groupe sur les premiers mots de la publication : elle apparaît en tête. Relisez et publiez vous-même." data-testid="group-open"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir</Button>
-                    {p.status === 'todo' && p.email && <Button size="sm" variant="outline" onClick={() => toLead.mutate(p.id)} isLoading={toLead.isPending} title="Crée une fiche marque avec cette adresse et rédige un premier email pour cette demande. La fiche n'entre jamais dans les envois automatiques." data-testid="group-to-lead">{p.kind === 'creator_opportunity' ? 'Créer la fiche' : 'Créer la fiche marque'}</Button>}
+                    {(p.searchUrl || p.groupUrl) ? <Button size="sm" onClick={() => copyOpen(p)} title="Copie le commentaire et ouvre la publication (recherche du groupe sur ses premiers mots, ou lien de la source). Relisez et publiez vous-même." data-testid="group-open"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir</Button> : p.comment ? <Button size="sm" onClick={async () => { try { await navigator.clipboard.writeText(p.comment); toast.success('Commentaire copié'); } catch { /* presse-papiers indisponible */ } }} data-testid="group-copy">Copier le commentaire</Button> : null}
+                    {p.status !== 'lead' && p.email && !p.leadId && <Button size="sm" variant="outline" onClick={() => toLead.mutate(p.id)} isLoading={toLead.isPending} title="Crée une fiche marque avec cette adresse et rédige un premier email pour cette demande. La fiche n'entre jamais dans les envois automatiques." data-testid="group-to-lead">{p.kind === 'creator_opportunity' ? 'Créer la fiche' : 'Créer la fiche marque'}</Button>}
                     {p.status === 'todo' && p.kind === 'creator_opportunity' && <Button size="sm" variant="outline" onClick={() => relay.mutate(p.id)} isLoading={relay.isPending} title="Prépare le message aux créateurs inscrits avec cette annonce, et ouvre « Messages aux inscrits » pour le relire et l'envoyer" data-testid="group-relay">Relayer aux créateurs</Button>}
                     {p.status === 'lead' && !p.sentAt && <Button size="sm" variant="outline" onClick={() => sendMail.mutate({ id: p.id, subject: drafts[p.id]?.subject ?? p.draft?.subject, text: drafts[p.id]?.text ?? p.draft?.text })} isLoading={sendMail.isPending} title="Envoie cet email depuis l'adresse d'envoi des vidéos. La fiche passe « Contactée » et reviendra dans la file du jour au bout de sept jours sans réponse." data-testid="group-send">Relire et envoyer</Button>}
                     {OPEN.includes(p.status) ? (

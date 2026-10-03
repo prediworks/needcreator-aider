@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 /**
- * Groupes Facebook suivis et demandes relevées dans leurs publications.
+ * Groupes Facebook suivis et demandes relevées dans leurs publications, plus les annonces collées à la main (toute source, avec une adresse).
  * Seules les publications qui expriment un besoin sont gardées (une marque cherche des créateurs, une question de prix…), jamais la
  * liste des membres. Une demande est effacée soixante jours après sa lecture ; les compteurs du groupe, eux, restent.
  */
@@ -26,7 +26,8 @@ groupSchema.index({ workspaceId: 1, key: 1 }, { unique: true });
 
 const postSchema = new mongoose.Schema({
   workspaceId: { type: String, default: 'default', index: true },
-  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'FacebookGroup', required: true, index: true },
+  groupId: { type: mongoose.Schema.Types.ObjectId, ref: 'FacebookGroup', index: true }, // absent pour une annonce collée à la main
+  source: { type: String, trim: true, maxlength: 300 }, // annonce collée : d'où elle vient (lien ou nom), tel que saisi
   key: { type: String, required: true },   // empreinte du début du texte : une même publication n'est relevée qu'une fois
   author: { type: String, trim: true, maxlength: 120 }, // nom affiché sur la publication, pour la retrouver
   when: { type: String, trim: true, maxlength: 40 },    // date ou ancienneté affichée sur la publication (« 2 h », « 3 sept. »)
