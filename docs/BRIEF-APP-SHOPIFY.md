@@ -30,6 +30,11 @@ Ordre des étapes, une à la fois, chacune testée avant la suivante :
   7. Écran dans l'admin Shopify : réglages, liste des rappels, chiffres simples (envoyés, cliqués, commandes).
   8. Lecture du plan actif (Shopify App Pricing) pour appliquer la limite de rappels par mois.
   9. Script de déploiement unique pour le VPS (PM2, Nginx, Cloudflare), sur le même serveur que NeedCreator, processus et base à part.
+ 10. Site minimal et fiche App Store : une page d'accueil, la politique de confidentialité, les conditions d'utilisation, une page de
+     contact et de support (adresse email), en anglais et en français, servies par la même app sur son sous-domaine ; puis les
+     éléments de la fiche App Store (nom, description courte et longue, captures d'écran de l'écran admin, catégorie, plans) rédigés
+     en anglais dans un fichier du dépôt, prêts à coller dans le tableau de bord Partner. La revue Shopify exige l'adresse de support
+     et la politique de confidentialité : elles doivent être en ligne avant la soumission.
 
 Règles permanentes : une suite de tests de bout en bout contre une fausse boutique et de fausses notifications, lancée avant chaque
 livraison ; chaque notification Shopify est vérifiée par sa signature, enregistrée puis traitée ensuite, et une notification reçue
@@ -131,6 +136,13 @@ Modèles d'emails natifs en français, anglais, allemand, espagnol et italien. L
 
 Une intégration Shopify existe (`backend/src/services/shopify.js`) : installation OAuth, vérification HMAC, état signé, lecture des
 produits. La logique est connue.
+
+## Distribution et paiement
+
+L'app se vend dans Shopify, pas en dehors : le marchand l'installe depuis l'App Store (ou par un lien direct), choisit un plan sur la
+page de Shopify App Pricing et paie sur sa facture Shopify ; Shopify reverse au partenaire. Aucun paiement à coder. La publication
+passe par une revue Shopify (une à trois semaines). Le site minimal et la fiche App Store de l'étape 10 servent à cette revue et à la
+crédibilité ; la vente se fait par l'App Store et, au début, par la prospection directe des marchands (playbook séparé).
 
 ## Prospection de la semaine 1
 
