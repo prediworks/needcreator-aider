@@ -2,6 +2,9 @@
 
 Rédigé le 29/09/2026. Tout se fait à la main et avec l'assistant Claude dans Chrome. Rien ne passe par NeedCreator.
 
+Note du 03/10/2026 : les emails à froid envoyés pour NeedCreator n'ont obtenu aucune réponse, les marques répondent sur Instagram. Inversez
+l'ordre des messages de la section 6 : message privé Instagram ou LinkedIn d'abord, email ensuite pour celles qui ne sont pas sur ces réseaux.
+
 Objectif de la semaine : écrire à 120 à 150 boutiques pour obtenir une quinzaine d'appels. On continue si **au moins 5 marchands
 acceptent d'être testeurs**.
 
