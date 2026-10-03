@@ -15,7 +15,12 @@ const SITE = () => config.cors.origin;
 
 /** Marques à filmer (côté créateur) */
 export async function listShowcaseBrands(req, res) {
-  try { res.json({ brands: await brandsForShowcase({ niche: req.query.niche, q: req.query.q, creatorId: req.user._id }) }); }
+  try {
+    const brands = await brandsForShowcase({ niche: req.query.niche, q: req.query.q, creatorId: req.user._id });
+    // Recherche sans résultat : le créateur possède sans doute le produit ; la marque est notée pour l'équipe (jamais créée toute seule)
+    if (req.query.q && !brands.length) { const { recordEmptySearch } = await import('../services/brandSearches.js'); recordEmptySearch(req.user._id, req.query.q).catch(err => logger.warn(`recordEmptySearch: ${err.message}`)); }
+    res.json({ brands });
+  }
   catch (error) { logger.error('listShowcaseBrands failed:', error); res.status(500).json({ error: 'Liste indisponible' }); }
 }
 

@@ -69,7 +69,7 @@ export default function ShowcasePage() {
           <h2 className="font-semibold text-neutral-900 mb-3">1. La marque</h2>
           <Input label="Chercher une marque" value={q} onChange={(e) => setQ(e.target.value)} placeholder="nom ou site" className="w-full sm:w-80" />
           <div className="mt-3 max-h-56 overflow-auto border border-neutral-200 rounded-lg divide-y divide-neutral-100">
-            {(brands || []).length === 0 && <div className="p-3 text-sm text-neutral-500">Aucune marque disponible pour l&apos;instant.</div>}
+            {(brands || []).length === 0 && <div className="p-3 text-sm text-neutral-500" data-testid="showcase-no-brand">{q.trim() ? <>Aucune marque ne correspond à « {q.trim()} ». Vous avez ce produit chez vous ? <strong>Proposez la marque</strong> avec le bouton ci-dessous : nous la vérifions sous 48 heures et elle vous est réservée dix jours.</> : <>Aucune marque disponible pour l&apos;instant.</>}</div>}
             {(brands || []).map((b: any) => (
               <button key={b.id} type="button" onClick={() => pick(b)} className={`w-full text-left p-3 text-sm hover:bg-neutral-50 ${picked?.id === b.id ? 'bg-primary-50' : ''}`} data-testid="showcase-brand">
                 <div className="font-medium text-neutral-900">{b.name} {b.niche && <span className="text-xs text-neutral-500 font-normal">· {b.niche}</span>}{b.requested && <span className="ml-2 px-2 py-0.5 rounded-full text-[11px] bg-green-100 text-green-800 font-normal">vidéo demandée par la marque</span>}</div>

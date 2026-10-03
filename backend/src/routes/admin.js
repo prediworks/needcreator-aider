@@ -2,6 +2,7 @@ import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
 import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, useContactEmail, requalifyLead, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
+import { brandSearchesView, brandSearchAction } from '../controllers/brandSearches.js';
 import { groupWatchView, addGroupView, updateGroupView, removeGroupView, decideGroupPostView, pasteRequestView } from '../controllers/groupWatch.js';
 import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, listShowcaseRequestsAdmin, showcaseRequestAction, listBrandSuggestionsAdmin, decideBrandSuggestion } from '../controllers/showcase.js';
 import {
@@ -116,6 +117,8 @@ router.get('/acquisition/showcases', listShowcasesAdmin);
 router.post('/acquisition/showcases/:id/refuse', refuseShowcaseAdmin); // refus avant envoi, le créateur est prévenu // toutes les vidéos vitrine à proposer, quel que soit le statut de la marque
 router.get('/acquisition/brand-suggestions', listBrandSuggestionsAdmin); // marques suggérées par les créateurs
 router.post('/acquisition/brand-suggestions/:id', decideBrandSuggestion); // valider ou refuser
+router.get('/acquisition/brand-searches', brandSearchesView); // marques cherchées par les créateurs sans résultat
+router.post('/acquisition/brand-searches', brandSearchAction); // créer la fiche marque, ou ignorer
 router.get('/acquisition/groups', groupWatchView); // groupes Facebook suivis et demandes à répondre
 router.post('/acquisition/groups', addGroupView);
 router.patch('/acquisition/groups/:id', updateGroupView);

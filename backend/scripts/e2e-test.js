@@ -3127,6 +3127,22 @@ await step('Marque suggérée par un créateur : doublons, taille (grande, très
     await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
     let leadId;
     try {
+      // Marques cherchées sans résultat : la frappe lettre à lettre ne laisse qu'une entrée, l'équipe crée la fiche, le créateur est prévenu et la marque lui est réservée
+      for (const q of ['Thes', 'Thes de', 'Thes de Lu', `Thes de Lune ${RUN}`]) await creatorApi('GET', `/showcase/brands?q=${encodeURIComponent(q)}`);
+      await creatorApi('GET', '/showcase/brands?q=Nike'); // très grande marque : refusée à la création
+      await new Promise(r => setTimeout(r, 800));
+      const bs1 = await brandApi('GET', '/admin/acquisition/brand-searches');
+      const mine = (bs1.data.searches || []).filter(x => new RegExp(`thesdelune${RUN}`).test(x.norm));
+      expect(bs1.status === 200 && mine.length === 1 && mine[0].creators === 1 && mine[0].status === 'open' && mine[0].query === `Thes de Lune ${RUN}`, 'Une frappe lettre à lettre ne doit laisser qu\'une recherche, la forme la plus longue', { mine, all: (bs1.data.searches || []).map(x => x.query).slice(0, 8) });
+      const bsNike = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: 'nike', action: 'create' });
+      const bsOk = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: mine[0].norm, action: 'create' });
+      const bsLead = bsOk.data.lead ? await db.collection('leads').findOne({ _id: oid(bsOk.data.lead._id) }) : null;
+      const bsNotif = await db.collection('notifications').findOne({ userId: oid(creatorUser.id), title: new RegExp(`Thes de Lune ${RUN}`) });
+      const bs2 = (await brandApi('GET', '/admin/acquisition/brand-searches')).data.searches.find(x => x.norm === mine[0].norm);
+      expect(bsNike.status === 400 && /très grande marque/.test(bsNike.data.error) && bsOk.status === 201 && bsLead && bsLead.kind === 'brand' && bsLead.status === 'qualified' && String(bsLead.suggestedBy) === String(creatorUser.id) && bsLead.reservedUntil && /Cherchée dans/.test(bsLead.notes) && bsNotif && bs2.status === 'created', 'Créer la fiche depuis une recherche : marque en prospection, réservée au créateur, créateur prévenu ; une très grande marque est refusée', { bsNike: bsNike.data, bsOk: bsOk.data.message, lead: bsLead && { status: bsLead.status, notes: bsLead.notes, reserved: bsLead.reservedUntil }, notif: !!bsNotif, bs2: bs2?.status });
+      await brandApi('POST', '/admin/acquisition/brand-searches', { norm: 'nike', action: 'dismiss' });
+      if (bsLead) await db.collection('leads').deleteOne({ _id: bsLead._id });
+      await db.collection('brandsearches').deleteMany({ creatorId: oid(creatorUser.id) });
       const list = await brandApi('GET', '/admin/acquisition/brand-suggestions');
       const row = list.data.suggestions?.find(x => String(x.id) === String(sent.data.suggestion.id));
       expect(list.status === 200 && row && row.status === 'pending' && row.creatorName && list.data.suggestions[0].status === 'pending', 'L\'admin doit voir la suggestion, celles à valider en premier', list);
