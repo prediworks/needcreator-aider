@@ -752,6 +752,15 @@ export async function memberMessagesView(req, res) {
   catch (error) { logger.error('memberMessagesView failed:', error); res.status(500).json({ error: 'Messages indisponibles' }); }
 }
 
+/** Aperçu en direct du texte d'une annonce, rendu avec les mêmes règles que l'email, pour un inscrit fictif */
+export async function memberMessageRender(req, res) {
+  try {
+    const { renderMemberBody } = await import('../services/memberMessages.js');
+    const { html, text } = renderMemberBody(String(req.body?.body || '').slice(0, 6000), { profile: { name: 'Camille Durand' } });
+    res.json({ html, text });
+  } catch (error) { res.status(500).json({ error: 'Aperçu indisponible' }); }
+}
+
 export async function memberMessagesSend(req, res) {
   try {
     const audience = req.body?.audience === 'brands' ? 'brands' : 'creators';

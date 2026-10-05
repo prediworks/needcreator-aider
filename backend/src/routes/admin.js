@@ -30,7 +30,7 @@ import {
   reviewBusiness,
   getSettings,
   updateSetting,
-  memberMessagesView, memberMessagesSend, weeklyReportNow,
+  memberMessagesView, memberMessagesSend, memberMessageRender, weeklyReportNow,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
 import { listDisputes, resolveDispute } from '../controllers/disputes.js';
@@ -69,6 +69,7 @@ router.post('/ambassadors/:userId/reject', reviewAmbassador);
 router.post('/weekly-report', weeklyReportNow); // bilan hebdomadaire à la demande
 router.get('/member-messages', memberMessagesView); // annonces aux inscrits : publics, historique, séquence d'accueil
 router.post('/member-messages', memberMessagesSend); // ?preview=1 : aperçu à l'administrateur
+router.post('/member-messages/render', memberMessageRender); // aperçu en direct du rendu
 router.get('/settings', getSettings);
 router.put('/settings/:key', updateSetting);
 

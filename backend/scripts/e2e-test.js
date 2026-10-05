@@ -2840,6 +2840,8 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
     // Annonce : aperçu à l'administrateur seul, puis envoi au public « créateurs »
     const ov = await brandApi('GET', '/admin/member-messages');
     expect(ov.status === 200 && ov.data.audiences.creators >= 1 && typeof ov.data.onboarding.onboarding1 === 'number', 'L\'admin doit voir les publics et les envois d\'accueil', ov);
+    const rend = await brandApi('POST', '/admin/member-messages/render', { body: 'Merci {{prenom}} pour **votre** confiance.\n\n- Calculateur : une fourchette de prix\n- Devis : en trois minutes\n\nVoir https://needcreator.com/createurs' });
+    expect(rend.status === 200 && /Merci Camille pour <strong[^>]*>votre<\/strong> confiance/.test(rend.data.html) && /<ul[\s\S]*<strong[^>]*>Calculateur<\/strong>/.test(rend.data.html) && /<a href="https:\/\/needcreator\.com\/createurs">needcreator\.com\/createurs<\/a>/.test(rend.data.html), 'L\'aperçu en direct doit rendre le prénom, le gras, la liste avec nom en gras et le lien', rend.data);
     const short = await brandApi('POST', '/admin/member-messages', { audience: 'creators', subject: 'E2E', body: 'trop court' });
     expect(short.status === 400, 'Objet ou texte trop courts : refusés', short);
     const prev = await brandApi('POST', '/admin/member-messages?preview=1', { audience: 'creators', subject: 'E2E annonce aperçu', body: 'Bonjour {{prenom}},\n\n- un outil\n- un autre\n\nVoir https://needcreator.com/quotes' });
