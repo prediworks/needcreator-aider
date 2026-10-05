@@ -56,6 +56,26 @@ export async function groupsToRead({ workspaceId = 'default', limit = GROUPS_PER
   return FacebookGroup.find({ workspaceId, active: true, $or: [{ lastReadAt: null }, { lastReadAt: { $lt: since } }] }).sort({ lastReadAt: 1, createdAt: 1 }).limit(limit).lean();
 }
 
+const MAX_POST_AGE_DAYS = 21; // une demande plus ancienne a déjà trouvé sa réponse, ou son auteur est passé à autre chose
+const MONTHS = { janv: 0, jan: 0, fev: 1, févr: 1, feb: 1, mars: 2, mar: 2, avr: 3, apr: 3, mai: 4, may: 4, juin: 5, jun: 5, juil: 6, jul: 6, aout: 7, août: 7, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11, déc: 11 };
+/** Âge en jours d'après la date affichée par Facebook (« 6 h », « il y a 4 jours », « 10 sep », « 3 sept. 2025 ») ; null si illisible */
+export function postAgeDays(when, now = new Date()) {
+  const w = String(when || '').toLowerCase().replace(/^il y a\s+/, '').replace(/[.,]/g, '').trim();
+  if (!w) return null;
+  let m = w.match(/^(\d+)\s*(min|m|h|j|d|jour|jours|day|days|sem|semaine|semaines|w|week|weeks|mois|month|months|an|ans|year|years)\b/);
+  if (m) { const n = +m[1]; const u = m[2]; return /^(min|m)$/.test(u) ? 0 : /^h/.test(u) ? n / 24 : /^(j|d)/.test(u) ? n : /^(sem|w)/.test(u) ? n * 7 : /^mo/.test(u) ? n * 30 : n * 365; }
+  m = w.match(/^(\d{1,2})\s+([a-zéû]+)(?:\s+(\d{4}))?$/) || w.match(/^([a-zéû]+)\s+(\d{1,2})(?:\s+(\d{4}))?$/);
+  if (m) {
+    const day = +(/^\d/.test(m[1]) ? m[1] : m[2]); const mon = MONTHS[(/^\d/.test(m[1]) ? m[2] : m[1]).slice(0, 4)] ?? MONTHS[(/^\d/.test(m[1]) ? m[2] : m[1]).slice(0, 3)];
+    if (mon == null || !day) return null;
+    const year = m[3] ? +m[3] : now.getFullYear();
+    let d = new Date(year, mon, day);
+    if (!m[3] && d > now) d = new Date(year - 1, mon, day); // « 10 sep » lu en janvier : l'an dernier
+    return Math.max(0, (now - d) / 86400000);
+  }
+  return null;
+}
+
 const squash = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, ' ').trim();
 const postKey = (text) => crypto.createHash('sha1').update(squash(text).slice(0, 160)).digest('hex').slice(0, 24);
 /**
@@ -144,15 +164,19 @@ export async function applyGroupRead(task, result) {
   let posts;
   try { posts = await extractGroupPosts(result, group); }
   catch (err) { logger.warn(`extractGroupPosts ${group.key}: ${err.message}`); await note('lecture faite, tri par l\'IA en échec'); throw new Error(`tri des publications en échec (${String(err.message).slice(0, 80)})`); }
-  let added = 0;
+  let added = 0; let old = 0; let dup = 0;
   for (const p of posts) {
+    // Trop ancienne, ou déjà relevée dans un autre groupe (une même annonce est souvent publiée dans plusieurs groupes)
+    const age = postAgeDays(p.when);
+    if (age != null && age > MAX_POST_AGE_DAYS) { old++; continue; }
+    if (await GroupPost.exists({ workspaceId: group.workspaceId, key: p.key, groupId: { $ne: group._id } })) { dup++; continue; }
     const r = await GroupPost.updateOne({ groupId: group._id, key: p.key }, { $setOnInsert: { workspaceId: group.workspaceId, groupId: group._id, ...p, searchUrl: searchUrl(group, p.text), status: 'todo', foundAt: new Date() } }, { upsert: true });
     if (r.upsertedCount) added++;
   }
   group.stats.reads += 1; group.stats.requests += added;
   // Une page presque vide n'a pas été lue : groupe non rejoint, fil pas chargé, ou page de connexion passée inaperçue
   const thin = text.length < 1500 ? ` · page presque vide (${text.length} caractères) : groupe non rejoint par ce compte, ou fil pas chargé` : '';
-  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${posts.length ? '' : ` · page de ${text.length.toLocaleString('fr-FR')} caractères lue, rien de pertinent`}${thin}${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
+  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${old ? ` · ${old} trop ancienne(s)` : ''}${dup ? ` · ${dup} déjà vue(s) dans un autre groupe` : ''}${posts.length ? '' : ` · page de ${text.length.toLocaleString('fr-FR')} caractères lue, rien de pertinent`}${thin}${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
   await note(outcome);
   return { outcome, added, chars: text.length, permalinks: (result?.links || []).filter(l => /\/groups\/[^/]+\/(posts|permalink)\/\d+/i.test(l.href)).length };
 }
