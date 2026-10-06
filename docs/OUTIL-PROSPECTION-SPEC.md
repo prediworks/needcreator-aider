@@ -1,6 +1,8 @@
 # Outil de prospection multi-sources · dossier de conception
 
-> **Statut** : idée cadrée, rien de développé. Document vivant, tenu à jour au fil des décisions (journal en fin de document).
+> **Statut** : étape 1 (extension et file de tâches) livrée dans le dépôt NeedCreator du 23/09 au 05/10/2026 ; le projet séparé n'est pas
+> commencé, la décision « outil interne ou produit » attend deux entretiens avec des utilisateurs potentiels. Document vivant, tenu à jour au
+> fil des décisions (journal en fin de document). Corps du document révisé le 06/10/2026 pour refléter le code réel.
 > **But du document** : permettre à une autre session de développement, sans autre contexte, de bâtir l'outil. Il contient la vision, les
 > décisions déjà prises, l'architecture cible, le modèle de données, les algorithmes éprouvés et surtout les **pièges déjà rencontrés**.
 > **Origine** : l'outil généralise le module « Agents de prospection » construit dans NeedCreator entre le 15 et le 19 septembre 2026.
@@ -148,21 +150,55 @@ hébergement des données en Union européenne ; le produit d'entrée « nouvell
 - **Journal d'exécution** par lancement : créé au démarrage, complété à la fin ; l'interface doit afficher « en cours » puis « interrompue »
   après une heure sans fin (redémarrage du serveur), jamais des zéros trompeurs.
 - Multi-locataire dès le départ : chaque document porte un `workspaceId`.
+- **Règles apprises sur le prototype (septembre–octobre 2026), à coder dès le départ :**
+  1. **Quota propre à l'extension.** Les routes de la file de tâches ont leur propre plafond de requêtes, jamais celui du navigateur de
+     l'utilisateur : le 25/09, une extension à file vide interrogeant le serveur toutes les demi-secondes a fait bloquer le PC du propriétaire
+     pour toute l'application (429). Un client bloqué voit un message clair, jamais une déconnexion.
+  2. **Plafonds par type de page, côté serveur** : 150 pages Instagram par jour, 20 pages LinkedIn par jour, 60 pages par session ; une tâche
+     écartée avant lecture (nom illisible, très grande enseigne, page d'une autre entreprise) ne consomme pas de page.
+  3. **Contrôle de nature avant entrée en base.** Toute source qui crée des prospects (marques taguées, suggestions, annonceurs) passe un contrôle
+     « marque ou personne » : somme de signes lus sur la **zone du profil seulement** (catégorie de commerce +2, vocabulaire de vente +2, site à soi
+     +1, site au nom du compte +2, avis de l'IA « entreprise / personne » ±4, mot de personne −2, page de liens −1 ; marque à partir de 3), raisons
+     écrites sur la fiche. Une fiche non vérifiée reste **en attente** : ni qualifiée, ni file du jour, ni mailing. Le contrôle se teste sur un
+     texte de page entière, menus et pied de page compris (le mot « blog » du pied de page d'Instagram a classé 60 marques en personnes).
+  4. **Rien de ce qui est sur une page de réseau social n'appartient au compte lu** tant que ce n'est pas dans la zone du profil : le site vient
+     du lien de bio seulement (`muse.ai`, `meta.ai` ont été inscrits comme sites sur 88 fiches), le compte connecté est toujours exclu des auteurs,
+     les comptes de prestataires (@shopify, @wix…) sont ignorés, un compte étranger au nom de la marque est marqué « à vérifier ».
+  5. **Contrôle de taille** : liste de marques toujours refusées, seuils d'abonnés (plus de 500 000 écartée, plus de 100 000 signalée) et
+     d'annonces Meta actives (50, 300), en réglages ; les très grandes marques ne sont jamais des cibles.
+  6. **Déduplication inter-sources sur le texte** (une même annonce dans plusieurs groupes) et **filtre d'âge** (publication de plus de 21 jours
+     écartée, âge lu sur la date affichée) pour toute source de type fil.
 
 ### 4.2 Extension Chrome (la pièce nouvelle)
 
+État réel : `extension/` dans le dépôt NeedCreator, version 0.2.8, générique (rien de NeedCreator dedans ; le serveur est une adresse et un jeton
+dans ses options). À copier-coller dans le projet séparé.
+
 - **Manifest V3**, service worker, permissions d'hôte limitées aux sites utiles (`instagram.com`, `tiktok.com`, `linkedin.com`, `facebook.com`,
-  `youtube.com`), à justifier une par une dans la fiche du Chrome Web Store.
-- **Protocole** : l'extension s'authentifie auprès du serveur (jeton de l'espace de travail), demande une tâche (`GET /tasks/next`), l'exécute,
-  renvoie le résultat (`POST /tasks/{id}/result`). Pas de WebSocket nécessaire au début : interrogation toutes les 20 à 30 secondes quand
-  l'utilisateur a lancé une session.
-- **Types de tâches** : `read_profile` (bio, email, lien de bio, audience), `read_post_author`, `list_hashtag` (N publications récentes),
-  `list_ad_library` (annonceurs pour un mot-clé), `read_company_page`, `prefill_message` (ouvre la messagerie et colle le texte, **s'arrête là**).
-- **Lecture des pages** : extraire le texte visible et les liens de l'onglet, puis envoyer ce contenu réduit au serveur, qui demande à l'IA un
-  JSON strict. Ne pas dépendre de sélecteurs CSS : c'est ce qui rend l'outil résistant aux refontes. Prévoir un cache par URL.
-- **Garde-fous non négociables, codés dans l'extension** : 5 à 10 secondes aléatoires entre deux pages ; plafond par session (60 profils,
-  100 annonceurs) et par jour ; aucune action d'engagement (like, abonnement, commentaire, message envoyé) ; arrêt immédiat sur captcha, page de
-  connexion ou message de restriction, avec remontée à l'utilisateur ; bouton Pause visible ; onglet dédié que l'utilisateur voit travailler.
+  `youtube.com`), **sous-domaines compris** (`consent.youtube.com`), à justifier une par une dans la fiche du Chrome Web Store. L'appel du serveur
+  passe par une permission d'hôte optionnelle demandée à l'enregistrement des options.
+- **Protocole** : l'extension s'authentifie auprès du serveur (jeton de l'espace de travail), demande une tâche (`GET /ext/next?types=`), l'exécute,
+  renvoie le résultat (`POST /ext/{id}/result`). Pas de WebSocket : interrogation pendant une session lancée par l'utilisateur, **attente sur alarme
+  quand la file est vide** (jamais de boucle serrée).
+- **Un rôle par installation** : « lecture » dans le profil Chrome du compte secondaire (toutes les tâches de lecture), « messages » dans le profil du
+  compte principal (`prefill_message` seulement). La file ne donne à chaque installation que ses tâches. Une installation = un compte = un rôle.
+- **Types de tâches livrés** : `read_post_author`, `read_profile` (bio, lien de bio, abonnés, emails présents dans le code de la page), `list_hashtag`
+  (20 publications par hashtag), `list_ad_library` (bibliothèque Meta), `read_post_brands` (marques taguées dans les publications de partenariat :
+  légende seulement, trois comptes au plus), `list_tiktok_ads` (TikTok Creative Center), `find_company` et `read_company_people` (LinkedIn : page
+  entreprise dont le nom doit correspondre à la marque, puis personnes marketing), `list_group_posts` (fil d'un groupe Facebook trié par date, texte
+  gardé ligne à ligne sur cinq défilements), `prefill_message` (ouvre la conversation et colle le texte, **s'arrête là**).
+- **Lecture des pages** : l'extension renvoie la page réduite (titre, description, texte visible, liens, compte connecté, signal de blocage) ; le serveur
+  en tire le prospect par règles déterministes d'abord, IA ensuite (bio, annonceurs, demandes). Pas de sélecteurs CSS pour la lecture ; `prefill_message`
+  en a besoin (bouton « Message », éditeur) et reste le point fragile. Pages à chargement différé : attendre le texte jusqu'à 10 s ; une page 404 ou
+  une page de consentement aux cookies sont des motifs d'arrêt distincts, jamais des « fiches connues ».
+- **Onglet au premier plan pour les listes** : Instagram ne charge la suite d'un fil que si l'onglet est affiché. Pendant la lecture d'une liste
+  (hashtag, groupe), l'onglet de l'extension passe devant une vingtaine de secondes puis rend la main (3 → 20 publications par hashtag).
+- **Garde-fous non négociables, codés dans l'extension** : 5 à 10 secondes aléatoires entre deux pages ; plafond par session (60 pages) et par jour ;
+  aucune action d'engagement (like, abonnement, commentaire, message envoyé) ; arrêt immédiat sur captcha, page de connexion, consentement ou message
+  de restriction, avec remontée à l'utilisateur ; un refus de la plateforme (429) coupe la fonction pour la session ; bouton Pause visible ; onglet
+  dédié que l'utilisateur voit travailler ; fenêtre qui affiche le rôle, les compteurs avec plafonds et la raison d'un arrêt.
+- **Abandonné** : lecture de l'adresse de contact des comptes professionnels Instagram (données chargées pour la page) ; Instagram l'a refusée (429)
+  au premier passage réel. Les emails de marques passent par le site, LinkedIn et le message privé.
 - **Transparence** : l'utilisateur voit la file, ce qui est lu et ce qui est envoyé au serveur. Aucune lecture hors des tâches demandées.
 
 ### 4.3 Application web
@@ -171,6 +207,42 @@ hébergement des données en Union européenne ; le produit d'entrée « nouvell
 prospect avec sources, réseaux, score, signaux, message et paragraphe ; **tableau « où sont mes prospects »** (une seule case par prospect, la
 somme donne le total) ; boîte de réponses ; réglages (sources, plafonds, connecteurs). Règles d'ergonomie éprouvées : infobulle sur chaque
 bouton, onglet conservé dans l'adresse, filtres conservés au rafraîchissement, messages d'import en clair.
+
+Écrans ajoutés au prototype depuis (à reprendre dans l'outil, en version générique) : **tableau des lots** de l'extension avec détail tâche par tâche
+et raisons (« écartée sans lecture : très grande enseigne », « compte personnel (mot de personne “maman”) ») ; **file « À répondre »** pour les
+demandes relevées dans des fils (groupes, annonces collées) avec « Copier et ouvrir », « Répondu », « Passer », « Créer la fiche » ; **« Coller une
+annonce »** et **« Coller la réponse »** (toute demande ou réponse vue ailleurs entre dans la même file) ; bouton « Déjà contacté » et « Corriger le
+lien » sur la fiche ; boutons à compteur dans la rangée des filtres pour chaque file d'attente ; réglages « Taille des marques » (liste refusée,
+seuils). Ce qui est propre à NeedCreator (vidéo vitrine, vidéo demandée, suggestions et recherches des créateurs, relais aux inscrits) reste dans
+NeedCreator et parle à l'outil par l'API (§ 4.4).
+
+### 4.4 Communication avec NeedCreator (décision du 06/10/2026)
+
+NeedCreator devient un **client** de l'outil, comme le sera toute plateforme UGC ou agence. L'outil ne connaît ni créateurs, ni campagnes, ni devis ;
+NeedCreator ne garde ni prospects, ni file de tâches, ni mailing. Le lien tient en trois pièces :
+
+1. **API de l'outil, appelée par NeedCreator** (clé d'API par espace de travail, en-tête `Authorization`) :
+   - `POST /prospects` : créer ou compléter un prospect avec une origine et un argument (« cherchée par 3 créateurs », « suggérée par un créateur
+     qui possède le produit », « demande vue dans un groupe »). L'outil fait la déduplication, le contrôle de taille et la qualification ; il rend
+     l'identifiant du prospect, que NeedCreator garde sur sa suggestion, sa recherche ou sa vidéo vitrine (`prospectId`).
+   - `POST /prospects/{id}/events` : NeedCreator signale ce qui change de son côté : marque inscrite (l'outil retire le prospect des séquences et le
+     passe « converti »), vidéo vitrine disponible (l'outil joint le lien au prochain message), produit reçu, hors cible.
+   - `GET /prospects/{id}` et `GET /queues/today` : lecture, pour afficher dans l'admin NeedCreator un état sans recopier les écrans.
+   - `POST /targets` : la cible NeedCreator (description, pays, hashtags, mots-clés, plafonds) est un réglage de l'outil, pas du code.
+2. **Webhooks de l'outil, reçus par NeedCreator** (`POST` signé HMAC sur une adresse de NeedCreator, clé d'idempotence, trois nouvelles tentatives
+   espacées, journal consultable) : `prospect.replied` (avec intention classée et texte), `prospect.video_requested` (la marque dit « oui vidéo » :
+   NeedCreator prévient les créateurs de la niche et ouvre son suivi à dix jours), `prospect.converted`, `request.relay` (annonce d'agence à
+   transmettre aux inscrits : NeedCreator prépare le message aux membres), `prospect.bounced`. L'outil ne fait rien de métier sur ces événements :
+   il les émet, NeedCreator décide.
+3. **Textes et pièces jointes fournis par le client** : modèles de messages et d'emails, plan de réponse à une demande de prix, livrable promis à la
+   réponse (brief offert) sont des **gabarits de l'espace de travail**, remplis par l'outil avec les champs du prospect ; quand le livrable dépend du
+   client (brief généré par NeedCreator), l'outil appelle une adresse du client (`GET` signée) au moment de la réponse.
+
+Règles : chaque appel porte un identifiant d'idempotence ; une erreur côté client n'arrête jamais l'outil (l'événement reste en file, visible) ;
+l'outil ne stocke des données du client que l'identifiant de rattachement. **Migration** le jour venu : export des collections `Lead`,
+`LeadSuppression`, `BrowserTask` et `GroupWatch`/`GroupPost` de NeedCreator vers l'espace de travail NeedCreator de l'outil (une journée) ; les
+écrans de prospection de l'admin NeedCreator sont remplacés par un lien vers l'outil et par les seuls écrans métier (vidéos vitrines, vidéos demandées,
+suggestions, marques cherchées), qui affichent l'état du prospect par `GET /prospects/{id}`.
 
 ---
 
@@ -246,11 +318,23 @@ Prospect    { workspaceId, targetId, kind, source, externalId, name, handle, fir
               outreach{provider,listId,pushedAt,replyAt,replyText,replyIntent,replySuggestion,bounced,unsubscribedAt},
               notes, runId, timestamps }
 Run         { workspaceId, targetId, startedAt, finishedAt, trigger, sources{searched,found,new,withEmail,errors}, qualified, issues[] }
-Task        { workspaceId, type, payload, status: queued|running|done|failed|blocked, result, attempts, prospectId, timestamps }
+Task        { workspaceId, batchId, type, role: reader|messenger, payload, status: pending|running|done|failed|cancelled, result, pageText, attempts, prospectId, timestamps }
+Batch       { workspaceId, label, kind, counts{total,done,failed,emails}, timestamps }
 Suppression { workspaceId, hash, type: email|profile }
 ```
 
-Index : `(workspaceId, source, externalId)` unique ; `email` ; `socials.*` ; `status`. Ne pas nommer un champ `errors` dans Mongoose (réservé).
+Entités apparues sur le prototype, à reprendre sous une forme générique :
+
+```
+Feed        { workspaceId, kind: facebook_group|…, url, audience: people|companies|agencies, counts{reads,requests,answered,relayed}, lastReadAt }
+Request     { workspaceId, feedId?, source, type: company_seeks|company_question|person_seeks|person_question|opportunity,
+              excerpt, shownDate, author?, contact{name,email,website}, suggestedComment, relayDraft, prospectId?, status: open|answered|passed|relayed, textHash }
+Verdict     { prospectId, isCompany, score, reasons[], readAt }      — contrôle « marque ou personne », gardé avec la fiche
+ClientLink  { prospectId, clientRef, externalIds{}, events[] }        — rattachement au client (§ 4.4)
+```
+
+Index : `(workspaceId, source, externalId)` unique ; `email` ; `socials.*` ; `status` ; `Request.textHash` (déduplication inter-fils) ;
+`Task.pageText` conservé pour rejuger une fiche sans relire la page. Ne pas nommer un champ `errors` dans Mongoose (réservé).
 
 ---
 
@@ -307,8 +391,8 @@ snake_case, 500 par appel), `blocklist`, `replies`, `stats`, `removeFromSequence
 
 | Étape | Contenu | Critère de sortie |
 |---|---|---|
-| **0. Preuve** (en cours) | Prospection NeedCreator avec l'assistant Chrome de Claude et l'import groupé | Taux de réponse et d'inscription mesurés sur 2 à 3 mois |
-| **1. Extension interne** (livrée en versions successives du 23 au 26/09/2026) | Extension et file de tâches, branchées sur NeedCreator ; types `read_post_author`, `read_profile`, `list_hashtag`, `list_ad_library`, `prefill_message` (rôle « messages »), `read_post_brands` (marques taguées dans les publications de partenariat), `list_tiktok_ads` (TikTok Creative Center) | Les deux routines hebdomadaires se font sans copier-coller |
+| **0. Preuve** (en cours depuis le 20/09/2026) | Prospection NeedCreator : séquences d'emails (volume réduit, domaine jeune), messages privés à la main, extension | Taux de réponse et d'inscription mesurés sur 2 à 3 mois. Au 05/10 : 4 inscriptions de créateurs sur 38 emails ; première réponse positive d'une marque le 30/09 ; 0 marque inscrite |
+| **1. Extension interne** (livrée du 23/09 au 05/10/2026, extension 0.2.8) | Extension et file de tâches dans NeedCreator ; dix types de tâches (§ 4.2) ; rôles lecture / messages ; contrôle « marque ou personne » ; trois leviers contre la sursollicitation (mini-audit, vidéo vitrine, bonne personne LinkedIn) ; demandes de marques (groupes Facebook, annonces collées) ; suggestions et recherches des créateurs | Les deux routines hebdomadaires se font sans copier-coller : **atteint**. Reste : `prefill_message` non éprouvé sur Instagram réel ; lien direct vers une publication de groupe ; Messenger assisté |
 
 **Décision du 23/09/2026 : l'étape 1 se construit dans le dépôt NeedCreator**, pas dans un projet séparé (qui aurait exigé de recréer prospects,
 qualification, mailing et écrans avant la première ligne utile). Impacts acceptés : code en plus dans le dépôt (dossier `extension/`, un modèle et
@@ -317,7 +401,8 @@ IA, et une migration d'une journée le jour du projet séparé. Trois conditions
 modèle, routes à part, rien mélangé aux fonctions existantes) ; 2) **rien de spécifique à NeedCreator dans l'extension**, pour que le déplacement
 soit un copier-coller ; 3) la **suite de tests couvre la file de tâches**. À la fin de l'étape 1, décision explicite : outil interne ou projet séparé.
 Le produit final aura son propre dépôt (serveur, application web et extension en trois sous-dossiers), sa base, son domaine ; NeedCreator y sera un
-client par API.
+client par API (§ 4.4). **État au 06/10/2026** : l'étape 1 est livrée ; la décision est suspendue à deux entretiens que le propriétaire doit mener
+avec des utilisateurs potentiels (agences, plateformes). Sans intérêt confirmé, l'outil reste interne et le document sert de mémoire.
 | **2. Socle autonome** | Dépôt séparé, multi-locataire, cibles en langage courant, sources API, import, qualification, files, tableau de répartition | Un utilisateur externe obtient 100 prospects qualifiés en une heure |
 | **3. Envoi et réponses** | Connecteurs, garde-fous, boîte de réponses | Une campagne complète menée dans l'outil |
 | **4. Produit** | Comptes, facturation, quotas IA, pages légales, fiche du Web Store | Premier client payant |
@@ -357,37 +442,51 @@ qualifié, davantage si l'IA lit des pages entières), moteur de recherche par A
 
 ## 11. Consignes déjà rodées (à transformer en types de tâches de l'extension)
 
-Les consignes textuelles utilisées avec l'assistant Chrome de Claude, et leurs formats de sortie, sont dans `docs/AGENT-CHROME.md`
-(bibliothèque publicitaire, auteurs de publications Instagram, profils sans email, chaînes YouTube, TikTok par hashtags, LinkedIn, messages
-assistés). La routine hebdomadaire et six semaines de mots-clés pour les marques sont dans `docs/AIDE-MEMOIRE-PROSPECTION.md`.
-Les séquences d'emails (créateurs et marques, trois emails chacune) sont dans `docs/MAILING-prospection.md`.
+La routine en vigueur (extension, deux profils Chrome, lots par jour et par semaine, ce qu'il faut regarder) est dans `docs/ROUTINE-EXTENSION.md` ;
+la méthode des groupes Facebook (quels groupes, cinq types de demande, limites, mesure à deux semaines) dans `docs/GROUPES-FACEBOOK.md` ; les réponses
+aux marques selon le cas dans `docs/REPONSES-MARQUES.md`. Les consignes textuelles de l'assistant Chrome de Claude (plan B quand l'extension ne peut
+pas tourner) et leurs formats de sortie sont dans `docs/AGENT-CHROME.md`, la routine correspondante et six semaines de mots-clés pour les marques dans
+`docs/AIDE-MEMOIRE-PROSPECTION.md`. Les séquences d'emails (créateurs et marques, trois emails chacune) sont dans `docs/MAILING-prospection.md`.
+Le brief de départ du projet séparé, à donner à la session qui le construira, est `docs/BRIEF-OUTIL-PROSPECTION.md`.
 
 ---
 
 ## 12. Code de référence dans NeedCreator
 
-Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
+Côté serveur, réutilisable presque tel quel (générique) :
 
 | Fichier | Rôle |
 |---|---|
-| `backend/src/services/acquisition/index.js` | Exécution, répartition du plafond, déduplication à la création, qualification, purge, état du jeton |
+| `backend/src/services/acquisition/index.js` | Exécution, répartition du plafond, déduplication à la création, qualification, purge, état du jeton, réécriture nocturne des fiches |
 | `backend/src/services/acquisition/youtube.js` | Recherche de chaînes, rubrique « Liens » par la page « À propos » |
 | `backend/src/services/acquisition/instagram.js` | Compte relié (par liste ou par identifiant de page), hashtags, paliers de taille, oEmbed |
-| `backend/src/services/acquisition/meta.js` | Bibliothèque publicitaire, arrêt sur erreur de permission |
-| `backend/src/services/acquisition/enrich.js` | Emails, réseaux, site sans `https://`, lecture de sites, enrichissement d'une fiche |
+| `backend/src/services/acquisition/meta.js` | Bibliothèque publicitaire, arrêt sur erreur de permission, compte d'annonces actives par nom (taille d'une marque) |
+| `backend/src/services/acquisition/enrich.js` | Emails, réseaux, site sans `https://`, lecture de sites, choix du compte qui ressemble à la marque, comptes de prestataires ignorés |
 | `backend/src/services/acquisition/importLeads.js` | Lecture de listes collées, complétion des fiches, doublons d'un même créateur |
-| `backend/src/services/acquisition/qualify.js` | Consignes et schémas de qualification |
-| `backend/src/services/browserTasks.js`, `models/BrowserTask.js`, `controllers/browserTasks.js`, `routes/browserTasks.js` | File de tâches de l'extension : lots, remise, lecture des résultats (auteur, profil, annonceurs, publications), tâches filles, réinjection par l'import groupé (lignes structurées) |
-| `extension/` | Extension Chrome générique (Manifest V3) : boucle de tâches, extraction de page, garde-fous, fenêtre et options. Copier-coller vers le projet séparé |
-| `backend/src/services/acquisition/outreach.js` | Envoi vers l'outil de mailing, synchronisation, réponses, tableau de répartition |
-| `backend/src/services/acquisition/replies.js` | Classement des réponses, brouillon de campagne à l'inscription |
+| `backend/src/services/acquisition/qualify.js` | Consignes et schémas de qualification, mini-audit (trois accroches), avis « entreprise ou personne » |
+| `backend/src/services/acquisition/keywords.js` | Mots-clés et hashtags par cible (à rendre réglables par espace de travail) |
+| `backend/src/services/acquisition/followUp.js` | File du jour : prospects jamais joints, puis joints par email depuis plus de 7 jours ; retour à 7 jours ; « Déjà contacté » |
+| `backend/src/services/browserTasks.js`, `models/BrowserTask.js` (tâches et lots), `controllers/browserTasks.js`, `routes/browserTasks.js` | File de tâches de l'extension : lots, rôles, remise par type, plafonds par jour, lecture des résultats (auteur, profil, annonceurs, publications, marques taguées, LinkedIn, fils de groupes), contrôle « marque ou personne », contrôle de taille, écart sans lecture, tâches filles, texte de page conservé |
+| `backend/src/services/groupWatch.js`, `models/GroupWatch.js` (groupes et demandes), `controllers/groupWatch.js` | Fils suivis, demandes relevées par l'IA avec garde-fous (extrait présent mot pour mot, exclusions), commentaire proposé, dédoublonnage inter-fils, filtre d'âge, « Coller une annonce », création de fiche depuis une demande, relais |
+| `extension/` (0.2.8) | Extension Chrome générique (Manifest V3) : boucle de tâches sur alarme, rôles, extraction de page, listes avec onglet au premier plan, garde-fous, fenêtre et options. Copier-coller vers le projet séparé |
+| `backend/src/services/acquisition/outreach.js` | Envoi vers l'outil de mailing (filtre `mailing.hold`), synchronisation, réponses, tableau de répartition, envoi direct quand la marque n'a pas de fil |
+| `backend/src/services/acquisition/replies.js` | Classement des réponses, réponse proposée (plan fixe pour une demande de prix), reconnaissance « oui vidéo », brouillon de campagne à l'inscription |
 | `backend/src/services/mailing/` | Couche interchangeable : SalesBlink et faux fournisseur de test |
 | `backend/src/services/embeds.js` | Reconnaissance d'URL de publications, oEmbed Meta, TikTok, YouTube |
 | `backend/src/services/productBrief.js` | Lecture de fiche produit, garde anti-SSRF, statuts explicites |
 | `backend/src/models/Lead.js`, `LeadSuppression.js` | Modèles prospect, exécution, liste d'exclusion |
-| `backend/src/controllers/acquisition.js` | Routes d'administration : files, import, passes groupées, lots pour l'assistant, décompte |
-| `frontend/src/components/admin/AcquisitionTool.tsx` | Interface complète de référence |
-| `backend/scripts/e2e-test.js` (étape « Prospection ») | Scénarios de test à reprendre |
+| `backend/src/controllers/acquisition.js` | Routes d'administration : files, import, passes groupées, lots pour l'extension, décompte, réglages de taille |
+| `frontend/src/components/admin/AcquisitionTool.tsx` | Interface complète de référence (file du jour, lots, demandes de marques, files à compteur) |
+| `backend/scripts/e2e-test.js` (étape « Prospection ») | Scénarios de test à reprendre (fausses pages locales, file de tâches, groupes) |
+
+Scripts de maintenance (`backend/scripts/`, simulation par défaut, `--apply` pour agir) : `repair-lead-author.mjs` (auteur mal lu),
+`clean-tagged-brands.mjs` (fausses marques des commentaires), `hold-unverified-tagged-brands.mjs` (remise en attente), `recheck-rejected-brands.mjs`
+(rejuge les fiches écartées à partir du texte conservé, retire les faux sites), `check-social-handles.mjs` (comptes étrangers à la marque),
+`undo-bulk-contacted.mjs`. Règle : toute suppression groupée exige un identifiant au format attendu (§ 10, piège 7).
+
+Propre à NeedCreator, **à ne pas reprendre** dans l'outil mais à brancher par l'API (§ 4.4) : `services/showcase.js`, `showcaseRequests.js` (vidéo vitrine,
+vidéo demandée), `brandSuggestions.js` et `models/BrandSuggestion.js` (marque suggérée par un créateur), `brandSearches.js` et `models/BrandSearch.js`
+(marques cherchées sans résultat), `memberMessages.js` (relais aux inscrits), `quoteReminders.js` (relance de devis).
 
 ---
 
@@ -439,3 +538,4 @@ Environ 1 300 lignes côté serveur, réutilisables presque telles quelles :
 | 03/10/2026 | **Demandes de marques** (nouveau nom du panneau « Groupes Facebook ») : (1) le lien « Copier et ouvrir » cassait quand les premiers mots contenaient « : », des parenthèses ou « & » (la recherche de groupe de Facebook ne les supporte pas) : la recherche ne garde que des mots de trois lettres et plus, et les liens des demandes en file sont recalculés à l'affichage ; (2) « Créer la fiche marque » reste disponible sur une demande déjà passée ou répondue tant qu'elle a une adresse et pas de fiche ; (3) **« Coller une annonce »** : une demande vue n'importe où (autre groupe, LinkedIn, story, newsletter) qui donne une adresse entre dans la même file (`GroupPost` sans `groupId`, champ `source`), l'IA relève type, marque, site et propose un commentaire ; refusée sans adresse, dédoublonnée sur le texte ; les compteurs de groupe ne sont touchés que pour une demande venue d'un groupe. Décision : ce qui compte est une demande exprimée avec une adresse, quelle que soit sa provenance. |
 | 03/10/2026 | **Marques cherchées par les créateurs.** Le journal du serveur a montré l'entonnoir de la candidature vidéo : 49 créateurs connectés, ~20 ont ouvert la page, 4 ont cherché une marque (Quitoque, Filorga, NHCO, Lyphéa, une marque de meubles), toutes sans résultat, 1 vidéo déposée. Une recherche sans résultat est le meilleur signal de prospection : un créateur possède le produit et veut tourner. Désormais : recherche de quatre caractères et plus sans résultat enregistrée (`BrandSearch`, par créateur et nom normalisé, la frappe lettre à lettre ne laisse que la forme la plus longue, retours en arrière ignorés) ; panneau admin « Marques cherchées » regroupé par marque (créateurs, recherches, dernière date, fiche existante signalée) ; « Créer la fiche marque » : taille estimée (liste refusée, annonces Meta, IA ; une très grande marque est refusée), fiche en prospection avec la note « cherchée par n créateur(s) », réservée dix jours au créateur s'il est seul, créateurs prévenus par notification, qualification en arrière-plan sans que la note de l'IA l'écarte ; « Ignorer ». Jamais de création automatique : une recherche n'est pas une suggestion. Côté créateur, la recherche vide renvoie vers « Proposez la marque ». |
 | 05/10/2026 | Seconde lecture réelle des groupes (6 groupes, 22 demandes) : le tri est juste (14 marques, 7 opportunités, 1 créateur), les commentaires répondent au besoin. Deux réglages : une même annonce publiée dans plusieurs groupes n'est relevée qu'une fois (dédoublonnage sur le texte, tous groupes confondus) ; une publication de plus de 21 jours est écartée (âge lu sur la date affichée : « 6 h », « il y a 4 jours », « 10 sep », « 3 sept. 2025 »), le fil n'étant pas strictement chronologique. Le détail du lot compte les deux cas. |
+| 06/10/2026 | **Révision du corps du document** pour refléter le code réel après la fin de l'étape 1 : statut, § 4.1 (six règles d'infrastructure apprises : quota propre de l'extension, plafonds par type, contrôle de nature avant entrée en base, zone du profil seulement, contrôle de taille, dédoublonnage et âge des fils), § 4.2 (extension 0.2.8 : dix types, rôles, onglet au premier plan, abandon de l'adresse de contact Instagram), § 4.3 (écrans ajoutés), **§ 4.4 nouveau : communication avec NeedCreator** (NeedCreator client de l'outil : API appelée par NeedCreator pour créer des prospects et signaler ses événements, webhooks signés de l'outil vers NeedCreator pour les réponses, « oui vidéo », conversions et relais ; gabarits par espace de travail ; migration en une journée), § 6 (entités Feed, Request, Verdict, ClientLink), § 9 (étape 1 livrée, décision suspendue aux deux entretiens), § 11 et § 12 (documents de routine, fichiers et scripts ajoutés, ce qui est propre à NeedCreator). |
