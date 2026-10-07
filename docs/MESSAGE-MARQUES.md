@@ -239,3 +239,8 @@ Vous avez un de ses produits chez vous ? Tournez votre version de cette publicit
 - Consignes de l'IA : message privé aux marques, commentaire des groupes Facebook.
 - `docs/MAILING-prospection.md` : les trois emails marques remplacés (l'ancienne version gardée en dessous, datée).
 - Les annonces aux inscrits : je les prépare dans « Messages aux inscrits », c'est vous qui cliquez sur Envoyer.
+
+## Mises à jour faites ensuite (07/10/2026)
+
+- **Page « Comment ça marche »** refaite côté marques sur les quatre étapes ; côté créateurs, une étape « proposer une vidéo déjà tournée » (scan d'une marque + candidature spontanée).
+- **Messages déjà rédigés, pas encore envoyés** : script `backend/scripts/update-brand-messages.mjs` (simulation par défaut, `--apply` pour agir). Il remplace la phrase qui présente NeedCreator dans les messages privés des fiches marques jamais contactées, et dans les commentaires proposés sous les demandes de marques encore « à répondre » quand ils reprennent la formule exacte. Rien n'est touché sur ce qui est déjà parti.
