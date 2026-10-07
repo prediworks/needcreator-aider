@@ -41,6 +41,18 @@ const adScanSchema = new mongoose.Schema({
     missing: [String],
     facts: [String],
   },
+  // Audit créatif : la même lecture vue par la marque elle-même (ce qui tient dans la durée, angles répétés, angles libres, accroches à tester, trois briefs)
+  audit: {
+    diagnosis: String,
+    lasting: [String],
+    overused: [{ angle: String, count: Number, note: String, _id: false }],
+    missing: [{ angle: String, why: String, _id: false }],
+    hooks: [String],
+    briefs: [{ title: String, angle: String, hook: String, videoType: String, duration: Number, why: String, _id: false }],
+  },
+  auditPending: { type: Boolean, default: false },
+  auditTriedAt: Date,
+  audits: { type: Number, default: 0 },    // audits demandés
   status: { type: String, enum: ['pending', 'ready', 'empty', 'failed', 'blocked'], default: 'ready', index: true }, // pending : lecture en cours en arrière-plan
   error: String,
   insightsPending: { type: Boolean, default: false }, // publicités déjà là, lecture IA encore en cours

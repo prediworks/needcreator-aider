@@ -1,5 +1,5 @@
 import AdScan from '../models/AdScan.js';
-import { runScan, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights } from '../services/adScan.js';
+import { runScan, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights, requestAudit } from '../services/adScan.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -47,7 +47,8 @@ export async function briefFromScanHandler(req, res) {
   try {
     const scan = await AdScan.findOne({ slug: String(req.params.slug || '').toLowerCase() });
     if (!scan) return res.status(404).json({ error: 'Scan introuvable' });
-    const pb = await briefFromScan(scan, { adId: req.body?.adId, ip: clientIp(req), user: req.user });
+    const proposal = req.body?.proposal === undefined || req.body?.proposal === null || req.body?.proposal === '' ? undefined : Number(req.body.proposal);
+    const pb = await briefFromScan(scan, { adId: req.body?.adId, proposal, ip: clientIp(req), user: req.user });
     res.status(201).json({ briefId: pb._id, message: 'Brief préparé : relisez-le, puis créez la campagne.' });
   } catch (error) { fail(res, error, 'Préparation du brief impossible pour le moment', 'briefFromScan'); }
 }
@@ -72,4 +73,14 @@ export async function recentScans(req, res) {
     const scans = await AdScan.find({ status: 'ready', humanViewedAt: { $ne: null } }).sort({ views: -1, fetchedAt: -1 }).limit(24).select('slug pageName totalActive stats.oldestDays views fetchedAt pageId').lean();
     res.json({ scans: scans.filter(s => !isBlockedPage(st.scanBlockedPages, s)).slice(0, 12).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, views: s.views || 0, fetchedAt: s.fetchedAt })) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'recentScans'); }
+}
+
+/** Public (compte facultatif) : audit créatif d'une page déjà scannée, lancé en arrière-plan ; la page suit avec `auditPending` */
+export async function auditScan(req, res) {
+  try {
+    const scan = await AdScan.findOne({ slug: String(req.params.slug || '').toLowerCase() });
+    if (!scan) return res.status(404).json({ error: 'Scan introuvable' });
+    const r = await requestAudit(scan);
+    res.status(r.started ? 202 : 200).json({ started: r.started, scan: await serializeScan(scan, { user: req.user }) });
+  } catch (error) { fail(res, error, 'Audit impossible pour le moment', 'auditScan'); }
 }

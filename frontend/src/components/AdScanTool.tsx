@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -11,7 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { formatDate } from '@/lib/utils';
-import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3 } from 'lucide-react';
+import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck } from 'lucide-react';
 
 const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger', audience_network: 'Audience Network', threads: 'Threads' };
 const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hommes' };
@@ -20,29 +20,41 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
  * marchent), des constats factuels par l'IA, et « Commander l'équivalent » en vidéo créateur. Sans compte : un aperçu ; inscrit : tout.
  */
-export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string }) {
+const VIDEO_TYPE: Record<string, string> = { testimonial: 'Témoignage', unboxing: 'Unboxing', demo: 'Démonstration', tutorial: 'Tutoriel', review: 'Avis', comparison: 'Comparatif', lifestyle: 'Lifestyle', 'behind-the-scenes': 'Coulisses' };
+
+export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initialSlug?: string; mode?: 'scan' | 'audit' }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [q, setQ] = useState('');
   const [slug, setSlug] = useState(initialSlug);
   const [candidates, setCandidates] = useState<any[] | null>(null);
   const [optOut, setOptOut] = useState(false);
   const [optEmail, setOptEmail] = useState(''); const [optReason, setOptReason] = useState('');
+  // Vue « audit créatif » : arrivée par /audit-publicites, ou « ?vue=audit » sur la page d'un scan
+  const [auditView, setAuditView] = useState(mode === 'audit');
+  const [auditAsked, setAuditAsked] = useState('');
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('vue') === 'audit') setAuditView(true); } catch { /* adresse illisible */ } }, []);
 
   // Lecture en arrière-plan côté serveur : tant que le scan est « en cours », la page se met à jour toutes les trois secondes
-  const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false, refetchInterval: (query: any) => (query.state.data?.scan?.status === 'pending' || query.state.data?.scan?.insightsPending ? 3000 : false) });
+  const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false, refetchInterval: (query: any) => (query.state.data?.scan?.status === 'pending' || query.state.data?.scan?.insightsPending || query.state.data?.scan?.auditPending ? 3000 : false) });
   const { data: recent } = useQuery({ queryKey: ['ad-scans-recent'], queryFn: async () => (await api.get('/ad-scans/recent')).data.scans, enabled: !slug, staleTime: 300000 });
   // Consultation par un navigateur : compteur, et condition d'indexation de la page
   useEffect(() => { if (slug && data?.scan?.status === 'ready') api.post(`/ad-scans/${slug}/view`).catch(() => null); }, [slug, data?.scan?.slug, data?.scan?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scan = useMutation({
     mutationFn: async (body: { q?: string; pageId?: string; pageName?: string }) => (await api.post('/ad-scans', body)).data,
-    onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); router.replace(`/publicites/${d.scan.slug}`); },
+    onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); router.replace(`/publicites/${d.scan.slug}${auditView ? '?vue=audit' : ''}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const brief = useMutation({
-    mutationFn: async (adId?: string) => (await api.post(`/ad-scans/${slug}/brief`, { adId: adId || '' })).data,
+    mutationFn: async (opt?: { adId?: string; proposal?: number }) => (await api.post(`/ad-scans/${slug}/brief`, { adId: opt?.adId || '', ...(opt?.proposal !== undefined ? { proposal: opt.proposal } : {}) })).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const audit = useMutation({
+    mutationFn: async () => (await api.post(`/ad-scans/${slug}/audit`)).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['ad-scan', slug] }); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const sendOptOut = useMutation({
@@ -53,7 +65,13 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
   const share = async () => { try { await navigator.clipboard.writeText(window.location.href); toast.success('Lien copié'); } catch { toast.error('Presse-papiers indisponible'); } };
 
   const s = data?.scan;
-  const back = s ? encodeURIComponent(`/publicites/${s.slug}`) : '';
+  // Audit demandé à l'ouverture de la vue, une fois par page (lecture IA en arrière-plan, la page suit)
+  useEffect(() => {
+    if (!auditView || !s || s.status !== 'ready' || s.audit || s.auditPending || auditAsked === s.slug || audit.isPending) return;
+    setAuditAsked(s.slug); audit.mutate();
+  }, [auditView, s?.slug, s?.status, s?.audit, s?.auditPending]); // eslint-disable-line react-hooks/exhaustive-deps
+  const openAudit = () => { setAuditView(true); if (s) router.replace(`/publicites/${s.slug}?vue=audit`); };
+  const back = s ? encodeURIComponent(`/publicites/${s.slug}${auditView ? '?vue=audit' : ''}`) : '';
   const signupHref = `/register?role=brand&next=${back}`;
   const loginHref = `/login?next=${back}`;
   const errStatus = (error as any)?.response?.status;
@@ -63,8 +81,8 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
     <div className="space-y-6">
       <Card className="p-6">
         <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) scan.mutate({ q: q.trim() }); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
-          <div className="flex-1"><Input label="Nom d'une marque (un concurrent, ou la vôtre)" placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>
-          <Button type="submit" isLoading={scan.isPending} data-testid="ad-scan-go"><Search className="w-4 h-4 mr-2" /> Voir ses publicités</Button>
+          <div className="flex-1"><Input label={auditView ? 'Nom de votre marque (tel que sur votre page Facebook)' : 'Nom d\'une marque (un concurrent, ou la vôtre)'} placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>
+          <Button type="submit" isLoading={scan.isPending} data-testid="ad-scan-go"><Search className="w-4 h-4 mr-2" /> {auditView ? 'Auditer ces publicités' : 'Voir ses publicités'}</Button>
         </form>
         {scan.isPending && <p className="text-sm text-neutral-600 mt-3">Recherche de la page dans la bibliothèque publicitaire Meta…</p>}
         {candidates && (
@@ -102,10 +120,11 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
               </div>
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" onClick={share} title="Copie le lien de cette page : elle est publique"><Share2 className="w-4 h-4 mr-1" /> Partager</Button>
+                {user?.role !== 'creator' && !auditView && s.status === 'ready' && <Button variant="outline" size="sm" onClick={openAudit} title="C'est votre marque ? Ce qui tient dans la durée, les angles répétés, les angles libres, des accroches à tester et trois vidéos créateur à commander" data-testid="ad-scan-open-audit"><ClipboardCheck className="w-4 h-4 mr-1" /> Audit de ces publicités</Button>}
                 {user?.role === 'creator' ? (
                   <Link href={proposeHref}><Button size="sm" title="Vous possédez un produit de cette marque ? Tournez votre version de sa publicité qui marche : elle la reçoit finie avec un devis et l'achète en un clic" data-testid="ad-scan-propose"><Clapperboard className="w-4 h-4 mr-1" /> Proposer une vidéo à cette marque</Button></Link>
                 ) : (
-                  <Button size="sm" onClick={() => brief.mutate(undefined)} isLoading={brief.isPending} disabled={s.status !== 'ready'} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Commander l&apos;équivalent <ArrowRight className="w-4 h-4 ml-1" /></Button>
+                  <Button size="sm" onClick={() => brief.mutate({})} isLoading={brief.isPending} disabled={s.status !== 'ready'} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Commander l&apos;équivalent <ArrowRight className="w-4 h-4 ml-1" /></Button>
                 )}
               </div>
             </div>
@@ -125,6 +144,59 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
               </div>
             )}
           </Card>
+
+          {auditView && s.status === 'ready' && (
+            <Card className="p-6 border-primary-200" data-testid="ad-scan-audit">
+              <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><ClipboardCheck className="w-5 h-5 text-primary-600" /> Audit créatif des publicités de {s.pageName}</h3>
+              <p className="text-xs text-neutral-500 mb-3">Meta ne fournit que le texte et la durée de diffusion : l&apos;audit porte sur ce qui est écrit et sur ce qui dure. Une publicité maintenue longtemps est un indice de rentabilité.</p>
+              {!s.audit ? (
+                <p className="text-sm text-neutral-700 animate-pulse" data-testid="ad-scan-audit-pending">{s.auditPending || audit.isPending ? 'L\'IA lit les publicités : ce qui tient dans la durée, les angles répétés, les angles libres. Une à deux minutes, la page se met à jour toute seule.' : 'Préparation de l\'audit…'}</p>
+              ) : (
+                <div className="space-y-4 text-sm">
+                  {s.audit.diagnosis && <p className="text-neutral-800">{s.audit.diagnosis}</p>}
+                  {s.audit.lasting?.length > 0 && <div><div className="font-medium text-neutral-900 mb-1">Ce qui tient dans la durée</div><ul className="list-disc pl-5 space-y-1 text-neutral-700">{s.audit.lasting.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>}
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <div className="font-medium text-neutral-900 mb-1">Angles répétés</div>
+                      {s.audit.overused?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.overused.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span> · {o.count} pub{o.count > 1 ? 's' : ''}{o.note ? <span className="block text-xs text-neutral-500">{o.note}</span> : null}</li>)}</ul> : s.audit.locked?.includes('overused') ? <Locked text="les angles que vous répétez" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                    </div>
+                    <div>
+                      <div className="font-medium text-neutral-900 mb-1">Angles libres</div>
+                      {s.audit.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.missing.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span>{o.why ? <span className="block text-xs text-neutral-500">{o.why}</span> : null}</li>)}</ul> : s.audit.locked?.includes('missing') ? <Locked text="les angles que vous n'utilisez pas" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                    </div>
+                    <div>
+                      <div className="font-medium text-neutral-900 mb-1">Accroches à tester</div>
+                      {s.audit.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.audit.locked?.includes('hooks') ? <Locked text="cinq accroches pour les trois premières secondes" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-neutral-900 mb-2">Trois vidéos créateur à commander</div>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      {(s.audit.briefs || []).map((b: any, i: number) => (
+                        <div key={i} className="p-3 rounded-lg border border-neutral-200 bg-white flex flex-col" data-testid="ad-scan-audit-brief">
+                          <div className="font-medium text-neutral-900">{b.title}</div>
+                          <div className="text-xs text-neutral-600 mt-0.5">{b.angle} · {VIDEO_TYPE[b.videoType] || b.videoType} · {b.duration} s</div>
+                          <p className="text-sm text-neutral-700 italic mt-2">« {b.hook} »</p>
+                          {b.why && <p className="text-xs text-neutral-500 mt-1">{b.why}</p>}
+                          <div className="mt-auto pt-3">{user?.role === 'creator' ? null : <Button size="sm" variant="outline" onClick={() => brief.mutate({ proposal: i })} isLoading={brief.isPending} title="Prépare le brief complet de cette vidéo (consignes, à faire, à éviter, budget estimé), prêt à publier">Créer ce brief <ArrowRight className="w-4 h-4 ml-1" /></Button>}</div>
+                        </div>
+                      ))}
+                      {s.audit.locked?.includes('briefs') && <Link href={signupHref} className="p-3 rounded-lg border border-dashed border-primary-200 bg-primary-50 text-sm text-primary-800 flex items-center gap-2 md:col-span-2"><Lock className="w-4 h-4" /> Deux autres vidéos à commander, les angles et les accroches : créez votre compte gratuit.</Link>}
+                    </div>
+                  </div>
+                  {s.audit.locked?.length > 0 && (
+                    <div className="p-4 rounded-lg bg-primary-50 border border-primary-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid="ad-scan-audit-cta">
+                      <div className="text-sm text-neutral-800"><span className="font-medium">Voir l&apos;audit complet</span> : angles répétés, angles libres, accroches à tester, trois vidéos à commander.</div>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Link href={signupHref}><Button size="sm">Créer mon compte gratuit</Button></Link>
+                        <span className="text-xs text-neutral-600">Déjà inscrit ? <Link href={loginHref} className="underline text-primary-700">Me connecter</Link></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </Card>
+          )}
 
           {!s.insights && s.insightsPending && <Card className="p-6 text-sm text-neutral-700 animate-pulse" data-testid="ad-scan-insights-pending"><BarChart3 className="w-5 h-5 text-primary-600 inline mr-2" />Les publicités sont là ; l&apos;IA les lit (angles, accroches, constats). Une à deux minutes, la page se met à jour toute seule.</Card>}
           {s.insights && (
@@ -170,7 +242,7 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
                       <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
                       <div className="flex gap-2">
                         <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Aperçu Meta <ExternalLink className="w-3 h-3" /></a>
-                        {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => brief.mutate(a.id)} title="Prépare un brief NeedCreator : la version créateur de cette publicité">l&apos;équivalent en vidéo créateur</button>}
+                        {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => brief.mutate({ adId: a.id })} title="Prépare un brief NeedCreator : la version créateur de cette publicité">l&apos;équivalent en vidéo créateur</button>}
                       </div>
                     </div>
                     {a.title && <div className="font-medium text-neutral-900 mt-2">{a.title}</div>}

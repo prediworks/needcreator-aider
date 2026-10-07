@@ -1945,6 +1945,15 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   // Créateur : la fiche prospect de la marque, quand elle existe, pour « Proposer une vidéo »
   const asCreator = await creatorApi('GET', `/ad-scans/${slug}`);
   expect(asCreator.status === 200 && String(asCreator.data.scan.leadId) === String(scanLead.insertedId) && asCreator.data.scan.ads.length === 14, 'Un créateur connecté voit tout et retrouve la fiche de la marque (bouton « Proposer une vidéo »)', { leadId: asCreator.data.scan?.leadId, expected: scanLead.insertedId });
+  // Audit créatif : anonyme → diagnostic, ce qui dure et une vidéo proposée ; inscrit → tout ; brief depuis une proposition
+  await db.collection('adscans').updateOne({ slug }, { $set: { audit: { diagnosis: 'La marque met en avant le prix et les avis clients.', lasting: ['#1 et #3 durent depuis plus de 100 jours et citent un témoignage.'], overused: [{ angle: 'prix / promotion', count: 7, note: 'Réduction en tête de texte' }], missing: [{ angle: 'mode d\'emploi', why: 'Montrer la gourde en usage' }], hooks: ['J\'ai arrêté les bouteilles en plastique'], briefs: [{ title: 'Une journée avec ma gourde', angle: 'mode d\'emploi', hook: 'Voilà ce qu\'il reste dans ma gourde à 18 h', videoType: 'demo', duration: 30, why: 'Personne ne montre le produit en usage' }, { title: 'Avant / après', angle: 'comparaison', hook: 'Ma poubelle avant, ma poubelle après', videoType: 'comparison', duration: 25, why: '' }, { title: 'Mon avis après un mois', angle: 'témoignage', hook: 'Un mois que je l\'utilise', videoType: 'testimonial', duration: 30, why: '' }] }, auditTriedAt: new Date(), auditPending: false } });
+  const audA = (await pubApi('GET', `/ad-scans/${slug}`)).data.scan.audit;
+  const audM = (await brandApi('GET', `/ad-scans/${slug}`)).data.scan.audit;
+  expect(audA && audA.diagnosis && audA.lasting.length === 1 && audA.briefs.length === 1 && !audA.overused && !audA.hooks && audA.locked.includes('briefs') && audM && audM.briefs.length === 3 && audM.overused.length === 1 && audM.hooks.length === 1 && audM.locked.length === 0, 'Audit : sans compte, le diagnostic, ce qui dure et une vidéo proposée ; inscrit, tout', { audA, audM });
+  const audAgain = await pubApi('POST', `/ad-scans/${slug}/audit`);
+  expect(audAgain.status === 200 && audAgain.data.started === false, 'Un audit de moins de 24 h n\'est pas refait', audAgain);
+  const badProp = await brandApi('POST', `/ad-scans/${slug}/brief`, { proposal: 5 });
+  expect(badProp.status === 400, 'Une proposition hors des trois est refusée', badProp);
   // Consultation : compteur, et la page devient indexable (publicités et consultation humaine)
   const v1 = await pubApi('POST', `/ad-scans/${slug}/view`); const v2 = await pubApi('POST', `/ad-scans/${slug}/view`);
   const after = await db.collection('adscans').findOne({ slug });
@@ -1968,6 +1977,10 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
     const pb = bf.data.briefId ? await db.collection('productbriefs').findOne({ _id: new mongoose.Types.ObjectId(String(bf.data.briefId)) }) : null;
     const counted = await db.collection('adscans').findOne({ slug });
     expect(bf.status === 201 && pb && String(pb.scanId) === String(after._id) && pb.scanAdId === ads[0].id && pb.product?.brand === `E2E Scan Marque ${RUN}` && pb.analysis?.angles?.length === 3 && pb.brief?.title && pb.budget?.mid > 0 && counted.briefs === 1, 'Le brief « l\'équivalent » est préparé depuis la publicité choisie, rattaché au scan, avec angles, brief et budget', { status: bf.status, data: bf.data, pb: pb && { brand: pb.product?.brand, angles: pb.analysis?.angles?.length, title: pb.brief?.title, budget: pb.budget?.mid } });
+    const bp = await brandApi('POST', `/ad-scans/${slug}/brief`, { proposal: 0 });
+    const pbp = bp.data.briefId ? await db.collection('productbriefs').findOne({ _id: new mongoose.Types.ObjectId(String(bp.data.briefId)) }) : null;
+    expect(bp.status === 201 && pbp && pbp.brief?.title && pbp.budget?.mid > 0, 'Une vidéo proposée par l\'audit devient un brief complet', { status: bp.status, data: bp.data });
+    if (pbp) await db.collection('productbriefs').deleteOne({ _id: pbp._id });
     const claim = await brandApi('POST', `/product-briefs/${bf.data.briefId}/claim`);
     expect(claim.status === 200 && claim.data.campaignId, 'La marque transforme le brief du scan en campagne brouillon', claim);
     if (claim.data?.campaignId) await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(String(claim.data.campaignId)) });
@@ -1982,7 +1995,7 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
     await db.collection('adscans').deleteMany({ slug });
     await db.collection('adscanrequests').deleteMany({ slug });
   }
-  return `paliers anonyme (10 pubs, constats) / inscrit (tout) / créateur (fiche marque), consultation et indexation, liste des pages retirées, demande de retrait, ${aiOn ? 'brief « l\'équivalent » et campagne brouillon' : 'IA non configurée'}`;
+  return `paliers anonyme (10 pubs, constats) / inscrit (tout) / créateur (fiche marque), audit créatif par palier, consultation et indexation, liste des pages retirées, demande de retrait, ${aiOn ? 'brief « l\'équivalent » et campagne brouillon' : 'IA non configurée'}`;
 });
 
 await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vignette', async () => {

@@ -5,6 +5,7 @@ import { getSetting, SETTINGS } from '../models/Setting.js';
 import { fetchAds, metaConfigured } from './acquisition/meta.js';
 import { generateJsonText, aiConfig } from './ai.js';
 import { assembleBrief } from './productBrief.js';
+import { GRID } from '../controllers/marketRates.js';
 import { notifyAdmins } from './adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -292,6 +293,74 @@ export async function ensureInsights(scan) {
   return true;
 }
 
+const VIDEO_TYPES = Object.keys(GRID);
+const auditSchema = z.object({
+  diagnosis: z.string().max(500).default(''),
+  lasting: z.array(z.string().max(240)).max(3).default([]),
+  overused: z.array(z.object({ angle: z.string().max(60), count: z.number().int().min(0).max(500), note: z.string().max(220).default('') })).max(3).default([]),
+  missing: z.array(z.object({ angle: z.string().max(60), why: z.string().max(240).default('') })).max(3).default([]),
+  hooks: z.array(z.string().max(160)).max(5).default([]),
+  briefs: z.array(z.object({ title: z.string().max(90), angle: z.string().max(60), hook: z.string().max(200), videoType: z.string().max(30), duration: z.number().int().min(10).max(90), why: z.string().max(240).default('') })).max(3).default([]),
+});
+const hasAudit = (scan) => !!(scan?.audit && (scan.audit.diagnosis || scan.audit.briefs?.length));
+
+/**
+ * Audit créatif : les publicités d'une marque lues pour elle-même. Ce qui tient dans la durée (angles des publicités les plus anciennes, face aux
+ * plus récentes), angles répétés, angles libres, accroches orales à tester, trois briefs de vidéo créateur. Conseils permis, jugements non :
+ * on décrit et on propose, on ne qualifie jamais une publicité de bonne ou de mauvaise. Meta ne donne que le texte : l'audit le dit.
+ */
+export async function auditAds({ pageName, ads, stats, totalActive = 0 }) {
+  if (!aiConfig().configured || !ads.length) return null;
+  const now = Date.now();
+  const line = (a, i) => `#${i + 1} (${ageDays(a.startedAt, now) ?? '?'} j${a.variants > 1 ? `, ${a.variants} variantes` : ''}) ${[a.title, a.body].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 300)}`;
+  const old = ads.slice(0, 15); const recent = ads.slice(-15).filter(a => !old.includes(a));
+  return generateJsonText({
+    system: 'Tu es directeur de création UGC. Tu fais l\'audit des publicités Meta d\'une marque, pour elle. Tu décris ce qui est écrit et tu proposes ; tu ne qualifies jamais une publicité de bonne, mauvaise, faible ou efficace. Meta ne fournit que le texte et la durée de diffusion : tu ne parles ni d\'images ni de vidéos. JSON strict, en français.',
+    prompt: `Marque : « ${pageName} ». ${totalActive || ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne depuis ${stats.oldestDays} jours` : ''}. Une publicité maintenue longtemps est un indice de rentabilité.
+Les plus anciennes :
+${old.map(line).join('\n')}
+${recent.length ? `Les plus récentes :\n${recent.map((a, i) => line(a, ads.indexOf(a))).join('\n')}` : ''}
+
+Réponds avec :
+- "diagnosis" : 2 à 3 phrases courtes (450 caractères au plus) : ce que la marque met en avant, et ce qui distingue les publicités qui durent des plus récentes.
+- "lasting" : 2 à 3 constats sur les publicités qui durent (angle, promesse, forme du texte), en citant leur numéro.
+- "overused" : jusqu'à 3 angles répétés dans beaucoup de publicités, avec "angle" (2 à 5 mots), "count" (nombre honnête) et "note" (ce qui se répète, décrit sans jugement).
+- "missing" : 3 angles courants en vidéo UGC absents de ces publicités, avec "angle" (2 à 5 mots) et "why" (en quoi il convient à ce que vend la marque).
+- "hooks" : 5 accroches orales nouvelles, pour les 3 premières secondes d'une vidéo créateur, différentes des textes actuels.
+- "briefs" : exactement 3 vidéos créateur à commander, chacune sur un angle libre ou sur l'angle des publicités qui durent, avec "title", "angle" (2 à 5 mots), "hook" (la première phrase dite face caméra), "videoType" (une valeur parmi ${VIDEO_TYPES.join(', ')}), "duration" (secondes, 15 à 60), "why" (une phrase).
+Interdit : tout adjectif d'évaluation sur les publicités existantes, toute supposition sur les dépenses ou les résultats.`,
+    schema: auditSchema,
+    normalize: (raw) => ({
+      diagnosis: cutAtSentence(factual(raw?.diagnosis), 500),
+      lasting: (Array.isArray(raw?.lasting) ? raw.lasting : []).map(x => factual(typeof x === 'string' ? x : x?.text || '').slice(0, 240)).filter(Boolean).slice(0, 3),
+      overused: (Array.isArray(raw?.overused) ? raw.overused : []).map(o => ({ angle: String(o?.angle || o?.name || '').slice(0, 60), count: Math.max(0, Math.min(500, parseInt(o?.count, 10) || 0)), note: factual(o?.note).slice(0, 220) })).filter(o => o.angle).slice(0, 3),
+      missing: (Array.isArray(raw?.missing) ? raw.missing : []).map(o => (typeof o === 'string' ? { angle: o.slice(0, 60), why: '' } : { angle: String(o?.angle || o?.name || '').slice(0, 60), why: factual(o?.why).slice(0, 240) })).filter(o => o.angle).slice(0, 3),
+      hooks: (Array.isArray(raw?.hooks) ? raw.hooks : []).map(h => factual(typeof h === 'string' ? h : h?.text || '').slice(0, 160)).filter(Boolean).slice(0, 5),
+      briefs: (Array.isArray(raw?.briefs) ? raw.briefs : []).map(b => ({ title: String(b?.title || '').slice(0, 90), angle: String(b?.angle || '').slice(0, 60), hook: factual(b?.hook).slice(0, 200), videoType: VIDEO_TYPES.includes(b?.videoType) ? b.videoType : 'testimonial', duration: Math.max(10, Math.min(90, parseInt(b?.duration, 10) || 30)), why: factual(b?.why).slice(0, 240) })).filter(b => b.title && b.hook).slice(0, 3),
+    }),
+  });
+}
+
+/** Lance l'audit en arrière-plan (une lecture IA par page et par 24 h ; relance une fois par heure au plus après un échec) */
+export async function requestAudit(scan) {
+  if (!scan || scan.status !== 'ready' || !scan.ads?.length) throw Object.assign(new Error('Aucune publicité active à auditer pour cette page'), { status: 400 });
+  if (!aiConfig().configured) throw Object.assign(new Error('Audit indisponible pour le moment (IA non configurée)'), { status: 503 });
+  if (hasAudit(scan) && scan.auditTriedAt && Date.now() - new Date(scan.auditTriedAt).getTime() < DAY) return { started: false };
+  if (scan.auditPending) return { started: false };
+  if (!hasAudit(scan) && scan.auditTriedAt && Date.now() - new Date(scan.auditTriedAt).getTime() < 3600000) return { started: false };
+  const r = await AdScan.updateOne({ _id: scan._id, auditPending: { $ne: true } }, { $set: { auditPending: true, auditTriedAt: new Date() }, $inc: { audits: 1 } });
+  if (!r.modifiedCount) return { started: false };
+  scan.auditPending = true;
+  setImmediate(async () => {
+    let audit = null;
+    try { audit = await Promise.race([auditAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
+    catch (err) { logger.warn(`Ad audit ${scan.slug}: IA en échec (${err.message})`); }
+    await AdScan.updateOne({ _id: scan._id }, { $set: { ...(audit ? { audit } : {}), auditPending: false } });
+    if (audit) logger.info(`Ad audit ${scan.slug}: ready`);
+  });
+  return { started: true };
+}
+
 /** Lien public d'une publicité dans la bibliothèque Meta (sans jeton) */
 export const adLibraryUrl = (adId) => `https://www.facebook.com/ads/library/?id=${encodeURIComponent(adId)}`;
 
@@ -316,7 +385,12 @@ export async function serializeScan(scan, { user, settings } = {}) {
     const lead = await Lead.findOne({ kind: 'brand', $or: or }).select('_id').lean();
     leadId = lead?._id || null;
   }
+  const au = hasAudit(scan) ? scan.audit : null;
+  const audit = au ? (tier === 'anon'
+    ? { diagnosis: au.diagnosis || '', lasting: au.lasting || [], briefs: (au.briefs || []).slice(0, 1), locked: ['overused', 'missing', 'hooks', 'briefs'] }
+    : { diagnosis: au.diagnosis || '', lasting: au.lasting || [], overused: au.overused || [], missing: au.missing || [], hooks: au.hooks || [], briefs: au.briefs || [], locked: [] }) : null;
   return {
+    audit, auditPending: !!scan.auditPending,
     slug: scan.slug, pageId: scan.pageId, pageName: scan.pageName, website: scan.website, pageUrl: `https://www.facebook.com/${scan.pageId}`, libraryUrl: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=FR&view_all_page_id=${encodeURIComponent(scan.pageId)}`,
     status: scan.status, error: scan.error || null, insightsPending: !!scan.insightsPending, totalActive: scan.totalActive || 0, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
     stats: scan.stats || {}, insights, ads, tier, fetchedAt: scan.fetchedAt, views: scan.views || 0, leadId,
@@ -331,7 +405,7 @@ export const indexable = (scan) => scan.status === 'ready' && (scan.ads?.length 
  * « Commander l'équivalent » : brief NeedCreator préparé depuis le scan. Le « produit » est ce que vendent les publicités de la marque
  * (toutes, ou la publicité choisie), l'angle retenu est celui de la publicité la plus ancienne. Repris par le pont existant du brief depuis URL.
  */
-export async function briefFromScan(scan, { adId, ip, user } = {}) {
+export async function briefFromScan(scan, { adId, proposal, ip, user } = {}) {
   if (!aiConfig().configured) throw Object.assign(new Error('Génération indisponible : IA non configurée sur le serveur'), { status: 503 });
   const ads = scan.ads || [];
   if (!ads.length) throw Object.assign(new Error('Aucune publicité à partir de laquelle préparer un brief'), { status: 400 });
@@ -342,9 +416,12 @@ export async function briefFromScan(scan, { adId, ip, user } = {}) {
     description: `${chosen.body || ''} ${chosen.description || ''}`.trim().slice(0, 1500),
   };
   const text = `Publicité de référence de ${scan.pageName} (tourne depuis ${ageDays(chosen.startedAt) ?? '?'} jours) : ${[chosen.title, chosen.body, chosen.description].filter(Boolean).join(' — ')}\n\nAutres publicités actives :\n${others}\n\n${scan.insights?.summary || ''}`;
-  const pb = await assembleBrief({ product, text: text.slice(0, 4000) }, {
+  // Brief proposé par l'audit : son angle, son accroche et son format orientent le brief
+  const prop = Number.isInteger(proposal) ? scan.audit?.briefs?.[proposal] : null;
+  if (Number.isInteger(proposal) && !prop) throw Object.assign(new Error('Proposition de brief introuvable : relancez l\'audit'), { status: 404 });
+  const pb = await assembleBrief({ product, text: `${prop ? `Vidéo à produire : « ${prop.title} ». Angle : ${prop.angle}. Accroche face caméra : « ${prop.hook} ». Format : ${prop.videoType}, ${prop.duration} secondes. ${prop.why}\n\n` : ''}${text}`.slice(0, 4500) }, {
     url: scan.website || `https://www.facebook.com/${scan.pageId}`, domain: scan.website ? new URL(scan.website).hostname.replace(/^www\./, '') : scan.pageName, ip, manual: true,
-    goal: 'obtenir en vidéo créateur l\'équivalent de la publicité qui tourne depuis le plus longtemps, avec un angle que les publicités actuelles n\'utilisent pas',
+    goal: prop ? `une vidéo créateur sur l'angle « ${prop.angle} », qui commence par « ${prop.hook} »` : 'obtenir en vidéo créateur l\'équivalent de la publicité qui tourne depuis le plus longtemps, avec un angle que les publicités actuelles n\'utilisent pas',
     extra: { scanId: scan._id, scanAdId: chosen.id },
   });
   await AdScan.updateOne({ _id: scan._id }, { $inc: { briefs: 1 } });

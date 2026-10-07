@@ -33,7 +33,7 @@ export default function AdScanSlugPage({ params }: { params: { slug: string } })
   return (
     <div className="min-h-screen bg-white py-12">
       <div className="container mx-auto px-4 max-w-5xl">
-        <div className="mb-6 text-sm text-neutral-600"><a href="/publicites-concurrents" className="underline">Scanner une autre marque</a></div>
+        <div className="mb-6 text-sm text-neutral-600 flex gap-4 flex-wrap"><a href="/publicites-concurrents" className="underline">Scanner une autre marque</a><a href="/audit-publicites" className="underline">Auditer mes publicités</a></div>
         <Suspense fallback={null}><AdScanTool initialSlug={params.slug} /></Suspense>
       </div>
     </div>
