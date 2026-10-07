@@ -56,7 +56,11 @@ export default async function HowItWorksPage() {
         <div className="grid gap-8">
           <Card className="p-8" data-testid="how-brand">
             <h2 className="text-2xl font-bold text-neutral-900 mb-1">🏢 Pour les marques</h2>
-            <p className="text-neutral-600 mb-6">De l&apos;idée à la publicité, en quatre étapes. Les outils des étapes 1 et 2 sont gratuits, sans abonnement.</p>
+            <p className="text-neutral-600 mb-4">De l&apos;idée à la publicité, en quatre étapes. Les outils des étapes 1 et 2 sont gratuits, sans abonnement.</p>
+            <div className="mb-6 flex flex-col sm:flex-row gap-3" data-testid="how-brand-top-cta">
+              <Link href="/publicites-concurrents"><Button variant="outline" className="w-full sm:w-auto">Scanner un concurrent</Button></Link>
+              <Link href="/register?role=brand"><Button className="w-full sm:w-auto">Créer ma première campagne</Button></Link>
+            </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               {BRAND_PHASES.map((ph) => (
                 <div key={ph.n} className="flex flex-col">
@@ -81,7 +85,11 @@ export default async function HowItWorksPage() {
           </Card>
 
           <Card className="p-8">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-6">🎥 Pour les créateurs</h2>
+            <h2 className="text-2xl font-bold text-neutral-900 mb-4">🎥 Pour les créateurs</h2>
+            <div className="mb-6 flex flex-col sm:flex-row gap-3" data-testid="how-creator-top-cta">
+              <Link href="/register?role=creator"><Button variant="secondary" className="w-full sm:w-auto">Devenir créateur</Button></Link>
+              <Link href="/publicites-concurrents"><Button variant="outline" className="w-full sm:w-auto" title="Les publicités qu'une marque fait tourner depuis des mois : tournez votre version et proposez-la en candidature spontanée">Scanner une marque</Button></Link>
+            </div>
             <ol className="space-y-5">
               {CREATOR_STEPS.map(([n, title, text]) => (
                 <li key={n} className="flex gap-4">
