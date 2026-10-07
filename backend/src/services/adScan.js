@@ -20,7 +20,7 @@ export const DAY = 86400000;
 const setting = (k) => getSetting(SETTINGS[k].key, SETTINGS[k].default);
 
 export async function scanSettings() {
-  const keys = ['scanAnonPerDay', 'scanMemberPerDay', 'scanProPerDay', 'scanAnonAds', 'scanIpPerHour', 'scanGlobalPerDay', 'scanMaxAds', 'scanBlockedPages'];
+  const keys = ['scanAnonPerDay', 'scanMemberPerDay', 'scanProPerDay', 'scanAnonAds', 'scanIpPerHour', 'scanGlobalPerDay', 'scanMaxAds', 'scanBlockedPages', 'scanPinned'];
   const vals = await Promise.all(keys.map(setting));
   return Object.fromEntries(keys.map((k, i) => [k, vals[i]]));
 }

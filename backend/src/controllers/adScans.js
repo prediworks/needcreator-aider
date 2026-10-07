@@ -65,14 +65,31 @@ export async function optOutScan(req, res) {
   } catch (error) { fail(res, error, 'Envoi impossible', 'optOutScan'); }
 }
 
-/** Public : les scans récents consultables (exemples sur la page d'accueil de l'outil) */
+/** Public : les exemples (épinglés dans les réglages, puis les plus consultés) sur les pages de l'outil */
 export async function recentScans(req, res) {
   try {
     const st = await scanSettings();
-    const { isBlockedPage } = await import('../services/adScan.js');
-    const scans = await AdScan.find({ status: 'ready', humanViewedAt: { $ne: null } }).sort({ views: -1, fetchedAt: -1 }).limit(24).select('slug pageName totalActive stats.oldestDays views fetchedAt pageId').lean();
-    res.json({ scans: scans.filter(s => !isBlockedPage(st.scanBlockedPages, s)).slice(0, 12).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, views: s.views || 0, fetchedAt: s.fetchedAt })) });
+    const { isBlockedPage, slugify } = await import('../services/adScan.js');
+    const pinned = String(st.scanPinned || '').split(/[,;\n]+/).map(x => slugify(x.trim().replace(/^.*\/publicites\//, ''))).filter(x => x && x !== 'marque');
+    const fields = 'slug pageName totalActive stats.oldestDays views fetchedAt pageId';
+    const [pins, popular] = await Promise.all([
+      pinned.length ? AdScan.find({ slug: { $in: pinned }, status: 'ready' }).select(fields).lean() : [],
+      AdScan.find({ status: 'ready', humanViewedAt: { $ne: null } }).sort({ views: -1, fetchedAt: -1 }).limit(24).select(fields).lean(),
+    ]);
+    const ordered = [...pinned.map(p => pins.find(x => x.slug === p)).filter(Boolean).map(x => ({ ...x, pinned: true })), ...popular.filter(x => !pinned.includes(x.slug))];
+    res.json({ scans: ordered.filter(s => !isBlockedPage(st.scanBlockedPages, s)).slice(0, 12).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, views: s.views || 0, fetchedAt: s.fetchedAt, pinned: !!s.pinned })) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'recentScans'); }
+}
+
+/** Compte connecté : ses derniers scans (tableau de bord marque) */
+export async function myScans(req, res) {
+  try {
+    const { AdScanRequest } = await import('../models/AdScan.js');
+    const reqs = await AdScanRequest.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(30).select('slug createdAt').lean();
+    const slugs = [...new Set(reqs.map(r => r.slug).filter(Boolean))].slice(0, 6);
+    const scans = slugs.length ? await AdScan.find({ slug: { $in: slugs }, status: { $in: ['ready', 'pending'] } }).select('slug pageName totalActive stats.oldestDays status fetchedAt').lean() : [];
+    res.json({ scans: slugs.map(sl => scans.find(x => x.slug === sl)).filter(Boolean).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, status: s.status, fetchedAt: s.fetchedAt })) });
+  } catch (error) { fail(res, error, 'Lecture impossible', 'myScans'); }
 }
 
 /** Public (compte facultatif) : audit créatif d'une page déjà scannée, lancé en arrière-plan ; la page suit avec `auditPending` */

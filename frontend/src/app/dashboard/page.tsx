@@ -21,6 +21,7 @@ import { usePublicConfig } from '@/hooks/usePublicConfig';
 import { plural } from '@/lib/publicConfig';
 import ProgressCard from '@/components/ProgressCard';
 import ContentsSummaryCard from '@/components/ContentsSummaryCard';
+import BrandAdScanCard from '@/components/BrandAdScanCard';
 import { creatorNextStep, brandNextStep } from '@/lib/nextStep';
 
 export default function DashboardPage() {
@@ -325,6 +326,9 @@ function BrandDashboard({ user, campaignsData, campaignsLoading, deliveriesData 
           const ns = brandNextStep(user, (campaignsData?.campaigns || []).length);
           return <NextStepCard step={ns.step} remaining={ns.remaining} />;
         })()}
+
+        {/* Scan concurrentiel et audit créatif : entrée et derniers scans */}
+        <BrandAdScanCard />
 
         {/* Registre Contenus & droits : échéances à venir */}
         <ContentsSummaryCard />

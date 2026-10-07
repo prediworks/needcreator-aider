@@ -34,7 +34,15 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   // Vue « audit créatif » : arrivée par /audit-publicites, ou « ?vue=audit » sur la page d'un scan
   const [auditView, setAuditView] = useState(mode === 'audit');
   const [auditAsked, setAuditAsked] = useState('');
-  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('vue') === 'audit') setAuditView(true); } catch { /* adresse illisible */ } }, []);
+  // « ?vue=audit » : vue audit ; « ?q=Nom » (bandeau de l'accueil ou de la page Marques) : le scan se lance d'office, une fois
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('vue') === 'audit') setAuditView(true);
+      const q0 = (sp.get('q') || '').trim().slice(0, 120);
+      if (q0.length >= 2 && !initialSlug) { setQ(q0); scan.mutate({ q: q0 }); }
+    } catch { /* adresse illisible */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lecture en arrière-plan côté serveur : tant que le scan est « en cours », la page se met à jour toutes les trois secondes
   const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false, refetchInterval: (query: any) => (query.state.data?.scan?.status === 'pending' || query.state.data?.scan?.insightsPending || query.state.data?.scan?.auditPending ? 3000 : false) });
@@ -278,11 +286,11 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
       {!slug && recent?.length > 0 && (
         <Card className="p-6">
-          <h3 className="font-semibold text-neutral-900 mb-3">Scans déjà faits</h3>
+          <h3 className="font-semibold text-neutral-900 mb-3">{auditView ? 'Voir un exemple avant de lancer le vôtre' : 'Scans déjà faits'}</h3>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
             {recent.map((r: any) => (
               <Link key={r.slug} href={`/publicites/${r.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
-                <div className="font-medium text-neutral-900">{r.pageName}</div>
+                <div className="font-medium text-neutral-900">{r.pageName}{r.pinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-primary-600">exemple</span> : null}</div>
                 <div className="text-xs text-neutral-600">{r.totalActive} publicité{r.totalActive > 1 ? 's' : ''} active{r.totalActive > 1 ? 's' : ''}{r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}</div>
               </Link>
             ))}

@@ -6,6 +6,7 @@ import { CheckCircle, Shield, FileSignature, UserX, ShieldCheck, Clapperboard, S
 import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import RegistryMock from '@/components/RegistryMock';
+import AdScanBanner from '@/components/AdScanBanner';
 
 export const metadata: Metadata = {
   title: 'Trouver des créateurs UGC : NeedCreator pour les marques',
@@ -89,6 +90,9 @@ export default async function BrandsPage() {
           </Link>
         </div>
       </section>
+
+      {/* Scan concurrentiel : les publicités d'un concurrent, lancé depuis la page */}
+      <AdScanBanner />
 
       {/* Candidature spontanée : une vidéo déjà tournée, à regarder avant de payer */}
       <section className="py-16 bg-white border-y border-neutral-100">

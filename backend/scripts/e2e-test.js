@@ -1960,6 +1960,18 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   expect(v1.status === 200 && v2.data.views === 2 && v2.data.indexable === true && after.humanViewedAt && indexable(after), 'Deux consultations : compteur à 2, page indexable', { v1: v1.data, v2: v2.data });
   const recent = await pubApi('GET', '/ad-scans/recent');
   expect(recent.status === 200 && recent.data.scans.some(x => x.slug === slug && x.totalActive === 17 && x.oldestDays === 120), 'Les scans consultés sont proposés en exemples', recent.data.scans?.map(x => x.slug));
+  // Exemples épinglés en tête ; derniers scans d'un compte (tableau de bord marque)
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const pinSet = await brandApi('PUT', '/admin/settings/scanPinned', { value: `https://needcreator.com/publicites/${slug}, marque-absente` });
+  const pinned = await pubApi('GET', '/ad-scans/recent');
+  await brandApi('PUT', '/admin/settings/scanPinned', { value: 'respire, laboratoires-filorga, hydratis' });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(pinSet.status === 200 && pinned.data.scans[0]?.slug === slug && pinned.data.scans[0].pinned === true && !pinned.data.scans.some(x => x.slug === 'marque-absente'), 'Un exemple épinglé passe en tête, une adresse sans scan est ignorée', { pinSet: pinSet.status, first: pinned.data.scans?.[0] });
+  const brandUser = await db.collection('users').findOne({ email: brandEmail });
+  await db.collection('adscanrequests').insertOne({ userId: brandUser._id, slug, createdAt: new Date() });
+  const mine = await brandApi('GET', '/ad-scans/mine');
+  const mineAnon = await pubApi('GET', '/ad-scans/mine');
+  expect(mine.status === 200 && mine.data.scans.some(x => x.slug === slug && x.totalActive === 17) && mineAnon.status === 401, 'Les derniers scans d\'un compte, réservés au compte', { mine: mine.data, anon: mineAnon.status });
   // Page retirée : plus affichée
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)
   const blockSet = await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: `E2E Scan Marque ${RUN}` });

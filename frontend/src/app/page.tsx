@@ -4,6 +4,7 @@ import { Sparkles, TrendingUp, Shield, Zap, CheckCircle, Video, Clock, FileSigna
 import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
+import AdScanBanner from '@/components/AdScanBanner';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 
 export const metadata: Metadata = {
@@ -105,6 +106,9 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Scan concurrentiel : les publicités d'un concurrent, lancé depuis la page */}
+      <AdScanBanner />
 
       {/* Candidature spontanée : une vidéo déjà tournée, à regarder avant de payer */}
       <section className="py-16 bg-white border-y border-neutral-100">
