@@ -43,3 +43,32 @@ export async function searchBrands(keyword, { limit = 50 } = {}) {
   logger.info(`Meta « ${keyword} » : ${(data.data || []).length} annonces, ${out.length} marques`);
   return out;
 }
+
+const AD_FIELDS = 'id,page_id,page_name,ad_creative_bodies,ad_creative_link_titles,ad_creative_link_descriptions,ad_creative_link_captions,publisher_platforms,ad_delivery_start_time,ad_delivery_stop_time,eu_total_reach,target_ages,target_gender,target_locations,languages';
+
+/**
+ * Publicités actives (France) : par mot-clé (`search_terms`) ou par page (`search_page_ids`). Suit la pagination jusqu'à `max` publicités.
+ * Mêmes conditions d'accès que searchBrands. Erreur Meta remontée avec son code (10 : identité non vérifiée, 190 : jeton expiré).
+ */
+export async function fetchAds({ terms, pageIds, max = 200, country = 'FR' } = {}) {
+  const token = await metaToken();
+  if (!token) throw Object.assign(new Error('Meta non configuré'), { code: 'NO_TOKEN' });
+  const out = [];
+  let url = new URL(`${API}/ads_archive`);
+  if (terms) url.searchParams.set('search_terms', terms);
+  if (pageIds?.length) url.searchParams.set('search_page_ids', JSON.stringify(pageIds.map(String)));
+  url.searchParams.set('ad_reached_countries', JSON.stringify([country]));
+  url.searchParams.set('ad_active_status', 'ACTIVE');
+  url.searchParams.set('ad_type', 'ALL');
+  url.searchParams.set('limit', String(Math.min(100, max)));
+  url.searchParams.set('fields', AD_FIELDS);
+  url.searchParams.set('access_token', token);
+  for (let page = 0; page < 5 && url && out.length < max; page++) {
+    const res = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    const data = await res.json();
+    if (data.error) { const e = new Error(`Meta ads_archive: ${data.error.message}`); e.code = data.error.code; throw e; }
+    out.push(...(data.data || []));
+    url = data.paging?.next ? new URL(data.paging.next) : null;
+  }
+  return out.slice(0, max);
+}

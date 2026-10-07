@@ -1912,6 +1912,79 @@ await step('Brief depuis une URL produit : page publique, reprise par une marque
   } finally { srv.close(); }
 });
 
+await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme / inscrit, lien direct, brief « l\'équivalent », retrait', async () => {
+  const { tierOf, slugify, isBlockedPage, pickAd, adStats, indexable } = await import('../src/services/adScan.js');
+  const { metaConfigured } = await import('../src/services/acquisition/meta.js');
+  const aiOn = (await import('../src/services/ai.js')).aiConfig().configured;
+  const db = mongoose.connection.db;
+  const pubApi = client(null);
+  // Fonctions pures : palier, adresse, pages retirées, lecture d'une publicité Meta, chiffres
+  expect(tierOf(null) === 'anon' && tierOf({ isPro: () => false }) === 'member' && tierOf({ isPro: () => true }) === 'pro', 'Le palier dépend du compte : anonyme, inscrit, Pro', { a: tierOf(null) });
+  expect(slugify('Cabaïa – Sacs & Bonnets') === 'cabaia-sacs-bonnets' && isBlockedPage('123456, Nike', { pageId: '999', pageName: 'NIKE' }) && isBlockedPage('123456', { pageId: '123456', pageName: 'x' }) && !isBlockedPage('nike', { pageId: '1', pageName: 'Nikon' }), 'Adresse lisible et liste des pages retirées (nom ou identifiant)', { slug: slugify('Cabaïa – Sacs & Bonnets') });
+  const now = Date.now();
+  const raw = { id: '777', page_id: '42', page_name: 'E2E Scan Marque', ad_creative_bodies: ['Gourde isotherme -30 % cette semaine'], ad_creative_link_titles: ['Nomade 750 ml'], ad_creative_link_captions: ['WWW.E2ESCAN-TEST.FR'], publisher_platforms: ['facebook', 'instagram'], ad_delivery_start_time: new Date(now - 95 * 86400000).toISOString(), eu_total_reach: 12000, target_ages: ['25', '44'], target_gender: 'Women', target_locations: [{ name: 'France' }, { name: 'Belgique', excluded: true }], languages: ['fr'] };
+  const ad = pickAd(raw);
+  expect(ad.id === '777' && ad.body.startsWith('Gourde') && ad.ages === '25-44' && ad.gender === 'Women' && ad.countries.length === 1 && ad.countries[0] === 'France' && ad.reach === 12000 && !JSON.stringify(ad).includes('access_token'), 'Une publicité Meta est réduite au texte, aux dates et au ciblage déclaré, sans lien d\'aperçu porteur de jeton', ad);
+  // Scan posé en base (la lecture réelle chez Meta n'est pas appelée par les tests) : 14 publicités, la plus ancienne 120 jours
+  const ads = Array.from({ length: 14 }, (_, i) => ({ ...ad, id: `e2e${RUN}-${i}`, body: i % 2 ? `Pub ${i} : prix cassé, livraison offerte` : `Pub ${i} : témoignage client, 5 étoiles`, startedAt: new Date(now - (120 - i * 7) * 86400000) }));
+  const stats = adStats(ads, now);
+  expect(stats.oldestDays === 120 && stats.over90Days === 5 && stats.platforms.instagram === 14 && stats.ages[0] === '25-44' && stats.countries[0] === 'France', 'Les chiffres du scan : ancienneté, plus de 90 jours, supports, âges, pays', stats);
+  const slug = `e2e-scan-marque-${RUN}`.toLowerCase();
+  await db.collection('adscans').deleteMany({ slug: /^e2e-scan-marque/ });
+  await db.collection('leads').deleteMany({ externalId: /^e2escan-/ });
+  const scanLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2escan-${RUN}`, name: `E2E Scan Marque ${RUN}`, website: 'https://www.e2escan-test.fr/', status: 'to_contact', score: 70, createdAt: new Date(), updatedAt: new Date() });
+  try {
+  await db.collection('adscans').insertOne({ slug, query: 'E2E Scan Marque', pageId: `9${Date.now()}`, pageName: `E2E Scan Marque ${RUN}`, website: 'https://e2escan-test.fr', ads, totalActive: 17, stats, insights: { summary: 'Des gourdes isothermes vendues en ligne, à un public féminin de 25 à 44 ans.', angles: [{ name: 'prix / promotion', count: 7, example: 'prix cassé, livraison offerte' }, { name: 'preuve sociale', count: 7, example: 'témoignage client, 5 étoiles' }, { name: 'bénéfice concret', count: 3, example: 'garde 24 h au froid' }], hooks: ['Gourde isotherme'], missing: ['Aucune publicité ne montre le produit en usage réel', 'Aucune ne compare avec une bouteille jetable', 'Aucune ne parle de l\'entretien'], facts: ['7 publicités sur 14 citent un prix', 'La publicité la plus ancienne tourne depuis 120 jours'] }, status: 'ready', views: 0, briefs: 0, proposals: 0, fetchedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
+  // Anonyme : 10 publicités, les constats, les angles verrouillés ; inscrit : tout
+  const anon = await pubApi('GET', `/ad-scans/${slug}`);
+  const a = anon.data.scan;
+  expect(anon.status === 200 && a.tier === 'anon' && a.ads.length === 10 && a.hidden === 4 && a.shown === 10 && a.ads[0].days === 120 && a.ads[0].url === `https://www.facebook.com/ads/library/?id=${ads[0].id}` && a.insights.facts.length === 2 && a.insights.locked.includes('missing') && !a.insights.missing && a.insights.angles.length === 2 && !a.insights.angles[0].example && anon.data.indexable === false, 'Sans compte : les dix publicités les plus anciennes, les constats, le reste verrouillé ; pas encore indexable (aucune consultation)', { status: anon.status, tier: a?.tier, ads: a?.ads?.length, hidden: a?.hidden, locked: a?.insights?.locked, indexable: anon.data.indexable });
+  const full = await brandApi('GET', `/ad-scans/${slug}`);
+  const f = full.data.scan;
+  expect(full.status === 200 && ['member', 'pro'].includes(f.tier) && f.ads.length === 14 && f.hidden === 0 && f.insights.missing.length === 3 && f.insights.hooks.length === 1 && f.insights.angles[0].example && f.insights.locked.length === 0 && f.leadId === null, 'Inscrit : toutes les publicités et la lecture complète', { tier: f?.tier, ads: f?.ads?.length, locked: f?.insights?.locked });
+  // Créateur : la fiche prospect de la marque, quand elle existe, pour « Proposer une vidéo »
+  const asCreator = await creatorApi('GET', `/ad-scans/${slug}`);
+  expect(asCreator.status === 200 && String(asCreator.data.scan.leadId) === String(scanLead.insertedId) && asCreator.data.scan.ads.length === 14, 'Un créateur connecté voit tout et retrouve la fiche de la marque (bouton « Proposer une vidéo »)', { leadId: asCreator.data.scan?.leadId, expected: scanLead.insertedId });
+  // Consultation : compteur, et la page devient indexable (publicités et consultation humaine)
+  const v1 = await pubApi('POST', `/ad-scans/${slug}/view`); const v2 = await pubApi('POST', `/ad-scans/${slug}/view`);
+  const after = await db.collection('adscans').findOne({ slug });
+  expect(v1.status === 200 && v2.data.views === 2 && v2.data.indexable === true && after.humanViewedAt && indexable(after), 'Deux consultations : compteur à 2, page indexable', { v1: v1.data, v2: v2.data });
+  const recent = await pubApi('GET', '/ad-scans/recent');
+  expect(recent.status === 200 && recent.data.scans.some(x => x.slug === slug && x.totalActive === 17 && x.oldestDays === 120), 'Les scans consultés sont proposés en exemples', recent.data.scans?.map(x => x.slug));
+  // Page retirée : plus affichée
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)
+  const blockSet = await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: `E2E Scan Marque ${RUN}` });
+  const gone = await pubApi('GET', `/ad-scans/${slug}`);
+  await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: '' });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(blockSet.status === 200 && gone.status === 410 && gone.data.code === 'BLOCKED', 'Une page de la liste des pages retirées n\'est plus affichée', { blockSet, gone: { status: gone.status, code: gone.data?.code } });
+  // Retrait demandé par la marque : transmis à l'équipe, rien de retiré d'office
+  const opt = await pubApi('POST', `/ad-scans/${slug}/opt-out`, { email: `marque-${RUN}@needcreator-test.com`, reason: 'Nous ne souhaitons pas apparaître' });
+  const still = await pubApi('GET', `/ad-scans/${slug}`);
+  expect(opt.status === 200 && /transmise/.test(opt.data.message) && still.status === 200, 'La demande de retrait est transmise, la page reste jusqu\'à décision de l\'équipe', { opt: opt.data, still: still.status });
+  // « Commander l'équivalent » : brief NeedCreator rattaché au scan, repris par le pont du brief depuis URL
+  const bf = await brandApi('POST', `/ad-scans/${slug}/brief`, { adId: ads[0].id });
+  if (aiOn) {
+    const pb = bf.data.briefId ? await db.collection('productbriefs').findOne({ _id: new mongoose.Types.ObjectId(String(bf.data.briefId)) }) : null;
+    const counted = await db.collection('adscans').findOne({ slug });
+    expect(bf.status === 201 && pb && String(pb.scanId) === String(after._id) && pb.scanAdId === ads[0].id && pb.product?.brand === `E2E Scan Marque ${RUN}` && pb.analysis?.angles?.length === 3 && pb.brief?.title && pb.budget?.mid > 0 && counted.briefs === 1, 'Le brief « l\'équivalent » est préparé depuis la publicité choisie, rattaché au scan, avec angles, brief et budget', { status: bf.status, data: bf.data, pb: pb && { brand: pb.product?.brand, angles: pb.analysis?.angles?.length, title: pb.brief?.title, budget: pb.budget?.mid } });
+    const claim = await brandApi('POST', `/product-briefs/${bf.data.briefId}/claim`);
+    expect(claim.status === 200 && claim.data.campaignId, 'La marque transforme le brief du scan en campagne brouillon', claim);
+    if (claim.data?.campaignId) await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(String(claim.data.campaignId)) });
+    if (pb) await db.collection('productbriefs').deleteOne({ _id: pb._id });
+  } else expect(bf.status === 503, 'Sans IA, le brief depuis un scan est refusé proprement', bf);
+  // Lecture réelle : sans accès Meta, refus explicite ; avec, non appelée par les tests (quota partagé avec la prospection)
+  if (!(await metaConfigured())) { const live = await pubApi('POST', '/ad-scans', { q: 'Marque Inconnue' }); expect(live.status === 503 && live.data.code === 'META_OFF', 'Sans accès Meta, le scan dit pourquoi', live); }
+  const badQ = await pubApi('POST', '/ad-scans', { q: 'a' });
+  expect(badQ.status === 400, 'Un nom d\'un caractère est refusé', badQ);
+  } finally {
+    await db.collection('leads').deleteOne({ _id: scanLead.insertedId });
+    await db.collection('adscans').deleteMany({ slug });
+    await db.collection('adscanrequests').deleteMany({ slug });
+  }
+  return `paliers anonyme (10 pubs, constats) / inscrit (tout) / créateur (fiche marque), consultation et indexation, liste des pages retirées, demande de retrait, ${aiOn ? 'brief « l\'équivalent » et campagne brouillon' : 'IA non configurée'}`;
+});
+
 await step('Pack prêt à diffuser : commande, paiement, formats 9:16 + 1:1, vignette', async () => {
   const { makeSampleVideo } = await import('../src/services/video.js');
   const sample = await makeSampleVideo(2);

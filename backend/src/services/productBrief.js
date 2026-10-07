@@ -175,22 +175,30 @@ export async function buildProductBrief(url, { ip, manual } = {}) {
   const extracted = manual?.description
     ? { product: { name: clip(manual.name, 150), brand: clip(manual.brand, 80) || u.hostname.replace(/^www\./, ''), description: clip(manual.description, 1500), price: Number.isFinite(Number(manual.price)) && Number(manual.price) > 0 ? Number(manual.price) : null, currency: 'EUR', image: '' }, text: clip(manual.description, 4000) }
     : await extractProduct(u.href);
+  const doc = await assembleBrief(extracted, { url: u.href, domain: u.hostname.replace(/^www\./, ''), ip, manual: !!manual?.description });
+  logger.info(`Product brief ${doc._id} generated from ${u.hostname}`);
+  return doc;
+}
+
+/**
+ * Analyse, brief, budget, enregistrement à partir d'un produit déjà lu ({ product, text }). Partagé par le brief depuis une URL et par le scan
+ * concurrentiel (« commander l'équivalent » : le produit est la marque, le texte ses publicités). `extra` complète le document (scanId…).
+ */
+export async function assembleBrief(extracted, { url, domain, ip, manual = false, goal, extra = {} } = {}) {
   const analysis = await analyzeProduct(extracted);
   const { product } = extracted;
   const brief = await generateBrief({
     productDescription: `${product.name}${product.price != null ? ` (${product.price} ${product.currency || '€'})` : ''}. ${product.description || ''} Positionnement : ${analysis.positioning} Angles retenus : ${analysis.angles.map(a => `${a.title} (« ${a.hook} »)`).join(' ; ')}.`,
-    brandName: product.brand || u.hostname.replace(/^www\./, ''), industry: analysis.niche, videoType: analysis.videoType, videoTypeLabel: TYPE_LABELS[analysis.videoType],
-    platforms: analysis.platforms.join(', '), niches: analysis.niche, goal: 'faire découvrir le produit et générer des ventes', tone: 'authentique', duration: analysis.duration, deliverables: analysis.deliverables,
+    brandName: product.brand || domain, industry: analysis.niche, videoType: analysis.videoType, videoTypeLabel: TYPE_LABELS[analysis.videoType],
+    platforms: analysis.platforms.join(', '), niches: analysis.niche, goal: goal || 'faire découvrir le produit et générer des ventes', tone: 'authentique', duration: analysis.duration, deliverables: analysis.deliverables,
   });
   const rates = await marketRatesData();
   const est = estimateRate({ videoType: analysis.videoType, duration: analysis.duration, deliverables: analysis.deliverables, rights: '1y', supports: 'social_organic,paid_ads' }, rates.rates);
-  const doc = await ProductBrief.create({
-    url: u.href, domain: u.hostname.replace(/^www\./, ''), ip, product, analysis, manual: !!manual?.description,
+  return ProductBrief.create({
+    url, domain, ip, product, analysis, manual, ...extra,
     brief: { title: brief.title, description: brief.description, requirements: brief.requirements, dos: brief.dos, donts: brief.donts, hashtags: brief.hashtags },
     budget: { low: est.total.low, mid: est.total.mid, high: est.total.high, perVideoMid: est.perVideo.mid },
   });
-  logger.info(`Product brief ${doc._id} generated from ${u.hostname}`);
-  return doc;
 }
 
 /** Transforme un brief URL en campagne brouillon pour la marque (inscription ou marque connectée) */

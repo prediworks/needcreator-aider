@@ -9,6 +9,8 @@ const productBriefSchema = new mongoose.Schema({
   domain: String,
   ip: String,
   manual: { type: Boolean, default: false }, // description saisie à la main (page illisible)
+  scanId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdScan' }, // brief « l'équivalent » d'une publicité vue dans un scan concurrentiel
+  scanAdId: String,
   product: {
     name: String,
     brand: String,

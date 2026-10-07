@@ -1,0 +1,211 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api, { getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import { formatDate } from '@/lib/utils';
+import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3 } from 'lucide-react';
+
+const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger', audience_network: 'Audience Network', threads: 'Threads' };
+const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hommes' };
+
+/**
+ * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
+ * marchent), des constats factuels par l'IA, et « Commander l'équivalent » en vidéo créateur. Sans compte : un aperçu ; inscrit : tout.
+ */
+export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string }) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const [q, setQ] = useState('');
+  const [slug, setSlug] = useState(initialSlug);
+  const [candidates, setCandidates] = useState<any[] | null>(null);
+  const [optOut, setOptOut] = useState(false);
+  const [optEmail, setOptEmail] = useState(''); const [optReason, setOptReason] = useState('');
+
+  const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false });
+  const { data: recent } = useQuery({ queryKey: ['ad-scans-recent'], queryFn: async () => (await api.get('/ad-scans/recent')).data.scans, enabled: !slug, staleTime: 300000 });
+  // Consultation par un navigateur : compteur, et condition d'indexation de la page
+  useEffect(() => { if (slug && data?.scan) api.post(`/ad-scans/${slug}/view`).catch(() => null); }, [slug, data?.scan?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scan = useMutation({
+    mutationFn: async (body: { q?: string; pageId?: string }) => (await api.post('/ad-scans', body)).data,
+    onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); router.replace(`/publicites/${d.scan.slug}`); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const brief = useMutation({
+    mutationFn: async (adId?: string) => (await api.post(`/ad-scans/${slug}/brief`, { adId: adId || '' })).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const sendOptOut = useMutation({
+    mutationFn: async () => (await api.post(`/ad-scans/${slug}/opt-out`, { email: optEmail, reason: optReason })).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setOptOut(false); },
+    onError: (e: any) => toast.error(getErrorMessage(e)),
+  });
+  const share = async () => { try { await navigator.clipboard.writeText(window.location.href); toast.success('Lien copié'); } catch { toast.error('Presse-papiers indisponible'); } };
+
+  const s = data?.scan;
+  const errStatus = (error as any)?.response?.status;
+  const proposeHref = s ? (s.leadId ? `/vitrine?marque=${s.leadId}` : `/vitrine?suggerer=${encodeURIComponent(s.pageName || '')}${s.website ? `&site=${encodeURIComponent(s.website)}` : ''}`) : '/vitrine';
+
+  return (
+    <div className="space-y-6">
+      <Card className="p-6">
+        <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) scan.mutate({ q: q.trim() }); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <div className="flex-1"><Input label="Nom d'une marque (un concurrent, ou la vôtre)" placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>
+          <Button type="submit" isLoading={scan.isPending} data-testid="ad-scan-go"><Search className="w-4 h-4 mr-2" /> Voir ses publicités</Button>
+        </form>
+        {scan.isPending && <p className="text-sm text-neutral-600 mt-3">Lecture de la bibliothèque publicitaire Meta, puis lecture des textes par l&apos;IA : trente secondes environ.</p>}
+        {candidates && (
+          <div className="mt-4" data-testid="ad-scan-candidates">
+            <div className="text-sm font-medium text-neutral-900 mb-2">Plusieurs pages portent ce nom. Laquelle ?</div>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {candidates.map((c) => (
+                <button key={c.pageId} type="button" onClick={() => scan.mutate({ pageId: c.pageId })} className="text-left p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
+                  <div className="font-medium text-neutral-900">{c.pageName}</div>
+                  <div className="text-xs text-neutral-600">{c.ads} publicité{c.ads > 1 ? 's' : ''} active{c.ads > 1 ? 's' : ''}{c.website ? ` · ${c.website}` : ''}</div>
+                  {c.sample && <div className="text-xs text-neutral-500 mt-1 line-clamp-2">{c.sample}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {!slug && !candidates && !user && <p className="text-xs text-neutral-500 mt-3">Sans compte : 3 marques par jour, les 10 publicités les plus anciennes et les premiers constats. Avec un compte gratuit (marque ou créateur) : 10 marques par jour, toutes les publicités, la lecture complète.</p>}
+      </Card>
+
+      {slug && isFetching && !s && <Card className="p-6 text-sm text-neutral-600">Chargement du scan…</Card>}
+      {slug && errStatus === 410 && <Card className="p-6 text-sm text-neutral-700">Cette marque a demandé à ne pas apparaître dans l&apos;outil.</Card>}
+      {slug && errStatus === 404 && <Card className="p-6 text-sm text-neutral-700">Scan introuvable. <button type="button" className="underline text-primary-700" onClick={() => { setSlug(''); router.replace('/publicites-concurrents'); }}>Lancer un nouveau scan</button></Card>}
+
+      {s && (
+        <div className="space-y-6" data-testid="ad-scan-result">
+          <Card className="p-6">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-xs font-medium text-primary-600">Publicités Meta actives en France · lu le {formatDate(s.fetchedAt)}</div>
+                <h2 className="text-2xl font-bold text-neutral-900" data-testid="ad-scan-name">{s.pageName}</h2>
+                <div className="text-sm text-neutral-600 mt-1 flex gap-3 flex-wrap">
+                  {s.website && <a href={s.website} target="_blank" rel="noreferrer" className="underline">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</a>}
+                  <a href={s.libraryUrl} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Voir dans la bibliothèque Meta <ExternalLink className="w-3 h-3" /></a>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={share} title="Copie le lien de cette page : elle est publique"><Share2 className="w-4 h-4 mr-1" /> Partager</Button>
+                {user?.role === 'creator' ? (
+                  <Link href={proposeHref}><Button size="sm" title="Vous possédez un produit de cette marque ? Tournez votre version de sa publicité qui marche : elle la reçoit finie avec un devis et l'achète en un clic" data-testid="ad-scan-propose"><Clapperboard className="w-4 h-4 mr-1" /> Proposer une vidéo à cette marque</Button></Link>
+                ) : (
+                  <Button size="sm" onClick={() => brief.mutate(undefined)} isLoading={brief.isPending} disabled={s.status !== 'ready'} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Commander l&apos;équivalent <ArrowRight className="w-4 h-4 ml-1" /></Button>
+                )}
+              </div>
+            </div>
+            {s.status === 'empty' ? (
+              <p className="text-sm text-neutral-700 mt-4" data-testid="ad-scan-empty">Aucune publicité active en France pour cette page en ce moment. Essayez l&apos;orthographe exacte du nom de la page Facebook, ou une autre marque.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm" data-testid="ad-scan-stats">
+                <Stat label="Publicités actives" value={String(s.totalActive)} />
+                <Stat label="La plus ancienne" value={s.stats?.oldestDays != null ? `${s.stats.oldestDays} j` : '—'} hint="Une publicité maintenue longtemps est une publicité qui rapporte" />
+                <Stat label="Depuis plus de 90 jours" value={String(s.stats?.over90Days ?? 0)} />
+                <Stat label="Supports" value={Object.entries(s.stats?.platforms || {}).sort((a: any, b: any) => b[1] - a[1]).slice(0, 2).map(([k]) => PLATFORM[k] || k).join(', ') || '—'} />
+                {(s.stats?.ages?.length > 0 || s.stats?.countries?.length > 0) && <div className="col-span-2 md:col-span-4 text-xs text-neutral-600">{s.stats.ages?.length ? `Âges visés : ${s.stats.ages.join(', ')} ans` : ''}{s.stats.ages?.length && s.stats.countries?.length ? ' · ' : ''}{s.stats.countries?.length ? `Pays : ${s.stats.countries.join(', ')}` : ''}{s.stats.reach ? ` · portée estimée cumulée en Europe : ${Number(s.stats.reach).toLocaleString('fr-FR')}` : ''}</div>}
+              </div>
+            )}
+          </Card>
+
+          {s.insights && (
+            <Card className="p-6" data-testid="ad-scan-insights">
+              <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-2"><BarChart3 className="w-5 h-5 text-primary-600" /> Ce que disent ces publicités</h3>
+              {s.insights.summary && <p className="text-sm text-neutral-700">{s.insights.summary}</p>}
+              {s.insights.facts?.length > 0 && <ul className="list-disc pl-5 mt-3 text-sm text-neutral-700 space-y-1">{s.insights.facts.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul>}
+              <div className="grid md:grid-cols-3 gap-4 mt-4 text-sm">
+                <div>
+                  <div className="font-medium text-neutral-900 mb-1">Angles utilisés</div>
+                  <ul className="space-y-1 text-neutral-700">{(s.insights.angles || []).map((a: any, i: number) => <li key={i}><span className="font-medium">{a.name}</span> · {a.count} pub{a.count > 1 ? 's' : ''}{a.example ? <span className="block text-xs text-neutral-500 italic">« {a.example} »</span> : null}</li>)}</ul>
+                  {s.insights.locked?.includes('angles') && <Locked text="tous les angles avec un exemple cité" />}
+                </div>
+                <div>
+                  <div className="font-medium text-neutral-900 mb-1">Accroches qui reviennent</div>
+                  {s.insights.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.insights.locked?.includes('hooks') ? <Locked text="les formules qui reviennent" /> : <p className="text-neutral-500">Aucune formule récurrente relevée.</p>}
+                </div>
+                <div>
+                  <div className="font-medium text-neutral-900 mb-1">Angles que personne n&apos;utilise</div>
+                  {s.insights.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.missing.map((h: string, i: number) => <li key={i}>{h}</li>)}</ul> : s.insights.locked?.includes('missing') ? <Locked text="les angles libres, ceux d'une vidéo créateur qui sort du lot" /> : <p className="text-neutral-500">—</p>}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {s.ads?.length > 0 && (
+            <Card className="p-6" data-testid="ad-scan-ads">
+              <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>
+              <p className="text-xs text-neutral-500 mb-4">{s.shown} affichée{s.shown > 1 ? 's' : ''} sur {s.kept} gardée{s.kept > 1 ? 's' : ''}{s.totalActive > s.kept ? ` (${s.totalActive} actives chez Meta)` : ''}. Meta ne fournit que le texte : l&apos;aperçu (vidéo, image) s&apos;ouvre dans la bibliothèque.</p>
+              <div className="space-y-3">
+                {s.ads.map((a: any) => (
+                  <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
+                    <div className="flex items-start justify-between gap-3 flex-wrap text-xs text-neutral-600">
+                      <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
+                      <div className="flex gap-2">
+                        <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Aperçu Meta <ExternalLink className="w-3 h-3" /></a>
+                        {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => brief.mutate(a.id)} title="Prépare un brief NeedCreator : la version créateur de cette publicité">l&apos;équivalent en vidéo créateur</button>}
+                      </div>
+                    </div>
+                    {a.title && <div className="font-medium text-neutral-900 mt-2">{a.title}</div>}
+                    {a.body && <p className="text-sm text-neutral-700 mt-1 whitespace-pre-line">{a.body}</p>}
+                    {(a.description || a.caption) && <div className="text-xs text-neutral-500 mt-1">{[a.description, a.caption].filter(Boolean).join(' · ')}</div>}
+                  </div>
+                ))}
+              </div>
+              {s.hidden > 0 && (
+                <div className="mt-4 p-4 rounded-lg bg-primary-50 border border-primary-100 text-sm text-neutral-800 flex items-start gap-2" data-testid="ad-scan-locked">
+                  <Lock className="w-4 h-4 mt-0.5 text-primary-600" />
+                  <div>{s.hidden} autre{s.hidden > 1 ? 's' : ''} publicité{s.hidden > 1 ? 's' : ''}, la lecture complète de l&apos;IA et {s.limits?.memberPerDay} marques par jour avec un compte gratuit. <Link href={`/register?role=brand&next=${encodeURIComponent(`/publicites/${s.slug}`)}`} className="underline text-primary-700 font-medium">Créer mon compte marque</Link> · <Link href="/login" className="underline">Me connecter</Link></div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          <div className="text-xs text-neutral-500 flex items-center justify-between gap-3 flex-wrap">
+            <span>Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement. Les aperçus restent chez Meta.</span>
+            <button type="button" className="underline" onClick={() => setOptOut(v => !v)}>Vous êtes cette marque et ne voulez pas apparaître ?</button>
+          </div>
+          {optOut && (
+            <Card className="p-4">
+              <form onSubmit={(e) => { e.preventDefault(); sendOptOut.mutate(); }} className="grid sm:grid-cols-3 gap-3 sm:items-end">
+                <Input label="Votre email professionnel" type="email" value={optEmail} onChange={(e) => setOptEmail(e.target.value)} />
+                <Input label="Motif (facultatif)" value={optReason} onChange={(e) => setOptReason(e.target.value)} />
+                <Button type="submit" variant="outline" isLoading={sendOptOut.isPending}>Demander le retrait</Button>
+              </form>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {!slug && recent?.length > 0 && (
+        <Card className="p-6">
+          <h3 className="font-semibold text-neutral-900 mb-3">Scans déjà faits</h3>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+            {recent.map((r: any) => (
+              <Link key={r.slug} href={`/publicites/${r.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
+                <div className="font-medium text-neutral-900">{r.pageName}</div>
+                <div className="text-xs text-neutral-600">{r.totalActive} publicité{r.totalActive > 1 ? 's' : ''} active{r.totalActive > 1 ? 's' : ''}{r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}</div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-100" title={hint}><div className="text-xs text-neutral-600">{label}</div><div className="text-xl font-bold text-neutral-900">{value}</div></div>;
+}
+function Locked({ text }: { text: string }) {
+  return <div className="text-xs text-neutral-500 mt-2 inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Avec un compte gratuit : {text}.</div>;
+}

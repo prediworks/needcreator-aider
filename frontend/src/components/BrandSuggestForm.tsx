@@ -23,7 +23,8 @@ export default function BrandSuggestForm({ onPick }: { onPick: (brand: any) => v
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   // Lien « la suggérer » du tableau de bord (« ?suggerer=1 ») : le formulaire s'ouvre d'office
-  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('suggerer')) setOpen(true); } catch { /* adresse illisible */ } }, []);
+  // Depuis un scan concurrentiel (« ?suggerer=Nom&site=… ») : nom et site préremplis
+  useEffect(() => { try { const sp = new URLSearchParams(window.location.search); const sg = sp.get('suggerer'); if (sg) { setOpen(true); if (sg !== '1') setF((p) => ({ ...p, name: p.name || sg.slice(0, 120), website: p.website || (sp.get('site') || '').slice(0, 300) })); } } catch { /* adresse illisible */ } }, []);
   const [warn, setWarn] = useState('');
   const [f, setF] = useState({ name: '', website: '', instagram: '', tiktok: '', product: '' });
   const set = (k: string, v: string) => { setWarn(''); setF((p) => ({ ...p, [k]: v })); };

@@ -75,6 +75,7 @@ export default async function BrandsPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
             <Link href="/brief-depuis-url"><Button variant="outline" size="lg" className="w-full sm:w-auto">Mon brief depuis un lien produit</Button></Link>
+            <Link href="/publicites-concurrents"><Button variant="outline" size="lg" className="w-full sm:w-auto" title="Les publicités Meta actives d'un concurrent, de la plus ancienne à la plus récente, et l'équivalent en vidéo créateur">Les publicités de mes concurrents</Button></Link>
             <Link href="/nos-createurs"><Button variant="outline" size="lg" className="w-full sm:w-auto">Voir des créateurs</Button></Link>
           </div>
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-neutral-600 flex-wrap">
