@@ -3,7 +3,7 @@ import AdScan, { AdScanRequest } from '../models/AdScan.js';
 import Lead from '../models/Lead.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { fetchAds, metaConfigured } from './acquisition/meta.js';
-import { generateJson, aiConfig } from './ai.js';
+import { generateJsonText, aiConfig } from './ai.js';
 import { assembleBrief } from './productBrief.js';
 import { notifyAdmins } from './adminAlerts.js';
 import logger from '../utils/logger.js';
@@ -110,13 +110,15 @@ const insightsSchema = z.object({
 // Mots de jugement bannis des constats : on compte et on décrit, on n'évalue pas le concurrent
 const JUDGMENT = /\b(médiocre|mauvais|mauvaise|nul|nulle|ringard|faible|pauvre|raté|ratée|ennuyeux|ennuyeuse|amateur|dépassé|dépassée|incohérent|incohérente|catastroph|lamentable|minable)\b/i;
 const factual = (s) => (JUDGMENT.test(String(s || '')) ? '' : String(s || '').trim());
+// Coupe un texte trop long à la fin d'une phrase plutôt qu'au milieu d'un mot
+const cutAtSentence = (s, max) => { if (s.length <= max) return s; const head = s.slice(0, max); const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('.')); return (end > max / 2 ? head.slice(0, end + 1) : head.replace(/\s+\S*$/, '') + '…').trim(); };
 
 /** Lecture IA des publicités : angles comptés avec exemple cité, accroches récurrentes, angles absents, constats chiffrés */
 export async function analyzeAds({ pageName, ads, stats, totalActive = 0 }) {
   if (!aiConfig().configured || !ads.length) return null;
   const detailed = Math.min(30, ads.length);
   const list = ads.slice(0, 30).map((a, i) => `#${i + 1} (tourne depuis ${ageDays(a.startedAt) ?? '?'} j${a.platforms?.length ? `, ${a.platforms.join('/')}` : ''}) ${[a.title, a.body, a.description].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 350)}`).join('\n');
-  const out = await generateJson({
+  const out = await generateJsonText({
     system: 'Tu analyses les publicités actives d\'une marque pour une plateforme française de vidéos UGC. Tu es strictement factuel : tu comptes et tu décris ce qui est écrit, tu ne juges jamais la marque ni la qualité de ses publicités. Tu réponds en JSON strict, en français.',
     prompt: `Marque : « ${pageName} ». ${totalActive || ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne tourne depuis ${stats.oldestDays} jours` : ''}${stats.over90Days ? `, ${stats.over90Days} depuis plus de 90 jours` : ''}. Les ${detailed} plus anciennes sont détaillées ci-dessous (une même création diffusée plusieurs fois compte une fois) ; tes comptes portent sur ces ${detailed} publicités, sans commenter leur nombre.
 Publicités (texte seulement, Meta ne donne pas la vidéo) :
@@ -132,7 +134,7 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
     schema: insightsSchema,
     // Chaque borne du schéma est appliquée ici : le modèle déborde volontiers (résumé long, dix angles), et un débordement ferait tout rejeter
     normalize: (raw) => ({
-      summary: factual(raw?.summary).slice(0, 400),
+      summary: cutAtSentence(factual(raw?.summary), 400),
       angles: (Array.isArray(raw?.angles) ? raw.angles : []).map(a => ({ name: String(a?.name || '').slice(0, 60), count: Math.max(0, Math.min(200, parseInt(a?.count, 10) || 0)), example: factual(a?.example).slice(0, 220) })).filter(a => a.name).slice(0, 8),
       hooks: (Array.isArray(raw?.hooks) ? raw.hooks : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.hook || '').slice(0, 160)).filter(Boolean).slice(0, 5),
       missing: (Array.isArray(raw?.missing) ? raw.missing : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.name || '').slice(0, 160)).filter(Boolean).slice(0, 3),
@@ -260,12 +262,34 @@ export async function processScan(scanId, { page, name = '', tier = 'anon', ip =
   await AdScan.updateOne({ _id: scanId }, { $set: { pageName, website: website ? `https://${website}` : null, ads, totalActive: raw.length, stats, status: ads.length ? 'ready' : 'empty', error: null, insights: null, insightsPending: ads.length > 0, fetchedAt: new Date() } });
   let insights = null;
   if (ads.length) {
-    try { insights = await Promise.race([analyzeAds({ pageName, ads, stats, totalActive: raw.length }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 120000))]); }
+    try { insights = await Promise.race([analyzeAds({ pageName, ads, stats, totalActive: raw.length }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
     catch (err) { logger.warn(`Ad scan ${pageName}: IA en échec (${err.message})`); }
   }
   await AdScan.updateOne({ _id: scanId }, { $set: { insights, insightsPending: false } });
   logger.info(`Ad scan ${pageName}: ${raw.length} active ad(s), ${ads.length} kept, ${insights ? 'insights ok' : 'no insights'} (${tier}${ip ? `, ${ip}` : ''})`);
   return null;
+}
+
+const hasInsights = (scan) => !!(scan?.insights && (scan.insights.summary || scan.insights.facts?.length || scan.insights.angles?.length));
+
+/**
+ * Un scan prêt, avec des publicités mais sans lecture IA (lecture en échec, ou scan fait par une version qui échouait) : la lecture IA
+ * est relancée seule, sans rappeler Meta, au plus une fois par heure. Appelé à chaque consultation de la page.
+ */
+export async function ensureInsights(scan) {
+  if (!scan || scan.status !== 'ready' || !scan.ads?.length || hasInsights(scan) || scan.insightsPending || !aiConfig().configured) return false;
+  if (scan.insightsTriedAt && Date.now() - new Date(scan.insightsTriedAt).getTime() < 3600000) return false;
+  const r = await AdScan.updateOne({ _id: scan._id, insightsPending: { $ne: true } }, { $set: { insightsPending: true, insightsTriedAt: new Date() } });
+  if (!r.modifiedCount) return false;
+  scan.insightsPending = true;
+  setImmediate(async () => {
+    let insights = null;
+    try { insights = await Promise.race([analyzeAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
+    catch (err) { logger.warn(`Ad scan ${scan.slug}: relecture IA en échec (${err.message})`); }
+    await AdScan.updateOne({ _id: scan._id }, { $set: { insights, insightsPending: false } });
+    if (insights) logger.info(`Ad scan ${scan.slug}: insights added on a later reading`);
+  });
+  return true;
 }
 
 /** Lien public d'une publicité dans la bibliothèque Meta (sans jeton) */
@@ -282,7 +306,7 @@ export async function serializeScan(scan, { user, settings } = {}) {
   const shown = tier === 'anon' ? all.slice(0, st.scanAnonAds) : all;
   const now = Date.now();
   const ads = shown.map((a, i) => ({ id: a.id, index: i + 1, variants: a.variants || 1, body: a.body, title: a.title, description: a.description, caption: a.caption, startedAt: a.startedAt, days: ageDays(a.startedAt, now), platforms: a.platforms, reach: a.reach, ages: a.ages, gender: a.gender, countries: a.countries, url: adLibraryUrl(a.id) }));
-  const ins = scan.insights && (scan.insights.summary || scan.insights.facts?.length || scan.insights.angles?.length) ? scan.insights : null; // sous-document vide tant que l'IA n'a pas parlé
+  const ins = hasInsights(scan) ? scan.insights : null; // sous-document vide tant que l'IA n'a pas parlé
   const insights = ins ? (tier === 'anon' ? { summary: ins.summary || '', facts: ins.facts || [], angles: (ins.angles || []).slice(0, 2).map(a => ({ name: a.name, count: a.count })), locked: ['angles', 'hooks', 'missing'] } : { summary: ins.summary || '', facts: ins.facts || [], angles: ins.angles || [], hooks: ins.hooks || [], missing: ins.missing || [], locked: [] }) : null;
   let leadId = null;
   if (user?.role === 'creator' && scan.pageName) {

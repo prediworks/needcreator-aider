@@ -44,6 +44,7 @@ const adScanSchema = new mongoose.Schema({
   status: { type: String, enum: ['pending', 'ready', 'empty', 'failed', 'blocked'], default: 'ready', index: true }, // pending : lecture en cours en arrière-plan
   error: String,
   insightsPending: { type: Boolean, default: false }, // publicités déjà là, lecture IA encore en cours
+  insightsTriedAt: Date,     // dernière tentative de lecture IA : une relance par heure au plus
   ip: String,
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   views: { type: Number, default: 0 },

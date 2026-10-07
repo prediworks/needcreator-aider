@@ -1,5 +1,5 @@
 import AdScan from '../models/AdScan.js';
-import { runScan, serializeScan, briefFromScan, indexable, scanSettings } from '../services/adScan.js';
+import { runScan, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights } from '../services/adScan.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -28,6 +28,7 @@ export async function getScan(req, res) {
     const st = await scanSettings();
     const { isBlockedPage } = await import('../services/adScan.js');
     if (scan.status === 'blocked' || isBlockedPage(st.scanBlockedPages, scan)) return res.status(410).json({ error: 'Cette marque a demandé à ne pas apparaître dans l\'outil.', code: 'BLOCKED' });
+    await ensureInsights(scan); // publicités sans lecture IA : la lecture repart en arrière-plan, la page suit
     res.json({ scan: await serializeScan(scan, { user: req.user, settings: st }), indexable: indexable(scan) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'getScan'); }
 }

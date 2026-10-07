@@ -178,6 +178,16 @@ export async function generateJson({ system, prompt, schema, normalize = (x) => 
 }
 
 /**
+ * Même chose en un seul appel au modèle : génération texte puis lecture tolérante du JSON, sans passer par la sortie structurée
+ * (qui, chez un fournisseur qui ne la supporte pas, échoue puis se rabat : deux à quatre appels). Pour les lectures longues (listes de publicités).
+ */
+export async function generateJsonText({ system, prompt, schema, normalize = (x) => x }) {
+  const model = await getModel();
+  const r = await generateText({ model, system, prompt, maxRetries: 1 });
+  return schema.parse(normalize(parseJsonLoose(r.text)));
+}
+
+/**
  * Génère un brief structuré. Essaie d'abord la sortie structurée native du fournisseur,
  * puis se rabat sur une génération texte + lecture tolérante du JSON.
  */
