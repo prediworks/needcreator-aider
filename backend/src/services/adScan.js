@@ -239,6 +239,7 @@ export async function runScan({ q, pageId, pageName, ip, user } = {}) {
   const scan = await AdScan.findOneAndUpdate({ pageId: page.pageId }, {
     $set: { slug, query: name || page.pageName, pageName: page.pageName || name, status: 'pending', error: null },
     $setOnInsert: { ip, userId: user?._id, ads: [], totalActive: 0 },
+    $inc: { scans: 1, memberScans: tier === 'anon' ? 0 : 1 },
   }, { upsert: true, new: true, setDefaultsOnInsert: true });
   await AdScanRequest.create({ ip, userId: user?._id, slug: scan.slug });
   setImmediate(() => processScan(scan._id, { page, name, tier, ip, settings: st }).catch(err => logger.error(`Ad scan ${scan.slug} failed: ${err.message}`)));
@@ -426,4 +427,72 @@ export async function briefFromScan(scan, { adId, proposal, ip, user } = {}) {
   });
   await AdScan.updateOne({ _id: scan._id }, { $inc: { briefs: 1 } });
   return pb;
+}
+
+/** Prospect marque déjà connu pour cette page : même page Meta (recherche nocturne), même nom ou même site */
+async function leadForScan(scan) {
+  const esc = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const or = [{ source: 'meta', externalId: String(scan.pageId) }, { kind: 'brand', name: new RegExp(`^\\s*${esc(scan.pageName || '')}\\s*$`, 'i') }];
+  if (scan.website) { try { or.push({ kind: 'brand', website: new RegExp(`^https?://(www\\.)?${esc(new URL(scan.website).hostname.replace(/^www\./, ''))}(/|$)`, 'i') }); } catch { /* adresse illisible */ } }
+  return Lead.findOne({ $or: or }).select('_id name status').lean();
+}
+
+/** Admin : activité de l'outil (lectures, consultations, briefs, audits) et marques les plus scannées, avec leur fiche prospect quand elle existe */
+export async function adminScanStats() {
+  const day = new Date(Date.now() - DAY); const week = new Date(Date.now() - 7 * DAY);
+  const [reads24h, members24h, newPages7d, totals, top] = await Promise.all([
+    AdScanRequest.countDocuments({ createdAt: { $gte: day } }),
+    AdScanRequest.countDocuments({ createdAt: { $gte: day }, userId: { $ne: null } }),
+    AdScan.countDocuments({ createdAt: { $gte: week } }),
+    AdScan.aggregate([{ $group: { _id: null, pages: { $sum: 1 }, scans: { $sum: '$scans' }, views: { $sum: '$views' }, briefs: { $sum: '$briefs' }, audits: { $sum: '$audits' }, proposals: { $sum: '$proposals' } } }]),
+    AdScan.find({ status: { $in: ['ready', 'empty'] } }).sort({ scans: -1, views: -1, fetchedAt: -1 }).limit(30).select('slug pageId pageName website totalActive stats.oldestDays scans memberScans views briefs audits proposals leadId status fetchedAt').lean(),
+  ]);
+  const rows = await Promise.all(top.map(async (s) => {
+    const lead = s.leadId ? await Lead.findById(s.leadId).select('_id name status').lean() : await leadForScan(s);
+    return { slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
+  }));
+  const t = totals[0] || {};
+  return { reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+}
+
+/**
+ * Admin : « Mettre en prospection » une marque scannée. Une marque scannée plusieurs fois intéresse le marché ; sa fiche reprend la page Meta
+ * (même identifiant que la recherche nocturne, donc pas de doublon), le site, le nombre d'annonces et le résumé de la lecture IA. Contrôle de taille
+ * habituel : une très grande marque n'est pas démarchée.
+ */
+export async function prospectFromScan(slug, { createdBy } = {}) {
+  const scan = await AdScan.findOne({ slug: String(slug || '').toLowerCase() });
+  if (!scan) throw Object.assign(new Error('Scan introuvable'), { status: 404 });
+  if (String(scan.pageId).startsWith('none:')) throw Object.assign(new Error('Aucune page Meta pour ce nom : rien à mettre en prospection'), { status: 400 });
+  const { brandTier } = await import('./brandSuggestions.js');
+  const { tier, blocked } = await brandTier({ name: scan.pageName, ads: scan.totalActive || 0 });
+  if (tier === 'huge') throw Object.assign(new Error(`${scan.pageName} est une très grande marque (${blocked ? 'liste des marques refusées' : `${scan.totalActive} annonces actives`}) : nous ne la démarchons pas. Seuils : Admin → Réglages → Prospection.`), { status: 400 });
+  const note = `Scannée ${scan.scans || 0} fois dans l'outil de scan concurrentiel (dont ${scan.memberScans || 0} par des inscrits), ${scan.views || 0} consultation(s)`;
+  const existing = await leadForScan(scan);
+  let lead;
+  if (existing) {
+    lead = await Lead.findById(existing._id);
+    if (['new', 'rejected', 'excluded'].includes(lead.status)) lead.status = 'qualified';
+    lead.notes = [lead.notes, note].filter(Boolean).join(' · ').slice(0, 2000);
+    if (!lead.website && scan.website) lead.website = scan.website;
+    await lead.save();
+  } else {
+    lead = await Lead.create({
+      kind: 'brand', source: 'meta', externalId: String(scan.pageId), name: scan.pageName, handle: scan.pageName, url: `https://www.facebook.com/${scan.pageId}`,
+      website: scan.website || undefined, country: 'FR', status: 'qualified', score: 50, keyword: 'scan concurrentiel', sizeTier: tier,
+      stats: { ads: scan.totalActive || 0 }, description: String(scan.insights?.summary || `Annonceur Meta, ${scan.totalActive || 0} publicités actives en France.`).slice(0, 2000), notes: note, createdBy,
+    });
+    const leadId = lead._id;
+    setImmediate(async () => {
+      try {
+        const l = await Lead.findById(leadId); if (!l) return;
+        const { qualifyOne } = await import('./acquisition/index.js');
+        await qualifyOne(l, []);
+        if (l.status === 'rejected') { l.status = 'qualified'; await l.save(); } // l'équipe a décidé : la note de l'IA n'écarte pas la marque
+        if (!l.email && l.website) { const { enrichLeadFromSite } = await import('./acquisition/enrich.js'); await enrichLeadFromSite(l).catch(() => false); await l.save(); }
+      } catch (err) { logger.warn(`Scanned brand ${leadId} not enriched: ${err.message}`); }
+    });
+  }
+  await AdScan.updateOne({ _id: scan._id }, { $set: { leadId: lead._id } });
+  return { lead, created: !existing, tier };
 }

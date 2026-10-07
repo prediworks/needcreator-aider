@@ -126,6 +126,9 @@ Vous recevez ce message parce que votre adresse de contact professionnelle est p
 
 # Séquence marques · 3 emails
 
+> **Remplacée le 07/10/2026** par la séquence du nouveau message (« savoir quelles publicités marchent, puis les faire tourner ») : voir
+> `docs/MESSAGE-MARQUES.md`, section 3. La version ci-dessous reste pour mémoire (envois du 20/09 au 07/10/2026).
+
 Cible : PME et marques e-commerce françaises qui diffusent déjà des publicités vidéo. L'adresse est souvent générique (contact@, hello@) : l'email doit
 être compris et transmis par quelqu'un qui n'est pas le décideur. Court, concret, sans jargon.
 

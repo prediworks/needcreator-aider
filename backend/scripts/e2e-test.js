@@ -1972,6 +1972,19 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   const mine = await brandApi('GET', '/ad-scans/mine');
   const mineAnon = await pubApi('GET', '/ad-scans/mine');
   expect(mine.status === 200 && mine.data.scans.some(x => x.slug === slug && x.totalActive === 17) && mineAnon.status === 401, 'Les derniers scans d\'un compte, réservés au compte', { mine: mine.data, anon: mineAnon.status });
+  // Admin : activité de l'outil, marques les plus scannées, « Mettre en prospection » (fiche existante complétée, très grande marque refusée)
+  await db.collection('adscans').updateOne({ slug }, { $set: { scans: 4, memberScans: 1, audits: 1 } });
+  const statsBrand = await brandApi('GET', '/admin/acquisition/ad-scans');
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const adminStats = await brandApi('GET', '/admin/acquisition/ad-scans');
+  const row = adminStats.data.top?.find(x => x.slug === slug);
+  const pros = await brandApi('POST', '/admin/acquisition/ad-scans/prospect', { slug });
+  const leadAfterPros = await db.collection('leads').findOne({ _id: scanLead.insertedId });
+  await db.collection('adscans').updateOne({ slug }, { $set: { totalActive: 450 } });
+  const huge = await brandApi('POST', '/admin/acquisition/ad-scans/prospect', { slug });
+  await db.collection('adscans').updateOne({ slug }, { $set: { totalActive: 17 } });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(statsBrand.status === 403 && adminStats.status === 200 && row && row.scans === 4 && row.memberScans === 1 && row.audits === 1 && String(row.lead?.id) === String(scanLead.insertedId) && pros.status === 200 && /Déjà en prospection/.test(pros.data.message) && /Scannée 4 fois/.test(leadAfterPros.notes || '') && huge.status === 400 && /très grande marque/.test(huge.data.error), 'Admin : marques les plus scannées avec leur fiche, mise en prospection qui complète la fiche existante, très grande marque refusée', { statsBrand: statsBrand.status, row, pros: pros.data, notes: leadAfterPros?.notes, huge: huge.data });
   // Page retirée : plus affichée
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)
   const blockSet = await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: `E2E Scan Marque ${RUN}` });

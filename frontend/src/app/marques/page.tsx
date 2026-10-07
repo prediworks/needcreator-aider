@@ -7,10 +7,11 @@ import { SITE_URL } from '@/lib/legal';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 import RegistryMock from '@/components/RegistryMock';
 import AdScanBanner from '@/components/AdScanBanner';
+import BrandStepsBand from '@/components/BrandStepsBand';
 
 export const metadata: Metadata = {
-  title: 'Trouver des créateurs UGC : NeedCreator pour les marques',
-  description: 'Publiez un brief, recevez des devis de créateurs UGC vérifiés avec portfolio vidéo, payez le prix du devis à la validation ou offrez votre produit (gifting). Contrat de droits, garantie de remplacement et contrôle de conformité inclus.',
+  title: 'Publicités vidéo UGC pour les marques : comprendre, préparer, produire | NeedCreator',
+  description: 'Scannez les publicités de vos concurrents, auditez les vôtres, transformez-les en brief et faites-les tourner par des créateurs vérifiés. Paiement à la validation, contrat de droits inclus.',
   alternates: { canonical: '/marques' },
 };
 
@@ -68,16 +69,16 @@ export default async function BrandsPage() {
         <div className="container mx-auto px-4 max-w-4xl text-center">
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-6 text-sm font-medium text-primary-700">Pour les marques et les e-commerçants</div>
           <h1 className="text-4xl md:text-6xl font-bold text-neutral-900 mb-6">
-            Des vidéos UGC livrées, contrôlées, <span className="text-primary-500">payées seulement si elles vous conviennent</span>
+            De l&apos;idée à la publicité : <span className="text-primary-500">savoir quoi tourner, le faire tourner, le diffuser en règle.</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Publiez un brief, choisissez un créateur vérifié sur son portfolio, rémunérez-le au prix de son devis ou avec votre produit offert. Débit à la validation seulement, contrat de droits, garantie de remplacement et registre de tous vos contenus, même achetés ailleurs, inclus.
+            Commencez par ce qui marche déjà : les publicités de vos concurrents, l&apos;audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés le tournent au prix de leur devis ou contre votre produit ; vous ne payez qu&apos;à la validation, contrat de droits inclus.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
-            <Link href="/brief-depuis-url"><Button variant="outline" size="lg" className="w-full sm:w-auto">Mon brief depuis un lien produit</Button></Link>
             <Link href="/publicites-concurrents"><Button variant="outline" size="lg" className="w-full sm:w-auto" title="Les publicités Meta actives d'un concurrent, de la plus ancienne à la plus récente, et l'équivalent en vidéo créateur">Les publicités de mes concurrents</Button></Link>
-            <Link href="/nos-createurs"><Button variant="outline" size="lg" className="w-full sm:w-auto">Voir des créateurs</Button></Link>
+            <Link href="/audit-publicites"><Button variant="outline" size="lg" className="w-full sm:w-auto" title="Ce qui tient dans la durée, ce que vous répétez, ce que vous n'avez pas essayé, et trois vidéos créateur à commander">Auditer mes publicités</Button></Link>
+            <Link href="/brief-depuis-url"><Button variant="outline" size="lg" className="w-full sm:w-auto">Mon brief depuis un lien produit</Button></Link>
           </div>
           <div className="mt-8 flex items-center justify-center gap-6 text-sm text-neutral-600 flex-wrap">
             {['Gratuit et complet, Pro seulement pour le volume', 'Aucun frais ajouté au devis', 'Débit à la validation seulement'].map((t) => (
@@ -90,6 +91,9 @@ export default async function BrandsPage() {
           </Link>
         </div>
       </section>
+
+      {/* Les quatre étapes côté marque : comprendre, préparer, produire, protéger */}
+      <BrandStepsBand />
 
       {/* Scan concurrentiel : les publicités d'un concurrent, lancé depuis la page */}
       <AdScanBanner />

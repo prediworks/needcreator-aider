@@ -101,3 +101,18 @@ export async function auditScan(req, res) {
     res.status(r.started ? 202 : 200).json({ started: r.started, scan: await serializeScan(scan, { user: req.user }) });
   } catch (error) { fail(res, error, 'Audit impossible pour le moment', 'auditScan'); }
 }
+
+/** Admin : activité de l'outil et marques les plus scannées */
+export async function adminScanStatsView(req, res) {
+  try { const { adminScanStats } = await import('../services/adScan.js'); res.json(await adminScanStats()); }
+  catch (error) { fail(res, error, 'Statistiques indisponibles', 'adminScanStats'); }
+}
+
+/** Admin : mettre en prospection une marque scannée */
+export async function adminProspectFromScan(req, res) {
+  try {
+    const { prospectFromScan } = await import('../services/adScan.js');
+    const r = await prospectFromScan(req.body?.slug, { createdBy: req.user._id });
+    res.status(r.created ? 201 : 200).json({ lead: r.lead, message: r.created ? `Fiche créée : ${r.lead.name}${r.tier === 'large' ? ' (grande marque, signalée)' : ''}. Qualification, site et email en arrière-plan.` : `Déjà en prospection : ${r.lead.name}. La note de l'outil de scan est ajoutée à la fiche.` });
+  } catch (error) { fail(res, error, 'Mise en prospection impossible', 'adminProspectFromScan'); }
+}

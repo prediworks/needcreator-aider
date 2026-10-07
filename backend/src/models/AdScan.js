@@ -53,6 +53,9 @@ const adScanSchema = new mongoose.Schema({
   auditPending: { type: Boolean, default: false },
   auditTriedAt: Date,
   audits: { type: Number, default: 0 },    // audits demandés
+  scans: { type: Number, default: 0 },     // lectures fraîches demandées (une par visiteur et par 24 h au plus)
+  memberScans: { type: Number, default: 0 }, // dont par des comptes inscrits
+  leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' }, // fiche prospect créée depuis l'admin (« Mettre en prospection »)
   status: { type: String, enum: ['pending', 'ready', 'empty', 'failed', 'blocked'], default: 'ready', index: true }, // pending : lecture en cours en arrière-plan
   error: String,
   insightsPending: { type: Boolean, default: false }, // publicités déjà là, lecture IA encore en cours

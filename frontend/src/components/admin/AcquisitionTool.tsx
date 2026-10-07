@@ -8,6 +8,7 @@ import ShowcaseRequests, { useShowcaseRequests } from '@/components/admin/Showca
 import BrandSuggestions, { useBrandSuggestions } from '@/components/admin/BrandSuggestions';
 import GroupWatch, { useGroupWatch } from '@/components/admin/GroupWatch';
 import BrandSearches, { useBrandSearches } from '@/components/admin/BrandSearches';
+import AdScanAdmin, { useAdScanStats } from '@/components/admin/AdScanAdmin';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import MissingHint from '@/components/ui/MissingHint';
@@ -412,7 +413,7 @@ export default function AcquisitionTool() {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showExt, setShowExt] = useState(false);
   // Vidéos : deux boutons à compteur dans la rangée des filtres ; le panneau des vidéos à envoyer s'ouvre seul quand il y en a
-  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | 'groups' | 'searches' | null>(null);
+  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | 'groups' | 'searches' | 'scans' | null>(null);
   const { data: svList } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
   const { data: reqList } = useShowcaseRequests();
   const svTodo = (svList || []).filter((x: any) => x.status === 'ready').length;
@@ -423,6 +424,7 @@ export default function AcquisitionTool() {
   const { data: groupData } = useGroupWatch();
   const groupTodo = groupData?.todo || 0;
   const { data: searchData } = useBrandSearches();
+  const { data: scanData } = useAdScanStats();
   const searchOpen = searchData?.open || 0;
   const shown = panel === null ? (svTodo > 0 ? 'showcases' : sugTodo > 0 ? 'suggestions' : '') : panel;
   // Un panneau ouvert de lui-même (vidéo à envoyer, marque à valider) reste ouvert après l'action : il ne se referme pas quand le compteur tombe à zéro
@@ -577,11 +579,13 @@ export default function AcquisitionTool() {
           <button type="button" onClick={() => setPanel(shown === 'suggestions' ? '' : 'suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
           <button type="button" onClick={() => setPanel(shown === 'groups' ? '' : 'groups')} data-testid="groups-button" title="Demandes de marques : publications des groupes Facebook suivis et annonces collées où une marque cherche des créateurs, avec un commentaire ou un email proposé" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'groups' ? 'bg-neutral-900 text-white' : groupTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Demandes de marques {groupTodo}</button>
           <button type="button" onClick={() => setPanel(shown === 'searches' ? '' : 'searches')} data-testid="searches-button" title="Marques tapées par les créateurs dans « Candidature vidéo » sans résultat : ils possèdent le produit et voulaient tourner" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'searches' ? 'bg-neutral-900 text-white' : searchOpen > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques cherchées {searchOpen}</button>
+          <button type="button" onClick={() => setPanel(shown === 'scans' ? '' : 'scans')} data-testid="scans-button" title="Scan concurrentiel : activité de l'outil public et marques les plus scannées, à mettre en prospection" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'scans' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Scans {scanData?.reads24h ?? 0} / 24 h</button>
         </div>
         {shown === 'showcases' && <div className="mb-4"><ShowcaseList /></div>}
         {shown === 'suggestions' && <div className="mb-4"><BrandSuggestions /></div>}
         {shown === 'groups' && <div className="mb-4"><GroupWatch /></div>}
         {shown === 'searches' && <div className="mb-4"><BrandSearches /></div>}
+        {shown === 'scans' && <div className="mb-4"><AdScanAdmin /></div>}
         {shown === 'requests' && <div className="mb-4"><ShowcaseRequests /></div>}
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>

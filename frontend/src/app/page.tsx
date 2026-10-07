@@ -5,11 +5,12 @@ import type { Metadata } from 'next';
 import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 import AdScanBanner from '@/components/AdScanBanner';
+import BrandStepsBand from '@/components/BrandStepsBand';
 import { fetchPublicConfig, plural } from '@/lib/publicConfig';
 
 export const metadata: Metadata = {
-  title: 'NeedCreator : plateforme UGC pour marques et créateurs',
-  description: 'Trouvez des créateurs UGC vérifiés en France. Publiez un brief, recevez des devis avec portfolio vidéo, payez le prix du devis à la validation, sans frais ajoutés. Révisions incluses.',
+  title: 'NeedCreator : des publicités vidéo qui marchent, tournées par des créateurs',
+  description: 'Voyez les publicités de vos concurrents qui tournent depuis des mois, préparez votre brief, faites tourner vos vidéos par des créateurs vérifiés. Vous ne payez que les vidéos qui vous conviennent.',
   alternates: { canonical: '/' },
 };
 
@@ -63,17 +64,17 @@ export default async function HomePage() {
             <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-6">
               <Sparkles className="w-4 h-4 text-primary-600 mr-2" />
               <span className="text-sm font-medium text-primary-700">
-                La plateforme UGC la plus simple et transparente
+                Publicités vidéo pour les marques et les e-commerçants
               </span>
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold text-neutral-900 mb-6">
-              Des vidéos UGC
-              <span className="text-primary-500"> authentiques</span>, sans friction
+              Sachez quelles publicités marchent.
+              <span className="text-primary-500"> Faites-les tourner par des créateurs.</span>
             </h1>
 
             <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-              Publiez un brief et recevez des devis de créateurs vérifiés, ou recevez une vidéo déjà tournée, à regarder avant de payer. Dans les deux cas, vous ne payez qu&apos;à la validation.
+              Voyez les publicités de vos concurrents qui tournent depuis des mois, recevez un brief prêt à publier, et des vidéos de créateurs vérifiés : vous ne payez que celles qui vous conviennent.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -92,20 +93,23 @@ export default async function HomePage() {
             <div className="mt-8 flex items-center justify-center gap-8 text-sm text-neutral-600 flex-wrap">
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Vidéos dès 80€</span>
+                <span>Vidéos dès 80 €</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Gratuit et complet, vous payez le prix du devis, rien de plus</span>
+                <span>Vous ne payez qu&apos;à la validation</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Révisions incluses, précisées dans chaque devis</span>
+                <span>Outils gratuits, sans abonnement</span>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Les quatre étapes côté marque : comprendre, préparer, produire, protéger */}
+      <BrandStepsBand />
 
       {/* Scan concurrentiel : les publicités d'un concurrent, lancé depuis la page */}
       <AdScanBanner />
