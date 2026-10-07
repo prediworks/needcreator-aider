@@ -42,7 +42,10 @@ export default function LoginPage() {
       return;
     }
     toast.success('Connexion réussie !');
-    router.push('/dashboard');
+    // Retour sur la page d'où vient le visiteur (« ?next=/publicites/marque »), chemin interne seulement
+    let next = '';
+    try { const n = new URLSearchParams(window.location.search).get('next') || ''; if (/^\/[a-z0-9\-/]*$/i.test(n)) next = n; } catch { /* adresse illisible */ }
+    router.push(next || '/dashboard');
   };
 
   const handleEmailLogin = async (e: React.FormEvent) => {

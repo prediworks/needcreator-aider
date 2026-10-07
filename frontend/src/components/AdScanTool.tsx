@@ -53,6 +53,9 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
   const share = async () => { try { await navigator.clipboard.writeText(window.location.href); toast.success('Lien copié'); } catch { toast.error('Presse-papiers indisponible'); } };
 
   const s = data?.scan;
+  const back = s ? encodeURIComponent(`/publicites/${s.slug}`) : '';
+  const signupHref = `/register?role=brand&next=${back}`;
+  const loginHref = `/login?next=${back}`;
   const errStatus = (error as any)?.response?.status;
   const proposeHref = s ? (s.leadId ? `/vitrine?marque=${s.leadId}` : `/vitrine?suggerer=${encodeURIComponent(s.pageName || '')}${s.website ? `&site=${encodeURIComponent(s.website)}` : ''}`) : '/vitrine';
 
@@ -133,17 +136,26 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
                 <div>
                   <div className="font-medium text-neutral-900 mb-1">Angles utilisés</div>
                   <ul className="space-y-1 text-neutral-700">{(s.insights.angles || []).map((a: any, i: number) => <li key={i}><span className="font-medium">{a.name}</span> · {a.count} pub{a.count > 1 ? 's' : ''}{a.example ? <span className="block text-xs text-neutral-500 italic">« {a.example} »</span> : null}</li>)}</ul>
-                  {s.insights.locked?.includes('angles') && <Locked text="tous les angles avec un exemple cité" />}
+                  {s.insights.locked?.includes('angles') && <Locked text="tous les angles avec un exemple cité" href={signupHref} />}
                 </div>
                 <div>
                   <div className="font-medium text-neutral-900 mb-1">Accroches qui reviennent</div>
-                  {s.insights.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.insights.locked?.includes('hooks') ? <Locked text="les formules qui reviennent" /> : <p className="text-neutral-500">Aucune formule récurrente relevée.</p>}
+                  {s.insights.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.insights.locked?.includes('hooks') ? <Locked text="les formules qui reviennent" href={signupHref} /> : <p className="text-neutral-500">Aucune formule récurrente relevée.</p>}
                 </div>
                 <div>
                   <div className="font-medium text-neutral-900 mb-1">Angles que personne n&apos;utilise</div>
-                  {s.insights.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.missing.map((h: string, i: number) => <li key={i}>{h}</li>)}</ul> : s.insights.locked?.includes('missing') ? <Locked text="les angles libres, ceux d'une vidéo créateur qui sort du lot" /> : <p className="text-neutral-500">—</p>}
+                  {s.insights.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.missing.map((h: string, i: number) => <li key={i}>{h}</li>)}</ul> : s.insights.locked?.includes('missing') ? <Locked text="les angles libres, ceux d'une vidéo créateur qui sort du lot" href={signupHref} /> : <p className="text-neutral-500">—</p>}
                 </div>
               </div>
+              {s.insights.locked?.length > 0 && (
+                <div className="mt-5 p-4 rounded-lg bg-primary-50 border border-primary-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid="ad-scan-insights-cta">
+                  <div className="text-sm text-neutral-800"><span className="font-medium">Voir la lecture complète</span> : tous les angles avec un exemple, les accroches qui reviennent, les angles que personne n&apos;utilise.</div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Link href={signupHref}><Button size="sm" data-testid="ad-scan-signup">Créer mon compte gratuit</Button></Link>
+                    <span className="text-xs text-neutral-600">Déjà inscrit ? <Link href={loginHref} className="underline text-primary-700" data-testid="ad-scan-login">Me connecter</Link></span>
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -170,7 +182,7 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
               {s.hidden > 0 && (
                 <div className="mt-4 p-4 rounded-lg bg-primary-50 border border-primary-100 text-sm text-neutral-800 flex items-start gap-2" data-testid="ad-scan-locked">
                   <Lock className="w-4 h-4 mt-0.5 text-primary-600" />
-                  <div>{s.hidden} autre{s.hidden > 1 ? 's' : ''} publicité{s.hidden > 1 ? 's' : ''}, la lecture complète de l&apos;IA et {s.limits?.memberPerDay} marques par jour avec un compte gratuit. <Link href={`/register?role=brand&next=${encodeURIComponent(`/publicites/${s.slug}`)}`} className="underline text-primary-700 font-medium">Créer mon compte marque</Link> · <Link href="/login" className="underline">Me connecter</Link></div>
+                  <div>{s.hidden} autre{s.hidden > 1 ? 's' : ''} publicité{s.hidden > 1 ? 's' : ''}, la lecture complète de l&apos;IA et {s.limits?.memberPerDay} marques par jour avec un compte gratuit. <Link href={signupHref} className="underline text-primary-700 font-medium">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline">Me connecter</Link></div>
                 </div>
               )}
             </Card>
@@ -212,6 +224,6 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-100" title={hint}><div className="text-xs text-neutral-600">{label}</div><div className="text-xl font-bold text-neutral-900">{value}</div></div>;
 }
-function Locked({ text }: { text: string }) {
-  return <div className="text-xs text-neutral-500 mt-2 inline-flex items-center gap-1"><Lock className="w-3 h-3" /> Avec un compte gratuit : {text}.</div>;
+function Locked({ text, href }: { text: string; href: string }) {
+  return <Link href={href} className="text-xs text-primary-700 hover:underline mt-2 inline-flex items-center gap-1" title="Compte gratuit : la lecture complète de l'IA sur toutes les marques"><Lock className="w-3 h-3" /> Avec un compte gratuit : {text}.</Link>;
 }
