@@ -29,13 +29,14 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
   const [optOut, setOptOut] = useState(false);
   const [optEmail, setOptEmail] = useState(''); const [optReason, setOptReason] = useState('');
 
-  const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false });
+  // Lecture en arrière-plan côté serveur : tant que le scan est « en cours », la page se met à jour toutes les trois secondes
+  const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false, refetchInterval: (query: any) => (query.state.data?.scan?.status === 'pending' || query.state.data?.scan?.insightsPending ? 3000 : false) });
   const { data: recent } = useQuery({ queryKey: ['ad-scans-recent'], queryFn: async () => (await api.get('/ad-scans/recent')).data.scans, enabled: !slug, staleTime: 300000 });
   // Consultation par un navigateur : compteur, et condition d'indexation de la page
-  useEffect(() => { if (slug && data?.scan) api.post(`/ad-scans/${slug}/view`).catch(() => null); }, [slug, data?.scan?.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (slug && data?.scan?.status === 'ready') api.post(`/ad-scans/${slug}/view`).catch(() => null); }, [slug, data?.scan?.slug, data?.scan?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scan = useMutation({
-    mutationFn: async (body: { q?: string; pageId?: string }) => (await api.post('/ad-scans', body)).data,
+    mutationFn: async (body: { q?: string; pageId?: string; pageName?: string }) => (await api.post('/ad-scans', body)).data,
     onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); router.replace(`/publicites/${d.scan.slug}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
@@ -62,13 +63,13 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
           <div className="flex-1"><Input label="Nom d'une marque (un concurrent, ou la vôtre)" placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>
           <Button type="submit" isLoading={scan.isPending} data-testid="ad-scan-go"><Search className="w-4 h-4 mr-2" /> Voir ses publicités</Button>
         </form>
-        {scan.isPending && <p className="text-sm text-neutral-600 mt-3">Lecture de la bibliothèque publicitaire Meta, puis lecture des textes par l&apos;IA : trente secondes environ.</p>}
+        {scan.isPending && <p className="text-sm text-neutral-600 mt-3">Recherche de la page dans la bibliothèque publicitaire Meta…</p>}
         {candidates && (
           <div className="mt-4" data-testid="ad-scan-candidates">
             <div className="text-sm font-medium text-neutral-900 mb-2">Plusieurs pages portent ce nom. Laquelle ?</div>
             <div className="grid sm:grid-cols-2 gap-2">
               {candidates.map((c) => (
-                <button key={c.pageId} type="button" onClick={() => scan.mutate({ pageId: c.pageId })} className="text-left p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
+                <button key={c.pageId} type="button" onClick={() => scan.mutate({ pageId: c.pageId, pageName: c.pageName })} className="text-left p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
                   <div className="font-medium text-neutral-900">{c.pageName}</div>
                   <div className="text-xs text-neutral-600">{c.ads} publicité{c.ads > 1 ? 's' : ''} active{c.ads > 1 ? 's' : ''}{c.website ? ` · ${c.website}` : ''}</div>
                   {c.sample && <div className="text-xs text-neutral-500 mt-1 line-clamp-2">{c.sample}</div>}
@@ -105,7 +106,11 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
                 )}
               </div>
             </div>
-            {s.status === 'empty' ? (
+            {s.status === 'pending' ? (
+              <p className="text-sm text-neutral-700 mt-4 animate-pulse" data-testid="ad-scan-pending">Lecture en cours : les publicités chez Meta, puis leur lecture par l&apos;IA. Une minute environ ; la page se met à jour toute seule.</p>
+            ) : s.status === 'failed' ? (
+              <div className="text-sm text-neutral-700 mt-4" data-testid="ad-scan-failed">La lecture n&apos;a pas abouti{s.error ? ` : ${s.error}` : ''}. <button type="button" className="underline text-primary-700" onClick={() => scan.mutate({ pageId: s.pageId, pageName: s.pageName })}>Réessayer</button></div>
+            ) : s.status === 'empty' ? (
               <p className="text-sm text-neutral-700 mt-4" data-testid="ad-scan-empty">Aucune publicité active en France pour cette page en ce moment. Essayez l&apos;orthographe exacte du nom de la page Facebook, ou une autre marque.</p>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm" data-testid="ad-scan-stats">
@@ -118,6 +123,7 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
             )}
           </Card>
 
+          {!s.insights && s.insightsPending && <Card className="p-6 text-sm text-neutral-700 animate-pulse" data-testid="ad-scan-insights-pending"><BarChart3 className="w-5 h-5 text-primary-600 inline mr-2" />Les publicités sont là ; l&apos;IA les lit (angles, accroches, constats). Une à deux minutes, la page se met à jour toute seule.</Card>}
           {s.insights && (
             <Card className="p-6" data-testid="ad-scan-insights">
               <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-2"><BarChart3 className="w-5 h-5 text-primary-600" /> Ce que disent ces publicités</h3>
@@ -149,7 +155,7 @@ export default function AdScanTool({ initialSlug = '' }: { initialSlug?: string 
                 {s.ads.map((a: any) => (
                   <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
                     <div className="flex items-start justify-between gap-3 flex-wrap text-xs text-neutral-600">
-                      <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
+                      <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
                       <div className="flex gap-2">
                         <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Aperçu Meta <ExternalLink className="w-3 h-3" /></a>
                         {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => brief.mutate(a.id)} title="Prépare un brief NeedCreator : la version créateur de cette publicité">l&apos;équivalent en vidéo créateur</button>}

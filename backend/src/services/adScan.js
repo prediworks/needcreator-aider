@@ -61,6 +61,25 @@ export function pickAd(ad) {
   };
 }
 
+/**
+ * Une même création diffusée dans plusieurs ensembles de publicités apparaît autant de fois : on garde une entrée par texte (titre + corps),
+ * avec la date de début la plus ancienne, les supports réunis, la portée additionnée et le nombre de variantes ; les plus anciennes d'abord.
+ */
+export function dedupeAds(ads) {
+  const byText = new Map();
+  for (const a of ads) {
+    const key = `${a.title}|${a.body}`.toLowerCase().replace(/\s+/g, ' ').trim();
+    const cur = byText.get(key);
+    if (!cur) { byText.set(key, { ...a, variants: 1 }); continue; }
+    cur.variants += 1;
+    if (a.startedAt && (!cur.startedAt || a.startedAt < cur.startedAt)) { cur.startedAt = a.startedAt; cur.id = a.id; }
+    cur.platforms = [...new Set([...(cur.platforms || []), ...(a.platforms || [])])];
+    cur.countries = [...new Set([...(cur.countries || []), ...(a.countries || [])])].slice(0, 10);
+    if (a.reach) cur.reach = (cur.reach || 0) + a.reach;
+  }
+  return [...byText.values()].sort((a, b) => (a.startedAt?.getTime() || Infinity) - (b.startedAt?.getTime() || Infinity));
+}
+
 /** Chiffres de la page : ancienneté, répartition par support, pays, âges, portée cumulée */
 export function adStats(ads, now = Date.now()) {
   const ages = ads.map(a => ageDays(a.startedAt, now)).filter(n => n != null).sort((a, b) => a - b);
@@ -93,12 +112,13 @@ const JUDGMENT = /\b(médiocre|mauvais|mauvaise|nul|nulle|ringard|faible|pauvre|
 const factual = (s) => (JUDGMENT.test(String(s || '')) ? '' : String(s || '').trim());
 
 /** Lecture IA des publicités : angles comptés avec exemple cité, accroches récurrentes, angles absents, constats chiffrés */
-export async function analyzeAds({ pageName, ads, stats }) {
+export async function analyzeAds({ pageName, ads, stats, totalActive = 0 }) {
   if (!aiConfig().configured || !ads.length) return null;
-  const list = ads.slice(0, 40).map((a, i) => `#${i + 1} (tourne depuis ${ageDays(a.startedAt) ?? '?'} j${a.platforms?.length ? `, ${a.platforms.join('/')}` : ''}) ${[a.title, a.body, a.description].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 500)}`).join('\n');
+  const detailed = Math.min(30, ads.length);
+  const list = ads.slice(0, 30).map((a, i) => `#${i + 1} (tourne depuis ${ageDays(a.startedAt) ?? '?'} j${a.platforms?.length ? `, ${a.platforms.join('/')}` : ''}) ${[a.title, a.body, a.description].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 350)}`).join('\n');
   const out = await generateJson({
     system: 'Tu analyses les publicités actives d\'une marque pour une plateforme française de vidéos UGC. Tu es strictement factuel : tu comptes et tu décris ce qui est écrit, tu ne juges jamais la marque ni la qualité de ses publicités. Tu réponds en JSON strict, en français.',
-    prompt: `Marque : « ${pageName} ». ${ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne tourne depuis ${stats.oldestDays} jours` : ''}${stats.over90Days ? `, ${stats.over90Days} depuis plus de 90 jours` : ''}.
+    prompt: `Marque : « ${pageName} ». ${totalActive || ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne tourne depuis ${stats.oldestDays} jours` : ''}${stats.over90Days ? `, ${stats.over90Days} depuis plus de 90 jours` : ''}. Les ${detailed} plus anciennes sont détaillées ci-dessous (une même création diffusée plusieurs fois compte une fois) ; tes comptes portent sur ces ${detailed} publicités, sans commenter leur nombre.
 Publicités (texte seulement, Meta ne donne pas la vidéo) :
 ${list}
 
@@ -110,12 +130,13 @@ Réponds avec :
 - "facts" : 3 à 4 constats chiffrés (« 12 publicités sur 15 citent le prix », « 9 publicités ciblent les 25-44 ans », « la publicité la plus ancienne, #3, tourne depuis 94 jours »).
 Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), toute recommandation, toute supposition sur les résultats.`,
     schema: insightsSchema,
+    // Chaque borne du schéma est appliquée ici : le modèle déborde volontiers (résumé long, dix angles), et un débordement ferait tout rejeter
     normalize: (raw) => ({
-      summary: factual(raw?.summary),
-      angles: (Array.isArray(raw?.angles) ? raw.angles : []).map(a => ({ name: String(a?.name || '').slice(0, 60), count: Math.max(0, Math.min(200, parseInt(a?.count, 10) || 0)), example: factual(a?.example).slice(0, 220) })).filter(a => a.name),
-      hooks: (Array.isArray(raw?.hooks) ? raw.hooks : []).map(h => factual(h).slice(0, 160)).filter(Boolean),
-      missing: (Array.isArray(raw?.missing) ? raw.missing : []).map(h => factual(h).slice(0, 160)).filter(Boolean),
-      facts: (Array.isArray(raw?.facts) ? raw.facts : []).map(h => factual(h).slice(0, 220)).filter(Boolean),
+      summary: factual(raw?.summary).slice(0, 400),
+      angles: (Array.isArray(raw?.angles) ? raw.angles : []).map(a => ({ name: String(a?.name || '').slice(0, 60), count: Math.max(0, Math.min(200, parseInt(a?.count, 10) || 0)), example: factual(a?.example).slice(0, 220) })).filter(a => a.name).slice(0, 8),
+      hooks: (Array.isArray(raw?.hooks) ? raw.hooks : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.hook || '').slice(0, 160)).filter(Boolean).slice(0, 5),
+      missing: (Array.isArray(raw?.missing) ? raw.missing : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.name || '').slice(0, 160)).filter(Boolean).slice(0, 3),
+      facts: (Array.isArray(raw?.facts) ? raw.facts : []).map(h => factual(typeof h === 'string' ? h : h?.text || '').slice(0, 220)).filter(Boolean).slice(0, 4),
     }),
   });
   out.angles.sort((a, b) => b.count - a.count);
@@ -124,7 +145,7 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
 
 /** Pages candidates pour un nom tapé : regroupement des publicités trouvées par mot-clé, nom exact d'abord, puis par nombre de publicités */
 export async function findPages(q) {
-  const ads = await fetchAds({ terms: q, max: 100 });
+  const ads = await fetchAds({ terms: q, max: 100 }); // une seule page de résultats : quelques secondes
   const byPage = new Map();
   for (const ad of ads) {
     if (!ad.page_id) continue;
@@ -162,7 +183,7 @@ const quotaError = (message, code) => Object.assign(new Error(message), { status
  * Lance ou relit un scan. `q` : nom tapé ; `pageId` : page choisie parmi les candidates. Retourne { scan } ou { candidates } quand le nom
  * correspond à plusieurs pages. Une relecture (scan de moins de 24 h) ne compte dans aucun plafond.
  */
-export async function runScan({ q, pageId, ip, user } = {}) {
+export async function runScan({ q, pageId, pageName, ip, user } = {}) {
   const st = await scanSettings();
   const tier = tierOf(user);
   const name = String(q || '').trim().slice(0, 120);
@@ -172,11 +193,11 @@ export async function runScan({ q, pageId, ip, user } = {}) {
   // Déjà lu depuis moins de 24 h : on relit, gratuitement
   const fresh = new Date(Date.now() - DAY);
   if (pageId) {
-    const cached = await AdScan.findOne({ pageId: String(pageId), fetchedAt: { $gte: fresh } });
+    const cached = await AdScan.findOne({ pageId: String(pageId), status: { $in: ['ready', 'empty'] }, fetchedAt: { $gte: fresh } });
     if (cached) return { scan: cached, cached: true };
   } else {
-    const cached = await AdScan.findOne({ $or: [{ slug: slugify(name) }, { query: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }], fetchedAt: { $gte: fresh } });
-    if (cached) return { scan: cached, cached: true };
+    const cached = await AdScan.findOne({ $or: [{ slug: slugify(name) }, { query: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }], status: { $in: ['ready', 'empty', 'pending'] }, fetchedAt: { $gte: fresh } });
+    if (cached && (cached.status !== 'pending' || cached.updatedAt >= new Date(Date.now() - 3 * 60000))) return { scan: cached, cached: true };
   }
 
   // Plafonds : par IP et par heure (tous), par palier sur la journée, global
@@ -192,8 +213,12 @@ export async function runScan({ q, pageId, ip, user } = {}) {
 
   // Page à lire : choisie, ou unique candidate pour le nom tapé
   let page = null;
-  if (pageId) page = { pageId: String(pageId), pageName: '' };
-  else {
+  if (pageId) {
+    // Lecture déjà en cours pour cette page (lancée il y a moins de trois minutes) : on la suit, sans nouvelle lecture
+    const pending = await AdScan.findOne({ pageId: String(pageId), status: 'pending', updatedAt: { $gte: new Date(Date.now() - 3 * 60000) } });
+    if (pending) return { scan: pending, cached: true };
+    page = { pageId: String(pageId), pageName: String(pageName || '').trim().slice(0, 160) };
+  } else {
     const candidates = await findPages(name);
     if (!candidates.length) {
       const scan = await AdScan.findOneAndUpdate({ slug: slugify(name) }, { $set: { query: name, pageId: `none:${slugify(name)}`, pageName: name, ads: [], totalActive: 0, stats: {}, insights: null, status: 'empty', ip, userId: user?._id, fetchedAt: new Date() } }, { upsert: true, new: true, setDefaultsOnInsert: true });
@@ -206,23 +231,41 @@ export async function runScan({ q, pageId, ip, user } = {}) {
   }
   if (isBlockedPage(st.scanBlockedPages, page)) throw Object.assign(new Error('Cette marque a demandé à ne pas apparaître dans l\'outil.'), { status: 410, code: 'BLOCKED' });
 
-  const raw = await fetchAds({ pageIds: [page.pageId], max: 200 });
-  const ads = raw.map(pickAd).filter(a => a.body || a.title).sort((a, b) => (a.startedAt?.getTime() || Infinity) - (b.startedAt?.getTime() || Infinity)).slice(0, st.scanMaxAds);
+  // La lecture (deux appels Meta, puis l'IA) dépasse le délai d'une requête web : elle se fait en arrière-plan, la page suit l'avancement
+  const slug = await uniqueSlug(page.pageName || name, page.pageId);
+  const scan = await AdScan.findOneAndUpdate({ pageId: page.pageId }, {
+    $set: { slug, query: name || page.pageName, pageName: page.pageName || name, status: 'pending', error: null },
+    $setOnInsert: { ip, userId: user?._id, ads: [], totalActive: 0 },
+  }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  await AdScanRequest.create({ ip, userId: user?._id, slug: scan.slug });
+  setImmediate(() => processScan(scan._id, { page, name, tier, ip, settings: st }).catch(err => logger.error(`Ad scan ${scan.slug} failed: ${err.message}`)));
+  return { scan };
+}
+
+/** Lecture d'une page en arrière-plan : publicités chez Meta, chiffres, lecture IA (40 s au plus), puis le scan passe « prêt » (ou « vide », ou « en échec » avec le motif) */
+export async function processScan(scanId, { page, name = '', tier = 'anon', ip = '', settings } = {}) {
+  const st = settings || await scanSettings();
+  const fail = async (message) => { await AdScan.updateOne({ _id: scanId }, { $set: { status: 'failed', error: String(message || '').slice(0, 300), fetchedAt: new Date() } }); };
+  // Meta rend les publicités les plus récentes d'abord : il faut aller loin dans la liste pour trouver les plus anciennes (jusqu'à 500)
+  let raw;
+  try { raw = await fetchAds({ pageIds: [page.pageId], max: 500 }); }
+  catch (err) { logger.warn(`Ad scan ${page.pageId}: Meta en échec (${err.message})`); return fail(err.code === 10 || err.code === 190 ? 'Accès Meta à renouveler (identité ou jeton) : l\'équipe est prévenue' : `Lecture Meta impossible : ${err.message}`); }
+  const ads = dedupeAds(raw.map(pickAd).filter(a => a.body || a.title)).slice(0, st.scanMaxAds);
   const pageName = raw[0]?.page_name || page.pageName || name;
-  if (isBlockedPage(st.scanBlockedPages, { pageId: page.pageId, pageName })) throw Object.assign(new Error('Cette marque a demandé à ne pas apparaître dans l\'outil.'), { status: 410, code: 'BLOCKED' });
+  if (isBlockedPage(st.scanBlockedPages, { pageId: page.pageId, pageName })) return AdScan.updateOne({ _id: scanId }, { $set: { pageName, status: 'blocked', fetchedAt: new Date() } });
   const stats = adStats(ads);
   const domains = {}; for (const a of ads) { const d = domainOf(a.caption); if (d) domains[d] = (domains[d] || 0) + 1; }
   const website = Object.entries(domains).sort((x, y) => y[1] - x[1])[0]?.[0] || null;
+  // Les publicités sont publiées tout de suite (le scan est « prêt »), la lecture IA suit et la page l'affiche quand elle arrive
+  await AdScan.updateOne({ _id: scanId }, { $set: { pageName, website: website ? `https://${website}` : null, ads, totalActive: raw.length, stats, status: ads.length ? 'ready' : 'empty', error: null, insights: null, insightsPending: ads.length > 0, fetchedAt: new Date() } });
   let insights = null;
-  try { insights = await analyzeAds({ pageName, ads, stats }); } catch (err) { logger.warn(`Ad scan ${pageName}: IA en échec (${err.message})`); }
-  const slug = await uniqueSlug(pageName, page.pageId);
-  const scan = await AdScan.findOneAndUpdate({ pageId: page.pageId }, {
-    $set: { slug, query: name || pageName, pageName, website: website ? `https://${website}` : null, ads, totalActive: raw.length, stats, insights, status: ads.length ? 'ready' : 'empty', error: null, fetchedAt: new Date() },
-    $setOnInsert: { ip, userId: user?._id },
-  }, { upsert: true, new: true, setDefaultsOnInsert: true });
-  await AdScanRequest.create({ ip, userId: user?._id, slug: scan.slug });
-  logger.info(`Ad scan ${scan.slug}: ${raw.length} active ad(s), ${ads.length} kept, ${insights ? 'insights ok' : 'no insights'} (${tier}${ip ? `, ${ip}` : ''})`);
-  return { scan };
+  if (ads.length) {
+    try { insights = await Promise.race([analyzeAds({ pageName, ads, stats, totalActive: raw.length }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 120000))]); }
+    catch (err) { logger.warn(`Ad scan ${pageName}: IA en échec (${err.message})`); }
+  }
+  await AdScan.updateOne({ _id: scanId }, { $set: { insights, insightsPending: false } });
+  logger.info(`Ad scan ${pageName}: ${raw.length} active ad(s), ${ads.length} kept, ${insights ? 'insights ok' : 'no insights'} (${tier}${ip ? `, ${ip}` : ''})`);
+  return null;
 }
 
 /** Lien public d'une publicité dans la bibliothèque Meta (sans jeton) */
@@ -238,9 +281,9 @@ export async function serializeScan(scan, { user, settings } = {}) {
   const all = scan.ads || [];
   const shown = tier === 'anon' ? all.slice(0, st.scanAnonAds) : all;
   const now = Date.now();
-  const ads = shown.map((a, i) => ({ id: a.id, index: i + 1, body: a.body, title: a.title, description: a.description, caption: a.caption, startedAt: a.startedAt, days: ageDays(a.startedAt, now), platforms: a.platforms, reach: a.reach, ages: a.ages, gender: a.gender, countries: a.countries, url: adLibraryUrl(a.id) }));
-  const ins = scan.insights || null;
-  const insights = ins ? (tier === 'anon' ? { summary: ins.summary, facts: ins.facts, angles: ins.angles.slice(0, 2).map(a => ({ name: a.name, count: a.count })), locked: ['angles', 'hooks', 'missing'] } : { summary: ins.summary, facts: ins.facts, angles: ins.angles, hooks: ins.hooks, missing: ins.missing, locked: [] }) : null;
+  const ads = shown.map((a, i) => ({ id: a.id, index: i + 1, variants: a.variants || 1, body: a.body, title: a.title, description: a.description, caption: a.caption, startedAt: a.startedAt, days: ageDays(a.startedAt, now), platforms: a.platforms, reach: a.reach, ages: a.ages, gender: a.gender, countries: a.countries, url: adLibraryUrl(a.id) }));
+  const ins = scan.insights && (scan.insights.summary || scan.insights.facts?.length || scan.insights.angles?.length) ? scan.insights : null; // sous-document vide tant que l'IA n'a pas parlé
+  const insights = ins ? (tier === 'anon' ? { summary: ins.summary || '', facts: ins.facts || [], angles: (ins.angles || []).slice(0, 2).map(a => ({ name: a.name, count: a.count })), locked: ['angles', 'hooks', 'missing'] } : { summary: ins.summary || '', facts: ins.facts || [], angles: ins.angles || [], hooks: ins.hooks || [], missing: ins.missing || [], locked: [] }) : null;
   let leadId = null;
   if (user?.role === 'creator' && scan.pageName) {
     const esc = scan.pageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -250,8 +293,8 @@ export async function serializeScan(scan, { user, settings } = {}) {
     leadId = lead?._id || null;
   }
   return {
-    slug: scan.slug, pageName: scan.pageName, website: scan.website, pageUrl: `https://www.facebook.com/${scan.pageId}`, libraryUrl: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=FR&view_all_page_id=${encodeURIComponent(scan.pageId)}`,
-    status: scan.status, totalActive: scan.totalActive || 0, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
+    slug: scan.slug, pageId: scan.pageId, pageName: scan.pageName, website: scan.website, pageUrl: `https://www.facebook.com/${scan.pageId}`, libraryUrl: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=FR&view_all_page_id=${encodeURIComponent(scan.pageId)}`,
+    status: scan.status, error: scan.error || null, insightsPending: !!scan.insightsPending, totalActive: scan.totalActive || 0, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
     stats: scan.stats || {}, insights, ads, tier, fetchedAt: scan.fetchedAt, views: scan.views || 0, leadId,
     limits: { anonAds: st.scanAnonAds, memberPerDay: st.scanMemberPerDay },
   };

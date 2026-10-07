@@ -18,6 +18,7 @@ const adSchema = new mongoose.Schema({
   gender: String,            // All, Women, Men
   countries: [String],
   languages: [String],
+  variants: Number,          // nombre d'ensembles de publicités qui diffusent cette même création
 }, { _id: false });
 
 const adScanSchema = new mongoose.Schema({
@@ -40,8 +41,9 @@ const adScanSchema = new mongoose.Schema({
     missing: [String],
     facts: [String],
   },
-  status: { type: String, enum: ['ready', 'empty', 'failed', 'blocked'], default: 'ready', index: true },
+  status: { type: String, enum: ['pending', 'ready', 'empty', 'failed', 'blocked'], default: 'ready', index: true }, // pending : lecture en cours en arrière-plan
   error: String,
+  insightsPending: { type: Boolean, default: false }, // publicités déjà là, lecture IA encore en cours
   ip: String,
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   views: { type: Number, default: 0 },

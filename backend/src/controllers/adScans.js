@@ -14,7 +14,7 @@ const fail = (res, error, fallback, label) => {
 /** Public (compte facultatif) : lance ou relit le scan d'une marque. { q } ou { pageId } → { scan } ou { candidates } */
 export async function createScan(req, res) {
   try {
-    const r = await runScan({ q: req.body?.q, pageId: req.body?.pageId, ip: clientIp(req), user: req.user });
+    const r = await runScan({ q: req.body?.q, pageId: req.body?.pageId, pageName: req.body?.pageName, ip: clientIp(req), user: req.user });
     if (r.candidates) return res.json({ candidates: r.candidates });
     res.status(r.cached ? 200 : 201).json({ scan: await serializeScan(r.scan, { user: req.user }) });
   } catch (error) { fail(res, error, 'Lecture impossible pour le moment, réessayez dans quelques minutes', 'createScan'); }
