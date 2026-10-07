@@ -257,7 +257,7 @@ async function draftEmail(post, group) {
 }
 
 /**
- * « Créer la fiche marque » : la demande devient un prospect marque avec l'adresse donnée dans l'annonce, et un premier email rédigé pour elle.
+ * « Créer la fiche et l'email » : la demande devient un prospect marque avec l'adresse donnée dans l'annonce, et un premier email rédigé pour elle.
  * La fiche n'entre jamais dans les envois automatiques (hold) : on répond à une demande, on n'ajoute pas à une liste.
  */
 export async function createLeadFromPost(id, createdBy) {

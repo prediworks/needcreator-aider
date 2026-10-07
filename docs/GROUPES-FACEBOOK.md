@@ -43,7 +43,7 @@ mention d'un service. Quinze groupes au départ, pas cinquante.
 
 Une marque qui met son adresse dans « cherche créateurs » dit « écrivez-moi ». Un email direct vaut alors mieux qu'un commentaire public.
 
-1. Sur la demande, **« Créer la fiche marque »** : un prospect marque est créé avec le nom relevé, l'adresse, le lien de la publication et
+1. Sur la demande, **« Créer la fiche et l'email »** : un prospect marque est créé avec le nom relevé, l'adresse, le lien de la publication et
    le texte de la demande. Si l'adresse est déjà connue, la demande est ajoutée à la fiche existante.
 2. Un **premier email rédigé pour cette demande** s'affiche : il cite ce qu'elle cherche et propose ce qui y répond. Relisez, modifiez,
    puis **« Relire et envoyer »** : il part de l'adresse d'envoi des vidéos.
