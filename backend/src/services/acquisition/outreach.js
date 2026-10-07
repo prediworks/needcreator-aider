@@ -63,7 +63,8 @@ export async function pushToMailing({ limit, force = false, ids = null } = {}) {
   for (const kind of ['creator', 'brand']) {
     if (!byKind[kind].length) continue;
     const list = await provider.ensureList(LIST_NAMES[kind]);
-    await provider.pushContacts(list.id, byKind[kind].map(contactOf));
+    // Une fiche marque à plusieurs adresses retenues : un contact par adresse, mêmes champs
+    await provider.pushContacts(list.id, byKind[kind].flatMap(l => [contactOf(l), ...(l.extraEmails || []).filter(e => e && e !== l.email).map(e => ({ ...contactOf(l), email: e }))]));
     await Lead.updateMany({ _id: { $in: byKind[kind].map(l => l._id) } }, { $set: { status: 'contacted', contactedAt: new Date(), contactedVia: provider.name, 'mailing.provider': provider.name, 'mailing.listId': list.id, 'mailing.pushedAt': new Date() } });
     pushed += byKind[kind].length;
   }
@@ -152,7 +153,7 @@ export async function syncFromMailing() {
   const since = new Date(Date.now() - 14 * 86400000);
   // Réponses
   for (const r of await provider.replies(since).catch(err => { logger.warn(`mailing replies: ${err.message}`); return []; })) {
-    const lead = await Lead.findOne({ email: r.email, 'mailing.pushedAt': { $ne: null } });
+    const lead = await Lead.findOne({ $or: [{ email: r.email }, { extraEmails: r.email }], 'mailing.pushedAt': { $ne: null } });
     if (!lead || lead.mailing?.replyAt) continue;
     lead.status = ['registered'].includes(lead.status) ? lead.status : 'replied';
     lead.mailing.replyAt = r.at || new Date(); lead.mailing.replyText = String(r.text || '').slice(0, 2000);
@@ -165,7 +166,7 @@ export async function syncFromMailing() {
   for (const st of stats) {
     sent += st.sent; bounces += st.bounces;
     if (!st.bounces && !st.unsubscribes) continue;
-    const lead = await Lead.findOne({ email: st.email, 'mailing.pushedAt': { $ne: null } });
+    const lead = await Lead.findOne({ $or: [{ email: st.email }, { extraEmails: st.email }], 'mailing.pushedAt': { $ne: null } });
     if (!lead) continue;
     if (st.bounces && !lead.mailing?.bounced) { lead.mailing.bounced = true; lead.status = 'rejected'; lead.notes = [lead.notes, 'Email en rebond (adresse invalide)'].filter(Boolean).join(' · '); out.bounced++; }
     if (st.unsubscribes && !lead.mailing?.unsubscribedAt) { lead.mailing.unsubscribedAt = new Date(); lead.status = 'rejected'; lead.notes = [lead.notes, 'Désabonné'].filter(Boolean).join(' · '); out.unsubscribed++; }

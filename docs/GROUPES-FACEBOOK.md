@@ -27,7 +27,7 @@ mention d'un service. Quinze groupes au départ, pas cinquante.
 2. **Rejoindre les mêmes groupes avec votre compte principal** : c'est lui qui commente.
 3. **Lire les règles** de chaque groupe : certains interdisent toute mention d'un service, d'autres la limitent à un jour de la semaine.
 4. Admin → Prospection → « Groupes Facebook » : coller l'adresse de chaque groupe, choisir son public, « Suivre ce groupe ».
-5. Sur le PC : `git pull`, recharger l'extension dans les deux profils (version 0.2.8).
+5. Sur le PC : `git pull`, recharger l'extension dans les deux profils (version 0.2.9).
 
 ## Chaque jour · 15 minutes
 
@@ -101,7 +101,7 @@ Tout le reste est ignoré : créateurs qui se présentent, publicités, formatio
 
 ## Ce qui n'est pas fait
 
-- Le lien direct vers la publication : la première version passe par la recherche du groupe. À améliorer après les premières lectures réelles.
+- ~~Le lien direct vers la publication~~ : fait le 07/10/2026 (extension 0.2.9). L'extension relève, pour chaque publication du fil, son texte et le lien de son horodatage ; « Copier et ouvrir » ouvre la publication elle-même. Quand la page ne montre pas ce lien, le bouton s'appelle « Copier et ouvrir (recherche) » et passe par la recherche du groupe comme avant. Le détail du lot indique combien de demandes ont leur lien direct : si c'est zéro sur plusieurs groupes, dites-le, la structure des pages a changé.
 - La préparation d'un message Messenger par l'extension : à faire si les échanges publics débouchent sur des conversations.
 - Le suivi des réponses aux emails envoyés depuis une demande : il passe par la fiche marque, comme pour les autres prospects.
 - La recherche de nouveaux groupes par l'extension : elle se fait à la main pour l'instant.

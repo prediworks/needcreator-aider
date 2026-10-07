@@ -40,7 +40,8 @@ const postSchema = new mongoose.Schema({
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' }, // fiche marque créée depuis la demande
   draft: { subject: { type: String, maxlength: 200 }, text: { type: String, maxlength: 4000 } }, // premier email proposé, rédigé pour cette demande
   sentAt: Date,
-  searchUrl: { type: String, maxlength: 600 }, // recherche dans le groupe sur les premiers mots : mène à la publication
+  postUrl: { type: String, maxlength: 600 },   // lien direct de la publication, quand l'extension l'a relevé sur la page
+  searchUrl: { type: String, maxlength: 600 }, // recherche dans le groupe sur les premiers mots : repli quand le lien direct manque
   status: { type: String, enum: GROUP_POST_STATUSES, default: 'todo', index: true },
   foundAt: { type: Date, default: Date.now },
   decidedAt: Date,

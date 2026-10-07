@@ -17,6 +17,8 @@ Header on every call: `X-Extension-Token: <token>`.
 Task types the extension knows: `read_post_author`, `read_profile` (one page, no scroll), `list_hashtag` (4 scrolls),
 `list_ad_library` (6 scrolls), `list_tiktok_ads` (6 scrolls), `read_post_brands` (one page), and `prefill_message` (opens the profile in a visible tab, opens the conversation, pastes `input.text`, stops; result `{ prefilled, copied, error }`). Any other type is read as a single page.
 
+**Post links (0.2.9).** On a `list_group_posts` page the result also carries `items: [{ text, href }]`: one entry per top-level post (`[role="article"]` that is not nested in another), with the first 700 characters of its text and the permalink its timestamp links to (`/groups/<g>/posts/<id>/` or `/permalink/<id>/`), `null` when the page shows none. Items are merged across scrolls like the text. The server ties a request to its post by matching the excerpt against the item text, and falls back to a group search when no link was seen.
+
 **Feeds (0.2.8).** `list_group_posts` reads a feed whose items are text, not links (a Facebook group, most recent posts first). A feed drops what scrolls out of view, so the visible text is kept line by line across five scrolls, each line once, in reading order, and returned as `text` (capped at 20,000 characters). The extension never joins, posts, comments or reacts.
 
 **Popup (0.2.7).** The popup shows the role of this installation (Reader or Messenger), the pages read against each cap, and why it stopped: session cap (press Start again after a break) or daily cap (back tomorrow). The idle line is worded per role: a Messenger installation says how many reading tasks wait for the Reader profile.

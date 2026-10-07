@@ -8,7 +8,7 @@ import { runAcquisition, acquisitionProgress, acquisitionSettings, qualifyOne, m
 import { importCreators } from '../services/externalCreatorsImport.js';
 import ExternalCreator from '../models/ExternalCreator.js';
 import { config } from '../config/index.js';
-import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES, mailingBreakdown } from '../services/acquisition/outreach.js';
+import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES, mailingBreakdown, isGeneric } from '../services/acquisition/outreach.js';
 import { LeadRun as _LeadRun } from '../models/Lead.js';
 import { mailingProvider } from '../services/mailing/index.js';
 import logger from '../utils/logger.js';
@@ -452,7 +452,7 @@ export async function dailyQueue(req, res) {
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1 } }]) : [];
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1, extraEmails: 1 } }]) : [];
     const { followUpMessage } = await import('../services/acquisition/followUp.js');
     for (const l of leads) { const f = followUpMessage(l); if (f) l.followUpMessage = f; } // relance courte pour les prospects déjà joints par email
     res.json({ kind, goal, doneToday, left, waiting, leads });
@@ -499,16 +499,34 @@ export async function prefillMessage(req, res) {
   }
 }
 
-/** Fiche marque : retenir l'email d'un contact (déduit ou saisi) comme adresse de la marque, pour le mailing */
+/**
+ * Fiche marque : retenir l'email d'un contact (déduit ou saisi) pour le mailing. Plusieurs adresses peuvent être retenues : la première, ou
+ * celle qui remplace une adresse générique (contact@…), devient l'adresse de la fiche ; les suivantes s'ajoutent et partent au mailing avec les
+ * mêmes champs. `remove: true` retire une adresse retenue.
+ */
 export async function useContactEmail(req, res) {
   try {
     const lead = await Lead.findById(req.params.id);
     if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
     const email = String(req.body?.email || '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Email invalide' });
-    lead.email = email; lead.emailSource = 'contact linkedin';
-    lead.contacts = (lead.contacts || []).map(c => (c.email === email ? { ...(c.toObject?.() || c), emailGuessed: false } : c));
+    const extras = (lead.extraEmails || []).filter(e => e !== email);
+    let message;
+    if (req.body?.remove) {
+      if (lead.email === email) { lead.email = extras[0] || undefined; lead.extraEmails = extras.slice(1); if (!lead.email) lead.emailSource = undefined; }
+      else lead.extraEmails = extras;
+      message = lead.email ? `Adresse retirée : ${email}. La fiche garde ${[lead.email, ...lead.extraEmails].join(', ')}.` : `Adresse retirée : ${email}. La fiche n'a plus d'email.`;
+    } else if (!lead.email || isGeneric(lead.email) || lead.email === email) {
+      // Première adresse, ou une personne à la place d'une adresse générique : elle devient l'adresse de la fiche
+      lead.email = email; lead.emailSource = 'contact linkedin'; lead.extraEmails = extras;
+      message = `Adresse retenue : ${email}. La fiche partira au mailing au prochain envoi.`;
+    } else {
+      lead.extraEmails = [...extras, email].slice(0, 5);
+      message = `Adresse ajoutée : ${email}. La fiche partira au mailing à ${[lead.email, ...lead.extraEmails].length} adresses (${[lead.email, ...lead.extraEmails].join(', ')}).`;
+    }
+    const kept = new Set([lead.email, ...(lead.extraEmails || [])].filter(Boolean));
+    lead.contacts = (lead.contacts || []).map(c => (kept.has(c.email) ? { ...(c.toObject?.() || c), emailGuessed: false } : c));
     await lead.save();
-    res.json({ message: `Adresse retenue : ${email}. La fiche partira au mailing au prochain envoi.`, lead });
+    res.json({ message, lead });
   } catch (error) { logger.error('useContactEmail failed:', error); res.status(500).json({ error: 'Enregistrement impossible' }); }
 }

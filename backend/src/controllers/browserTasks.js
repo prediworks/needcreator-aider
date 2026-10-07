@@ -28,6 +28,7 @@ const resultSchema = Joi.object({
   title: Joi.string().max(1000).allow(''),
   text: Joi.string().max(200000).allow(''),
   links: Joi.array().items(Joi.object({ href: Joi.string().max(2000).allow(''), text: Joi.string().max(500).allow('') })).max(2000),
+  items: Joi.array().items(Joi.object({ text: Joi.string().max(2000).allow(''), href: Joi.string().max(2000).allow('', null) })).max(100), // fils : une entrée par publication (texte, lien direct)
   blocked: Joi.string().valid('login', 'captcha', 'restricted', 'consent', 'error').allow(null),
   prefilled: Joi.boolean(),
   copied: Joi.boolean(),

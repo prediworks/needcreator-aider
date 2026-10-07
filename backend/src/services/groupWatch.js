@@ -87,6 +87,25 @@ export const searchUrl = (group, text) => {
   return `${String(group?.url || '').replace(/\/?$/, '/')}search/?q=${encodeURIComponent(words.slice(0, 7).join(' '))}`;
 };
 
+/**
+ * Lien direct d'une publication, d'après les éléments relevés par l'extension ({ text, href } par publication) : l'élément dont le texte contient
+ * le début de l'extrait donne son permalien, ramené à son chemin (les paramètres de suivi de Facebook sont retirés). Null si rien ne correspond.
+ */
+export function postPermalink(items, excerpt) {
+  const head = squash(excerpt).slice(0, 40);
+  if (head.length < 20) return null;
+  for (const it of items || []) {
+    if (!it?.href || !squash(it.text).includes(head)) continue;
+    const m = String(it.href).match(/facebook\.com\/(groups\/[^/?#]+\/(?:posts|permalink)\/\d+|[^/?#]+\/posts\/\d+)/i);
+    if (m) return `https://www.facebook.com/${m[1]}/`;
+    const fb = String(it.href).match(/[?&]story_fbid=(\d+)/); const gid = String(it.href).match(/[?&]id=(\d+)/);
+    if (fb && gid) return `https://www.facebook.com/groups/${gid[1]}/posts/${fb[1]}/`;
+  }
+  return null;
+}
+/** Adresse qui mène à la demande : la publication elle-même quand son lien est connu, sinon la recherche du groupe, sinon la source collée */
+export const postLink = (p, group) => p.postUrl || (group?.url ? searchUrl(group, p.text) : p.searchUrl) || '';
+
 const AUDIENCE_HINT = {
   creators: 'un groupe de créateurs UGC : des marques y publient parfois « cherche créateurs », des créateurs y demandent comment trouver des marques ou combien facturer',
   brands: 'un groupe de marques et d\'e-commerçants : des fondateurs y demandent comment obtenir des vidéos pour leurs publicités, ou combien coûte une vidéo UGC',
@@ -164,21 +183,24 @@ export async function applyGroupRead(task, result) {
   let posts;
   try { posts = await extractGroupPosts(result, group); }
   catch (err) { logger.warn(`extractGroupPosts ${group.key}: ${err.message}`); await note('lecture faite, tri par l\'IA en échec'); throw new Error(`tri des publications en échec (${String(err.message).slice(0, 80)})`); }
-  let added = 0; let old = 0; let dup = 0;
+  let added = 0; let old = 0; let dup = 0; let linked = 0;
   for (const p of posts) {
     // Trop ancienne, ou déjà relevée dans un autre groupe (une même annonce est souvent publiée dans plusieurs groupes)
     const age = postAgeDays(p.when);
     if (age != null && age > MAX_POST_AGE_DAYS) { old++; continue; }
     if (await GroupPost.exists({ workspaceId: group.workspaceId, key: p.key, groupId: { $ne: group._id } })) { dup++; continue; }
-    const r = await GroupPost.updateOne({ groupId: group._id, key: p.key }, { $setOnInsert: { workspaceId: group.workspaceId, groupId: group._id, ...p, searchUrl: searchUrl(group, p.text), status: 'todo', foundAt: new Date() } }, { upsert: true });
+    const postUrl = postPermalink(result?.items, p.text);
+    if (postUrl) linked++;
+    const r = await GroupPost.updateOne({ groupId: group._id, key: p.key }, { $setOnInsert: { workspaceId: group.workspaceId, groupId: group._id, ...p, postUrl: postUrl || undefined, searchUrl: searchUrl(group, p.text), status: 'todo', foundAt: new Date() } }, { upsert: true });
     if (r.upsertedCount) added++;
   }
   group.stats.reads += 1; group.stats.requests += added;
   // Une page presque vide n'a pas été lue : groupe non rejoint, fil pas chargé, ou page de connexion passée inaperçue
   const thin = text.length < 1500 ? ` · page presque vide (${text.length} caractères) : groupe non rejoint par ce compte, ou fil pas chargé` : '';
-  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${old ? ` · ${old} trop ancienne(s)` : ''}${dup ? ` · ${dup} déjà vue(s) dans un autre groupe` : ''}${posts.length ? '' : ` · page de ${text.length.toLocaleString('fr-FR')} caractères lue, rien de pertinent`}${thin}${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
+  const outcome = !aiConfig().configured ? 'page lue, IA non configurée : aucun tri' : `${posts.length} demande(s) relevée(s), ${added} nouvelle(s)${old ? ` · ${old} trop ancienne(s)` : ''}${dup ? ` · ${dup} déjà vue(s) dans un autre groupe` : ''}${added ? ` · ${linked} avec le lien direct de la publication` : ''}${posts.length ? '' : ` · page de ${text.length.toLocaleString('fr-FR')} caractères lue, rien de pertinent`}${thin}${joinWall ? ' · groupe non rejoint : seules les publications publiques sont visibles' : ''}`;
   await note(outcome);
-  return { outcome, added, chars: text.length, permalinks: (result?.links || []).filter(l => /\/groups\/[^/]+\/(posts|permalink)\/\d+/i.test(l.href)).length };
+  // permalinks : liens de publication vus sur la page (éléments relevés, sinon liens), pour diagnostiquer une page qui n'en montre aucun
+  return { outcome, added, linked, chars: text.length, permalinks: Array.isArray(result?.items) ? result.items.filter(i => i?.href).length : (result?.links || []).filter(l => /\/groups\/[^/]+\/(posts|permalink)\/\d+/i.test(l.href)).length };
 }
 
 /** File « À répondre » et groupes suivis, pour l'admin */
@@ -190,7 +212,7 @@ export async function groupWatchOverview({ workspaceId = 'default' } = {}) {
   ]);
   const names = new Map(groups.map(g => [String(g._id), g]));
   const order = { todo: 0, lead: 0, answered: 1, relayed: 1, skipped: 2 };
-  const view = posts.map(p => ({ id: p._id, when: p.when || '', source: p.source || '', brand: p.brand || '', email: p.email || '', website: p.website || '', leadId: p.leadId, draft: p.draft || null, sentAt: p.sentAt, group: p.groupId ? (names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré') : (p.source || 'annonce collée'), groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, searchUrl: p.groupId && names.get(String(p.groupId)) ? searchUrl(names.get(String(p.groupId)), p.text) : (p.searchUrl || ''), status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
+  const view = posts.map(p => ({ id: p._id, when: p.when || '', source: p.source || '', brand: p.brand || '', email: p.email || '', website: p.website || '', leadId: p.leadId, draft: p.draft || null, sentAt: p.sentAt, group: p.groupId ? (names.get(String(p.groupId))?.name || names.get(String(p.groupId))?.key || 'groupe retiré') : (p.source || 'annonce collée'), groupUrl: names.get(String(p.groupId))?.url || '', author: p.author, text: p.text, kind: p.kind, comment: p.comment, postUrl: p.postUrl || '', searchUrl: p.groupId && names.get(String(p.groupId)) ? searchUrl(names.get(String(p.groupId)), p.text) : (p.searchUrl || ''), status: p.status, foundAt: p.foundAt, decidedAt: p.decidedAt }))
     .sort((a, b) => order[a.status] - order[b.status] || new Date(b.foundAt) - new Date(a.foundAt));
   const toRead = (await groupsToRead({ workspaceId, limit: MAX_GROUPS })).length;
   return { groups: groups.map(g => ({ id: g._id, key: g.key, url: g.url, name: g.name || '', audience: g.audience, active: g.active, lastReadAt: g.lastReadAt, lastOutcome: g.lastOutcome || '', stats: g.stats })), posts: view, todo, toRead, perLot: GROUPS_PER_LOT, maxGroups: MAX_GROUPS };
@@ -255,7 +277,7 @@ export async function createLeadFromPost(id, createdBy) {
     if (!lead.website && p.website) lead.website = p.website;
     await lead.save();
   } else {
-    lead = await Lead.create({ kind: 'brand', source: 'manual', externalId: `fbgroup:${p.key}`, name, email: p.email, emailSource: 'groupe Facebook', website: p.website || undefined, url: p.searchUrl, description: description.slice(0, 2000), status: 'to_contact', score: 70, niche: agency ? 'agence' : undefined, country: 'FR', keyword: `groupe Facebook ${group?.key || ''}`.trim(), mailing: { hold: true }, notes: 'Fiche créée depuis une demande publiée dans un groupe Facebook : premier email à la main, jamais dans les envois automatiques', createdBy });
+    lead = await Lead.create({ kind: 'brand', source: 'manual', externalId: `fbgroup:${p.key}`, name, email: p.email, emailSource: 'groupe Facebook', website: p.website || undefined, url: postLink(p, group), description: description.slice(0, 2000), status: 'to_contact', score: 70, niche: agency ? 'agence' : undefined, country: 'FR', keyword: `groupe Facebook ${group?.key || ''}`.trim(), mailing: { hold: true }, notes: 'Fiche créée depuis une demande publiée dans un groupe Facebook : premier email à la main, jamais dans les envois automatiques', createdBy });
   }
   p.leadId = lead._id; p.status = 'lead';
   p.draft = await draftEmail(p, group || {});
@@ -291,7 +313,7 @@ export async function relayDraft(id) {
   return {
     audience: 'creators',
     subject: `Tournage UGC : ${who} cherche des créateurs`.slice(0, 120),
-    body: `Une opportunité repérée ${group ? `dans le groupe Facebook « ${group.name || group.key} »` : `(${p.source || 'annonce transmise'})`}${p.when ? ` (${p.when})` : ''} :\n\n« ${p.text} »\n\nPour candidater, suivez les consignes de l'annonce${p.email ? ` (adresse indiquée : ${p.email})` : ''}. ${group ? `La publication : ${searchUrl(group, p.text)}` : p.searchUrl ? `L'annonce : ${p.searchUrl}` : ''}\n\nNous ne sommes pas intermédiaires sur ce tournage : nous vous le transmettons parce qu'il peut vous intéresser. Si vous le décrochez, dites-le-nous, cela nous aide à repérer les bonnes opportunités.`,
+    body: `Une opportunité repérée ${group ? `dans le groupe Facebook « ${group.name || group.key} »` : `(${p.source || 'annonce transmise'})`}${p.when ? ` (${p.when})` : ''} :\n\n« ${p.text} »\n\nPour candidater, suivez les consignes de l'annonce${p.email ? ` (adresse indiquée : ${p.email})` : ''}. ${group ? `La publication : ${postLink(p, group)}` : p.searchUrl ? `L'annonce : ${p.searchUrl}` : ''}\n\nNous ne sommes pas intermédiaires sur ce tournage : nous vous le transmettons parce qu'il peut vous intéresser. Si vous le décrochez, dites-le-nous, cela nous aide à repérer les bonnes opportunités.`,
   };
 }
 

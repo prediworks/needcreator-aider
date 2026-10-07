@@ -47,5 +47,20 @@
       if (emails.length >= 10) break;
     }
   } catch { /* page source unreadable */ }
-  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, blocked, meta, self, emails, scrollHeight: document.documentElement.scrollHeight, visibility: document.visibilityState };
+  // Feed items (Facebook group): one entry per top-level post with its text and the permalink its timestamp links to, so that the server
+  // can tie a request to the page of its post. Comments are nested articles and are skipped. Read only, nothing is clicked.
+  const items = [];
+  if (/facebook\.com\/groups\//i.test(url)) {
+    const PERMALINK = /facebook\.com\/groups\/[^/?#]+\/(?:posts|permalink)\/\d+|facebook\.com\/[^/?#]+\/posts\/\d+|[?&]story_fbid=\d+/i;
+    for (const art of document.querySelectorAll('[role="article"]')) {
+      if (art.parentElement?.closest('[role="article"]')) continue; // a comment, not a post
+      const text = (art.innerText || '').replace(/[ \t ]+/g, ' ').replace(/\n{2,}/g, '\n').trim();
+      if (text.length < 20) continue;
+      let href = null;
+      for (const a of art.querySelectorAll('a[href]')) { if (PERMALINK.test(a.href)) { href = a.href.slice(0, 500); break; } }
+      items.push({ text: text.slice(0, 700), href });
+      if (items.length >= 60) break;
+    }
+  }
+  return { url, finalUrl: url, title: document.title || '', text: bodyText.slice(0, MAX_TEXT), links, items, blocked, meta, self, emails, scrollHeight: document.documentElement.scrollHeight, visibility: document.visibilityState };
 })();

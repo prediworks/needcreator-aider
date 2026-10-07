@@ -131,10 +131,13 @@ async function readPage(task) {
   // A feed drops what scrolls out of view: its text is kept line by line, in reading order, each line once
   const lines = []; const seenLines = new Set();
   const collectText = (p) => { if (!TEXT_LIST_TYPES.includes(task.type)) return; for (const raw of String(p?.text || '').split('\n')) { const l = raw.trim(); if (l && !seenLines.has(l)) { seenLines.add(l); lines.push(l); } } };
+  // Feed items (post text + permalink) are merged the same way: one entry per post, the first reading of it wins, a later one may bring the link
+  const items = []; const itemAt = new Map();
+  const collectItems = (p) => { if (!TEXT_LIST_TYPES.includes(task.type)) return; for (const it of p?.items || []) { const k = String(it.text || '').slice(0, 120); if (!k) continue; const i = itemAt.get(k); if (i == null) { itemAt.set(k, items.length); items.push({ text: it.text, href: it.href || null }); } else if (!items[i].href && it.href) items[i].href = it.href; } };
   const steps = []; // links seen after each scroll: tells a page that loads from one that stays on its first items
   let shown = null;
   try {
-    for (let i = 0; i < scrolls; i++) { const p = await run(tabId, 'extract.js'); collect(p); collectText(p); steps.push(collected.size); shown = p?.visibility || shown; await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
+    for (let i = 0; i < scrolls; i++) { const p = await run(tabId, 'extract.js'); collect(p); collectText(p); collectItems(p); steps.push(collected.size); shown = p?.visibility || shown; await run(tabId, 'scroll.js'); await sleep(rand(1500, 3000)); }
   } finally { if (before) await restoreTab(before); }
   // Pages that fill in after load (single-page apps): read again until there is text, up to ~10 s
   let page = await run(tabId, 'extract.js');
@@ -142,6 +145,7 @@ async function readPage(task) {
   if (!page) throw new Error('page unreadable');
   if (collected.size) { collect(page); page.links = [...collected.values()].slice(0, 800); }
   if (lines.length) { collectText(page); page.text = lines.join('\n').slice(0, 20000); }
+  if (TEXT_LIST_TYPES.includes(task.type)) { collectItems(page); page.items = items.slice(0, 80); }
   if (scrolls) page.list = { steps, links: collected.size, visibility: shown || page.visibility || null };
   // Instagram profile: public contact address of the professional account. Off by default (the site answers 429 to this reading); one refusal stops it for the session
   if (task.type === 'read_profile' && !page.blocked && s.contactLookup === 'on' && !state.contactRefused && /^https?:\/\/(www\.)?instagram\.com\//i.test(task.input.url)) {
