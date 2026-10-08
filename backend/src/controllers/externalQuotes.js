@@ -183,9 +183,11 @@ export async function publicExternalQuote(req, res) {
   if (['draft', 'sent'].includes(q.status) && q.quote.validUntil && new Date(q.quote.validUntil) < new Date()) { await ExternalQuote.updateOne({ _id: q._id }, { $set: { status: 'expired' } }); q.status = 'expired'; }
   const s = await serialize(q);
   const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
-  const sv = await ShowcaseVideo.findOne({ quoteId: q._id }).select('previewUrl watermarkedAt productName note status').lean();
-  // Première ouverture après la proposition à la marque (pas les aperçus du créateur ou de l'équipe avant l'envoi) : le créateur est prévenu
-  if (sv) import('../services/showcase.js').then(m => m.markShowcaseViewed(q._id)).catch(() => {});
+  const sv = await ShowcaseVideo.findOne({ quoteId: q._id }).select('previewUrl watermarkedAt productName note status creatorId').lean();
+  // Première ouverture après la proposition à la marque : le créateur est prévenu. Les aperçus ne comptent pas, ni avant ni après l'envoi :
+  // lien « Page vue par la marque » de l'équipe ou du créateur (?apercu=1), ou page ouverte connecté en admin ou par le créateur de la vidéo
+  const preview = req.query.apercu === '1' || req.user?.role === 'admin' || (req.user && String(req.user._id) === String(sv?.creatorId));
+  if (sv && !preview) import('../services/showcase.js').then(m => m.markShowcaseViewed(q._id)).catch(() => {});
   res.json({ showcase: sv ? { productName: sv.productName, note: sv.note, previewUrl: sv.watermarkedAt ? sv.previewUrl : null, ready: !!sv.watermarkedAt } : null, quote: { id: q._id, status: q.status, client: { companyName: q.client.companyName, contactName: q.client.contactName, email: q.client.email }, mission: q.mission, quote: q.quote, pdf: s.pdf, creator: { name: q.creatorId?.profile?.name, avatar: q.creatorId?.profile?.avatar || null, slug: q.creatorId?.profile?.slug || null, completedJobs: q.creatorId?.profile?.stats?.completedJobs || 0, rating: q.creatorId?.profile?.stats?.rating || 0, totalReviews: q.creatorId?.profile?.stats?.totalReviews || 0 }, deliveryId: q.deliveryId || null } });
 }
 

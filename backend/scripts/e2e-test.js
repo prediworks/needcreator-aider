@@ -3126,6 +3126,12 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     expect(sentTt.status === 200 && /tiktok/.test(sentTt.data.message) && sentTt.data.text, 'La proposition en message privé doit accepter TikTok et LinkedIn', sentTt);
     const sentDm = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'instagram' });
     expect(sentDm.status === 200 && /candidature spontanée/.test(sentDm.data.text) && sentDm.data.link, 'La proposition en message privé doit donner le message avec le lien', sentDm);
+    // Les aperçus (lien « Page vue par la marque » avec ?apercu=1, page ouverte connecté en admin) ne comptent pas comme une ouverture par la marque
+    await fetch(`${API}/external-quotes/public/${token}?apercu=1`);
+    await brandApi('GET', `/external-quotes/public/${token}`);
+    await new Promise(r => setTimeout(r, 800));
+    const svPreview = await db.collection('showcasevideos').findOne({ _id: new mongoose.Types.ObjectId(dep.data.showcase.id) });
+    expect(svPreview && !svPreview.viewedAt, 'Un aperçu de l\'équipe ne doit pas compter comme une ouverture par la marque', svPreview);
     await fetch(`${API}/external-quotes/public/${token}`);
     await new Promise(r => setTimeout(r, 800));
     const bellSv = await creatorApi('GET', '/notifications');

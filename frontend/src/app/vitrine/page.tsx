@@ -114,7 +114,7 @@ export default function ShowcasePage() {
                   <div className="text-sm">
                     <div className="font-medium text-neutral-900">{s.brandName} · {s.productName} <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${STATUS[s.status]?.cls}`}>{STATUS[s.status]?.label}</span></div>
                     <div className="text-neutral-600">{formatCurrency(s.price)} HT · déposée le {formatDate(s.createdAt)}{s.sentAt ? ` · proposée le ${formatDate(s.sentAt)}` : ''}{!s.ready && s.status !== 'accepted' ? ' · filigrane en cours' : ''}</div>
-                    {s.link && <a href={s.link} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-700 underline inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Page vue par la marque</a>}
+                    {s.link && <a href={`${s.link}?apercu=1`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-700 underline inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Page vue par la marque</a>}
                   </div>
                   {['ready', 'sent'].includes(s.status) && <Button size="sm" variant="ghost" onClick={() => { if (confirm('Retirer cette vidéo ? La marque ne pourra plus l\'acheter.')) withdraw.mutate(s.id); }} title="Retirer la vidéo tant qu'elle n'est pas achetée"><Trash2 className="w-4 h-4" /></Button>}
                 </div>

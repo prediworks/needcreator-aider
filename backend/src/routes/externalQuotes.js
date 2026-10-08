@@ -1,10 +1,10 @@
 import express from 'express';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
 import { listExternalQuotes, createExternalQuote, updateExternalQuote, sendExternalQuote, remindExternalQuote, markExternalQuoteDirect, deleteExternalQuote, publicExternalQuote, declineExternalQuote, acceptExternalQuoteAsBrand } from '../controllers/externalQuotes.js';
 
 const router = express.Router();
 // Public : vue du devis par le client, refus, acceptation par une marque connectée
-router.get('/public/:token', publicExternalQuote);
+router.get('/public/:token', optionalAuth, publicExternalQuote);
 router.post('/public/:token/decline', declineExternalQuote);
 router.post('/public/:token/accept', authenticate, authorize('brand'), acceptExternalQuoteAsBrand);
 // Créateur

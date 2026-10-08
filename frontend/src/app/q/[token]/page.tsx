@@ -18,7 +18,7 @@ export default function PublicQuotePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
   const { user, loading } = useAuth();
-  const { data, isLoading, error } = useQuery({ queryKey: ['public-quote', token], queryFn: async () => { const r = (await api.get(`/external-quotes/public/${token}`)).data; return { ...r.quote, showcase: r.showcase || null }; }, enabled: !!token });
+  const { data, isLoading, error } = useQuery({ queryKey: ['public-quote', token], queryFn: async () => { const r = (await api.get(`/external-quotes/public/${token}${new URLSearchParams(window.location.search).get('apercu') === '1' ? '?apercu=1' : ''}`)).data; return { ...r.quote, showcase: r.showcase || null }; }, enabled: !!token });
   const accept = useMutation({
     mutationFn: async () => (await api.post(`/external-quotes/public/${token}/accept`)).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); if (d.deliveryId) router.push(`/deliveries/${d.deliveryId}`); },

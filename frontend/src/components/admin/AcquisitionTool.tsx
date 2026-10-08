@@ -138,7 +138,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
               <div className="flex gap-2 flex-wrap mt-2">
                 {l.email && <Button size="sm" onClick={() => sendShowcase.mutate({ id: l._id, via: 'email' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Envoie à la marque un email avec le lien de la page où la vidéo se regarde et s'achète">Proposer par email</Button>}
                 <Button size="sm" variant="outline" onClick={() => sendShowcase.mutate({ id: l._id, via: 'instagram' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Copie le message avec le lien de la vidéo, à coller dans la conversation Instagram, et marque la vidéo comme proposée">Copier le message vitrine</Button>
-                {showcase.link && <a href={showcase.link} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline self-center">Page vue par la marque</a>}
+                {showcase.link && <a href={`${showcase.link}?apercu=1`} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline self-center">Page vue par la marque</a>}
               </div>
             </div>
           )}
@@ -314,7 +314,7 @@ function ShowcaseList() {
                   {s.brandTiktok && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'tiktok', url: s.brandTiktok })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message, ouvre le profil TikTok de la marque et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
                   {s.brandLinkedin && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'linkedin', url: s.brandLinkedin })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message, ouvre la page LinkedIn de la marque et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
                   {s.message && <button type="button" className="text-xs text-primary-700 underline" onClick={async () => { try { await navigator.clipboard.writeText(s.message); toast.success('Message copié. La vidéo n\'est pas marquée proposée : utilisez un bouton « Copier et ouvrir » ou « Proposer par email » pour cela.', { duration: 8000 }); } catch { toast.error('Presse-papiers indisponible'); } }} title="Copie seulement le message avec le lien de la vidéo, sans rien marquer">Copier le message</button>}
-                  {s.link && <a href={s.link} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Page vue par la marque</a>}
+                  {s.link && <a href={`${s.link}?apercu=1`} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Page vue par la marque</a>}
                   {s.status === 'ready' && <button type="button" className="text-xs text-red-700 underline" onClick={() => { const reason = prompt('Motif du refus, envoyé au créateur (qualité, son, logo ajouté, promesse de résultat…) :'); if (reason !== null) refuse.mutate({ id: s.id, reason }); }} title="La vidéo n'est pas proposée à la marque ; le créateur est prévenu avec le motif">Refuser cette vidéo</button>}
                 </div>
               )}
