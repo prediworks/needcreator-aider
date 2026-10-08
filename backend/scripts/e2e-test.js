@@ -2856,6 +2856,14 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const fix2 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { fixLink: 'https://www.tiktok.com/@lebon?lang=fr' });
     const fix3 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { fixLink: 'https://exemple.fr/pas-un-profil' });
     expect(fix1.status === 200 && fix1.data.lead.socials.instagram === 'https://www.instagram.com/le.bon_compte/' && fix1.data.lead.socialsCheck?.instagram === 'ok' && /corrigé à la main/.test(fix1.data.lead.notes) && fix2.status === 200 && fix2.data.lead.socials.tiktok === 'https://www.tiktok.com/@lebon' && fix2.data.lead.socials.instagram === 'https://www.instagram.com/le.bon_compte/' && fix3.status === 400, 'Corriger le lien : le bon profil doit remplacer l\'ancien, un autre réseau s\'ajouter, une adresse quelconque être refusée', { fix1: fix1.data, fix2: fix2.data, fix3 });
+    // Bouton « Réseaux » de la fiche : pseudo ou adresse sans https remis en forme ; valeur non reconnue refusée en clair, rien d'effacé
+    const soc1 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { socials: { instagram: '@Ma.Marque_Test', tiktok: 'tiktok.com/@mamarque' } });
+    const soc2 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { socials: { instagram: 'www.instagram.com/autre.marque?igsh=abc' } });
+    const soc3 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { socials: { instagram: 'https://exemple.fr/pas-instagram' } });
+    const socDoc = await db.collection('leads').findOne({ _id: dq1 });
+    expect(soc1.status === 200 && soc1.data.lead.socials.instagram === 'https://www.instagram.com/ma.marque_test/' && soc1.data.lead.socials.tiktok === 'https://www.tiktok.com/@mamarque'
+      && soc2.status === 200 && soc2.data.lead.socials.instagram === 'https://www.instagram.com/autre.marque/' && soc3.status === 400 && /non reconnu/.test(soc3.data.error) && socDoc.socials.instagram === 'https://www.instagram.com/autre.marque/',
+    'Bouton « Réseaux » : @pseudo et adresse sans https enregistrés, lien non reconnu refusé sans rien effacer', { soc1: soc1.data?.lead?.socials, soc2: soc2.data?.lead?.socials, soc3: soc3.data });
     const skipped = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { skip: true });
     const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);

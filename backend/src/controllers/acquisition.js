@@ -11,6 +11,7 @@ import { config } from '../config/index.js';
 import { outreachSettings, pushToMailing, syncFromMailing, sendLeadReply, handleReply, LIST_NAMES, mailingBreakdown, isGeneric } from '../services/acquisition/outreach.js';
 import { LeadRun as _LeadRun } from '../models/Lead.js';
 import { mailingProvider } from '../services/mailing/index.js';
+import { cleanInstagram, cleanTiktok } from '../services/brandSuggestions.js';
 import logger from '../utils/logger.js';
 
 const esc = (v) => { const s = v == null ? '' : String(v); return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -140,10 +141,20 @@ export async function listLeads(req, res) {
 }
 
 const SOCIAL_KEYS = ['instagram', 'tiktok', 'youtube', 'linkedin', 'facebook'];
-/** Ne garde que des adresses http(s) pour les cinq réseaux connus ; une valeur vide efface */
-function cleanSocials(obj = {}) {
+/**
+ * Liens des cinq réseaux remis en forme ; une valeur vide efface. Instagram et TikTok acceptent l'adresse sous toutes ses formes
+ * (« @marque », « instagram.com/marque », avec ou sans https) ; une valeur non reconnue est listée dans `rejected` au lieu d'être perdue en silence.
+ */
+function cleanSocials(obj = {}, rejected = []) {
   const out = {};
-  for (const k of SOCIAL_KEYS) { const v = String(obj[k] || '').trim(); if (/^https?:\/\//i.test(v)) out[k] = v.slice(0, 300); }
+  for (const k of SOCIAL_KEYS) {
+    const v = String(obj[k] || '').trim();
+    if (!v) continue;
+    const url = k === 'instagram' ? (/^https?:\/\//i.test(v) && !/instagram\.com/i.test(v) ? '' : cleanInstagram(v))
+      : k === 'tiktok' ? cleanTiktok(v)
+      : /^https?:\/\//i.test(v) ? v : /^(www\.)?[a-z0-9-]+\.[a-z]{2,}\//i.test(v) ? `https://${v}` : '';
+    if (url) out[k] = url.slice(0, 300); else rejected.push(k);
+  }
   return out;
 }
 
@@ -154,7 +165,14 @@ export async function updateLead(req, res) {
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
-  if (socials && typeof socials === 'object') lead.socials = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials });
+  if (socials && typeof socials === 'object') {
+    const rejected = [];
+    const next = cleanSocials({ ...(lead.socials?.toObject?.() || lead.socials || {}), ...socials }, rejected);
+    const bad = rejected.filter(k => String(socials[k] || '').trim());
+    if (bad.length) return res.status(400).json({ error: `Lien ${bad.map(k => k === 'instagram' ? 'Instagram' : k === 'tiktok' ? 'TikTok' : k).join(' et ')} non reconnu : collez l'adresse du profil (instagram.com/marque) ou le pseudo (@marque). Rien n'a été modifié.` });
+    lead.socials = next;
+    for (const net of ['instagram', 'tiktok']) if (socials[net] !== undefined && next[net]) { const check = lead.socialsCheck?.toObject?.() || lead.socialsCheck || {}; check[net] = 'ok'; lead.socialsCheck = check; }
+  }
   // « Corriger le lien » dans la file du jour : le bon profil, collé tel quel (adresse Instagram, TikTok ou LinkedIn, ou pseudo Instagram)
   if (typeof fixLink === 'string' && fixLink.trim()) {
     const { cleanInstagram, cleanTiktok } = await import('../services/brandSuggestions.js');
