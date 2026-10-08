@@ -11,7 +11,25 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { VIDEO_TYPES, PLATFORMS, RIGHTS_DURATION, RIGHTS_SUPPORTS } from '@/lib/labels';
-import { Shield, FileSignature, ExternalLink, CheckCircle, Star } from 'lucide-react';
+import { Shield, FileSignature, ExternalLink, CheckCircle, Star, Search, BarChart3 } from 'lucide-react';
+
+/**
+ * Outils gratuits offerts avec le devis (le client achète de la vidéo publicitaire) : sobre sous le devis tant qu'il est à accepter, pour ne pas
+ * détourner de la signature ; plus visible une fois le devis traité. Les liens portent la référence du devis (visites suivies dans l'admin).
+ */
+function QuoteTools({ quoteId, company, prominent }: { quoteId: string; company: string; prominent: boolean }) {
+  const ref = `devis=${quoteId}`;
+  return (
+    <Card className={prominent ? 'p-6 border-primary-200' : 'p-4 bg-white/60'} data-testid="quote-tools">
+      <div className={`font-semibold text-neutral-900 ${prominent ? 'text-lg' : 'text-sm'}`}>Outils offerts avec votre devis</div>
+      <p className="text-sm text-neutral-600 mb-3">Gratuits, sans compte : les publicités Meta qui tournent depuis le plus longtemps chez vos concurrents, et la lecture des vôtres.</p>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Link href={`/publicites-concurrents?${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><Search className="w-4 h-4 mr-2" /> Voir les publicités de vos concurrents</Button></Link>
+        <Link href={`/audit-publicites?q=${encodeURIComponent(company)}&${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><BarChart3 className="w-4 h-4 mr-2" /> Auditer vos publicités Meta</Button></Link>
+      </div>
+    </Card>
+  );
+}
 
 /** Page publique d'un devis : le client accepte et paie via NeedCreator, ou décline */
 export default function PublicQuotePage() {
@@ -85,6 +103,7 @@ export default function PublicQuotePage() {
             {q.status === 'accepted_needcreator' ? <>Devis accepté et réglé via NeedCreator. {user?.role === 'brand' && q.deliveryId && <Link href={`/deliveries/${q.deliveryId}`} className="text-primary-600 underline">Voir la mission</Link>}</> : q.status === 'accepted_direct' ? 'Devis accepté, réglé directement auprès du créateur.' : q.status === 'declined' ? 'Devis décliné.' : 'Ce devis a expiré : demandez-en un nouveau au créateur.'}
           </Card>
         )}
+        <QuoteTools quoteId={q.id} company={q.client.companyName} prominent={!open} />
       </div>
     </div>
   );

@@ -460,8 +460,9 @@ const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief'];
  * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
  * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.
  */
-export async function trackScanRef(ref, { action, slug } = {}) {
+export async function trackScanRef(ref, { action, slug, source = 'lead', userId = null } = {}) {
   if (!/^[a-f0-9]{24}$/i.test(String(ref || '')) || !REF_ACTIONS.includes(action)) return null;
+  if (source === 'quote') return trackQuoteToolVisit(ref, { action, slug, userId });
   const lead = await Lead.findOne({ _id: ref, kind: 'brand' }).select('_id name status email scanVisits').lean();
   if (!lead) return null;
   const s = slug ? await AdScan.findOne({ slug: String(slug).toLowerCase() }).select('slug pageName').lean() : null;
@@ -472,6 +473,26 @@ export async function trackScanRef(ref, { action, slug } = {}) {
   if (first) {
     const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     notifyAdmins(`Prospection : ${lead.name} a ouvert l'outil de scan depuis l'email`, `<p><strong>${esc(lead.name)}</strong>${lead.email ? ` (${esc(lead.email)})` : ''} a cliqué sur un lien de l'email${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}. C'est le moment de lui écrire.</p><p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email ».</p>`).catch(() => {});
+  }
+  return { tracked: true, first };
+}
+
+/**
+ * Client d'un devis de créateur arrivé par les outils offerts avec le devis (email, page du devis) : même enregistrement que les marques
+ * prospectées, sur le devis. Le créateur qui ouvre ses propres liens ne compte pas.
+ */
+async function trackQuoteToolVisit(ref, { action, slug, userId }) {
+  const { default: ExternalQuote } = await import('../models/ExternalQuote.js');
+  const q = await ExternalQuote.findById(ref).select('_id creatorId client toolVisits').populate('creatorId', 'profile.name').lean();
+  if (!q || (userId && String(userId) === String(q.creatorId?._id))) return null;
+  const s = slug ? await AdScan.findOne({ slug: String(slug).toLowerCase() }).select('slug pageName').lean() : null;
+  const hourAgo = new Date(Date.now() - 3600000);
+  if ((q.toolVisits || []).some(v => v.action === action && (v.slug || '') === (s?.slug || '') && v.at >= hourAgo)) return { tracked: false };
+  const first = !(q.toolVisits || []).length;
+  await ExternalQuote.updateOne({ _id: q._id }, { $push: { toolVisits: { $each: [{ at: new Date(), action, slug: s?.slug, pageName: s?.pageName }], $slice: -30 } }, $set: { lastToolVisitAt: new Date() } });
+  if (first) {
+    const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    notifyAdmins(`Outils : le client d'un devis de ${q.creatorId?.profile?.name || 'créateur'} utilise l'outil de scan`, `<p><strong>${esc(q.client?.companyName)}</strong>${q.client?.email ? ` (${esc(q.client.email)})` : ''}, client de ${esc(q.creatorId?.profile?.name)}, a ouvert l'outil depuis son devis${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}.</p><p>Admin → Prospection → Scan concurrentiel, liste « Clients de devis venus des outils ».</p>`).catch(() => {});
   }
   return { tracked: true, first };
 }
@@ -492,8 +513,11 @@ export async function adminScanStats() {
   }));
   const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
     .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
+  const { default: ExternalQuote } = await import('../models/ExternalQuote.js');
+  const fromQuotes = (await ExternalQuote.find({ lastToolVisitAt: { $ne: null } }).sort({ lastToolVisitAt: -1 }).limit(30).select('client creatorId status toolVisits lastToolVisitAt').populate('creatorId', 'profile.name').lean())
+    .map(q => ({ id: q._id, company: q.client?.companyName || '', email: q.client?.email || '', creator: q.creatorId?.profile?.name || '', status: q.status, last: q.lastToolVisitAt, visits: (q.toolVisits || []).length, actions: [...new Set((q.toolVisits || []).map(v => v.action))], pages: [...new Set((q.toolVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
   const t = totals[0] || {};
-  return { fromEmail, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+  return { fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
 }
 
 /**

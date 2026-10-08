@@ -20,13 +20,17 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
  * marchent), des constats factuels par l'IA, et « Commander l'équivalent » en vidéo créateur. Sans compte : un aperçu ; inscrit : tout.
  */
-/** Référence de la fiche prospect (lien de l'email marques, ?ref=) : gardée pour la session, chaque action est rattachée à la marque */
+/**
+ * Référence gardée pour la session, chaque action y est rattachée : fiche prospect (lien de l'email marques, ?ref=) ou devis de créateur
+ * (outils offerts avec le devis, ?devis=, gardé sous la forme « devis:<id> »)
+ */
 const REF_KEY = 'nc_scan_ref';
 function readRef(): string { try { return sessionStorage.getItem(REF_KEY) || ''; } catch { return ''; } }
 function trackRef(action: 'visit' | 'scan' | 'audit' | 'brief', slug = '', isAdmin = false) {
-  const ref = readRef();
-  if (!ref || isAdmin) return; // l'équipe qui teste un lien d'email ne compte pas comme une visite de la marque
-  api.post('/ad-scans/ref', { ref, action, slug }).catch(() => null);
+  const stored = readRef();
+  if (!stored || isAdmin) return; // l'équipe qui teste un lien d'email ne compte pas comme une visite de la marque
+  const quote = stored.startsWith('devis:');
+  api.post('/ad-scans/ref', { ref: quote ? stored.slice(6) : stored, action, slug, source: quote ? 'quote' : 'lead' }).catch(() => null);
 }
 
 const VIDEO_TYPE: Record<string, string> = { testimonial: 'Témoignage', unboxing: 'Unboxing', demo: 'Démonstration', tutorial: 'Tutoriel', review: 'Avis', comparison: 'Comparatif', lifestyle: 'Lifestyle', 'behind-the-scenes': 'Coulisses' };
@@ -51,8 +55,11 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
       const sp = new URLSearchParams(window.location.search);
       if (sp.get('vue') === 'audit') setAuditView(true);
       const ref = (sp.get('ref') || '').trim();
-      setLeadRef(/^[a-f0-9]{24}$/i.test(ref) ? ref : readRef());
+      const devis = (sp.get('devis') || '').trim();
+      const saved = readRef();
+      setLeadRef(/^[a-f0-9]{24}$/i.test(ref) ? ref : saved.startsWith('devis:') ? '' : saved);
       if (/^[a-f0-9]{24}$/i.test(ref)) { try { sessionStorage.setItem(REF_KEY, ref); } catch { /* stockage indisponible */ } setFromEmail(true); }
+      else if (/^[a-f0-9]{24}$/i.test(devis)) { try { sessionStorage.setItem(REF_KEY, `devis:${devis}`); } catch { /* stockage indisponible */ } setFromEmail(true); }
       const q0 = (sp.get('q') || '').trim().slice(0, 120);
       // « &page=<identifiant Meta> » (lien d'audit de l'email) : la bonne page directement, sans liste de pages homonymes
       const page0 = (sp.get('page') || '').trim();

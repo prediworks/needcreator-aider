@@ -104,7 +104,7 @@ export async function auditScan(req, res) {
 
 /** Public : visite venue d'un lien de l'email marques (ref) ; ne renvoie rien d'autre qu'un accusé de réception */
 export async function trackRef(req, res) {
-  try { const { trackScanRef } = await import('../services/adScan.js'); await trackScanRef(req.body?.ref, { action: req.body?.action, slug: req.body?.slug }); res.json({ ok: true }); }
+  try { const { trackScanRef } = await import('../services/adScan.js'); await trackScanRef(req.body?.ref, { action: req.body?.action, slug: req.body?.slug, source: req.body?.source, userId: req.user?._id }); res.json({ ok: true }); }
   catch (error) { logger.warn(`trackRef: ${error.message}`); res.json({ ok: true }); }
 }
 

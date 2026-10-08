@@ -36,6 +36,7 @@ export default function AdScanAdmin() {
     { label: 'Briefs « l\'équivalent »', value: d.briefs },
     { label: 'Audits', value: d.audits },
     { label: 'Marques venues de l\'email', value: d.fromEmail?.length, hint: 'liens de l\'email marques' },
+    { label: 'Clients de devis', value: d.fromQuotes?.length, hint: 'outils offerts avec un devis' },
   ];
   return (
     <Card className="p-6" data-testid="ad-scan-admin">
@@ -47,7 +48,7 @@ export default function AdScanAdmin() {
       </div>
       {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-2 mb-4">
             {tiles.map((t) => <div key={t.label} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100"><div className="text-xs text-neutral-600">{t.label}</div><div className="text-xl font-bold text-neutral-900">{t.value ?? 0}</div>{t.hint && <div className="text-[11px] text-neutral-500">{t.hint}</div>}</div>)}
           </div>
           {d.fromEmail?.length > 0 && (
@@ -62,6 +63,21 @@ export default function AdScanAdmin() {
                     {l.replied && <span className="text-xs text-green-700">a répondu</span>}
                     <span className="text-xs text-neutral-600">{l.visits} action{l.visits > 1 ? 's' : ''} ({l.actions.map((a: string) => ACTION[a] || a).join(', ')}){l.pages.length ? ` · ${l.pages.join(', ')}` : ''} · dernière le {formatDate(l.last)}</span>
                     {l.email && <span className="text-xs text-neutral-500">{l.email}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {d.fromQuotes?.length > 0 && (
+            <div className="mb-5" data-testid="ad-scan-from-quotes">
+              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Clients de devis venus des outils</h3>
+              <p className="text-xs text-neutral-600 mb-2">Clients d&apos;un devis de créateur qui ont utilisé les outils offerts avec le devis (email ou page du devis). Ce sont des marques qui achètent déjà de la vidéo : à suivre, sans démarcher le client du créateur à sa place.</p>
+              <ul className="space-y-1 text-sm">
+                {d.fromQuotes.map((q: any) => (
+                  <li key={q.id} className="flex flex-wrap items-center gap-2 border-b border-neutral-100 py-1" data-testid="ad-scan-from-quotes-row">
+                    <span className="font-medium text-neutral-900">{q.company}</span>
+                    <span className="text-xs text-neutral-600">devis de {q.creator} · {q.visits} action{q.visits > 1 ? 's' : ''} ({q.actions.map((a: string) => ACTION[a] || a).join(', ')}){q.pages.length ? ` · ${q.pages.join(', ')}` : ''} · dernière le {formatDate(q.last)}</span>
+                    {q.email && <span className="text-xs text-neutral-500">{q.email}</span>}
                   </li>
                 ))}
               </ul>

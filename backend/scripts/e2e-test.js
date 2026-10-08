@@ -928,6 +928,17 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   const token = q1.data.quote.token;
   const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
   expect(pub.quote?.status === 'sent' && pub.quote.creator?.name && pub.quote.quote.price === 320 && !pub.quote.creatorId && !JSON.stringify(pub).includes('legalInfo'), 'Vue publique du devis sans données sensibles', { status: 200, data: pub });
+  // Outils offerts avec le devis : la visite du client est rattachée au devis ; celle du créateur ne compte pas
+  {
+    const qid = new mongoose.Types.ObjectId(String(q1.data.quote._id));
+    const post = (body, api) => api ? api('POST', '/ad-scans/ref', body) : fetch(`${API}/ad-scans/ref`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await post({ ref: String(qid), action: 'visit', source: 'quote' }, creatorApi);
+    const afterCreator = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    await post({ ref: String(qid), action: 'visit', source: 'quote' });
+    await post({ ref: String(qid), action: 'visit', source: 'quote' });
+    const afterClient = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    expect(!(afterCreator.toolVisits || []).length && afterClient.toolVisits?.length === 1 && afterClient.lastToolVisitAt, 'Outils du devis : visite du client rattachée au devis (une fois par heure), pas celle du créateur', { creator: afterCreator.toolVisits, client: afterClient.toolVisits });
+  }
   // Refus par le client
   // Relances du devis resté sans réponse : à la main (délai de deux jours, trois au plus), automatique (réglage), désactivable par devis
   {

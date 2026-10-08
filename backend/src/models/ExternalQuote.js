@@ -49,6 +49,9 @@ const externalQuoteSchema = new mongoose.Schema({
   campaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
   deliveryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Delivery' },
   brandId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  // Outils gratuits offerts avec le devis (scan des concurrents, audit) : visites du client, pour repérer les marques intéressées
+  toolVisits: [{ _id: false, at: Date, action: String, slug: String, pageName: String }],
+  lastToolVisitAt: { type: Date, index: true },
 }, { timestamps: true });
 
 const ExternalQuote = mongoose.models.ExternalQuote || mongoose.model('ExternalQuote', externalQuoteSchema);

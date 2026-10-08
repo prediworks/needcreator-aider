@@ -359,8 +359,22 @@ export async function sendCreatorExclusivityEnded(email, name, title, clientName
   return sendEmail(email, subject, html);
 }
 
+/**
+ * Outils gratuits offerts avec un devis de créateur : le client est une marque qui achète de la vidéo publicitaire. Bloc sobre sous le devis,
+ * présenté comme un service rendu (jamais d'autres créateurs) ; les liens portent la référence du devis pour suivre les visites.
+ */
+export function quoteToolsBlock(quoteId, company) {
+  const site = config.cors.origin; const ref = `devis=${quoteId}`;
+  const link = (url, label) => `<a href="${url}" style="display:inline-block;margin:4px 8px 4px 0;padding:8px 14px;border:1px solid #0f766e;border-radius:8px;color:#0f766e;font-size:13px;font-weight:600;text-decoration:none">${label}</a>`;
+  return `<div style="margin:24px 0 8px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa">
+    <p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#111">Outils offerts avec votre devis</p>
+    <p style="margin:0 0 8px;font-size:13px;color:#555">Gratuits, sans compte : les publicités Meta qui tournent depuis le plus longtemps chez vos concurrents, et la lecture des vôtres.</p>
+    ${link(`${site}/publicites-concurrents?${ref}`, 'Voir les publicités de vos concurrents')}${link(`${site}/audit-publicites?q=${encodeURIComponent(company || '')}&${ref}`, 'Auditer vos publicités Meta')}
+  </div>`;
+}
+
 /** Devis extérieur : envoi au client, avec devis et projet de contrat en PDF et lien d'acceptation */
-export async function sendExternalQuoteToClient(email, clientName, creatorName, title, price, link, quoteUrl, contractUrl, message, attachments = []) {
+export async function sendExternalQuoteToClient(email, clientName, creatorName, title, price, link, quoteUrl, contractUrl, message, attachments = [], { quoteId = null, company = '' } = {}) {
   const subject = `Devis de ${creatorName} : ${title}`;
   const html = `
     <h1>Bonjour${clientName ? ' ' + clientName : ''},</h1>
@@ -371,6 +385,7 @@ export async function sendExternalQuoteToClient(email, clientName, creatorName, 
     <p>Vous pouvez l'accepter et régler en ligne via NeedCreator : le montant est bloqué, versé au créateur seulement après votre validation des vidéos, et le contrat de cession de droits est généré automatiquement. Vous recevez une facture.</p>
     ${button(link, 'Voir le devis et accepter')}
     <p style="font-size:12px;color:#666">NeedCreator est la plateforme sur laquelle ${creatorName} gère ses missions. Le paiement sécurisé et le contrat sont inclus, sans frais ajoutés au devis.</p>
+    ${quoteId ? quoteToolsBlock(quoteId, company) : ''}
   `;
   return sendEmail(email, subject, html, null, { attachments });
 }

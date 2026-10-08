@@ -151,7 +151,7 @@ export async function sendExternalQuote(req, res) {
     await q.save();
     const s = await serialize(q);
     const attachments = await quoteAttachments(q);
-    sendExternalQuoteToClient(email, q.client.contactName || q.client.companyName, req.user.profile?.name, q.mission.title, q.quote.price, s.link, s.pdf.quoteUrl, s.pdf.contractUrl, String(req.body?.message || '').trim().slice(0, 1000), attachments).catch(err => logger.warn(`External quote email not sent: ${err.message}`));
+    sendExternalQuoteToClient(email, q.client.contactName || q.client.companyName, req.user.profile?.name, q.mission.title, q.quote.price, s.link, s.pdf.quoteUrl, s.pdf.contractUrl, String(req.body?.message || '').trim().slice(0, 1000), attachments, { quoteId: q._id, company: q.client.companyName }).catch(err => logger.warn(`External quote email not sent: ${err.message}`));
     res.json({ message: `Devis envoyé à ${email}`, quote: s });
   } catch (error) {
     logger.error('sendExternalQuote failed:', error);
