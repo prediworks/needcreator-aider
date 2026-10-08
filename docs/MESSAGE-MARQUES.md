@@ -1,7 +1,7 @@
 # Nouveau message côté marques · textes à valider
 
 Rédigé et validé le 07/10/2026 ; séquence d'emails refaite le 08/10/2026 (section 3). **Reporté sur le site et dans les consignes de l'IA le même jour** (accueil, page Marques, message privé aux
-marques, commentaires des groupes). **Reste à faire par vous** : recoller les trois emails dans SalesBlink une fois les variables `competitor_line` et `audit_link` livrées (envoi test d'abord), envoyer les deux annonces depuis Admin → Messages aux inscrits, publier le kit réseaux.
+marques, commentaires des groupes). **Reste à faire par vous** : recoller les trois emails dans SalesBlink avec leurs quatre liens (section 3 ; envoi test d'abord), vider la liste « marques 2 » dans SalesBlink puis lancer `scripts/repush-brand-list.mjs --apply` (contacts poussés avant le changement de variables), envoyer les deux annonces depuis Admin → Messages aux inscrits, publier le kit réseaux.
 
 ---
 
@@ -82,9 +82,22 @@ l'email 3 garde les offres sans risque.
 
 | Variable | Contenu |
 |---|---|
-| `{{ competitor_name }}` | un concurrent de la marque, choisi par l'IA à la qualification (ex. « Typology ») |
-| `{{ competitor_line }}` | la phrase complète avec le lien qui lance directement le scan de ce concurrent ; sans concurrent connu, une phrase générique (« tapez le nom d'un concurrent ») avec le lien de l'outil. **C'est elle qu'on met dans l'email**, pour ne jamais envoyer un trou. |
-| `{{ audit_link }}` | le lien qui lance l'audit de leurs propres publicités |
+| `{{ competitor_line }}` | la phrase qui précède le lien, sans adresse : « Par exemple, la plus ancienne en premier : » ; sans concurrent connu, « Essayez avec le nom d'un de vos concurrents : » |
+| `{{ competitor_name }}` | le concurrent vérifié chez Meta (ex. « Typology ») ; sans concurrent connu, « vos concurrents ». Toujours rempli : il sert dans le texte du lien. |
+| `{{ competitor_link }}` | l'adresse qui lance directement le scan de ce concurrent (sans concurrent connu : l'outil, prêt à taper un nom) |
+| `{{ audit_link }}` | l'adresse qui lance l'audit de leurs propres publicités |
+
+**Les liens se font dans SalesBlink, pas dans les variables** (modifié le 08/10/2026) : une variable s'insère en texte brut, une adresse
+en clair n'est pas cliquable partout et SalesBlink ne suit pas les clics. Dans l'éditeur, sélectionnez le texte du lien (entre crochets
+ci-dessous), icône lien, et mettez la variable d'adresse comme cible, par exemple `{{ competitor_link }}`. Testez l'envoi : le lien doit
+mener à la page du concurrent. Les quatre liens des trois emails :
+
+| Email | Texte du lien | Cible |
+|---|---|---|
+| 1 | voir les publicités de {{ competitor_name }} | `{{ competitor_link }}` |
+| 1 (PS) | votre audit gratuit | `{{ audit_link }}` |
+| 2 | lire l'audit de vos publicités | `{{ audit_link }}` |
+| 3 | créer votre compte marque | `{{ signup_link }}` |
 | `{{ paragraph }}` | les trois accroches pour leur produit (inchangé) |
 | `{{ signup_link }}` | création du compte marque (inchangé) |
 
@@ -112,19 +125,22 @@ Une publicité qu'une marque laisse tourner trois mois est une publicité qui lu
 
 Nous avons fait un outil gratuit qui les montre : tapez le nom d'un concurrent, vous voyez ses publicités Meta actives de la plus ancienne à la plus récente, les angles qu'il utilise et ceux qu'il laisse libres.
 
-{{ competitor_line }}
+{{ competitor_line }} [voir les publicités de {{ competitor_name }}]
 
 Sans compte, sans rien connecter.
 
 {{name_of_sender}}
 NeedCreator · https://needcreator.com
 
-PS : le même outil lit aussi vos propres publicités : {{ audit_link }}
+PS : le même outil lit aussi vos propres publicités : [votre audit gratuit]
 
 Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
 ```
 
-Exemple de `{{ competitor_line }}` : « Par exemple, les publicités de Typology, la plus ancienne en premier : https://needcreator.com/publicites-concurrents?q=Typology&ref=… »
+Liens à créer dans SalesBlink : « voir les publicités de {{ competitor_name }} » → `{{ competitor_link }}` ; « votre audit gratuit » → `{{ audit_link }}`.
+
+Ce que lit la marque : « Par exemple, la plus ancienne en premier : <u>voir les publicités de Typology</u> » ; sans concurrent connu,
+« Essayez avec le nom d'un de vos concurrents : <u>voir les publicités de vos concurrents</u> ».
 
 ### Email 2 · jour 4 · leurs publicités
 
@@ -139,7 +155,7 @@ Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator. Nous aidons les mar
 
 {{ paragraph }}
 
-Nous avons aussi lu toutes vos publicités Meta actives : celles qui tournent depuis le plus longtemps, les angles que vous répétez, ceux que vous n'utilisez pas encore. L'audit est prêt, gratuit, sans rien connecter : {{ audit_link }}
+Nous avons aussi lu toutes vos publicités Meta actives : celles qui tournent depuis le plus longtemps, les angles que vous répétez, ceux que vous n'utilisez pas encore. L'audit est prêt, gratuit, sans rien connecter : [lire l'audit de vos publicités]
 
 Si ce message ne vous concerne pas directement, pourriez-vous le transmettre à la personne en charge du marketing ou des publicités ? Merci d'avance.
 
@@ -164,7 +180,7 @@ Dernier message de ma part, avec trois façons d'essayer sans risque :
 
 Chaque vidéo vient avec son contrat de droits : durée, supports, territoire. Vous savez toujours jusqu'à quand vous pouvez la diffuser.
 
-Votre compte marque se crée ici, en deux minutes : {{ signup_link }}
+Votre compte marque se crée ici, en deux minutes : [créer votre compte marque]
 
 Si le sujet n'est pas d'actualité, répondez « plus tard » et je reviens vers vous dans quelques mois ; « non merci » et je n'insiste pas.
 

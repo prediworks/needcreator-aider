@@ -2000,8 +2000,8 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   const withC = scanLinks({ _id: lid, name: 'Ma Marque', source: 'meta', externalId: '123456', competitor: { pageId: '999', pageName: 'Concurrent SA', slug: 'concurrent-sa' } });
   const noC = scanLinks({ _id: lid, name: 'Ma Marque', source: 'manual', externalId: 'ma-marque.fr', competitor: { checkedAt: new Date() } });
   expect(badRef.status === 400 && r1.status === 200 && visited.scanVisits?.length === 2 && visited.scanVisits.map(v => v.action).join(',') === 'visit,audit' && visited.lastScanVisitAt && refRow && refRow.visits === 2 && refRow.pages.includes(`E2E Scan Marque ${RUN}`)
-    && /\/publicites\/concurrent-sa\?ref=/.test(withC.competitor_line) && withC.competitor_name === 'Concurrent SA' && /page=123456/.test(withC.audit_link) && /ref=/.test(withC.audit_link)
-    && /nom d'un de vos concurrents : .*\/publicites-concurrents\?ref=/.test(noC.competitor_line) && noC.competitor_name === '' && !/page=/.test(noC.audit_link),
+    && /\/publicites\/concurrent-sa\?ref=/.test(withC.competitor_link) && !/https?:/.test(withC.competitor_line) && withC.competitor_name === 'Concurrent SA' && /page=123456/.test(withC.audit_link) && /ref=/.test(withC.audit_link)
+    && /nom d'un de vos concurrents :$/.test(noC.competitor_line) && /\/publicites-concurrents\?ref=/.test(noC.competitor_link) && noC.competitor_name === 'vos concurrents' && !/page=/.test(noC.audit_link),
   'Email marques : concurrent ou phrase générique, liens avec la référence de la fiche ; visite rattachée à la fiche, sans doublon sur l\'heure, listée dans « Marques venues de l\'email »', { badRef: badRef.status, visits: visited.scanVisits, refRow, withC, noC });
   // Page retirée : plus affichée
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)

@@ -38,7 +38,9 @@ function contactOf(lead) {
 
 /**
  * Liens de l'outil de scan pour les emails marques, avec la référence de la fiche (ref) : une visite depuis l'email est rattachée à la marque.
- * competitor_line est toujours remplie : le concurrent vérifié s'il y en a un, sinon une invitation à taper le nom d'un concurrent.
+ * Variables en texte simple (un lien HTML dans une variable s'affiche tel quel et n'est pas suivi) : l'email met le lien dans SalesBlink,
+ * « voir les publicités de {{ competitor_name }} » vers {{ competitor_link }}, juste après {{ competitor_line }}. Les deux sont toujours remplies :
+ * concurrent vérifié s'il y en a un, sinon « vos concurrents » et une invitation à taper le nom d'un concurrent.
  */
 export function scanLinks(lead) {
   const site = config.cors.origin; const ref = `ref=${lead._id}`;
@@ -47,9 +49,9 @@ export function scanLinks(lead) {
   const metaPage = lead.source === 'meta' && /^\d+$/.test(String(lead.externalId || ''));
   const auditLink = `${site}/audit-publicites?q=${encodeURIComponent(lead.name || '')}${metaPage ? `&page=${lead.externalId}` : ''}&${ref}`;
   return {
-    competitor_name: c ? c.pageName : '',
+    competitor_name: c ? c.pageName : 'vos concurrents',
     competitor_link: competitorLink,
-    competitor_line: c ? `Par exemple, les publicités de ${c.pageName}, la plus ancienne en premier : ${competitorLink}` : `Essayez avec le nom d'un de vos concurrents : ${competitorLink}`,
+    competitor_line: c ? 'Par exemple, la plus ancienne en premier :' : 'Essayez avec le nom d\'un de vos concurrents :',
     audit_link: auditLink,
   };
 }
