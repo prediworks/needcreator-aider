@@ -2869,6 +2869,27 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(already.status === 200 && already.data.lead.status === 'contacted' && days > 6.9 && days < 7.1 && already.data.lead.contactedVia === 'instagram' && /Note existante · Déjà contacté, date rétablie/.test(already.data.lead.notes), '« Déjà contacté » doit rétablir une date à sept jours, garder la note et tracer le geste', already);
     expect(q4.data.leads.some(l => String(l._id) === String(dq1)) && !q5.data.leads.some(l => String(l._id) === String(dq1)) && q5.data.doneToday === q4.data.doneToday && q5.data.left === q4.data.left, '« Déjà contacté » doit sortir le prospect de la file sans entrer dans le décompte du jour', { before: { doneToday: q4.data.doneToday, left: q4.data.left }, after: { doneToday: q5.data.doneToday, left: q5.data.left } });
     await db.collection('leads').deleteMany({ _id: { $in: [dq1, dq2, dq3] } });
+    // Test du message privé aux marques : une fiche sur deux (identifiant impair) reçoit la version « concurrent » quand un concurrent est vérifié
+    const oid = (odd) => { for (;;) { const o = new mongoose.Types.ObjectId(); if ((parseInt(String(o).slice(-1), 16) % 2 === 1) === odd) return o; } };
+    const dmMsg = "Bonjour, j'ai vu votre publicité pour votre sérum. Un de nos créateurs l'ouvrirait ainsi : « Mes yeux tiraient chaque matin ». Je ne suis pas créatrice : je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ?";
+    const abC = oid(true), abH = oid(false), abN = oid(true);
+    await db.collection('leads').insertMany([
+      { _id: abC, kind: 'brand', source: 'manual', externalId: `abc-${RUN}`, name: `AB Concurrent ${RUN}`, socials: { instagram: `https://www.instagram.com/abc${RUN}/` }, message: dmMsg, status: 'qualified', score: 5002, competitor: { pageId: '111', pageName: 'Concurrent Test', slug: 'concurrent-test', checkedAt: new Date() }, createdAt: new Date(), updatedAt: new Date() },
+      { _id: abH, kind: 'brand', source: 'manual', externalId: `abh-${RUN}`, name: `AB Accroches ${RUN}`, socials: { instagram: `https://www.instagram.com/abh${RUN}/` }, message: dmMsg, status: 'qualified', score: 5001, competitor: { pageId: '111', pageName: 'Concurrent Test', slug: 'concurrent-test', checkedAt: new Date() }, createdAt: new Date(), updatedAt: new Date() },
+      { _id: abN, kind: 'brand', source: 'manual', externalId: `abn-${RUN}`, name: `AB Sans Concurrent ${RUN}`, socials: { instagram: `https://www.instagram.com/abn${RUN}/` }, message: dmMsg, status: 'qualified', score: 5000, competitor: { checkedAt: new Date() }, createdAt: new Date(), updatedAt: new Date() },
+    ]);
+    const qb = await brandApi('GET', '/admin/acquisition/daily-queue?kind=brand');
+    const byId = (id) => qb.data.leads?.find(l => String(l._id) === String(id));
+    const lc = byId(abC), lh = byId(abH), ln = byId(abN);
+    const doneC = await brandApi('PATCH', `/admin/acquisition/leads/${abC}`, { status: 'contacted', contactedVia: 'instagram', dmVariant: 'competitor' });
+    const doneH = await brandApi('PATCH', `/admin/acquisition/leads/${abH}`, { status: 'contacted', contactedVia: 'instagram', dmVariant: 'hooks' });
+    await db.collection('leads').updateOne({ _id: abC }, { $set: { 'mailing.replyAt': new Date() } });
+    const qb2 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=brand');
+    expect(qb.status === 200 && lc?.dmVariant === 'competitor' && lc.message.startsWith("Bonjour, j'ai vu votre publicité pour votre sérum. Un de nos créateurs l'ouvrirait ainsi : « Mes yeux tiraient chaque matin ». Je m'occupe de NeedCreator") && /J'ai relevé les publicités de Concurrent Test qui tournent depuis le plus longtemps : à quelle adresse puis-je vous les envoyer \?$/.test(lc.message) && !/créatrice/.test(lc.message)
+      && lh?.dmVariant === 'hooks' && lh.message === dmMsg && ln?.dmVariant === 'hooks' && ln.message === dmMsg
+      && doneC.data.lead?.dmVariant === 'competitor' && doneH.data.lead?.dmVariant === 'hooks' && qb2.data.abTest?.competitor.sent >= 1 && qb2.data.abTest.competitor.replied >= 1 && qb2.data.abTest.hooks.sent >= 1,
+    'Message privé aux marques : version « concurrent » pour une fiche sur deux quand un concurrent est vérifié, sinon le message actuel ; version enregistrée au clic « Contacté » et résultat du test', { lc, lh: lh?.dmVariant, ln: ln?.dmVariant, abTest: qb2.data.abTest });
+    await db.collection('leads').deleteMany({ _id: { $in: [abC, abH, abN] } });
     // Réponse reçue en message privé, collée à la main : email « collab » relevé et ajouté à la fiche, statut « A répondu », intention
     const dm = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `dm-${RUN}`, name: `Marque DM ${RUN}`, website: 'https://exemple.fr', description: 'bougies', status: 'contacted', contactedVia: 'instagram', socials: { instagram: `https://www.instagram.com/marquedm${RUN}/` }, createdAt: new Date(), updatedAt: new Date() });
     const dmPasted = await brandApi('POST', `/admin/acquisition/leads/${dm.insertedId}/paste-reply`, { via: 'instagram', text: `Hello, merci pour ton message ! Pour tout ce qui concerne les collaborations et l'UGC, écris-nous à influence-${RUN}@needcreator-test.com ou remplis https://exemple.fr/pages/collab 🙏` });

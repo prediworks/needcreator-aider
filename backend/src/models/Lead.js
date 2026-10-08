@@ -68,6 +68,8 @@ const leadSchema = new mongoose.Schema({
   // Visites venues des liens de l'email (paramètre ref) : outil de scan, audit, brief ; une marque qui a cliqué est à relancer en priorité
   scanVisits: [{ at: Date, action: String, slug: String, pageName: String, _id: false }],
   lastScanVisitAt: { type: Date, index: true },
+  // Message privé envoyé depuis la file du jour (test du 08/10/2026) : 'hooks' (deux autres accroches), 'competitor' (publicités d'un concurrent), 'followup' (relance après email)
+  dmVariant: { type: String, enum: ['hooks', 'competitor', 'followup'] },
 }, { timestamps: true });
 
 leadSchema.index({ source: 1, externalId: 1 }, { unique: true });

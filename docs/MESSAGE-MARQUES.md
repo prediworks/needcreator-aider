@@ -186,6 +186,13 @@ sur le bon interlocuteur. **On garde la structure** (elle obtient des réponses)
 **Appliqué** (la phrase finale, rodée sur le terrain depuis le 26/09, est gardée telle quelle ; seule la présentation change) :
 > Bonjour, j'ai vu votre publicité pour [produit]. Un de nos créateurs l'ouvrirait ainsi : « [accroche] ». Je ne suis pas créatrice : je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ?
 
+**Test depuis le 08/10/2026** : une marque sur deux reçoit, quand un concurrent a été trouvé chez Meta, la version « concurrent » :
+> Bonjour, j'ai vu votre publicité pour votre sérum. Un de nos créateurs l'ouvrirait ainsi : « Mes yeux tiraient chaque matin ». Je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés. J'ai relevé les publicités de Typology qui tournent depuis le plus longtemps : à quelle adresse puis-je vous les envoyer ?
+
+L'autre moitié garde le message ci-dessus. Quand la marque donne son adresse, l'email proposé contient le lien vers les publicités de ce
+concurrent, puis celui de l'audit de ses propres publicités. Résultat du test en haut de la file du jour (réponses par version) : décider
+au bout de deux semaines, avec au moins 30 messages par version.
+
 ---
 
 ## 5. Commentaire sous une demande dans un groupe Facebook (consigne de l'IA)

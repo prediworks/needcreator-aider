@@ -36,6 +36,10 @@ back tomorrow » (150 pages : la suite reste en file jusqu'au lendemain).
    la même chose avec un collage à la main.
    Une marque à qui vous avez déjà écrit revient dans la file ? **« Déjà contacté »** : elle passe en « Contacté » avec une date rétablie à sept jours plus tôt, et ne compte pas dans les 15 du jour.
    Les marques parties par le mailing depuis plus de 7 jours sans réponse reviennent dans la file, après les autres, avec la mention « Déjà jointe par email le … » : un message privé court qui rappelle l'email et pose la question.
+   **Test du message (depuis le 08/10/2026)** : une marque sur deux reçoit la version « concurrent » (« J'ai relevé les publicités de X qui
+   tournent depuis le plus longtemps : à quelle adresse puis-je vous les envoyer ? »). La version est indiquée au-dessus du message ; si
+   « concurrent en cours de recherche » s'affiche, le message change seul dans la minute, ou envoyez celui affiché. Le résultat (réponses par
+   version) est sous la barre de progression.
 4. S'arrêter à 15. Les réponses reçues : **« Coller la réponse »** sur la fiche (l'email donné entre dans le mailing) ; quoi répondre selon
    le cas : `docs/REPONSES-MARQUES.md`.
 

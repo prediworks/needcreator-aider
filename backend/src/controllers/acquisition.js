@@ -150,7 +150,7 @@ function cleanSocials(obj = {}) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant } = req.body || {};
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }
@@ -179,7 +179,7 @@ export async function updateLead(req, res) {
     lead.contactedAt = new Date(Date.now() - 7 * 86400000);
     lead.contactedVia = contactedVia || lead.contactedVia || 'manuel';
     lead.notes = [lead.notes, `Déjà contacté, date rétablie à la main le ${new Date().toLocaleDateString('fr-FR')}`].filter(Boolean).join(' · ').slice(0, 2000);
-  } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; } }
+  } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; if (['hooks', 'competitor', 'followup'].includes(dmVariant)) lead.dmVariant = dmVariant; } }
   if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
   if (email !== undefined) { lead.email = String(email).trim().toLowerCase() || null; lead.emailSource = lead.email ? 'manuel' : null; }
   await lead.save();
@@ -452,14 +452,45 @@ export async function dailyQueue(req, res) {
     const waiting = await Lead.countDocuments(filter);
     const left = Math.max(0, goal - doneToday);
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
-    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1, extraEmails: 1 } }]) : [];
-    const { followUpMessage } = await import('../services/acquisition/followUp.js');
-    for (const l of leads) { const f = followUpMessage(l); if (f) l.followUpMessage = f; } // relance courte pour les prospects déjà joints par email
-    res.json({ kind, goal, doneToday, left, waiting, leads });
+    const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1, extraEmails: 1, competitor: 1, competitors: 1, website: 1 } }]) : [];
+    const { followUpMessage, dmFor, inCompetitorGroup } = await import('../services/acquisition/followUp.js');
+    for (const l of leads) {
+      const f = followUpMessage(l); if (f) l.followUpMessage = f; // relance courte pour les prospects déjà joints par email
+      if (kind === 'brand' && !f) { const d = dmFor(l); l.message = d.text; l.dmVariant = d.variant; l.competitorPending = inCompetitorGroup(l) && !l.competitor?.checkedAt; }
+      else if (f) l.dmVariant = kind === 'brand' ? 'followup' : undefined;
+    }
+    // Test du message privé aux marques : concurrent cherché à l'avance pour les fiches du groupe « concurrent » des prochains jours
+    if (kind === 'brand') prepareQueueCompetitors(filter).catch(err => logger.warn(`prepareQueueCompetitors: ${err.message}`));
+    const abTest = kind === 'brand' ? await dmAbStats() : null;
+    res.json({ kind, goal, doneToday, left, waiting, leads, abTest });
   } catch (error) {
     logger.error('dailyQueue failed:', error);
     res.status(500).json({ error: 'File du jour indisponible' });
   }
+}
+
+let queuePrep = false;
+/** Concurrent des marques du groupe « concurrent » en tête de file (trois jours d'avance), en arrière-plan, une passe à la fois */
+async function prepareQueueCompetitors(filter) {
+  if (queuePrep) return;
+  queuePrep = true;
+  try {
+    const { inCompetitorGroup } = await import('../services/acquisition/followUp.js');
+    const pool = await Lead.find({ ...filter, 'mailing.pushedAt': null, 'competitor.checkedAt': null }).sort({ score: -1 }).limit(90);
+    const todo = pool.filter(inCompetitorGroup).slice(0, 45);
+    if (todo.length) { const { prepareCompetitors } = await import('../services/acquisition/competitors.js'); await prepareCompetitors(todo, { budgetMs: 15 * 60000 }); }
+  } finally { queuePrep = false; }
+}
+
+/** Résultat du test : messages privés envoyés depuis le 08/10/2026 par version, et réponses reçues */
+async function dmAbStats() {
+  const since = new Date('2026-10-08T00:00:00Z');
+  const rows = await Lead.aggregate([
+    { $match: { kind: 'brand', dmVariant: { $in: ['hooks', 'competitor'] }, contactedAt: { $gte: since } } },
+    { $group: { _id: '$dmVariant', sent: { $sum: 1 }, replied: { $sum: { $cond: [{ $gt: ['$mailing.replyAt', null] }, 1, 0] } } } },
+  ]);
+  const get = (k) => { const r = rows.find(x => x._id === k); return { sent: r?.sent || 0, replied: r?.replied || 0 }; };
+  return { since, hooks: get('hooks'), competitor: get('competitor') };
 }
 
 /** Réponse reçue en message privé (Instagram, TikTok, LinkedIn) collée à la main : classée par l'IA, email ou formulaire relevés, statut « A répondu » */

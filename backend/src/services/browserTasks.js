@@ -309,8 +309,8 @@ export async function queuePrefillMessage(lead, { network, createdBy, url: urlOv
   const net = ['instagram', 'tiktok', 'linkedin'].includes(network) ? network : (lead.socials?.instagram ? 'instagram' : lead.socials?.tiktok ? 'tiktok' : 'linkedin');
   const url = urlOverride && /^https:\/\/(www\.)?linkedin\.com\/in\//i.test(urlOverride) ? urlOverride : lead.socials?.[net]; // urlOverride : profil d'un contact LinkedIn de la fiche
   if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
-  const { followUpMessage } = await import('./acquisition/followUp.js');
-  const text = followUpMessage(lead) || lead.message; // prospect déjà joint par email : relance courte plutôt que la présentation complète
+  const { dmFor } = await import('./acquisition/followUp.js');
+  const text = dmFor(lead).text; // relance courte après un email ; version « concurrent » pour une marque sur deux (test) ; sinon le message de l'IA
   if (!text) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
   const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;
   // Un seul lot « Messages du jour » par journée : rouvert s'il s'était fermé après le message précédent
