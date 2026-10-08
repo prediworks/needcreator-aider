@@ -81,9 +81,11 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const brief = useMutation({
+    // La rédaction par l'IA prend souvent 30 à 60 secondes : message d'attente visible, un seul brief à la fois
     mutationFn: async (opt?: { adId?: string; proposal?: number }) => (await api.post(`/ad-scans/${slug}/brief`, { adId: opt?.adId || '', ...(opt?.proposal !== undefined ? { proposal: opt.proposal } : {}) })).data,
-    onSuccess: (d) => { trackRef('brief', slug, isAdmin); toast.success(d.message, { duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
-    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+    onMutate: () => { toast.loading('Préparation du brief : l\'IA rédige les consignes, comptez 30 secondes à une minute…', { id: 'scan-brief' }); },
+    onSuccess: (d) => { trackRef('brief', slug, isAdmin); toast.success(d.message, { id: 'scan-brief', duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { id: 'scan-brief', duration: 10000 }),
   });
   const audit = useMutation({
     mutationFn: async () => (await api.post(`/ad-scans/${slug}/audit`)).data,
@@ -275,7 +277,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                       <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
                       <div className="flex gap-2">
                         <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Aperçu Meta <ExternalLink className="w-3 h-3" /></a>
-                        {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => brief.mutate({ adId: a.id })} title="Prépare un brief NeedCreator : la version créateur de cette publicité">l&apos;équivalent en vidéo créateur</button>}
+                        {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => { if (!brief.isPending) brief.mutate({ adId: a.id }); }} disabled={brief.isPending} title="Prépare un brief NeedCreator : la version créateur de cette publicité">{brief.isPending && brief.variables?.adId === a.id ? 'Préparation du brief… (jusqu\'à une minute)' : 'l\'équivalent en vidéo créateur'}</button>}
                       </div>
                     </div>
                     {a.title && <div className="font-medium text-neutral-900 mt-2">{a.title}</div>}

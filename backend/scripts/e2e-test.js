@@ -2864,6 +2864,14 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     expect(soc1.status === 200 && soc1.data.lead.socials.instagram === 'https://www.instagram.com/ma.marque_test/' && soc1.data.lead.socials.tiktok === 'https://www.tiktok.com/@mamarque'
       && soc2.status === 200 && soc2.data.lead.socials.instagram === 'https://www.instagram.com/autre.marque/' && soc3.status === 400 && /non reconnu/.test(soc3.data.error) && socDoc.socials.instagram === 'https://www.instagram.com/autre.marque/',
     'Bouton « Réseaux » : @pseudo et adresse sans https enregistrés, lien non reconnu refusé sans rien effacer', { soc1: soc1.data?.lead?.socials, soc2: soc2.data?.lead?.socials, soc3: soc3.data });
+    // Formulaire « Modifier » : plusieurs champs en une fois ; la note saisie garde la mention du renommage ; email ou site illisible refusé sans rien changer
+    const ed1 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { name: `File Corrigée ${RUN}`, website: 'lymphea-test.fr', niche: 'cosmétiques', notes: 'Note du formulaire', socials: { linkedin: 'linkedin.com/company/lymphea-test' } });
+    const ed2 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { email: 'pas-une-adresse', name: 'Ne Doit Pas Passer' });
+    const ed3 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { website: 'pas un site' });
+    const edDoc = await db.collection('leads').findOne({ _id: dq1 });
+    expect(ed1.status === 200 && edDoc.name === `File Corrigée ${RUN}` && edDoc.website === 'https://lymphea-test.fr' && edDoc.niche === 'cosmétiques' && /^Note du formulaire · Renommée le /.test(edDoc.notes) && edDoc.socials.linkedin === 'https://linkedin.com/company/lymphea-test' && edDoc.socials.instagram === 'https://www.instagram.com/autre.marque/'
+      && ed2.status === 400 && ed3.status === 400 && edDoc.email === `dq1-${RUN}@needcreator-test.com`,
+    'Formulaire « Modifier » : nom, site, secteur, note et LinkedIn enregistrés ensemble ; email ou site illisible refusé sans rien modifier', { ed1: ed1.status, ed2: ed2.data, ed3: ed3.data, doc: { name: edDoc.name, website: edDoc.website, niche: edDoc.niche, notes: edDoc.notes, socials: edDoc.socials, email: edDoc.email } });
     const skipped = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { skip: true });
     const q3 = await brandApi('GET', '/admin/acquisition/daily-queue?kind=creator');
     expect(skipped.status === 200 && !q3.data.leads.some(l => String(l._id) === String(dq1)) && q3.data.doneToday === q2.data.doneToday, '« Passer » retire le prospect de la file pour 7 jours sans compter comme contacté', q3);

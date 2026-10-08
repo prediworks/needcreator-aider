@@ -161,7 +161,16 @@ function cleanSocials(obj = {}, rejected = []) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name, website, niche } = req.body || {};
+  // Formulaire « Modifier » : la note saisie d'abord, les mentions automatiques (renommage) s'y ajoutent ensuite
+  if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
+  if (email !== undefined && String(email).trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim())) return res.status(400).json({ error: 'Adresse email illisible. Rien n\'a été modifié.' });
+  if (website !== undefined) {
+    const w = String(website).trim();
+    if (!w) lead.website = undefined;
+    else { try { const u = new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`); if (!u.hostname.includes('.')) throw new Error('domaine'); lead.website = `${u.origin}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 300); } catch { return res.status(400).json({ error: 'Adresse du site illisible : par exemple lymphea.fr ou https://www.lymphea.fr. Rien n\'a été modifié.' }); } }
+  }
+  if (niche !== undefined) lead.niche = String(niche).trim().slice(0, 40) || undefined;
   // « Renommer » : faute de frappe, nom de société au lieu du nom de marque ; l'ancien nom reste dans la note, les vidéos proposées suivent
   if (name !== undefined) {
     const n = String(name).replace(/\s+/g, ' ').trim();
@@ -169,7 +178,6 @@ export async function updateLead(req, res) {
     if (n !== lead.name) {
       lead.notes = [lead.notes, `Renommée le ${new Date().toLocaleDateString('fr-FR')} (avant : ${lead.name || 'sans nom'})`].filter(Boolean).join(' · ').slice(0, 2000);
       lead.name = n;
-      if (lead.kind === 'brand') { const ShowcaseVideo = (await import('../models/ShowcaseVideo.js')).default; await ShowcaseVideo.updateMany({ leadId: lead._id }, { $set: { brandName: n.slice(0, 120) } }); }
     }
   }
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
@@ -208,9 +216,11 @@ export async function updateLead(req, res) {
     lead.contactedVia = contactedVia || lead.contactedVia || 'manuel';
     lead.notes = [lead.notes, `Déjà contacté, date rétablie à la main le ${new Date().toLocaleDateString('fr-FR')}`].filter(Boolean).join(' · ').slice(0, 2000);
   } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; if (['hooks', 'competitor', 'followup'].includes(dmVariant)) lead.dmVariant = dmVariant; } }
-  if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
-  if (email !== undefined) { lead.email = String(email).trim().toLowerCase() || null; lead.emailSource = lead.email ? 'manuel' : null; }
+  if (email !== undefined) { const e = String(email).trim().toLowerCase() || null; if (e !== (lead.email || null)) { lead.email = e; lead.emailSource = e ? 'manuel' : null; } }
+  const renamed = lead.isModified('name');
   await lead.save();
+  // Les vidéos proposées à la marque portent son nom : elles suivent le renommage (après l'enregistrement, pour ne rien changer si la fiche est refusée)
+  if (renamed && lead.kind === 'brand') { const ShowcaseVideo = (await import('../models/ShowcaseVideo.js')).default; await ShowcaseVideo.updateMany({ leadId: lead._id }, { $set: { brandName: String(lead.name).slice(0, 120) } }); }
   res.json({ message: 'Prospect mis à jour', lead });
 }
 

@@ -220,6 +220,48 @@ function RotationHint({ r, value, onReset }: { r?: any; value: string; onReset: 
   );
 }
 
+/** « Modifier » une fiche : tous les champs corrigeables en une fois ; seuls les champs changés sont envoyés */
+function LeadEditForm({ lead, onDone }: { lead: any; onDone: () => void }) {
+  const init = { name: lead.name || '', website: lead.website || '', email: lead.email || '', instagram: lead.socials?.instagram || '', tiktok: lead.socials?.tiktok || '', linkedin: lead.socials?.linkedin || '', niche: lead.niche || '', notes: lead.notes || '' };
+  const [f, setF] = useState(init);
+  const save = useMutation({
+    mutationFn: async () => {
+      const body: any = {};
+      for (const k of ['name', 'website', 'email', 'niche', 'notes'] as const) if (f[k].trim() !== init[k].trim()) body[k] = f[k].trim();
+      const soc: any = {};
+      for (const k of ['instagram', 'tiktok', 'linkedin'] as const) if (f[k].trim() !== init[k].trim()) soc[k] = f[k].trim();
+      if (Object.keys(soc).length) body.socials = soc;
+      if (!Object.keys(body).length) return { message: 'Rien à modifier' };
+      return (await api.patch(`/admin/acquisition/leads/${lead._id}`, body)).data;
+    },
+    onSuccess: (d) => { toast.success(d.message === 'Prospect mis à jour' ? 'Fiche enregistrée' : d.message); onDone(); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const field = (k: keyof typeof init, label: string, placeholder = '') => (
+    <label className="text-xs text-neutral-600 flex flex-col gap-0.5">{label}<input value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} placeholder={placeholder} className="border border-neutral-300 rounded px-2 py-1 text-sm text-neutral-900" data-testid={`lead-edit-${k}`} /></label>
+  );
+  return (
+    <form className="mt-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200" onSubmit={(e) => { e.preventDefault(); save.mutate(); }} data-testid="lead-edit-form">
+      <div className="grid sm:grid-cols-2 gap-2">
+        {field('name', 'Nom (l\'ancien reste dans la note)')}
+        {field('website', 'Site', 'lymphea.fr')}
+        {field('email', 'Email', 'contact@marque.fr')}
+        {lead.kind === 'brand' ? field('niche', 'Secteur', 'cosmétiques') : field('niche', 'Niche', 'beauty')}
+        {field('instagram', 'Instagram', '@marque ou instagram.com/marque')}
+        {field('tiktok', 'TikTok', '@marque ou tiktok.com/@marque')}
+        {field('linkedin', 'LinkedIn', 'linkedin.com/company/marque')}
+      </div>
+      <label className="text-xs text-neutral-600 flex flex-col gap-0.5 mt-2">Note<textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={3} className="border border-neutral-300 rounded px-2 py-1 text-sm text-neutral-900" data-testid="lead-edit-notes" /></label>
+      <div className="flex gap-2 mt-2 items-center flex-wrap">
+        <Button size="sm" type="submit" isLoading={save.isPending} data-testid="lead-edit-save">Enregistrer</Button>
+        <Button size="sm" variant="ghost" type="button" onClick={onDone}>Annuler</Button>
+        {!lead.email && <FindEmailButton leadId={lead._id} website={lead.website} onFound={onDone} />}
+        <span className="text-[11px] text-neutral-500">Un champ vidé efface la valeur. Un lien non reconnu est refusé, rien n&apos;est alors modifié.</span>
+      </div>
+    </form>
+  );
+}
+
 /** « Chercher l'email » d'une seule fiche : accueil, page contact et mentions légales de son site ; le site est demandé s'il manque */
 function FindEmailButton({ leadId, website, onFound, className = 'px-1.5 text-xs text-neutral-500 hover:text-primary-600 underline' }: { leadId: string; website?: string | null; onFound?: () => void; className?: string }) {
   const find = useMutation({
@@ -444,6 +486,7 @@ export default function AcquisitionTool() {
   useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
@@ -691,14 +734,12 @@ export default function AcquisitionTool() {
                       {l.kind === 'brand' && !l.showcaseRequest?.explicit && <button type="button" onClick={() => { const p = prompt('La marque demande une vidéo. Produit visé (nom ou lien, vide si inconnu) :', ''); if (p !== null) videoRequest.mutate({ id: l._id, product: p }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600 underline" title="La marque a dit oui à une vidéo : les créateurs de sa niche sont prévenus, la demande entre dans le suivi « Vidéos demandées »" data-testid="video-request">Vidéo demandée</button>}
                       {l.kind === 'brand' && <button type="button" onClick={() => offerBrief.mutate(l._id)} disabled={offerBrief.isPending} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600 disabled:opacity-50" title="Prépare le brief promis dans le troisième email (« répondez oui ») : trouve une fiche produit sur le site de la marque, génère angles, format, budget et consignes, puis ajoute le lien à la réponse proposée. Fait automatiquement quand une marque répond positivement. Environ 30 secondes, une seule génération par marque.">{l.offeredBriefId ? 'Brief offert ✓' : 'Brief offert'}</button>}
                       <button type="button" onClick={() => { const t = prompt('Collez la réponse reçue en message privé'); if (t && t.trim()) pasteReplyList.mutate({ id: l._id, text: t, via: l.contactedVia && l.contactedVia !== 'manuel' ? l.contactedVia : 'instagram' }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Réponse reçue sur un réseau : classée par l'IA, email ou formulaire relevés et ajoutés à la fiche">Réponse</button>
-                      <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Ajouter une note interne sur ce prospect">Note</button>
-                      <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer ; Annuler garde le lien actuel)', l.socials?.tiktok || ''); patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt === null ? (l.socials?.tiktok || '') : tt } }, { onSuccess: () => toast.success('Réseaux enregistrés') }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Saisir ou corriger les liens Instagram et TikTok du prospect">Réseaux</button>
-                      <button type="button" onClick={() => { const n = prompt('Nouveau nom (l\'ancien reste dans la note de la fiche) :', l.name || ''); if (n !== null && n.trim() && n.trim() !== l.name) patch.mutate({ id: l._id, name: n.trim() }, { onSuccess: () => toast.success('Fiche renommée') }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Corriger le nom de la fiche (faute de frappe, nom de société au lieu de la marque). Les vidéos proposées à cette marque prennent le nouveau nom." data-testid="lead-rename">Renommer</button>
+                      <button type="button" onClick={() => setEditing(editing === l._id ? null : l._id)} className={`px-1.5 text-xs hover:text-primary-600 ${editing === l._id ? 'text-primary-700 font-medium' : 'text-neutral-500'}`} title="Corriger la fiche : nom, site, email, Instagram, TikTok, LinkedIn, secteur, note" data-testid="lead-edit">Modifier</button>
                       {!l.email && <FindEmailButton leadId={l._id} website={l.website} onFound={refresh} />}
-                      {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Renseigner un email trouvé à la main : le prospect devient éligible au mailing">Saisir l&apos;email</button>}
                       <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer définitivement ce prospect"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
+                  {editing === l._id && <LeadEditForm lead={l} onDone={() => { setEditing(null); refresh(); }} />}
                 </div>
               );
             })}
