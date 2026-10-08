@@ -1,8 +1,7 @@
 # Nouveau message côté marques · textes à valider
 
-Rédigé et validé le 07/10/2026. **Reporté sur le site et dans les consignes de l'IA le même jour** (accueil, page Marques, message privé aux
-marques, commentaires des groupes). **Reste à faire par vous** : recoller les trois emails dans SalesBlink (vérifier par un envoi test le lien
-personnalisé de l'email 1), envoyer les deux annonces depuis Admin → Messages aux inscrits, publier le kit réseaux.
+Rédigé et validé le 07/10/2026 ; séquence d'emails refaite le 08/10/2026 (section 3). **Reporté sur le site et dans les consignes de l'IA le même jour** (accueil, page Marques, message privé aux
+marques, commentaires des groupes). **Reste à faire par vous** : recoller les trois emails dans SalesBlink une fois les variables `competitor_line` et `audit_link` livrées (envoi test d'abord), envoyer les deux annonces depuis Admin → Messages aux inscrits, publier le kit réseaux.
 
 ---
 
@@ -75,14 +74,54 @@ Aujourd'hui, on dit : « on vous livre des vidéos UGC ». Demain : **« on vous
 
 ## 3. Séquence d'emails marques (à recoller dans SalesBlink)
 
-Changement de fond : l'email 1 ouvre sur **leurs propres publicités** (les trois accroches déjà calculées, plus le lien vers l'audit), l'email 2 sur
-**leurs concurrents**, l'email 3 garde les offres sans risque. Le sujet des droits, qui avait son email, devient une ligne de l'email 3.
+**Version du 08/10/2026.** Aucune marque n'ayant réagi, on change d'approche : **l'email 1 ne vend rien**, il offre un seul outil gratuit (les
+publicités de leurs concurrents), avec un seul lien. L'email 2 parle de leurs propres publicités et des trois accroches préparées pour eux,
+l'email 3 garde les offres sans risque.
 
-**Nouveau lien, sans rien coder** : `https://needcreator.com/audit-publicites?q={{ company_name }}` lance tout seul l'audit de leur marque à
-l'ouverture. À vérifier par un envoi test : si SalesBlink ne remplace pas la variable dans un lien, on mettra le lien simple
-`https://needcreator.com/audit-publicites`.
+**Variables fournies par NeedCreator** (poussées avec chaque contact, en cours de développement) :
 
-### Email 1 · jour 0 · leurs publicités
+| Variable | Contenu |
+|---|---|
+| `{{ competitor_name }}` | un concurrent de la marque, choisi par l'IA à la qualification (ex. « Typology ») |
+| `{{ competitor_line }}` | la phrase complète avec le lien qui lance directement le scan de ce concurrent ; sans concurrent connu, une phrase générique (« tapez le nom d'un concurrent ») avec le lien de l'outil. **C'est elle qu'on met dans l'email**, pour ne jamais envoyer un trou. |
+| `{{ audit_link }}` | le lien qui lance l'audit de leurs propres publicités |
+| `{{ paragraph }}` | les trois accroches pour leur produit (inchangé) |
+| `{{ signup_link }}` | création du compte marque (inchangé) |
+
+Les liens portent la référence de la fiche : un scan ou un audit lancé depuis l'email est rattaché à la marque prospectée, et la fiche passe en
+tête des relances dans l'admin (compteur de scans).
+
+**Avant d'activer** : un envoi test pour vérifier que SalesBlink remplace bien les variables, liens compris. Les contacts déjà poussés avant le
+développement n'ont pas ces variables : ils seront mis à jour par NeedCreator (à vérifier dans SalesBlink sur deux ou trois contacts).
+
+### Email 1 · jour 0 · les publicités de leurs concurrents
+
+**Objet** (tester les deux) :
+- `Les publicités de vos concurrents qui tournent depuis trois mois`
+- `{{ company_name }} : ce que vos concurrents font tourner`
+
+```
+Bonjour,
+
+Une publicité qu'une marque laisse tourner trois mois est une publicité qui lui rapporte. Elles sont publiques, mais introuvables à la main.
+
+Nous avons fait un outil gratuit qui les montre : tapez le nom d'un concurrent, vous voyez ses publicités Meta actives de la plus ancienne à la plus récente, les angles qu'il utilise et ceux qu'il laisse libres.
+
+{{ competitor_line }}
+
+Sans compte, sans rien connecter.
+
+{{name_of_sender}}
+NeedCreator · https://needcreator.com
+
+PS : le même outil lit aussi vos propres publicités : {{ audit_link }}
+
+Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
+```
+
+Exemple de `{{ competitor_line }}` : « Par exemple, les publicités de Typology, la plus ancienne en premier : https://needcreator.com/publicites-concurrents?q=Typology&ref=… »
+
+### Email 2 · jour 4 · leurs publicités
 
 **Objet** (tester les deux) :
 - `{{ company_name }} : trois accroches pour votre prochaine publicité`
@@ -91,39 +130,18 @@ l'ouverture. À vérifier par un envoi test : si SalesBlink ne remplace pas la v
 ```
 Bonjour,
 
-Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator. Nous aidons les marques à savoir quelles publicités vidéo faire, puis nous les faisons tourner par des créateurs vérifiés.
+Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator. Nous aidons les marques à savoir quelles publicités vidéo faire, puis nous les faisons tourner par des créateurs vérifiés, payés seulement si la vidéo vous convient.
 
 {{ paragraph }}
 
-Nous avons aussi lu toutes vos publicités Meta actives : celles qui tournent depuis le plus longtemps, les angles que vous répétez, ceux que vous n'utilisez pas encore. L'audit est prêt, gratuit, sans rien connecter : https://needcreator.com/audit-publicites?q={{ company_name }}
-
-Si l'une de ces vidéos vous intéresse, un créateur la tourne ; vous ne payez que si elle vous convient.
+Nous avons aussi lu toutes vos publicités Meta actives : celles qui tournent depuis le plus longtemps, les angles que vous répétez, ceux que vous n'utilisez pas encore. L'audit est prêt, gratuit, sans rien connecter : {{ audit_link }}
 
 Si ce message ne vous concerne pas directement, pourriez-vous le transmettre à la personne en charge du marketing ou des publicités ? Merci d'avance.
 
 {{name_of_sender}}
-NeedCreator
+NeedCreator · https://needcreator.com
 
-Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : [lien de désinscription de l'outil].
-```
-
-### Email 2 · jour 4 · leurs concurrents
-
-**Objet** : `Les publicités de votre secteur qui tournent depuis trois mois`
-
-```
-Bonjour,
-
-Une publicité qu'une marque maintient depuis trois mois est une publicité qui lui rapporte. Elles sont toutes publiques, dans la bibliothèque de Meta, mais introuvables à la main.
-
-Nous avons fait l'outil : vous tapez le nom d'un concurrent, vous voyez ses publicités actives de la plus ancienne à la plus récente, les angles qu'il utilise et ceux qu'il laisse libres. Gratuit, sans compte : https://needcreator.com/publicites-concurrents
-
-Et si l'une d'elles vous donne une idée, un clic la transforme en brief, qu'un créateur tourne pour vous.
-
-{{name_of_sender}}
-NeedCreator
-
-Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : [lien de désinscription de l'outil].
+Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
 ```
 
 ### Email 3 · jour 9 · dernier message
@@ -148,9 +166,9 @@ Si le sujet n'est pas d'actualité, répondez « plus tard » et je reviens vers
 Bien cordialement,
 
 {{name_of_sender}}
-NeedCreator
+NeedCreator · https://needcreator.com
 
-Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : [lien de désinscription de l'outil].
+Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
 ```
 
 ---
