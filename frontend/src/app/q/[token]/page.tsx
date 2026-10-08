@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Spinner from '@/components/ui/Spinner';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { VIDEO_TYPES, PLATFORMS, RIGHTS_DURATION, RIGHTS_SUPPORTS } from '@/lib/labels';
-import { Shield, FileSignature, ExternalLink, CheckCircle, Star, Search, BarChart3 } from 'lucide-react';
+import { Shield, FileSignature, ExternalLink, CheckCircle, Star, Search, BarChart3, ScrollText } from 'lucide-react';
 
 /**
  * Outils gratuits offerts avec le devis (le client achète de la vidéo publicitaire) : sobre sous le devis tant qu'il est à accepter, pour ne pas
@@ -22,10 +22,11 @@ function QuoteTools({ quoteId, company, prominent }: { quoteId: string; company:
   return (
     <Card className={prominent ? 'p-6 border-primary-200' : 'p-4 bg-white/60'} data-testid="quote-tools">
       <div className={`font-semibold text-neutral-900 ${prominent ? 'text-lg' : 'text-sm'}`}>Outils offerts avec votre devis</div>
-      <p className="text-sm text-neutral-600 mb-3">Gratuits, sans compte : les publicités Meta qui tournent depuis le plus longtemps chez vos concurrents, et la lecture des vôtres.</p>
+      <p className="text-sm text-neutral-600 mb-3">Gratuits : les publicités Meta qui tournent depuis le plus longtemps chez vos concurrents, la lecture des vôtres, et le suivi des droits de tous vos contenus, même achetés ailleurs (durée, supports, date de fin).</p>
       <div className="flex flex-col sm:flex-row gap-2">
         <Link href={`/publicites-concurrents?${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><Search className="w-4 h-4 mr-2" /> Voir les publicités de vos concurrents</Button></Link>
         <Link href={`/audit-publicites?q=${encodeURIComponent(company)}&${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><BarChart3 className="w-4 h-4 mr-2" /> Auditer vos publicités Meta</Button></Link>
+        <Link href="/contenus-et-droits"><Button variant="outline" size="sm" className="w-full sm:w-auto"><ScrollText className="w-4 h-4 mr-2" /> Suivre les droits de vos contenus</Button></Link>
       </div>
     </Card>
   );
