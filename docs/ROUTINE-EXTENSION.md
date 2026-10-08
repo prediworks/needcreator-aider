@@ -73,6 +73,10 @@ Trois sources, par ordre d'intérêt :
 4. **« Lot : contacts LinkedIn »** (compte LinkedIn secondaire connecté dans le profil de lecture) : 20 marques par jour au plus ; la fiche reçoit
    les personnes marketing avec un email déduit, à « retenir » d'un clic dans la file du jour, et un bouton « message LinkedIn » pour la personne.
 
+**Mots-clés** : chaque champ est pré-rempli avec la liste de la semaine (« Semaine 3 sur 6 · liste précédente lancée le … »). Cliquez
+simplement sur le lot. Vous pouvez changer les mots : le lot part avec vos mots, mais la rotation n'avance pas, et « Liste de la semaine »
+remet la liste prévue. Les listes se modifient dans Réglages → Prospection.
+
 Puis Start dans le profil « lecture ». Les marques avec email partent au mailing la nuit suivante ; celles avec Instagram arrivent dans la
 file du jour.
 

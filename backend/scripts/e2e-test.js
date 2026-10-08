@@ -3709,6 +3709,21 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     // Recomptage des lots ouverts depuis leurs tâches : le lot personnalisé (auteur + profil faits) est fermé avec 1 email relevé
     const customRow = list.data.batches.find(b => String(b._id) === String(custom.data.batch._id));
     expect(customRow && customRow.closedAt && customRow.counts.total === 2 && customRow.counts.done === 2 && customRow.imported.emailsAdded >= 1, 'Le lot doit être recompté depuis ses tâches et fermé, avec l\'email relevé', { status: 200, data: customRow });
+    // Mots-clés de la semaine : champ pré-rempli avec la ligne suivante ; un lot lancé avec cette ligne fait avancer la rotation, des mots choisis à la main non
+    const rotBefore = await db.collection('settings').findOne({ key: 'keywordRotationState' });
+    const rot1 = await brandApi('GET', '/browser-tasks/rotation');
+    const tk = rot1.data.rotation?.tiktok_ads;
+    const lotRot = await brandApi('POST', '/browser-tasks/batches', { preset: 'tiktok_ads', keywords: tk.words, count: 5 });
+    if (lotRot.data?.batch?._id) batchIds.push(lotRot.data.batch._id);
+    const rot2 = await brandApi('GET', '/browser-tasks/rotation');
+    const lotFree = await brandApi('POST', '/browser-tasks/batches', { preset: 'tiktok_ads', keywords: ['mot libre e2e'], count: 5 });
+    if (lotFree.data?.batch?._id) batchIds.push(lotFree.data.batch._id);
+    const rot3 = await brandApi('GET', '/browser-tasks/rotation');
+    if (rotBefore) await db.collection('settings').replaceOne({ key: 'keywordRotationState' }, rotBefore); else await db.collection('settings').deleteOne({ key: 'keywordRotationState' });
+    expect(rot1.status === 200 && tk && tk.words.length >= 3 && tk.total >= 2 && rot1.data.rotation.ad_library && rot1.data.rotation.partnerships && rot1.data.rotation.hashtags
+      && lotRot.status === 201 && rot2.data.rotation.tiktok_ads.index === (tk.index + 1) % tk.total && rot2.data.rotation.tiktok_ads.doneThisWeek === true && rot2.data.rotation.ad_library.index === rot1.data.rotation.ad_library.index
+      && lotFree.status === 201 && rot3.data.rotation.tiktok_ads.index === rot2.data.rotation.tiktok_ads.index,
+    'Mots-clés de la semaine : liste proposée par lot, la rotation avance quand la liste est lancée (lot par lot), pas avec des mots choisis à la main', { rot1: rot1.data?.rotation?.tiktok_ads, rot2: rot2.data?.rotation?.tiktok_ads, rot3: rot3.data?.rotation?.tiktok_ads });
     return 'jeton, lot, tâche fille, fiche complétée avec email, marque importée, blocage et annulation';
   } finally {
     await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });

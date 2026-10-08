@@ -1,7 +1,7 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { extensionAuth, nextTask, taskResult, extensionStatus, tokenView, tokenRotate, createBatchView, listBatchesView, batchDetailView, cancelBatchView } from '../controllers/browserTasks.js';
+import { extensionAuth, nextTask, taskResult, extensionStatus, tokenView, tokenRotate, createBatchView, listBatchesView, batchDetailView, cancelBatchView, rotationView } from '../controllers/browserTasks.js';
 
 /**
  * File de tâches de l'extension Chrome de prospection. Deux entrées, volontairement séparées du reste :
@@ -19,6 +19,7 @@ router.use(authenticate, authorize('admin'));
 router.get('/token', tokenView);
 router.post('/token', tokenRotate);
 router.get('/batches', listBatchesView);
+router.get('/rotation', rotationView); // mots-clés de la semaine, par lot
 router.post('/batches', createBatchView);
 router.get('/batches/:id', batchDetailView);
 router.post('/batches/:id/cancel', cancelBatchView);

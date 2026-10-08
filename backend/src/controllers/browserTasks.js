@@ -97,9 +97,19 @@ export async function createBatchView(req, res) {
     else if (value.preset === 'facebook_groups') batch = await batchFromFacebookGroups({ createdBy });
     else if (value.preset === 'tiktok_ads') batch = await batchFromTiktokAds({ keywords: value.keywords, count: value.count || 15, country: value.country || 'FR', createdBy });
     else batch = await createBatch({ label: value.label || 'Lot personnalisé', kind: value.kind, origin: value.origin, niche: value.niche, items: value.items, createdBy });
+    if (batch && ['ad_library', 'tiktok_ads', 'partnerships', 'hashtags'].includes(value.preset)) {
+      const { markRotationUsed } = await import('../services/keywordRotation.js');
+      await markRotationUsed(value.preset, value.keywords || value.hashtags || []).catch(err => logger.warn(`markRotationUsed: ${err.message}`));
+    }
     if (!batch) return res.status(404).json({ error: 'Rien à traiter pour ce lot : aucune fiche ne correspond (ou déjà remises il y a moins de 30 jours)' });
     res.status(201).json({ batch, message: `Lot créé : ${batch.counts.total} tâche(s). Lancez l'extension dans Chrome, elle les traitera une par une.` });
   } catch (error) { logger.error('createBatch failed:', error); res.status(500).json({ error: `Lot non créé : ${error.message}` }); }
+}
+
+/** Mots-clés de la semaine pour chaque lot (champs pré-remplis côté admin) */
+export async function rotationView(req, res) {
+  try { const { rotationSuggestions } = await import('../services/keywordRotation.js'); res.json({ rotation: await rotationSuggestions() }); }
+  catch (error) { logger.error('rotationView failed:', error); res.status(500).json({ error: 'Mots-clés indisponibles' }); }
 }
 
 export async function listBatchesView(req, res) {

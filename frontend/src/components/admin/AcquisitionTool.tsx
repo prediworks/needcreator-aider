@@ -207,6 +207,19 @@ function MailingBreakdown() {
   );
 }
 
+/** Sous un champ de lot : place de la liste dans la rotation, dernier lancement, et retour à la liste de la semaine si le champ a été modifié */
+function RotationHint({ r, value, onReset }: { r?: any; value: string; onReset: (v: string) => void }) {
+  if (!r) return null;
+  const suggested = (r.words || []).join(', ');
+  const edited = value.trim() !== suggested;
+  return (
+    <div className="text-[11px] text-neutral-500 mt-0.5 max-w-xs" data-testid="rotation-hint">
+      {edited ? <>Mots choisis à la main : la rotation n&apos;avancera pas. <button type="button" className="underline text-primary-700" onClick={() => onReset(suggested)}>Liste de la semaine</button></>
+        : <>Semaine {r.index + 1} sur {r.total}{r.lastAt ? ` · liste précédente lancée le ${formatDate(r.lastAt)}` : ''}{r.doneThisWeek && r.nextFrom ? ` · à lancer à partir du ${formatDate(r.nextFrom)}` : ''}</>}
+    </div>
+  );
+}
+
 /** « Chercher l'email » d'une seule fiche : accueil, page contact et mentions légales de son site ; le site est demandé s'il manque */
 function FindEmailButton({ leadId, website, onFound, className = 'px-1.5 text-xs text-neutral-500 hover:text-primary-600 underline' }: { leadId: string; website?: string | null; onFound?: () => void; className?: string }) {
   const find = useMutation({
@@ -276,15 +289,24 @@ function ExtensionPanel() {
   const queryClient = useQueryClient();
   const [keywords, setKeywords] = useState('');
   const [hashtags, setHashtags] = useState('');
-  const [partnerTags, setPartnerTags] = useState('collaborationcommerciale, partenariatremunere, produitoffert, partenariat, collab, ugcfrance, publicite');
+  const [partnerTags, setPartnerTags] = useState('');
   const [tiktokKeywords, setTiktokKeywords] = useState('');
+  // Mots-clés de la semaine (Réglages → Prospection) : les champs sont pré-remplis une fois, puis restent libres
+  const { data: rot } = useQuery({ queryKey: ['ext-rotation'], queryFn: async () => (await api.get('/browser-tasks/rotation')).data.rotation, staleTime: 60000 });
+  const [rotApplied, setRotApplied] = useState(false);
+  useEffect(() => {
+    if (!rot || rotApplied) return;
+    setRotApplied(true);
+    const w = (p: string) => (rot[p]?.words || []).join(', ');
+    setKeywords((v) => v || w('ad_library')); setTiktokKeywords((v) => v || w('tiktok_ads')); setPartnerTags((v) => v || w('partnerships')); setHashtags((v) => v || w('hashtags'));
+  }, [rot, rotApplied]);
   const [openId, setOpenId] = useState<string | null>(null);
   const { data: tok } = useQuery({ queryKey: ['ext-token'], queryFn: async () => (await api.get('/browser-tasks/token')).data });
   const { data: lots } = useQuery({ queryKey: ['ext-batches'], queryFn: async () => (await api.get('/browser-tasks/batches')).data, refetchInterval: (q) => ((q.state.data?.pending || 0) + (q.state.data?.running || 0) > 0 ? 5000 : 30000) });
   const { data: detail } = useQuery({ queryKey: ['ext-batch', openId], queryFn: async () => (await api.get(`/browser-tasks/batches/${openId}`)).data, enabled: !!openId, refetchInterval: 5000 });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['ext-batches'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
   const rotate = useMutation({ mutationFn: async () => (await api.post('/browser-tasks/token')).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['ext-token'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
-  const create = useMutation({ mutationFn: async (body: any) => (await api.post('/browser-tasks/batches', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const create = useMutation({ mutationFn: async (body: any) => (await api.post('/browser-tasks/batches', body)).data, onSuccess: (d, v: any) => { toast.success(d.message, { duration: 8000 }); refresh(); const clear: Record<string, (x: string) => void> = { ad_library: setKeywords, tiktok_ads: setTiktokKeywords, partnerships: setPartnerTags, hashtags: setHashtags }; if (clear[v?.preset]) { clear[v.preset](''); setRotApplied(false); } queryClient.invalidateQueries({ queryKey: ['ext-rotation'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const cancel = useMutation({ mutationFn: async (id: string) => (await api.post(`/browser-tasks/batches/${id}/cancel`)).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const copyToken = async () => { if (!tok?.token) return; await navigator.clipboard.writeText(tok.token); toast.success('Jeton copié : collez-le dans les options de l\'extension.'); };
   const apiBase = typeof window !== 'undefined' ? `${(process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')}/browser-tasks` : '';
@@ -300,20 +322,20 @@ function ExtensionPanel() {
         <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'posts_without_author', limit: 60 })} isLoading={create.isPending} title="Publications Instagram trouvées par hashtag dont l'auteur reste à lire (60 au plus). L'extension ouvre chaque publication, puis le profil de l'auteur, et la fiche est complétée avec email, abonnés et lien de bio." data-testid="ext-batch-posts">Lot : publications sans auteur</Button>
         <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'profiles_without_email', limit: 60 })} isLoading={create.isPending} title="Créateurs sans email ayant un profil Instagram ou TikTok (60 au plus, mémorisés 30 jours). L'extension lit le profil et le lien de bio ; l'email est cherché sur le site." data-testid="ext-batch-profiles">Lot : profils sans email</Button>
         <div className="flex gap-1 items-end">
-          <Input label="Bibliothèque publicitaire : mots-clés" value={keywords} onChange={(e: any) => setKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" />
+          <div><Input label="Bibliothèque publicitaire : mots-clés" value={keywords} onChange={(e: any) => setKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" /><RotationHint r={rot?.ad_library} value={keywords} onReset={setKeywords} /></div>
           <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'ad_library', keywords: keywords.split(/[,\n;]/).map(k => k.trim()).filter(Boolean), count: 15 })} isLoading={create.isPending} disabled={!keywords.trim()} title="Une tâche par mot-clé : l'extension ouvre la bibliothèque publicitaire Meta (France, publicités vidéo actives), relève les annonceurs, et ils sont importés comme marques avec recherche d'email sur leur site" data-testid="ext-batch-ads">Lot : marques</Button>
         </div>
         <div className="flex gap-1 items-end">
-          <Input label="Hashtags Instagram" value={hashtags} onChange={(e: any) => setHashtags(e.target.value)} placeholder="ugcfrance, createurugc" className="w-56" />
+          <div><Input label="Hashtags Instagram" value={hashtags} onChange={(e: any) => setHashtags(e.target.value)} placeholder="ugcfrance, createurugc" className="w-56" /><RotationHint r={rot?.hashtags} value={hashtags} onReset={setHashtags} /></div>
           <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'hashtags', hashtags: hashtags.split(/[,\n;\s]/).map(k => k.trim()).filter(Boolean), count: 20 })} isLoading={create.isPending} disabled={!hashtags.trim()} title="Une tâche par hashtag : 20 publications récentes, puis auteur et profil de chacune (sans passer par l'API Meta)" data-testid="ext-batch-hashtags">Lot : hashtags</Button>
         </div>
         <div className="flex gap-1 items-end">
-          <Input label="Marques taguées par les créateurs : hashtags" value={partnerTags} onChange={(e: any) => setPartnerTags(e.target.value)} className="w-80" />
+          <div><Input label="Marques taguées par les créateurs : hashtags" value={partnerTags} onChange={(e: any) => setPartnerTags(e.target.value)} className="w-80" /><RotationHint r={rot?.partnerships} value={partnerTags} onReset={setPartnerTags} /></div>
           <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'partnerships', hashtags: partnerTags.split(/[,\n;\s]/).map(k => k.trim()).filter(Boolean), count: 20 })} isLoading={create.isPending} disabled={!partnerTags.trim()} title="Publications de partenariat (#partenariat, #collab…) : la marque taguée (« Partenariat rémunéré avec … » ou compte cité) devient un prospect marque avec son Instagram ; son site et ses publicités sont cherchés dans la bibliothèque Meta par le serveur. Ces marques achètent déjà de l'UGC." data-testid="ext-batch-partnerships">Lot : marques taguées</Button>
         </div>
         <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'linkedin_contacts', limit: 20 })} isLoading={create.isPending} title="20 marques avec un site et sans contact connu : l'extension (compte LinkedIn secondaire, profil de lecture) cherche la page entreprise puis lit l'onglet Personnes filtré sur marketing ; noms, titres et emails déduits du format de la marque sont ajoutés à la fiche. Plafond : 20 pages LinkedIn par jour." data-testid="ext-batch-linkedin">Lot : contacts LinkedIn</Button>
         <div className="flex gap-1 items-end">
-          <Input label="TikTok Creative Center : mots-clés" value={tiktokKeywords} onChange={(e: any) => setTiktokKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" />
+          <div><Input label="TikTok Creative Center : mots-clés" value={tiktokKeywords} onChange={(e: any) => setTiktokKeywords(e.target.value)} placeholder="cosmétique, bougie, complément alimentaire" className="w-72" /><RotationHint r={rot?.tiktok_ads} value={tiktokKeywords} onReset={setTiktokKeywords} /></div>
           <Button size="sm" variant="outline" onClick={() => create.mutate({ preset: 'tiktok_ads', keywords: tiktokKeywords.split(/[,\n;]/).map(k => k.trim()).filter(Boolean), count: 15 })} isLoading={create.isPending} disabled={!tiktokKeywords.trim()} title="Une tâche par mot-clé : l'extension ouvre les meilleures publicités TikTok du mois (page publique, sans compte), l'IA relève les annonceurs, importés comme marques ; site cherché dans la bibliothèque Meta" data-testid="ext-batch-tiktok">Lot : pubs TikTok</Button>
         </div>
       </div>

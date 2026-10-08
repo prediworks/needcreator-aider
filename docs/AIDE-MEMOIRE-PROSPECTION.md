@@ -77,6 +77,10 @@ Sortie : une ligne par marque, séparateur « ; » : nom ; lien de la page Faceb
 
 ## Mots-clés, semaine par semaine
 
+**Depuis le 08/10/2026, plus besoin de ce tableau** : les champs des lots (bibliothèque publicitaire, TikTok, marques taguées, hashtags
+créateurs) sont pré-remplis avec la liste de la semaine, et la rotation avance seule quand le lot est lancé avec cette liste. Les listes se
+modifient dans Admin → Réglages → Prospection (« … une ligne par semaine »). Le tableau ci-dessous reste comme référence de départ.
+
 | Semaine | Mots-clés à coller à la place de `<MOTS-CLÉS>` |
 |---|---|
 | 1 (fait le 18/09/2026) | cosmétique, soin visage, complément alimentaire, vêtement, bijou, décoration, épicerie fine, application mobile |
