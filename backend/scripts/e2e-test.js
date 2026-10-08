@@ -3307,11 +3307,17 @@ await step('Marque suggérée par un créateur : doublons, taille (grande, très
       const mine = (bs1.data.searches || []).filter(x => new RegExp(`thesdelune${RUN}`).test(x.norm));
       expect(bs1.status === 200 && mine.length === 1 && mine[0].creators === 1 && mine[0].status === 'open' && mine[0].query === `Thes de Lune ${RUN}`, 'Une frappe lettre à lettre ne doit laisser qu\'une recherche, la forme la plus longue', { mine, all: (bs1.data.searches || []).map(x => x.query).slice(0, 8) });
       const bsNike = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: 'nike', action: 'create' });
-      const bsOk = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: mine[0].norm, action: 'create' });
+      const bsBadName = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: mine[0].norm, action: 'create', name: 'x' });
+      const bsOk = await brandApi('POST', '/admin/acquisition/brand-searches', { norm: mine[0].norm, action: 'create', name: `Thés de la Lune ${RUN}` });
       const bsLead = bsOk.data.lead ? await db.collection('leads').findOne({ _id: oid(bsOk.data.lead._id) }) : null;
-      const bsNotif = await db.collection('notifications').findOne({ userId: oid(creatorUser.id), title: new RegExp(`Thes de Lune ${RUN}`) });
+      const bsNotif = await db.collection('notifications').findOne({ userId: oid(creatorUser.id), title: new RegExp(`Thés de la Lune ${RUN}`) });
       const bs2 = (await brandApi('GET', '/admin/acquisition/brand-searches')).data.searches.find(x => x.norm === mine[0].norm);
       expect(bsNike.status === 400 && /très grande marque/.test(bsNike.data.error) && bsOk.status === 201 && bsLead && bsLead.kind === 'brand' && bsLead.status === 'qualified' && String(bsLead.suggestedBy) === String(creatorUser.id) && bsLead.reservedUntil && /Cherchée dans/.test(bsLead.notes) && bsNotif && bs2.status === 'created', 'Créer la fiche depuis une recherche : marque en prospection, réservée au créateur, créateur prévenu ; une très grande marque est refusée', { bsNike: bsNike.data, bsOk: bsOk.data.message, lead: bsLead && { status: bsLead.status, notes: bsLead.notes, reserved: bsLead.reservedUntil }, notif: !!bsNotif, bs2: bs2?.status });
+      // Nom corrigé par l'équipe à la création ; « Renommer » ensuite, ancien nom gardé dans la note
+      const ren = bsLead ? await brandApi('PATCH', `/admin/acquisition/leads/${bsLead._id}`, { name: `Thés de la Lune Paris ${RUN}` }) : null;
+      const renBad = bsLead ? await brandApi('PATCH', `/admin/acquisition/leads/${bsLead._id}`, { name: ' ' }) : null;
+      expect(bsBadName.status === 400 && bsLead?.name === `Thés de la Lune ${RUN}` && /tapée « Thes de Lune/.test(bsLead.notes) && ren?.status === 200 && ren.data.lead.name === `Thés de la Lune Paris ${RUN}` && new RegExp(`Renommée le .* \\(avant : Thés de la Lune ${RUN}\\)`).test(ren.data.lead.notes) && renBad?.status === 400,
+        'Marque cherchée : nom corrigé à la création (nom tapé gardé dans la note), « Renommer » une fiche, nom vide refusé', { bad: bsBadName.status, name: bsLead?.name, notes: bsLead?.notes, ren: ren?.data?.lead?.name, renNotes: ren?.data?.lead?.notes, renBad: renBad?.status });
       await brandApi('POST', '/admin/acquisition/brand-searches', { norm: 'nike', action: 'dismiss' });
       if (bsLead) await db.collection('leads').deleteOne({ _id: bsLead._id });
       await db.collection('brandsearches').deleteMany({ creatorId: oid(creatorUser.id) });

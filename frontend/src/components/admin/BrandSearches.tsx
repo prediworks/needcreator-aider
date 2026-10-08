@@ -21,7 +21,7 @@ export default function BrandSearches() {
   const { data, isLoading } = useBrandSearches();
   const onError = (e: any) => toast.error(getErrorMessage(e), { duration: 10000 });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acq-brand-searches'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
-  const create = useMutation({ mutationFn: async (norm: string) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'create' })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); }, onError });
+  const create = useMutation({ mutationFn: async ({ norm, name }: { norm: string; name?: string }) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'create', ...(name ? { name } : {}) })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); }, onError });
   const dismiss = useMutation({ mutationFn: async (norm: string) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'dismiss' })).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError });
   const list = data?.searches || [];
   return (
@@ -38,7 +38,7 @@ export default function BrandSearches() {
               {s.status === 'open' && s.existingLeadId && <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800" title="Une fiche porte déjà ce nom : « Créer la fiche marque » la relie et prévient les créateurs">Déjà en prospection ({s.existingStatus})</span>}
               {s.status === 'open' && (
                 <span className="ml-auto flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => create.mutate(s.norm)} isLoading={create.isPending} data-testid="brand-search-create">{s.existingLeadId ? 'Relier et prévenir' : 'Créer la fiche marque'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => { if (s.existingLeadId) { create.mutate({ norm: s.norm }); return; } const n = prompt('Nom de la marque (corrigez une faute de frappe du créateur si besoin) :', s.query); if (n !== null && n.trim()) create.mutate({ norm: s.norm, name: n.trim() }); }} isLoading={create.isPending} data-testid="brand-search-create">{s.existingLeadId ? 'Relier et prévenir' : 'Créer la fiche marque'}</Button>
                   <Button size="sm" variant="ghost" onClick={() => dismiss.mutate(s.norm)} isLoading={dismiss.isPending} title="Faute de frappe, marque hors sujet ou trop grande : la recherche sort de la liste">Ignorer</Button>
                 </span>
               )}

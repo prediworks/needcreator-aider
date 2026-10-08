@@ -161,7 +161,17 @@ function cleanSocials(obj = {}, rejected = []) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name } = req.body || {};
+  // « Renommer » : faute de frappe, nom de société au lieu du nom de marque ; l'ancien nom reste dans la note, les vidéos proposées suivent
+  if (name !== undefined) {
+    const n = String(name).replace(/\s+/g, ' ').trim();
+    if (n.length < 2 || n.length > 120) return res.status(400).json({ error: 'Nom : 2 à 120 caractères' });
+    if (n !== lead.name) {
+      lead.notes = [lead.notes, `Renommée le ${new Date().toLocaleDateString('fr-FR')} (avant : ${lead.name || 'sans nom'})`].filter(Boolean).join(' · ').slice(0, 2000);
+      lead.name = n;
+      if (lead.kind === 'brand') { const ShowcaseVideo = (await import('../models/ShowcaseVideo.js')).default; await ShowcaseVideo.updateMany({ leadId: lead._id }, { $set: { brandName: n.slice(0, 120) } }); }
+    }
+  }
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
   if (handle && /^@?[A-Za-z0-9_.]{2,30}$/.test(String(handle))) { const h = String(handle).replace(/^@/, ''); lead.handle = `@${h}`; if (!lead.name || lead.source === 'instagram') lead.name = `@${h}`; }

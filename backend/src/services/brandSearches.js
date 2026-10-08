@@ -60,10 +60,14 @@ export async function listBrandSearches() {
 }
 
 /** « Créer la fiche marque » : la marque entre dans la prospection, les créateurs qui l'ont cherchée sont prévenus et, s'il n'y en a qu'un, elle lui est réservée */
-export async function createLeadFromSearch(norm, { createdBy } = {}) {
+export async function createLeadFromSearch(norm, { createdBy, name: chosenName } = {}) {
   const rows = await BrandSearch.find({ norm, status: 'open' });
   if (!rows.length) throw fail(404, 'Aucune recherche en attente pour cette marque');
-  const name = rows.map(r => r.query).sort((a, b) => b.length - a.length)[0].replace(/\s+/g, ' ').trim();
+  // Nom corrigé par l'équipe (faute de frappe du créateur), sinon la forme la plus longue tapée
+  const typed = rows.map(r => r.query).sort((a, b) => b.length - a.length)[0].replace(/\s+/g, ' ').trim();
+  const fixed = String(chosenName || '').replace(/\s+/g, ' ').trim();
+  if (chosenName !== undefined && (fixed.length < 2 || fixed.length > 80)) throw fail(400, 'Nom de marque : 2 à 80 caractères');
+  const name = fixed || typed;
   const { estimateSize } = await import('./brandSuggestions.js');
   const { size, tier } = await estimateSize({ name }); // liste des marques refusées, annonces Meta, connaissance de l'IA
   if (tier === 'huge') throw fail(400, `${name} est une très grande marque (${size.blocked ? 'liste des marques refusées' : size.reason || `${size.ads} annonces actives`}) : agences et créateurs sous contrat, nous ne la démarchons pas. Ignorez cette recherche.`);
@@ -71,7 +75,7 @@ export async function createLeadFromSearch(norm, { createdBy } = {}) {
   const single = creatorIds.length === 1 ? rows[0].creatorId : null;
   const reservedUntil = new Date(Date.now() + RESERVED_DAYS * 86400000);
   let lead = await Lead.findOne({ kind: 'brand', name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
-  const note = `Cherchée dans « Candidature vidéo » par ${creatorIds.length} créateur(s) qui possèdent le produit (${rows.reduce((n, r) => n + r.count, 0)} recherche(s))`;
+  const note = `Cherchée dans « Candidature vidéo » par ${creatorIds.length} créateur(s) qui possèdent le produit (${rows.reduce((n, r) => n + r.count, 0)} recherche(s))${fixed && normBrand(fixed) !== normBrand(typed) ? `, tapée « ${typed} »` : ''}`;
   if (lead) {
     if (['new', 'rejected', 'excluded'].includes(lead.status)) lead.status = 'qualified';
     if (single) { lead.suggestedBy = lead.suggestedBy || single; lead.reservedUntil = reservedUntil; }
@@ -102,6 +106,15 @@ export async function createLeadFromSearch(norm, { createdBy } = {}) {
     const text = single ? `Vous l'aviez cherchée : elle vous est réservée jusqu'au ${reservedUntil.toLocaleDateString('fr-FR')}. Tournez 15 à 30 secondes avec le produit, fixez votre prix.` : 'Vous l\'aviez cherchée : vous pouvez maintenant tourner une vidéo avec le produit et fixer votre prix.';
     await notify(creatorId, { type: 'application', title: `${name} est maintenant dans la liste des marques à filmer`, text, href }).catch(() => null);
   }
+  // Email en plus de la cloche : un créateur qui ne se reconnecte pas saurait trop tard que la marque lui est réservée
+  const creators = await User.find({ _id: { $in: creatorIds } }).select('email profile.name preferences').lean();
+  const { config } = await import('../config/index.js');
+  setImmediate(async () => {
+    const { sendSearchedBrandAvailable } = await import('./email.js');
+    for (const c of creators.filter(u => u.email && u.preferences?.emailNotifications !== false)) {
+      await sendSearchedBrandAvailable(c.email, c.profile?.name || '', name, `${config.cors.origin}${href}`, single ? reservedUntil : null, c.preferences?.language === 'en' ? 'en' : 'fr').catch(err => logger.warn(`Searched brand email ${c._id}: ${err.message}`));
+    }
+  });
   return { lead, creators: creatorIds.length, tier, reserved: !!single };
 }
 

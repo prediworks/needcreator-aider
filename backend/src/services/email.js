@@ -827,6 +827,21 @@ export async function sendShowcaseRequestAlert(email, name, lead, product, link,
   return sendEmail(email, subject, html, null, { preheader: `${lead.name} attend une vidéo${product && !isLink ? ` pour ${product}` : ''} : la première déposée lui est proposée.`, lang });
 }
 
+/** Marque cherchée par un créateur dans « Candidature vidéo », désormais proposable (réservée s'il est le seul à l'avoir cherchée) */
+export async function sendSearchedBrandAvailable(email, name, brandName, link, reservedUntil = null, lang = null) {
+  const subject = `${brandName}, que vous cherchiez, est disponible${reservedUntil ? ' et vous est réservée' : ''}`;
+  const until = reservedUntil ? new Date(reservedUntil).toLocaleDateString('fr-FR') : '';
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    <p>Vous aviez cherché <strong>${esc(brandName)}</strong> dans « Candidature vidéo ». La marque est maintenant dans la liste des marques à filmer.</p>
+    ${reservedUntil ? `<p><strong>Elle vous est réservée jusqu'au ${until}</strong> : aucun autre créateur ne peut lui proposer de vidéo d'ici là.</p>` : '<p>D\'autres créateurs l\'avaient cherchée aussi : la première vidéo déposée est proposée à la marque.</p>'}
+    <p>Tournez 15 à 30 secondes avec le produit que vous possédez, fixez votre prix et déposez la vidéo. La marque la regarde en filigrane et ne paie que si elle la garde.</p>
+    ${button(link, 'Proposer ma vidéo')}
+    <p style="color:#6b7280;font-size:13px">Vous recevez cet email parce que vous avez cherché cette marque ; les notifications se désactivent dans votre profil.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: reservedUntil ? `Réservée pour vous jusqu'au ${until}.` : `${brandName} est disponible dans « Candidature vidéo ».`, lang });
+}
+
 /**
  * Réinitialisation du mot de passe (lien Firebase, envoyé par notre SMTP)
  */
