@@ -369,7 +369,7 @@ export function quoteToolsBlock(quoteId, company) {
   return `<div style="margin:24px 0 8px;padding:14px 16px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa">
     <p style="margin:0 0 4px;font-size:14px;font-weight:600;color:#111">Outils offerts avec votre devis</p>
     <p style="margin:0 0 8px;font-size:13px;color:#555">Gratuits : les publicités Meta qui tournent depuis le plus longtemps chez vos concurrents, la lecture des vôtres, et le suivi des droits de tous vos contenus, même achetés ailleurs.</p>
-    ${link(`${site}/publicites-concurrents?${ref}`, 'Voir les publicités de vos concurrents')}${link(`${site}/audit-publicites?q=${encodeURIComponent(company || '')}&${ref}`, 'Auditer vos publicités Meta')}${link(`${site}/contenus-et-droits`, 'Suivre les droits de vos contenus')}
+    ${link(`${site}/publicites-concurrents?${ref}`, 'Voir les publicités de vos concurrents')}${link(`${site}/audit-publicites?q=${encodeURIComponent(company || '')}&${ref}`, 'Auditer vos publicités Meta')}${link(`${site}/contenus-et-droits?${ref}`, 'Suivre les droits de vos contenus')}
   </div>`;
 }
 

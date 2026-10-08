@@ -455,7 +455,7 @@ async function leadForScan(scan) {
   return Lead.findOne({ $or: or }).select('_id name status').lean();
 }
 
-const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief'];
+const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights']; // rights : registre des droits ouvert depuis un devis
 /**
  * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
  * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.

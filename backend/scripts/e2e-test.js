@@ -937,6 +937,9 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
     await post({ ref: String(qid), action: 'visit', source: 'quote' });
     await post({ ref: String(qid), action: 'visit', source: 'quote' });
     const afterClient = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    await post({ ref: String(qid), action: 'rights', source: 'quote' });
+    const afterRights = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    expect(afterRights.toolVisits?.some(v => v.action === 'rights'), 'Outils du devis : ouverture du registre des droits rattachée au devis', afterRights.toolVisits);
     expect(!(afterCreator.toolVisits || []).length && afterClient.toolVisits?.length === 1 && afterClient.lastToolVisitAt, 'Outils du devis : visite du client rattachée au devis (une fois par heure), pas celle du créateur', { creator: afterCreator.toolVisits, client: afterClient.toolVisits });
   }
   // Refus par le client

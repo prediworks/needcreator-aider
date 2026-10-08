@@ -8,7 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 
-const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief' };
+const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief', rights: 'registre des droits' };
 const STATUS: Record<string, string> = { new: 'Nouveau', qualified: 'Qualifié', to_contact: 'À contacter', contacted: 'Contacté', replied: 'A répondu', registered: 'Inscrit', rejected: 'Hors cible', excluded: 'Exclu' };
 
 /** Requête partagée avec le bouton à compteur de l'outil de prospection */

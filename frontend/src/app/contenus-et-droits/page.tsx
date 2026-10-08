@@ -4,6 +4,7 @@ import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { FolderOpen, Clock, FileSignature, Upload, Bell, Users, Search, ArrowRight, CheckCircle } from 'lucide-react';
 import RegistryMock from '@/components/RegistryMock';
+import QuoteRefTracker from '@/components/QuoteRefTracker';
 
 export const metadata: Metadata = {
   title: 'Contenus & droits : le CRM de votre contenu créatif',
@@ -22,6 +23,7 @@ export default function ContentsRightsPage() {
   ];
   return (
     <div className="min-h-screen bg-white">
+      <QuoteRefTracker action="rights" />
       <section className="bg-gradient-to-br from-primary-50 to-white py-20">
         <div className="container mx-auto px-4 max-w-4xl text-center">
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-6 text-sm font-medium text-primary-700"><FolderOpen className="w-4 h-4 mr-2" /> Pour les marques, inclus et gratuit</div>

@@ -26,7 +26,7 @@ function QuoteTools({ quoteId, company, prominent }: { quoteId: string; company:
       <div className="flex flex-col sm:flex-row gap-2">
         <Link href={`/publicites-concurrents?${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><Search className="w-4 h-4 mr-2" /> Voir les publicités de vos concurrents</Button></Link>
         <Link href={`/audit-publicites?q=${encodeURIComponent(company)}&${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><BarChart3 className="w-4 h-4 mr-2" /> Auditer vos publicités Meta</Button></Link>
-        <Link href="/contenus-et-droits"><Button variant="outline" size="sm" className="w-full sm:w-auto"><ScrollText className="w-4 h-4 mr-2" /> Suivre les droits de vos contenus</Button></Link>
+        <Link href={`/contenus-et-droits?${ref}`}><Button variant="outline" size="sm" className="w-full sm:w-auto"><ScrollText className="w-4 h-4 mr-2" /> Suivre les droits de vos contenus</Button></Link>
       </div>
     </Card>
   );
