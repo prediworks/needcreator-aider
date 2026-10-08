@@ -62,6 +62,12 @@ const leadSchema = new mongoose.Schema({
   reservedUntil: Date,
   offeredBriefId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductBrief' }, // brief offert préparé quand une marque répond positivement
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
+  // Marques : concurrents cités par l'IA à la qualification, puis le premier trouvé chez Meta (page vérifiée, scan préparé) : l'email 1 montre ses publicités
+  competitors: [String],
+  competitor: { name: String, pageId: String, pageName: String, slug: String, ads: Number, checkedAt: Date },
+  // Visites venues des liens de l'email (paramètre ref) : outil de scan, audit, brief ; une marque qui a cliqué est à relancer en priorité
+  scanVisits: [{ at: Date, action: String, slug: String, pageName: String, _id: false }],
+  lastScanVisitAt: { type: Date, index: true },
 }, { timestamps: true });
 
 leadSchema.index({ source: 1, externalId: 1 }, { unique: true });

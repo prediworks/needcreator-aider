@@ -102,6 +102,12 @@ export async function auditScan(req, res) {
   } catch (error) { fail(res, error, 'Audit impossible pour le moment', 'auditScan'); }
 }
 
+/** Public : visite venue d'un lien de l'email marques (ref) ; ne renvoie rien d'autre qu'un accusé de réception */
+export async function trackRef(req, res) {
+  try { const { trackScanRef } = await import('../services/adScan.js'); await trackScanRef(req.body?.ref, { action: req.body?.action, slug: req.body?.slug }); res.json({ ok: true }); }
+  catch (error) { logger.warn(`trackRef: ${error.message}`); res.json({ ok: true }); }
+}
+
 /** Admin : activité de l'outil et marques les plus scannées */
 export async function adminScanStatsView(req, res) {
   try { const { adminScanStats } = await import('../services/adScan.js'); res.json(await adminScanStats()); }

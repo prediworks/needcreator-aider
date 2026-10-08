@@ -1,7 +1,7 @@
 # Séquences d'emails de prospection (agents de prospection → outil de mailing)
 
 Deux séquences, à créer dans l'outil de mailing (SalesBlink) et à **rattacher aux deux listes** que NeedCreator alimente :
-« NeedCreator · Prospection créateurs » et « NeedCreator · Prospection marques ». Sans ce rattachement, les contacts arrivent mais aucun email ne part.
+« NeedCreator · Prospection créateurs » et « NeedCreator · Prospection marques 2 » (depuis le 08/10/2026 ; l'ancienne liste « NeedCreator · Prospection marques » garde les contacts déjà en cours). Sans ce rattachement, les contacts arrivent mais aucun email ne part.
 
 Rédigé le 19 septembre 2026. À distinguer de `docs/MAILING-createurs.md`, qui vise les créateurs de l'annuaire référencé (export CSV, autres variables).
 

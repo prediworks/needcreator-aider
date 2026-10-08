@@ -78,7 +78,7 @@ Aujourd'hui, on dit : « on vous livre des vidéos UGC ». Demain : **« on vous
 publicités de leurs concurrents), avec un seul lien. L'email 2 parle de leurs propres publicités et des trois accroches préparées pour eux,
 l'email 3 garde les offres sans risque.
 
-**Variables fournies par NeedCreator** (poussées avec chaque contact, en cours de développement) :
+**Variables fournies par NeedCreator** (poussées avec chaque contact, livrées le 08/10/2026) :
 
 | Variable | Contenu |
 |---|---|
@@ -91,8 +91,13 @@ l'email 3 garde les offres sans risque.
 Les liens portent la référence de la fiche : un scan ou un audit lancé depuis l'email est rattaché à la marque prospectée, et la fiche passe en
 tête des relances dans l'admin (compteur de scans).
 
-**Avant d'activer** : un envoi test pour vérifier que SalesBlink remplace bien les variables, liens compris. Les contacts déjà poussés avant le
-développement n'ont pas ces variables : ils seront mis à jour par NeedCreator (à vérifier dans SalesBlink sur deux ou trois contacts).
+**Avant d'activer** : un envoi test pour vérifier que SalesBlink remplace bien les variables, liens compris. **Les contacts déjà poussés avant
+le 08/10 n'ont pas ces variables**. Les nouvelles marques partent donc sur une **nouvelle liste, « NeedCreator · Prospection marques 2 »**,
+créée d'office au premier envoi : créez une **nouvelle séquence** avec ces trois emails et rattachez-la à cette liste (sans rattachement,
+aucun email ne part). L'ancienne séquence reste sur l'ancienne liste, inchangée, pour les contacts déjà en cours.
+
+**Préparer l'arriéré** (facultatif, conseillé avant la reprise des envois) : `node --env-file=.env scripts/prepare-competitors.mjs --limit 100`,
+depuis `backend/` sur le serveur. Environ 30 secondes par marque, quatre à la fois.
 
 ### Email 1 · jour 0 · les publicités de leurs concurrents
 

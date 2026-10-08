@@ -22,6 +22,7 @@ const brandSchema = z.object({
   message: z.string().max(600),
   emailParagraph: z.string().max(900),
   hooks: z.array(z.string().max(160)).max(3).default([]),
+  competitors: z.array(z.string().max(60)).max(3).default([]),
 });
 
 /** Coupe un texte trop long à la dernière phrase complète (ou au dernier espace) avant la limite */
@@ -47,7 +48,9 @@ export const normalizeBrand = (o) => {
   // Paragraphe d'email reconstruit à partir des accroches (forme fixe, jamais coupé) ; la première ligne vient de l'IA
   let paragraph = String(o.emailParagraph || '').trim();
   if (hooks.length === 3) { const intro = paragraph.split('\n')[0].replace(/\s*1\).*$/, '').replace(/\s*[:.]?\s*$/, ' :'); paragraph = `${intro}\n1) ${hooks[0]}\n2) ${hooks[1]}\n3) ${hooks[2]}\nSi l'une vous parle, elle est prête à être tournée sous dix jours.`; }
-  return { ...base, hooks, emailParagraph: paragraph.slice(0, 900), message: msg.slice(0, 600) };
+  const self = String(o.name || '').toLowerCase();
+  const competitors = (Array.isArray(o.competitors) ? o.competitors : []).map(c => String(c).replace(/[«»"“”]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60)).filter(c => c.length >= 2 && c.toLowerCase() !== self).slice(0, 3);
+  return { ...base, hooks, competitors, emailParagraph: paragraph.slice(0, 900), message: msg.slice(0, 600) };
 };
 
 const SYSTEM = `Tu aides NeedCreator, plateforme française qui met en relation des marques et des créateurs de vidéos UGC (témoignages, unboxings, démos diffusés sur les réseaux et les publicités des marques). Le créateur fixe son prix, le paiement est bloqué avant le tournage, un contrat de cession de droits est généré. Tu réponds en JSON, en français, sans flatterie ni superlatif, en tutoyant jamais : vouvoiement.`;
@@ -102,6 +105,7 @@ Réponds avec :
 - summary : une phrase sur ce que vend la marque
 - hooks : TROIS accroches de vidéo UGC pour ce produit précis, chacune ≤ 90 caractères, écrites comme la première phrase que dirait un créateur face caméra dans les trois premières secondes (à la première personne, concrètes, sans point d'exclamation, sans emoji, sans nom de marque), inspirées du texte de l'annonce ; trois angles différents : le problème vécu, la promesse ou le résultat, la curiosité
 - message : message privé (Instagram ou LinkedIn) de 480 caractères maximum, en trois phrases, écrit à la première personne par la personne qui s'occupe de NeedCreator, sans prénom. Objectif : obtenir une RÉPONSE et le bon interlocuteur, pas une inscription. Constat de terrain : les marques lisent ces messages comme une demande de collaboration venant d'un créateur et répondent par un refus type ou une adresse « collab » ; il faut donc préciser en une phrase que ce n'est pas une demande de collaboration mais NeedCreator, qui repère les publicités qui marchent dans son secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles lui conviennent. Phrase 1 : « Bonjour, » puis la publicité ou le produit vu chez la marque, suivi de la meilleure des trois accroches entre guillemets français, sous la forme « j'ai vu votre publicité pour X. Un de nos créateurs l'ouvrirait ainsi : « … » ». Phrase 2, à imiter, formulée au positif (dire qui l'on est, pas ce que l'on n'est pas) : « Je ne suis pas créatrice : je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. » Phrase 3, OBLIGATOIRE et finale, mot pour mot (un outil gratuit utile même sans collaboration, qui appelle une réponse) : « J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ? ». Exemple complet : « Bonjour, j'ai vu votre publicité pour vos bougies parfumées. Un de nos créateurs l'ouvrirait ainsi : « J'ai arrêté d'acheter des bougies qui sentent bon trois jours ». Je ne suis pas créatrice : je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ? ». Pas d'emoji, pas de lien, pas de liste d'avantages, aucun texte entre accolades
-- emailParagraph : pour l'email d'ouverture, 4 lignes séparées par des retours à la ligne : une phrase « Nous avons vu votre publicité pour X. Trois accroches que nos créateurs tourneraient pour ce produit : », puis les trois accroches précédées de « 1) », « 2) », « 3) », puis « Si l'une vous parle, elle est prête à être tournée sous dix jours. »`;
+- emailParagraph : pour l'email d'ouverture, 4 lignes séparées par des retours à la ligne : une phrase « Nous avons vu votre publicité pour X. Trois accroches que nos créateurs tourneraient pour ce produit : », puis les trois accroches précédées de « 1) », « 2) », « 3) », puis « Si l'une vous parle, elle est prête à être tournée sous dix jours. »
+- competitors : deux ou trois marques concurrentes directes, qui vendent le même type de produit en France et font de la publicité sur Facebook et Instagram, de taille comparable ou un peu plus grandes ; le nom exact de la marque tel qu'il apparaît sur sa page (ex. « Typology », « Respire ») ; jamais la marque elle-même, jamais un distributeur (Sephora, Amazon) ; [] si tu n'es pas sûr`;
   return generateJson({ system: SYSTEM, prompt, schema: brandSchema, normalize: normalizeBrand });
 }

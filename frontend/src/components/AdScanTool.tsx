@@ -20,12 +20,21 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
  * marchent), des constats factuels par l'IA, et « Commander l'équivalent » en vidéo créateur. Sans compte : un aperçu ; inscrit : tout.
  */
+/** Référence de la fiche prospect (lien de l'email marques, ?ref=) : gardée pour la session, chaque action est rattachée à la marque */
+const REF_KEY = 'nc_scan_ref';
+function readRef(): string { try { return sessionStorage.getItem(REF_KEY) || ''; } catch { return ''; } }
+function trackRef(action: 'visit' | 'scan' | 'audit' | 'brief', slug = '', isAdmin = false) {
+  const ref = readRef();
+  if (!ref || isAdmin) return; // l'équipe qui teste un lien d'email ne compte pas comme une visite de la marque
+  api.post('/ad-scans/ref', { ref, action, slug }).catch(() => null);
+}
+
 const VIDEO_TYPE: Record<string, string> = { testimonial: 'Témoignage', unboxing: 'Unboxing', demo: 'Démonstration', tutorial: 'Tutoriel', review: 'Avis', comparison: 'Comparatif', lifestyle: 'Lifestyle', 'behind-the-scenes': 'Coulisses' };
 
 export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initialSlug?: string; mode?: 'scan' | 'audit' }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isAdmin, loading: authLoading } = useAuth();
   const [q, setQ] = useState('');
   const [slug, setSlug] = useState(initialSlug);
   const [candidates, setCandidates] = useState<any[] | null>(null);
@@ -34,15 +43,31 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   // Vue « audit créatif » : arrivée par /audit-publicites, ou « ?vue=audit » sur la page d'un scan
   const [auditView, setAuditView] = useState(mode === 'audit');
   const [auditAsked, setAuditAsked] = useState('');
+  const [fromEmail, setFromEmail] = useState(false);
+  const [leadRef, setLeadRef] = useState('');
   // « ?vue=audit » : vue audit ; « ?q=Nom » (bandeau de l'accueil ou de la page Marques) : le scan se lance d'office, une fois
   useEffect(() => {
     try {
       const sp = new URLSearchParams(window.location.search);
       if (sp.get('vue') === 'audit') setAuditView(true);
+      const ref = (sp.get('ref') || '').trim();
+      setLeadRef(/^[a-f0-9]{24}$/i.test(ref) ? ref : readRef());
+      if (/^[a-f0-9]{24}$/i.test(ref)) { try { sessionStorage.setItem(REF_KEY, ref); } catch { /* stockage indisponible */ } setFromEmail(true); }
       const q0 = (sp.get('q') || '').trim().slice(0, 120);
-      if (q0.length >= 2 && !initialSlug) { setQ(q0); scan.mutate({ q: q0 }); }
+      // « &page=<identifiant Meta> » (lien d'audit de l'email) : la bonne page directement, sans liste de pages homonymes
+      const page0 = (sp.get('page') || '').trim();
+      if (/^\d{3,30}$/.test(page0) && !initialSlug) { setQ(q0); scan.mutate({ pageId: page0, pageName: q0 }); }
+      else if (q0.length >= 2 && !initialSlug) { setQ(q0); scan.mutate({ q: q0 }); }
     } catch { /* adresse illisible */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Arrivée par un lien de l'email marques : la visite est enregistrée une fois la session connue (une visite de l'équipe ne compte pas)
+  const [visitSent, setVisitSent] = useState(false);
+  useEffect(() => {
+    if (!fromEmail || authLoading || visitSent) return;
+    setVisitSent(true);
+    trackRef('visit', initialSlug, isAdmin);
+  }, [fromEmail, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lecture en arrière-plan côté serveur : tant que le scan est « en cours », la page se met à jour toutes les trois secondes
   const { data, isFetching, error } = useQuery({ queryKey: ['ad-scan', slug, user?.id], queryFn: async () => (await api.get(`/ad-scans/${slug}`)).data, enabled: !!slug, staleTime: 60000, retry: false, refetchInterval: (query: any) => (query.state.data?.scan?.status === 'pending' || query.state.data?.scan?.insightsPending || query.state.data?.scan?.auditPending ? 3000 : false) });
@@ -52,17 +77,17 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
   const scan = useMutation({
     mutationFn: async (body: { q?: string; pageId?: string; pageName?: string }) => (await api.post('/ad-scans', body)).data,
-    onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); router.replace(`/publicites/${d.scan.slug}${auditView ? '?vue=audit' : ''}`); },
+    onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); trackRef('scan', d.scan.slug, isAdmin); router.replace(`/publicites/${d.scan.slug}${auditView ? '?vue=audit' : ''}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const brief = useMutation({
     mutationFn: async (opt?: { adId?: string; proposal?: number }) => (await api.post(`/ad-scans/${slug}/brief`, { adId: opt?.adId || '', ...(opt?.proposal !== undefined ? { proposal: opt.proposal } : {}) })).data,
-    onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
+    onSuccess: (d) => { trackRef('brief', slug, isAdmin); toast.success(d.message, { duration: 8000 }); router.push(`/brief-depuis-url?id=${d.briefId}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const audit = useMutation({
     mutationFn: async () => (await api.post(`/ad-scans/${slug}/audit`)).data,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['ad-scan', slug] }); },
+    onSuccess: () => { trackRef('audit', slug, isAdmin); queryClient.invalidateQueries({ queryKey: ['ad-scan', slug] }); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });
   const sendOptOut = useMutation({
@@ -80,7 +105,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   }, [auditView, s?.slug, s?.status, s?.audit, s?.auditPending]); // eslint-disable-line react-hooks/exhaustive-deps
   const openAudit = () => { setAuditView(true); if (s) router.replace(`/publicites/${s.slug}?vue=audit`); };
   const back = s ? encodeURIComponent(`/publicites/${s.slug}${auditView ? '?vue=audit' : ''}`) : '';
-  const signupHref = `/register?role=brand&next=${back}`;
+  const signupHref = `/register?role=brand&next=${back}${leadRef ? `&lead=${leadRef}` : ''}`; // marque venue de l'email : son inscription est rattachée à sa fiche
   const loginHref = `/login?next=${back}`;
   const errStatus = (error as any)?.response?.status;
   const proposeHref = s ? (s.leadId ? `/vitrine?marque=${s.leadId}` : `/vitrine?suggerer=${encodeURIComponent(s.pageName || '')}${s.website ? `&site=${encodeURIComponent(s.website)}` : ''}`) : '/vitrine';

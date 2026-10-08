@@ -95,6 +95,7 @@ export async function qualifyOne(lead, openNiches) {
     lead.message = q.message;
     lead.emailParagraph = q.emailParagraph;
     if (Array.isArray(q.hooks)) lead.hooks = q.hooks;
+    if (Array.isArray(q.competitors) && q.competitors.length) { lead.competitors = q.competitors; if (lead.competitor?.checkedAt && !lead.competitor.pageId) lead.competitor = undefined; }
     if (q.firstName) lead.name = lead.name || q.firstName;
     if (q.firstName) lead.firstName = q.firstName;
     const offTarget = lead.kind === 'brand' ? (q.sellsProducts === false || q.isBrand === false) : false;

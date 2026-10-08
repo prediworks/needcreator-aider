@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 
+const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief' };
 const STATUS: Record<string, string> = { new: 'Nouveau', qualified: 'Qualifié', to_contact: 'À contacter', contacted: 'Contacté', replied: 'A répondu', registered: 'Inscrit', rejected: 'Hors cible', excluded: 'Exclu' };
 
 /** Requête partagée avec le bouton à compteur de l'outil de prospection */
@@ -34,6 +35,7 @@ export default function AdScanAdmin() {
     { label: 'Consultations', value: d.views },
     { label: 'Briefs « l\'équivalent »', value: d.briefs },
     { label: 'Audits', value: d.audits },
+    { label: 'Marques venues de l\'email', value: d.fromEmail?.length, hint: 'liens de l\'email marques' },
   ];
   return (
     <Card className="p-6" data-testid="ad-scan-admin">
@@ -45,9 +47,26 @@ export default function AdScanAdmin() {
       </div>
       {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-4">
             {tiles.map((t) => <div key={t.label} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100"><div className="text-xs text-neutral-600">{t.label}</div><div className="text-xl font-bold text-neutral-900">{t.value ?? 0}</div>{t.hint && <div className="text-[11px] text-neutral-500">{t.hint}</div>}</div>)}
           </div>
+          {d.fromEmail?.length > 0 && (
+            <div className="mb-5" data-testid="ad-scan-from-email">
+              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Marques venues de l&apos;email</h3>
+              <p className="text-xs text-neutral-600 mb-2">Marques prospectées qui ont cliqué sur un lien de l&apos;email (scan d&apos;un concurrent, audit de leurs publicités). Elles s&apos;intéressent au sujet : relancez-les en premier, en citant ce qu&apos;elles ont regardé.</p>
+              <ul className="space-y-1 text-sm">
+                {d.fromEmail.map((l: any) => (
+                  <li key={l.id} className="flex flex-wrap items-center gap-2 border-b border-neutral-100 py-1" data-testid="ad-scan-from-email-row">
+                    <span className="font-medium text-neutral-900">{l.name}</span>
+                    <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800">{STATUS[l.status] || l.status}</span>
+                    {l.replied && <span className="text-xs text-green-700">a répondu</span>}
+                    <span className="text-xs text-neutral-600">{l.visits} action{l.visits > 1 ? 's' : ''} ({l.actions.map((a: string) => ACTION[a] || a).join(', ')}){l.pages.length ? ` · ${l.pages.join(', ')}` : ''} · dernière le {formatDate(l.last)}</span>
+                    {l.email && <span className="text-xs text-neutral-500">{l.email}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {!(d.top?.length) ? <p className="text-sm text-neutral-500">Aucun scan pour l&apos;instant.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

@@ -8,7 +8,8 @@ import { classifyReply, prepareOfferedBrief } from './replies.js';
 import { isVideoRequest, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest } from '../showcaseRequests.js';
 import logger from '../../utils/logger.js';
 
-export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques' };
+// Marques : nouvelle liste depuis la séquence du 08/10/2026 (variables competitor_line, audit_link) ; les contacts déjà poussés finissent l'ancienne sur l'ancienne liste
+export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques 2' };
 export const isGeneric = (email) => /^(contact|hello|bonjour|info|admin|support|sales|commercial|marketing|presse|press|team|equipe)@/.test(email || '');
 
 export async function outreachSettings() {
@@ -32,7 +33,25 @@ function contactOf(lead) {
   const handle = (lead.handle || '').replace(/^@/, '');
   const base = { email: lead.email, first_name: safeFirstName(lead), greeting: safeFirstName(lead) ? `Bonjour ${safeFirstName(lead)},` : 'Bonjour,', company_name: lead.kind === 'brand' ? lead.name : '', niche: lead.niche || '', paragraph: lead.emailParagraph || '', message: lead.message || '', score: lead.score ?? '', source: lead.source, kind: lead.kind };
   if (lead.kind === 'creator') return { ...base, username: handle, profile_url: lead.url || '', followers: lead.stats?.subscribers ?? '', signup_link: `${config.cors.origin}/register?role=creator&from=${encodeURIComponent(handle)}` };
-  return { ...base, website: lead.website || '', ads: lead.stats?.ads ?? '', signup_link: `${config.cors.origin}/register?role=brand` };
+  return { ...base, website: lead.website || '', ads: lead.stats?.ads ?? '', signup_link: `${config.cors.origin}/register?role=brand`, ...scanLinks(lead) };
+}
+
+/**
+ * Liens de l'outil de scan pour les emails marques, avec la référence de la fiche (ref) : une visite depuis l'email est rattachée à la marque.
+ * competitor_line est toujours remplie : le concurrent vérifié s'il y en a un, sinon une invitation à taper le nom d'un concurrent.
+ */
+export function scanLinks(lead) {
+  const site = config.cors.origin; const ref = `ref=${lead._id}`;
+  const c = lead.competitor?.pageId && lead.competitor?.slug ? lead.competitor : null;
+  const competitorLink = c ? `${site}/publicites/${c.slug}?${ref}` : `${site}/publicites-concurrents?${ref}`;
+  const metaPage = lead.source === 'meta' && /^\d+$/.test(String(lead.externalId || ''));
+  const auditLink = `${site}/audit-publicites?q=${encodeURIComponent(lead.name || '')}${metaPage ? `&page=${lead.externalId}` : ''}&${ref}`;
+  return {
+    competitor_name: c ? c.pageName : '',
+    competitor_link: competitorLink,
+    competitor_line: c ? `Par exemple, les publicités de ${c.pageName}, la plus ancienne en premier : ${competitorLink}` : `Essayez avec le nom d'un de vos concurrents : ${competitorLink}`,
+    audit_link: auditLink,
+  };
 }
 
 /**
@@ -58,6 +77,11 @@ export async function pushToMailing({ limit, force = false, ids = null } = {}) {
     if (blocked.has(l.email) || blocked.has(l.email.split('@')[1])) { skipped.blocked++; await Lead.updateOne({ _id: l._id }, { $set: { status: 'rejected', notes: 'Adresse dans la liste de blocage de l\'outil de mailing' } }); continue; }
     if (await User.exists({ email: l.email })) { skipped.registered++; await Lead.updateOne({ _id: l._id }, { $set: { status: 'registered' } }); continue; }
     byKind[l.kind].push(l);
+  }
+  // Marques : concurrent vérifié chez Meta et son scan préparé, pour la ligne personnalisée de l'email 1 (le temps est borné ; au-delà, phrase générique)
+  if (byKind.brand.length) {
+    const { prepareCompetitors } = await import('./competitors.js');
+    await prepareCompetitors(byKind.brand, { budgetMs: ids ? 25000 : 300000 }).catch(err => logger.warn(`prepareCompetitors: ${err.message}`));
   }
   let pushed = 0;
   for (const kind of ['creator', 'brand']) {

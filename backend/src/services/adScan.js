@@ -272,6 +272,24 @@ export async function processScan(scanId, { page, name = '', tier = 'anon', ip =
   return null;
 }
 
+/**
+ * Scan préparé pour la prospection (concurrent cité dans l'email 1) : la page est lue à l'avance pour s'ouvrir tout de suite depuis l'email.
+ * Hors plafonds des visiteurs ; une seule lecture à la fois (file d'attente) ; un scan de moins de `maxAgeDays` jours est réutilisé.
+ */
+let prepQueue = Promise.resolve();
+export async function ensureScanForPage(page, { maxAgeDays = 14 } = {}) {
+  const pageId = String(page?.pageId || '');
+  if (!pageId) return null;
+  const cur = await AdScan.findOne({ pageId });
+  if (cur?.status === 'blocked') return null;
+  if (cur && ((['ready', 'empty'].includes(cur.status) && cur.fetchedAt >= new Date(Date.now() - maxAgeDays * DAY)) || (cur.status === 'pending' && cur.updatedAt >= new Date(Date.now() - 30 * 60000)))) return cur;
+  const pageName = String(page.pageName || '').trim().slice(0, 160);
+  const slug = cur?.slug || await uniqueSlug(pageName, pageId);
+  const scan = await AdScan.findOneAndUpdate({ pageId }, { $set: { slug, query: pageName, pageName, status: 'pending', error: null }, $setOnInsert: { ads: [], totalActive: 0 } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  prepQueue = prepQueue.then(() => processScan(scan._id, { page: { pageId, pageName }, name: pageName, tier: 'prospection' })).catch(err => logger.error(`Prepared ad scan ${slug} failed: ${err.message}`));
+  return scan;
+}
+
 const hasInsights = (scan) => !!(scan?.insights && (scan.insights.summary || scan.insights.facts?.length || scan.insights.angles?.length));
 
 /**
@@ -437,6 +455,27 @@ async function leadForScan(scan) {
   return Lead.findOne({ $or: or }).select('_id name status').lean();
 }
 
+const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief'];
+/**
+ * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
+ * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.
+ */
+export async function trackScanRef(ref, { action, slug } = {}) {
+  if (!/^[a-f0-9]{24}$/i.test(String(ref || '')) || !REF_ACTIONS.includes(action)) return null;
+  const lead = await Lead.findOne({ _id: ref, kind: 'brand' }).select('_id name status email scanVisits').lean();
+  if (!lead) return null;
+  const s = slug ? await AdScan.findOne({ slug: String(slug).toLowerCase() }).select('slug pageName').lean() : null;
+  const hourAgo = new Date(Date.now() - 3600000);
+  if ((lead.scanVisits || []).some(v => v.action === action && (v.slug || '') === (s?.slug || '') && v.at >= hourAgo)) return { tracked: false };
+  const first = !(lead.scanVisits || []).length;
+  await Lead.updateOne({ _id: lead._id }, { $push: { scanVisits: { $each: [{ at: new Date(), action, slug: s?.slug, pageName: s?.pageName }], $slice: -30 } }, $set: { lastScanVisitAt: new Date() } });
+  if (first) {
+    const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    notifyAdmins(`Prospection : ${lead.name} a ouvert l'outil de scan depuis l'email`, `<p><strong>${esc(lead.name)}</strong>${lead.email ? ` (${esc(lead.email)})` : ''} a cliqué sur un lien de l'email${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}. C'est le moment de lui écrire.</p><p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email ».</p>`).catch(() => {});
+  }
+  return { tracked: true, first };
+}
+
 /** Admin : activité de l'outil (lectures, consultations, briefs, audits) et marques les plus scannées, avec leur fiche prospect quand elle existe */
 export async function adminScanStats() {
   const day = new Date(Date.now() - DAY); const week = new Date(Date.now() - 7 * DAY);
@@ -451,8 +490,10 @@ export async function adminScanStats() {
     const lead = s.leadId ? await Lead.findById(s.leadId).select('_id name status').lean() : await leadForScan(s);
     return { slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
   }));
+  const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
+    .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
   const t = totals[0] || {};
-  return { reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+  return { fromEmail, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
 }
 
 /**

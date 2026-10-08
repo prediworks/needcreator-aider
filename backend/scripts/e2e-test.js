@@ -1985,6 +1985,24 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   await db.collection('adscans').updateOne({ slug }, { $set: { totalActive: 17 } });
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
   expect(statsBrand.status === 403 && adminStats.status === 200 && row && row.scans === 4 && row.memberScans === 1 && row.audits === 1 && String(row.lead?.id) === String(scanLead.insertedId) && pros.status === 200 && /Déjà en prospection/.test(pros.data.message) && /Scannée 4 fois/.test(leadAfterPros.notes || '') && huge.status === 400 && /très grande marque/.test(huge.data.error), 'Admin : marques les plus scannées avec leur fiche, mise en prospection qui complète la fiche existante, très grande marque refusée', { statsBrand: statsBrand.status, row, pros: pros.data, notes: leadAfterPros?.notes, huge: huge.data });
+  // Liens de l'email marques : visite rattachée à la fiche (ref), une fois par action et par page sur l'heure, liste « Marques venues de l'email » ; champs de l'email
+  const lid = String(scanLead.insertedId);
+  const badRef = await pubApi('POST', '/ad-scans/ref', { ref: 'abc', action: 'visit' });
+  const r1 = await pubApi('POST', '/ad-scans/ref', { ref: lid, action: 'visit', slug });
+  await pubApi('POST', '/ad-scans/ref', { ref: lid, action: 'visit', slug });
+  await pubApi('POST', '/ad-scans/ref', { ref: lid, action: 'audit', slug });
+  const visited = await db.collection('leads').findOne({ _id: scanLead.insertedId });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const statsRef = await brandApi('GET', '/admin/acquisition/ad-scans');
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  const refRow = statsRef.data.fromEmail?.find(x => String(x.id) === lid);
+  const { scanLinks } = await import('../src/services/acquisition/outreach.js');
+  const withC = scanLinks({ _id: lid, name: 'Ma Marque', source: 'meta', externalId: '123456', competitor: { pageId: '999', pageName: 'Concurrent SA', slug: 'concurrent-sa' } });
+  const noC = scanLinks({ _id: lid, name: 'Ma Marque', source: 'manual', externalId: 'ma-marque.fr', competitor: { checkedAt: new Date() } });
+  expect(badRef.status === 400 && r1.status === 200 && visited.scanVisits?.length === 2 && visited.scanVisits.map(v => v.action).join(',') === 'visit,audit' && visited.lastScanVisitAt && refRow && refRow.visits === 2 && refRow.pages.includes(`E2E Scan Marque ${RUN}`)
+    && /\/publicites\/concurrent-sa\?ref=/.test(withC.competitor_line) && withC.competitor_name === 'Concurrent SA' && /page=123456/.test(withC.audit_link) && /ref=/.test(withC.audit_link)
+    && /nom d'un de vos concurrents : .*\/publicites-concurrents\?ref=/.test(noC.competitor_line) && noC.competitor_name === '' && !/page=/.test(noC.audit_link),
+  'Email marques : concurrent ou phrase générique, liens avec la référence de la fiche ; visite rattachée à la fiche, sans doublon sur l\'heure, listée dans « Marques venues de l\'email »', { badRef: badRef.status, visits: visited.scanVisits, refRow, withC, noC });
   // Page retirée : plus affichée
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)
   const blockSet = await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: `E2E Scan Marque ${RUN}` });
