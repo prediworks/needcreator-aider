@@ -207,6 +207,21 @@ function MailingBreakdown() {
   );
 }
 
+/** « Chercher l'email » d'une seule fiche : accueil, page contact et mentions légales de son site ; le site est demandé s'il manque */
+function FindEmailButton({ leadId, website, onFound, className = 'px-1.5 text-xs text-neutral-500 hover:text-primary-600 underline' }: { leadId: string; website?: string | null; onFound?: () => void; className?: string }) {
+  const find = useMutation({
+    mutationFn: async (site?: string) => (await api.post(`/admin/acquisition/leads/${leadId}/find-email`, site ? { website: site } : {})).data,
+    onSuccess: (d) => { (d.found ? toast.success : toast.info)(d.message, { duration: 10000 }); onFound?.(); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const go = () => {
+    if (website) { find.mutate(undefined); return; }
+    const s = prompt('Adresse du site de la marque (ex. respire.co) :', '');
+    if (s && s.trim()) find.mutate(s.trim());
+  };
+  return <button type="button" onClick={go} disabled={find.isPending} className={className} title="Cherche l'adresse email sur le site de cette marque (accueil, page contact, mentions légales), en une dizaine de secondes, sans IA. Les réseaux trouvés sur le site sont ajoutés à la fiche." data-testid="find-email">{find.isPending ? 'Recherche…' : 'Chercher l\'email'}</button>;
+}
+
 /** Vidéos vitrine déposées par les créateurs : à proposer à la marque (email ou message privé), quel que soit le statut du prospect */
 function ShowcaseList() {
   const queryClient = useQueryClient();
@@ -239,6 +254,7 @@ function ShowcaseList() {
               {s.status !== 'accepted' && (
                 <div className="flex gap-2 flex-wrap mt-2 items-center">
                   <Button size="sm" onClick={() => { const email = s.brandEmail || prompt('Adresse email de la marque :') || ''; if (email) send.mutate({ leadId: s.leadId, via: 'email', email }); }} isLoading={send.isPending} disabled={!s.ready} title={s.brandEmail ? `Envoie l'email de proposition à ${s.brandEmail}` : 'Aucune adresse connue : vous serez invité à la saisir'}>{s.status === 'sent' ? 'Renvoyer par email' : 'Proposer par email'}</Button>
+                  {!s.brandEmail && s.leadId && <FindEmailButton leadId={s.leadId} website={s.brandWebsite} onFound={() => queryClient.invalidateQueries({ queryKey: ['acq-showcases'] })} className="text-xs text-primary-700 underline self-center" />}
                   {s.brandInstagram && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'instagram', url: s.brandInstagram })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message avec le lien de la vidéo, ouvre le profil Instagram de la marque dans un nouvel onglet et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir Instagram</Button>}
                   {s.brandTiktok && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'tiktok', url: s.brandTiktok })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message, ouvre le profil TikTok de la marque et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir TikTok</Button>}
                   {s.brandLinkedin && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'linkedin', url: s.brandLinkedin })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message, ouvre la page LinkedIn de la marque et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
@@ -655,7 +671,8 @@ export default function AcquisitionTool() {
                       <button type="button" onClick={() => { const t = prompt('Collez la réponse reçue en message privé'); if (t && t.trim()) pasteReplyList.mutate({ id: l._id, text: t, via: l.contactedVia && l.contactedVia !== 'manuel' ? l.contactedVia : 'instagram' }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Réponse reçue sur un réseau : classée par l'IA, email ou formulaire relevés et ajoutés à la fiche">Réponse</button>
                       <button type="button" onClick={() => { const n = prompt('Note', l.notes || ''); if (n !== null) patch.mutate({ id: l._id, notes: n }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Ajouter une note interne sur ce prospect">Note</button>
                       <button type="button" onClick={() => { const ig = prompt('Instagram (URL du profil, vide pour effacer)', l.socials?.instagram || ''); if (ig === null) return; const tt = prompt('TikTok (URL du profil, vide pour effacer)', l.socials?.tiktok || ''); if (tt === null) return; patch.mutate({ id: l._id, socials: { instagram: ig, tiktok: tt } }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Saisir ou corriger les liens Instagram et TikTok du prospect">Réseaux</button>
-                      {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Renseigner un email trouvé à la main : le prospect devient éligible au mailing">Email</button>}
+                      {!l.email && <FindEmailButton leadId={l._id} website={l.website} onFound={refresh} />}
+                      {!l.email && <button type="button" onClick={() => { const e = prompt('Email trouvé à la main'); if (e) patch.mutate({ id: l._id, email: e }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Renseigner un email trouvé à la main : le prospect devient éligible au mailing">Saisir l&apos;email</button>}
                       <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer définitivement ce prospect"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>

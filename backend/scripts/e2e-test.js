@@ -2776,6 +2776,18 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
       const skipped = await db.collection('leads').findOne({ _id: withMail._id });
       expect(skip.status === 200 && !skipped.email, 'Un prospect visité il y a moins de 30 jours ne doit pas être revisité', skip);
       for (let i = 0; i < 60; i++) { const st = await brandApi('POST', '/admin/acquisition/leads/enrich-emails', { kind: 'brand' }); if (!/Déjà en cours/.test(st.data.message)) break; await new Promise(r => setTimeout(r, 1000)); }
+      // « Chercher l'email » sur une seule fiche : sans attendre les 30 jours ; site demandé quand il manque
+      const one1 = await brandApi('POST', `/admin/acquisition/leads/${withMail._id}/find-email`);
+      const oneDoc = await db.collection('leads').findOne({ _id: withMail._id });
+      const noSiteLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `nosite-${RUN}`, name: `Sans Site ${RUN}`, status: 'qualified', createdAt: new Date(), updatedAt: new Date() });
+      const one2 = await brandApi('POST', `/admin/acquisition/leads/${noSiteLead.insertedId}/find-email`);
+      const one3 = await brandApi('POST', `/admin/acquisition/leads/${noSiteLead.insertedId}/find-email`, { website: siteUrl });
+      const one4 = await brandApi('POST', `/admin/acquisition/leads/${noSiteLead.insertedId}/find-email`, { website: 'pas un site' });
+      await db.collection('leads').deleteOne({ _id: noSiteLead.insertedId });
+      expect(one1.status === 200 && one1.data.found === true && oneDoc.email === `bonjour-${RUN}@needcreator-test.com` && /Email trouvé/.test(one1.data.message)
+        && one2.status === 400 && /Pas de site/.test(one2.data.error) && one3.status === 200 && one3.data.found === true && one3.data.lead.website === siteUrl && one4.status === 400,
+      '« Chercher l\'email » d\'une fiche : trouvé sur le site sans attendre 30 jours, site demandé quand il manque, site illisible refusé', { one1: one1.data?.message, one2: one2.data, one3: one3.data?.message, one4: one4.status });
+      await db.collection('leads').updateOne({ _id: withMail._id }, { $set: { email: null, emailSource: null } });
       await db.collection('leads').updateOne({ _id: withMail._id }, { $set: { 'enrich.emailSearchedAt': new Date(Date.now() - 40 * 86400000) } }); // comme si la visite datait de 40 jours
       const bareRow = await brandApi('POST', '/admin/acquisition/leads/import?preview=1', { kind: 'brand', text: 'Respire ; https://www.facebook.com/respire.co ; ; déodorants naturels ; respire.co' });
       expect(bareRow.status === 200 && bareRow.data.rows[0].name === 'Respire' && bareRow.data.rows[0].website === 'https://respire.co' && bareRow.data.rows[0].description === 'déodorants naturels', 'Un site écrit sans https:// doit être reconnu comme site web', bareRow);

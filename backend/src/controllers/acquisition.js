@@ -377,6 +377,35 @@ export async function enrichLeadEmails(req, res) {
   });
 }
 
+/**
+ * Fiche : cherche l'email sur le site de ce seul prospect (accueil, page contact, mentions légales), sans IA, en une dizaine de secondes.
+ * `website` facultatif : le site saisi est enregistré sur la fiche avant la recherche. Les réseaux trouvés sur le site sont ajoutés aussi.
+ */
+export async function findLeadEmail(req, res) {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
+    const site = String(req.body?.website || '').trim();
+    if (site) {
+      const url = /^https?:\/\//i.test(site) ? site : `https://${site}`;
+      try { const u = new URL(url); if (!u.hostname.includes('.')) throw new Error('domaine'); lead.website = u.origin; } catch { return res.status(400).json({ error: 'Adresse de site illisible : collez par exemple respire.co ou https://www.respire.co' }); }
+    }
+    if (lead.email) return res.json({ found: false, message: `La fiche a déjà une adresse : ${lead.email}`, lead });
+    const before = Object.values(lead.socials?.toObject?.() || lead.socials || {}).filter(Boolean).length;
+    const found = await enrichLeadFromSite(lead);
+    const siteUsed = lead.website || (lead.url && !/instagram\.com|tiktok\.com|youtube\.com|youtu\.be|linkedin\.com|facebook\.com/i.test(lead.url) ? lead.url : '');
+    if (!siteUsed && !found) return res.status(400).json({ error: 'Pas de site sur la fiche : collez l\'adresse du site de la marque pour lancer la recherche' });
+    lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), emailSearchedAt: new Date() };
+    await lead.save();
+    const socials = Object.values(lead.socials?.toObject?.() || lead.socials || {}).filter(Boolean).length - before;
+    const extra = socials > 0 ? ` ${socials} réseau(x) relevé(s) sur le site.` : '';
+    res.json({ found, lead, message: found ? `Email trouvé : ${lead.email} (${lead.emailSource || 'site'}).${extra}` : `Aucune adresse sur ${siteUsed} (accueil, contact, mentions légales).${extra} Essayez le lot LinkedIn, le bouton « Contact » du profil Instagram, ou un message privé.` });
+  } catch (error) {
+    logger.error('findLeadEmail failed:', error);
+    res.status(500).json({ error: `Recherche impossible : ${error.message}` });
+  }
+}
+
 /** Explication de l'écart entre les prospects de l'application et les contacts de l'outil de mailing */
 export async function mailingBreakdownView(req, res) {
   try { res.json(await mailingBreakdown()); }
