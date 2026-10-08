@@ -304,9 +304,9 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
           <div className="text-xs text-neutral-500 flex items-center justify-between gap-3 flex-wrap">
             <span>Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement. Les aperçus restent chez Meta.</span>
-            <button type="button" className="underline" onClick={() => setOptOut(v => !v)}>Vous êtes cette marque et ne voulez pas apparaître ?</button>
+            {user?.role !== 'creator' && <button type="button" className="underline" onClick={() => setOptOut(v => !v)}>Vous êtes cette marque et ne voulez pas apparaître ?</button>}
           </div>
-          {optOut && (
+          {optOut && user?.role !== 'creator' && (
             <Card className="p-4">
               <form onSubmit={(e) => { e.preventDefault(); sendOptOut.mutate(); }} className="grid sm:grid-cols-3 gap-3 sm:items-end">
                 <Input label="Votre email professionnel" type="email" value={optEmail} onChange={(e) => setOptEmail(e.target.value)} />
