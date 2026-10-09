@@ -37,6 +37,7 @@ export default function AdScanAdmin() {
     { label: 'Audits', value: d.audits },
     { label: 'Marques venues de l\'email', value: d.fromEmail?.length, hint: 'liens de l\'email marques' },
     { label: 'Clients de devis', value: d.fromQuotes?.length, hint: 'outils offerts avec un devis' },
+    { label: 'Abonnés au rapport', value: d.subscribers?.active, hint: 'rapport par email + alertes' },
   ];
   return (
     <Card className="p-6" data-testid="ad-scan-admin">
@@ -48,7 +49,7 @@ export default function AdScanAdmin() {
       </div>
       {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-2 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-8 gap-2 mb-4">
             {tiles.map((t) => <div key={t.label} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100"><div className="text-xs text-neutral-600">{t.label}</div><div className="text-xl font-bold text-neutral-900">{t.value ?? 0}</div>{t.hint && <div className="text-[11px] text-neutral-500">{t.hint}</div>}</div>)}
           </div>
           {d.fromEmail?.length > 0 && (
@@ -63,6 +64,22 @@ export default function AdScanAdmin() {
                     {l.replied && <span className="text-xs text-green-700">a répondu</span>}
                     <span className="text-xs text-neutral-600">{l.visits} action{l.visits > 1 ? 's' : ''} ({l.actions.map((a: string) => ACTION[a] || a).join(', ')}){l.pages.length ? ` · ${l.pages.join(', ')}` : ''} · dernière le {formatDate(l.last)}</span>
                     {l.email && <span className="text-xs text-neutral-500">{l.email}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {d.subscribers?.rows?.length > 0 && (
+            <div className="mb-5" data-testid="ad-scan-subscribers">
+              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Abonnés au rapport par email</h3>
+              <p className="text-xs text-neutral-600 mb-2">Ils ont laissé leur adresse sous un scan : rapport envoyé, puis une alerte par semaine au plus quand la marque lance de nouvelles publicités. Les marques sans compte ont une fiche « Nouveau » dans la prospection (à relire avant d&apos;écrire) ; les créateurs et les inscrits n&apos;en ont pas.</p>
+              <ul className="space-y-1 text-sm">
+                {d.subscribers.rows.map((r: any) => (
+                  <li key={r.id} className="flex flex-wrap items-center gap-2 border-b border-neutral-100 py-1" data-testid="ad-scan-subscriber-row">
+                    <span className="font-medium text-neutral-900">{r.email}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${r.role === 'brand' ? 'bg-blue-100 text-blue-800' : r.role === 'creator' ? 'bg-purple-100 text-purple-800' : 'bg-neutral-100 text-neutral-700'}`}>{r.role === 'brand' ? 'marque' : r.role === 'creator' ? 'créateur' : 'inconnu'}{r.member ? ' · inscrit' : ''}</span>
+                    <span className="text-xs text-neutral-600">suit {r.pageName} · {r.sentCount} email{r.sentCount > 1 ? 's' : ''}{r.lastSentAt ? `, le dernier le ${formatDate(r.lastSentAt)}` : ''}{r.active ? '' : ' · désinscrit'}</span>
+                    {r.lead && <span className="text-xs text-neutral-500">fiche : {r.lead.name} ({STATUS[r.lead.status] || r.lead.status})</span>}
                   </li>
                 ))}
               </ul>

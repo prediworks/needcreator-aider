@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import ScanReportSignup from '@/components/ScanReportSignup';
 import { formatDate } from '@/lib/utils';
 import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck } from 'lucide-react';
 
@@ -301,6 +302,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               )}
             </Card>
           )}
+          {s.status === 'ready' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} />}
 
           <div className="text-xs text-neutral-500 flex items-center justify-between gap-3 flex-wrap">
             <span>Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement. Les aperçus restent chez Meta.</span>

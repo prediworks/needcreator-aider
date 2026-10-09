@@ -122,3 +122,20 @@ export async function adminProspectFromScan(req, res) {
     res.status(r.created ? 201 : 200).json({ lead: r.lead, message: r.created ? `Fiche créée : ${r.lead.name}${r.tier === 'large' ? ' (grande marque, signalée)' : ''}. Qualification, site et email en arrière-plan.` : `Déjà en prospection : ${r.lead.name}. La note de l'outil de scan est ajoutée à la fiche.` });
   } catch (error) { fail(res, error, 'Mise en prospection impossible', 'adminProspectFromScan'); }
 }
+
+/** Public (compte facultatif) : recevoir le rapport par email, puis les nouvelles publicités de cette marque */
+export async function subscribeScan(req, res) {
+  try {
+    const { subscribeToScan } = await import('../services/adScanReports.js');
+    res.json(await subscribeToScan({ slug: req.params.slug, email: req.body?.email, role: req.body?.role, user: req.user, ip: clientIp(req) }));
+  } catch (error) { fail(res, error, 'Abonnement impossible pour le moment', 'subscribeScan'); }
+}
+/** Lien de l'email : ne plus rien recevoir */
+export async function unsubscribeScan(req, res) {
+  try {
+    const { unsubscribeScanReports } = await import('../services/adScanReports.js');
+    const r = await unsubscribeScanReports(req.body?.token);
+    if (!r) return res.status(404).json({ error: 'Lien inconnu ou déjà utilisé' });
+    res.json({ message: `${r.email} ne recevra plus aucun rapport ni alerte.` });
+  } catch (error) { fail(res, error, 'Désinscription impossible pour le moment', 'unsubscribeScan'); }
+}

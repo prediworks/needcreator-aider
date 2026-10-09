@@ -43,6 +43,10 @@ back tomorrow » (150 pages : la suite reste en file jusqu'au lendemain).
 4. S'arrêter à 15. Les réponses reçues : **« Coller la réponse »** sur la fiche (l'email donné entre dans le mailing) ; quoi répondre selon
    le cas : `docs/REPONSES-MARQUES.md`.
 
+5. Admin → Prospection → **Scan concurrentiel** : trois listes à parcourir. **« Abonnés au rapport »** (depuis le 09/10/2026 : des visiteurs ont
+   laissé leur adresse sous un scan ; une marque sans compte a une fiche « Nouveau », à relire puis à passer « À contacter » si c'en est une),
+   **« Marques venues de l'email »** (à relancer en premier, en citant ce qu'elles ont regardé) et **« Clients de devis venus des outils »**.
+
 Les créateurs ne passent plus par les messages privés que s'ils n'ont pas d'email : la file du jour côté Créateurs les propose d'elle-même.
 
 ---

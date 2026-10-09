@@ -1098,3 +1098,41 @@ export async function sendTeamInvitation(email, name, companyName, invitedBy, li
   `;
   return sendEmail(email, subject, html);
 }
+
+/** Rapport du scan par email : résumé, les publicités qui tournent depuis le plus longtemps, les angles, le lien vers la page. Lien de désinscription dans chaque email. */
+function scanAdRows(scan, ads, limit = 5) {
+  const days = (a) => a.startedAt ? Math.max(0, Math.round((Date.now() - new Date(a.startedAt).getTime()) / 86400000)) : null;
+  return ads.slice(0, limit).map(a => `<li style="margin:0 0 8px"><strong>${days(a) != null ? `${days(a)} jours` : 'date inconnue'}</strong> · ${esc(String(a.body || a.title || '').replace(/\s+/g, ' ').slice(0, 140))}${(a.body || '').length > 140 ? '…' : ''} <a href="https://www.facebook.com/ads/library/?id=${esc(a.id)}" style="color:#0f766e">voir</a></li>`).join('');
+}
+const scanFooter = (unsubscribeLink, pageName) => `<p style="color:#6b7280;font-size:12px">Vous recevez cet email parce que vous avez demandé le rapport des publicités de ${esc(pageName)} sur NeedCreator. Un email par semaine au plus, seulement s'il y a du nouveau. <a href="${unsubscribeLink}" style="color:#6b7280">Ne plus rien recevoir</a>.</p>`;
+
+export async function sendScanReport(email, scan, { link, unsubscribeLink }) {
+  const subject = `Rapport : les publicités Meta de ${scan.pageName}`;
+  const st = scan.stats || {}; const ins = scan.insights || {};
+  const html = `
+    <h1>Les publicités de ${esc(scan.pageName)}</h1>
+    <p><strong>${scan.totalActive || 0}</strong> publicité(s) Meta active(s) en France${st.oldestDays != null ? `, la plus ancienne tourne depuis <strong>${st.oldestDays} jours</strong>` : ''}${st.over90Days ? `, <strong>${st.over90Days}</strong> depuis plus de 90 jours` : ''}. Une publicité maintenue depuis trois mois est une publicité qui rapporte.</p>
+    ${ins.summary ? `<p>${esc(ins.summary)}</p>` : ''}
+    ${(scan.ads || []).length ? `<p style="margin-bottom:4px"><strong>Celles qui tournent depuis le plus longtemps</strong></p><ul style="padding-left:18px;margin-top:4px">${scanAdRows(scan, scan.ads)}</ul>` : ''}
+    ${(ins.angles || []).length ? `<p><strong>Angles utilisés</strong> : ${ins.angles.map(a => `${esc(a.name)} (${a.count})`).join(', ')}.</p>` : ''}
+    ${(ins.missing || []).length ? `<p><strong>Angles laissés libres</strong> : ${ins.missing.map(m => esc(m)).join(', ')}.</p>` : ''}
+    ${button(link, 'Voir le rapport complet')}
+    <p>Vous serez prévenu quand ${esc(scan.pageName)} lancera de nouvelles publicités, ou qu'une passera les 90 jours.</p>
+    ${scanFooter(unsubscribeLink, scan.pageName)}
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `${scan.totalActive || 0} publicités actives${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.` });
+}
+
+/** Alerte hebdomadaire : nouvelles publicités depuis le dernier email, et celles qui viennent de passer les 90 jours */
+export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], link, unsubscribeLink }) {
+  const subject = newAds.length ? `${scan.pageName} : ${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}` : `${scan.pageName} : une publicité passe les 90 jours`;
+  const html = `
+    <h1>${esc(scan.pageName)}</h1>
+    ${newAds.length ? `<p><strong>${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}</strong> depuis notre dernier email :</p><ul style="padding-left:18px">${scanAdRows(scan, newAds, 6)}</ul>` : ''}
+    ${crossing.length ? `<p><strong>${crossing.length === 1 ? 'Une publicité passe' : `${crossing.length} publicités passent`} les 90 jours</strong> : ${crossing.length === 1 ? 'elle' : 'elles'} rapporte${crossing.length > 1 ? 'nt' : ''}, sinon la marque l'aurait arrêtée.</p><ul style="padding-left:18px">${scanAdRows(scan, crossing, 4)}</ul>` : ''}
+    <p>${scan.totalActive || 0} publicité(s) active(s) au total.</p>
+    ${button(link, 'Voir toutes les publicités')}
+    ${scanFooter(unsubscribeLink, scan.pageName)}
+  `;
+  return sendEmail(email, subject, html, null, { preheader: newAds.length ? `${newAds.length} nouvelle(s) publicité(s) chez ${scan.pageName}.` : `Une publicité de ${scan.pageName} passe les 90 jours.` });
+}

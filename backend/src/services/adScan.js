@@ -516,8 +516,10 @@ export async function adminScanStats() {
   const { default: ExternalQuote } = await import('../models/ExternalQuote.js');
   const fromQuotes = (await ExternalQuote.find({ lastToolVisitAt: { $ne: null } }).sort({ lastToolVisitAt: -1 }).limit(30).select('client creatorId status toolVisits lastToolVisitAt').populate('creatorId', 'profile.name').lean())
     .map(q => ({ id: q._id, company: q.client?.companyName || '', email: q.client?.email || '', creator: q.creatorId?.profile?.name || '', status: q.status, last: q.lastToolVisitAt, visits: (q.toolVisits || []).length, actions: [...new Set((q.toolVisits || []).map(v => v.action))], pages: [...new Set((q.toolVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
+  const { scanSubscribersStats } = await import('./adScanReports.js');
+  const subscribers = await scanSubscribersStats();
   const t = totals[0] || {};
-  return { fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+  return { subscribers, fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
 }
 
 /**

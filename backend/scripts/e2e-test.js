@@ -1953,6 +1953,8 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   const slug = `e2e-scan-marque-${RUN}`.toLowerCase();
   await db.collection('adscans').deleteMany({ slug: /^e2e-scan-marque/ });
   await db.collection('leads').deleteMany({ externalId: /^e2escan-/ });
+  await db.collection('adscansubscriptions').deleteMany({ email: /^e2e-rapport/ });
+  await db.collection('leads').deleteMany({ externalId: /^scan-report:e2e-rapport/ });
   const scanLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2escan-${RUN}`, name: `E2E Scan Marque ${RUN}`, website: 'https://www.e2escan-test.fr/', status: 'to_contact', score: 70, createdAt: new Date(), updatedAt: new Date() });
   try {
   await db.collection('adscans').insertOne({ slug, query: 'E2E Scan Marque', pageId: `9${Date.now()}`, pageName: `E2E Scan Marque ${RUN}`, website: 'https://e2escan-test.fr', ads, totalActive: 17, stats, insights: { summary: 'Des gourdes isothermes vendues en ligne, à un public féminin de 25 à 44 ans.', angles: [{ name: 'prix / promotion', count: 7, example: 'prix cassé, livraison offerte' }, { name: 'preuve sociale', count: 7, example: 'témoignage client, 5 étoiles' }, { name: 'bénéfice concret', count: 3, example: 'garde 24 h au froid' }], hooks: ['Gourde isotherme'], missing: ['Aucune publicité ne montre le produit en usage réel', 'Aucune ne compare avec une bouteille jetable', 'Aucune ne parle de l\'entretien'], facts: ['7 publicités sur 14 citent un prix', 'La publicité la plus ancienne tourne depuis 120 jours'] }, status: 'ready', views: 0, briefs: 0, proposals: 0, fetchedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
@@ -1973,6 +1975,32 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   expect(audA && audA.diagnosis && audA.lasting.length === 1 && audA.briefs.length === 1 && !audA.overused && !audA.hooks && audA.locked.includes('briefs') && audM && audM.briefs.length === 3 && audM.overused.length === 1 && audM.hooks.length === 1 && audM.locked.length === 0, 'Audit : sans compte, le diagnostic, ce qui dure et une vidéo proposée ; inscrit, tout', { audA, audM });
   const audAgain = await pubApi('POST', `/ad-scans/${slug}/audit`);
   expect(audAgain.status === 200 && audAgain.data.started === false, 'Un audit de moins de 24 h n\'est pas refait', audAgain);
+  // Rapport par email : une adresse sous le scan → abonnement, rapport envoyé, fiche « Nouveau » pour une marque sans compte ; jamais pour un créateur
+  const repEmail = `e2e-rapport-${RUN}@needcreator-test.com`;
+  const subBrand = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: repEmail, role: 'brand' });
+  const subRow = await db.collection('adscansubscriptions').findOne({ email: repEmail });
+  const subLead = await db.collection('leads').findOne({ externalId: `scan-report:${repEmail}` });
+  expect(subBrand.status === 200 && /Rapport envoyé/.test(subBrand.data.message) && subRow && subRow.active && subRow.role === 'brand' && subRow.token && subRow.lastAdIds.length === ads.length && subRow.sentCount === 1 && subLead && subLead.status === 'new' && subLead.keyword === 'rapport scan' && String(subRow.leadId) === String(subLead._id), 'Rapport par email : abonnement créé, rapport envoyé, fiche de prospection « Nouveau » pour la marque', { status: subBrand.status, data: subBrand.data, sub: subRow && { role: subRow.role, ids: subRow.lastAdIds?.length }, lead: subLead && subLead.status });
+  const subCreator = await creatorApi('POST', `/ad-scans/${slug}/subscribe`, { email: 'ignored@example.com', role: 'brand' });
+  const subCreatorRow = await db.collection('adscansubscriptions').findOne({ email: creatorEmail });
+  expect(subCreator.status === 200 && subCreatorRow && subCreatorRow.role === 'creator' && String(subCreatorRow.userId) === String((await db.collection('users').findOne({ email: creatorEmail }))._id) && !subCreatorRow.leadId, 'Un créateur connecté est abonné avec l\'adresse de son compte, comme créateur, sans fiche de prospection', { status: subCreator.status, row: subCreatorRow && { role: subCreatorRow.role, lead: subCreatorRow.leadId } });
+  const subBad = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: 'pas-une-adresse', role: 'brand' });
+  expect(subBad.status === 400, 'Adresse invalide refusée', subBad);
+  // Alerte hebdomadaire : une nouvelle publicité apparaît, la vérification est due → un email, publicités connues mises à jour ; rien de nouveau → rien
+  await db.collection('adscans').updateOne({ slug }, { $push: { ads: { id: `e2enew${RUN}`, body: 'Nouvelle publicité : livraison offerte dès 30 €', startedAt: new Date(), platforms: ['instagram'] } }, $set: { fetchedAt: new Date() } });
+  await db.collection('adscansubscriptions').updateMany({ email: { $in: [repEmail, creatorEmail] } }, { $set: { lastCheckedAt: new Date(Date.now() - 8 * 86400000) } });
+  const { runScanReportAlerts, unsubscribeScanReports } = await import('../src/services/adScanReports.js');
+  const alerts = await runScanReportAlerts();
+  const subAfter = await db.collection('adscansubscriptions').findOne({ email: repEmail });
+  const alertsAgain = await runScanReportAlerts();
+  expect(alerts.pages === 1 && alerts.sent + alerts.failed === 2 && subAfter.lastAdIds.includes(`e2enew${RUN}`) && subAfter.sentCount === 2 && alertsAgain.sent === 0, 'Alerte hebdomadaire : envoyée aux abonnés quand une nouvelle publicité apparaît, pas deux fois', { alerts, alertsAgain, after: subAfter && { ids: subAfter.lastAdIds?.length, sent: subAfter.sentCount } });
+  // Désinscription par le lien de l'email : plus rien pour cette adresse
+  const unsub = await pubApi('POST', '/ad-scans/unsubscribe', { token: subRow.token });
+  const unsubRow = await db.collection('adscansubscriptions').findOne({ email: repEmail });
+  const unsubBad = await pubApi('POST', '/ad-scans/unsubscribe', { token: 'a'.repeat(36) });
+  expect(unsub.status === 200 && unsubRow.active === false && unsubBad.status === 404, 'Désinscription par le lien : abonnement arrêté, lien inconnu refusé', { unsub: unsub.status, active: unsubRow.active, bad: unsubBad.status });
+  const statsSub = await brandApi('GET', '/admin/acquisition/ad-scans').catch(() => ({ status: 0 }));
+  if (statsSub.status === 200) expect(statsSub.data.subscribers && statsSub.data.subscribers.rows.some(r => r.email === repEmail && r.role === 'brand' && r.lead), 'Admin : liste des abonnés au rapport avec rôle et fiche', statsSub.data.subscribers);
   const badProp = await brandApi('POST', `/ad-scans/${slug}/brief`, { proposal: 5 });
   expect(badProp.status === 400, 'Une proposition hors des trois est refusée', badProp);
   // Consultation : compteur, et la page devient indexable (publicités et consultation humaine)
