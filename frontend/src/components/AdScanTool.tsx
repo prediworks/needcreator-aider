@@ -187,6 +187,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               </div>
             )}
           </Card>
+          {s.status === 'ready' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} />}
 
           {auditView && s.status === 'ready' && (
             <Card className="p-6 border-primary-200" data-testid="ad-scan-audit">
@@ -302,7 +303,6 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               )}
             </Card>
           )}
-          {s.status === 'ready' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} />}
 
           <div className="text-xs text-neutral-500 flex items-center justify-between gap-3 flex-wrap">
             <span>Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement. Les aperçus restent chez Meta.</span>
