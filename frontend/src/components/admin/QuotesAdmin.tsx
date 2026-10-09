@@ -17,19 +17,20 @@ const STATUS: Record<string, { label: string; cls: string }> = {
  * Devis de créateurs : envoyé, ouvert par le client (les ouvertures du créateur et de l'équipe ne comptent pas), rappels, issue.
  * Sert à savoir où ça bloque : jamais ouvert (email), ouvert sans suite (étape suivante), et à appeler le créateur concerné.
  */
-export default function QuotesAdmin() {
+export default function QuotesAdmin({ showcase = false }: { showcase?: boolean }) {
   const { data, isLoading } = useQuery({ queryKey: ['admin-quotes'], queryFn: async () => (await api.get('/admin/quotes')).data.quotes as any[], staleTime: 60000 });
-  const rows = data || [];
+  // Deux cadres sur la même liste : les devis envoyés par les créateurs à leurs clients, et les vidéos spontanées proposées par l'équipe
+  const rows = (data || []).filter(q => !!q.showcase === showcase);
   const notOffered = (q: any) => q.showcase && q.showcase.status === 'ready'; // vidéo prête, pas encore proposée à la marque
   const sent = rows.filter(q => q.status === 'sent' && !notOffered(q));
   const waiting = rows.filter(notOffered).length;
   const neverOpened = sent.filter(q => !q.viewedAt).length;
   const openedNoAnswer = sent.filter(q => q.viewedAt).length;
   return (
-    <Card className="p-6" data-testid="quotes-admin">
-      <h2 className="text-lg font-semibold text-neutral-900">Devis des créateurs</h2>
-      <p className="text-sm text-neutral-600 mb-3">Ce que font les clients des devis. « Jamais ouvert » : le problème est l&apos;email (objet, spam, adresse). « Ouvert sans réponse » : le problème est l&apos;étape suivante, appelez le créateur pour relancer. Les ouvertures du créateur et de l&apos;équipe ne comptent pas. Une vidéo spontanée « pas encore proposée » n&apos;a rien envoyé à la marque : proposez-la depuis Vitrine.</p>
-      {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : !rows.length ? <p className="text-sm text-neutral-500">Aucun devis envoyé pour l&apos;instant.</p> : (
+    <Card className="p-6" data-testid={showcase ? 'showcase-quotes-admin' : 'quotes-admin'}>
+      <h2 className="text-lg font-semibold text-neutral-900">{showcase ? 'Vidéos spontanées proposées aux marques' : 'Devis des créateurs'}</h2>
+      <p className="text-sm text-neutral-600 mb-3">{showcase ? <>Les vidéos déposées par les créateurs et proposées aux marques depuis Vitrine. Une vidéo « pas encore proposée » n&apos;a rien envoyé à la marque : proposez-la depuis Vitrine. « Jamais ouvert » : la marque n&apos;a pas ouvert la page de la vidéo (vos ouvertures et celles du créateur ne comptent pas).</> : <>Les devis envoyés par les créateurs à leurs propres clients. « Jamais ouvert » : le problème est l&apos;email (objet, spam, adresse). « Ouvert sans réponse » : le problème est l&apos;étape suivante, appelez le créateur pour relancer. Les ouvertures du créateur et de l&apos;équipe ne comptent pas.</>}</p>
+      {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : !rows.length ? <p className="text-sm text-neutral-500">{showcase ? 'Aucune vidéo spontanée pour l\'instant.' : 'Aucun devis envoyé pour l\'instant.'}</p> : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4 text-sm">
             <div className="p-3 rounded-lg bg-neutral-50 border border-neutral-100"><div className="text-xs text-neutral-600">En attente</div><div className="text-xl font-bold">{sent.length}</div>{waiting ? <div className="text-xs text-orange-700">+ {waiting} vidéo{waiting > 1 ? 's' : ''} pas encore proposée{waiting > 1 ? 's' : ''}</div> : null}</div>
@@ -48,7 +49,7 @@ export default function QuotesAdmin() {
                     <tr key={q.id} className="border-b border-neutral-100 align-top" data-testid="quotes-admin-row">
                       <td className="py-2 pr-3"><div className="font-medium text-neutral-900">{q.company}</div><div className="text-xs text-neutral-500">{q.email}</div></td>
                       <td className="pr-3">{q.creator}</td>
-                      <td className="pr-3"><div>{q.title}</div><div className="text-xs text-neutral-500">{q.price != null ? `${q.price} € HT` : ''}{q.showcase ? ' · vidéo spontanée' : ''}{q.toolVisits ? ` · outils : ${q.toolVisits}` : ''}</div></td>
+                      <td className="pr-3"><div>{q.title}</div><div className="text-xs text-neutral-500">{q.price != null ? `${q.price} € HT` : ''}{q.toolVisits ? ` · outils : ${q.toolVisits}` : ''}</div></td>
                       <td className="pr-3 whitespace-nowrap">{q.showcase ? (q.showcase.sentAt ? <>{formatDate(q.showcase.sentAt)}<div className="text-xs text-neutral-500">proposée par {via}</div></> : <span className="text-orange-700">pas encore proposée</span>) : q.sentAt ? formatDate(q.sentAt) : '—'}</td>
                       <td className="pr-3 whitespace-nowrap">{q.viewedAt ? <span className="text-green-700">{formatDate(q.viewedAt)}{q.views > 1 ? ` · ${q.views} fois` : ''}</span> : notOffered(q) ? <span className="text-neutral-400">—</span> : <span className="text-orange-700">jamais</span>}</td>
                       <td className="pr-3">{q.reminders || 0}</td>

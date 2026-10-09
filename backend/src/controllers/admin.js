@@ -283,19 +283,26 @@ export async function getDashboardStats(req, res) {
       ]),
     ]);
     // Outils créateurs (devis clients, suivi de prospection, registre des droits) : combien s'en servent, et ce que ça rapporte en marques
-    const [quoteCreators, prospectCreators, contentCreators, quotesByStatus, prospectsByStatus, brandsViaQuotes] = await Promise.all([
-      ExternalQuote.distinct('creatorId'),
+    // Les vidéos spontanées créent un devis au nom du créateur : elles sont comptées à part, pas comme un usage de l'outil devis
+    const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+    const showcaseQuoteIds = (await ShowcaseVideo.distinct('quoteId')).filter(Boolean);
+    const notShowcase = { _id: { $nin: showcaseQuoteIds } };
+    const [quoteCreators, prospectCreators, contentCreators, quotesByStatus, prospectsByStatus, brandsViaQuotes, showcaseCreators, showcaseByStatus] = await Promise.all([
+      ExternalQuote.distinct('creatorId', notShowcase),
       Prospect.distinct('creatorId'),
       CreatorContent.distinct('creatorId', { source: 'external' }),
-      ExternalQuote.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
+      ExternalQuote.aggregate([{ $match: notShowcase }, { $group: { _id: '$status', n: { $sum: 1 } } }]),
       Prospect.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
-      ExternalQuote.distinct('brandId', { status: 'accepted_needcreator', brandId: { $ne: null } }),
+      ExternalQuote.distinct('brandId', { ...notShowcase, status: 'accepted_needcreator', brandId: { $ne: null } }),
+      ShowcaseVideo.distinct('creatorId'),
+      ShowcaseVideo.aggregate([{ $group: { _id: '$status', n: { $sum: 1 } } }]),
     ]);
     const byKey = (rows) => Object.fromEntries(rows.map(r => [r._id, r.n]));
-    const q = byKey(quotesByStatus); const p = byKey(prospectsByStatus);
+    const q = byKey(quotesByStatus); const p = byKey(prospectsByStatus); const sv = byKey(showcaseByStatus);
     const tools = {
-      creators: { quotes: quoteCreators.length, prospects: prospectCreators.length, contents: contentCreators.length, any: new Set([...quoteCreators, ...prospectCreators, ...contentCreators].map(String)).size },
+      creators: { quotes: quoteCreators.length, prospects: prospectCreators.length, contents: contentCreators.length, showcase: showcaseCreators.length, any: new Set([...quoteCreators, ...prospectCreators, ...contentCreators].map(String)).size },
       quotes: { total: Object.values(q).reduce((a, b) => a + b, 0), draft: q.draft || 0, sent: q.sent || 0, acceptedNeedcreator: q.accepted_needcreator || 0, acceptedDirect: q.accepted_direct || 0, declined: q.declined || 0, expired: q.expired || 0 },
+      showcase: { total: Object.values(sv).reduce((a, b) => a + b, 0), ready: sv.ready || 0, sent: sv.sent || 0, accepted: sv.accepted || 0, declined: (sv.declined || 0) + (sv.withdrawn || 0) },
       prospects: { total: Object.values(p).reduce((a, b) => a + b, 0), toContact: p.to_contact || 0, contacted: p.contacted || 0, replied: p.replied || 0, quoteSent: p.quote_sent || 0, won: p.won || 0, lost: p.lost || 0 },
       brandsViaQuotes: brandsViaQuotes.length,
     };

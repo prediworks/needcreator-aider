@@ -160,10 +160,12 @@ export default function AdminPage() {
               <span title="Créateurs ayant au moins un prospect dans leur suivi">Prospection : {stats.tools.creators.prospects} créateur(s), {stats.tools.prospects.total} prospects ({stats.tools.prospects.contacted + stats.tools.prospects.replied + stats.tools.prospects.quoteSent} en cours, {stats.tools.prospects.won} gagnés, {stats.tools.prospects.lost} perdus)</span>
               <span title="Créateurs ayant enregistré au moins un contenu externe dans leur registre des droits">Registre des droits : {stats.tools.creators.contents} créateur(s)</span>
               <span className="font-semibold text-neutral-700" title="Marques inscrites en acceptant un devis d'un créateur">Marques venues par un devis : {stats.tools.brandsViaQuotes}</span>
+              {stats.tools.showcase ? <span title="Vidéos spontanées déposées par les créateurs et proposées aux marques depuis Vitrine : comptées à part, pas comme un usage de l'outil devis">Vidéos spontanées : {stats.tools.creators.showcase} créateur(s), {stats.tools.showcase.total} vidéo(s) ({stats.tools.showcase.ready} à proposer, {stats.tools.showcase.sent} proposées, {stats.tools.showcase.accepted} achetées, {stats.tools.showcase.declined} refusées)</span> : null}
             </div>
           </Card>
         )}
         {stats?.tools && stats.tools.quotes.total > 0 && <div className="mb-8"><QuotesAdmin /></div>}
+        {stats?.tools?.showcase?.total > 0 && <div className="mb-8"><QuotesAdmin showcase /></div>}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
