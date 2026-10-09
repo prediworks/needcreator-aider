@@ -48,7 +48,7 @@ export default function QuoteCreateForm({ onDone = () => undefined, prefill, ini
       <div className="grid sm:grid-cols-2 gap-3 mb-4">
         <Input label="Entreprise" value={f.companyName} onChange={(e) => set('companyName', e.target.value)} />
         <Input label="Contact (prénom, nom)" value={f.contactName} onChange={(e) => set('contactName', e.target.value)} />
-        <Input label="Email du contact" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} placeholder="Pour envoyer le devis" />
+        <Input label="Email du contact (plusieurs : séparez par ;)" value={f.email} onChange={(e) => set('email', e.target.value)} placeholder="Pour envoyer le devis, à une ou plusieurs adresses" />
         <Input label="SIRET (optionnel)" value={f.siret} onChange={(e) => set('siret', e.target.value)} />
         <div className="sm:col-span-2"><Input label="Adresse (optionnel, figure sur le devis)" value={f.address} onChange={(e) => set('address', e.target.value)} /></div>
       </div>

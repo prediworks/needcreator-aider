@@ -53,11 +53,13 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
   const link = `${config.cors.origin}/q/${q.token}`;
   const creator = await (await import('../models/User.js')).default.findById(sv.creatorId).select('profile.name').lean();
   if (via === 'email') {
-    const to = String(email || lead.email || '').trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) throw Object.assign(new Error('Il manque : une adresse email pour cette marque'), { status: 400 });
+    // Adresse saisie, sinon toutes les adresses retenues sur la fiche : un seul email, toutes en destinataires
+    const list = [...new Set(String(email || '').split(/[;,]/).map(a => a.trim().toLowerCase()).filter(Boolean))];
+    const to = list.length ? list : [lead.email, ...(lead.extraEmails || [])].filter(Boolean);
+    if (!to.length || to.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a))) throw Object.assign(new Error('Il manque : une adresse email pour cette marque'), { status: 400 });
     const { sendShowcaseOffer } = await import('./email.js');
     await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
-    if (!lead.email) { lead.email = to; lead.emailSource = 'manuel'; }
+    if (!lead.email) { lead.email = to[0]; lead.emailSource = 'manuel'; lead.extraEmails = to.slice(1); }
   }
   const first = sv.status !== 'sent';
   sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
@@ -65,7 +67,7 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
   if (!['replied', 'registered'].includes(lead.status)) { lead.status = 'contacted'; lead.contactedAt = lead.contactedAt || new Date(); lead.contactedVia = lead.contactedVia || via; }
   lead.notes = [lead.notes, `Vidéo vitrine proposée le ${new Date().toLocaleDateString('fr-FR')} (${via}) : ${sv.productName}, ${sv.price} €`].filter(Boolean).join(' · ').slice(0, 2000);
   await lead.save();
-  return { link, text: showcaseMessage(sv, link), to: lead.email };
+  return { link, text: showcaseMessage(sv, link), to: [lead.email, ...(lead.extraEmails || [])].filter(Boolean).join(', ') };
 }
 
 /** Admin : toutes les vidéos vitrine à proposer ou déjà proposées, quel que soit le statut de la marque */

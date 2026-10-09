@@ -923,7 +923,10 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   expect(edited.status === 200 && edited.data.quote.quote.price === 320 && edited.data.quote.mission.deliverables === 3 && edited.data.quote.pdf.number === q1.data.quote.pdf.number && edited.data.quote.token === q1.data.quote.token, 'Modification du brouillon échouée', edited);
   const badEdit = await creatorApi('PATCH', `/external-quotes/${q1.data.quote._id}`, { ...base, price: 0 });
   expect(badEdit.status === 400, 'Prix invalide refusé à la modification', badEdit);
-  const sent = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { message: 'Comme convenu.' });
+  const sentMulti = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { email: `e2e-client-${RUN}@needcreator-test.com; achats-${RUN}@needcreator-test.com`, message: 'Comme convenu.' });
+  const sentBad = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { email: `e2e-client-${RUN}@needcreator-test.com; pas-une-adresse` });
+  expect(sentMulti.status === 200 && sentMulti.data.quote.client.email === `e2e-client-${RUN}@needcreator-test.com, achats-${RUN}@needcreator-test.com` && sentBad.status === 400, 'Devis envoyé à plusieurs adresses séparées par « ; » ; une adresse illisible refuse l\'envoi', { multi: sentMulti.data?.quote?.client?.email, bad: sentBad.status });
+  const sent = await creatorApi('POST', `/external-quotes/${q1.data.quote._id}/send`, { email: `e2e-client-${RUN}@needcreator-test.com`, message: 'Comme convenu.' });
   expect(sent.status === 200 && sent.data.quote.status === 'sent', 'Envoi du devis échoué', sent);
   const token = q1.data.quote.token;
   const pub = await fetch(`${API}/external-quotes/public/${token}`).then(r => r.json());
@@ -2917,6 +2920,9 @@ await step('Prospection : ajout manuel qualifié par l\'IA, filtres, statut grou
     const ed1 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { name: `File Corrigée ${RUN}`, website: 'lymphea-test.fr', niche: 'cosmétiques', notes: 'Note du formulaire', socials: { linkedin: 'linkedin.com/company/lymphea-test' } });
     const ed2 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { email: 'pas-une-adresse', name: 'Ne Doit Pas Passer' });
     const ed3 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { website: 'pas un site' });
+    const ed4 = await brandApi('PATCH', `/admin/acquisition/leads/${dq1}`, { email: `dq1-${RUN}@needcreator-test.com ; Marie-${RUN}@needcreator-test.com, dq1-${RUN}@needcreator-test.com` });
+    const edMulti = await db.collection('leads').findOne({ _id: dq1 });
+    expect(ed4.status === 200 && edMulti.email === `dq1-${RUN}@needcreator-test.com` && edMulti.extraEmails.length === 1 && edMulti.extraEmails[0] === `marie-${RUN}@needcreator-test.com`, 'Formulaire « Modifier » : plusieurs adresses séparées par « ; » → la première sur la fiche, les autres retenues, sans doublon', { status: ed4.status, email: edMulti.email, extra: edMulti.extraEmails });
     const edDoc = await db.collection('leads').findOne({ _id: dq1 });
     expect(ed1.status === 200 && edDoc.name === `File Corrigée ${RUN}` && edDoc.website === 'https://lymphea-test.fr' && edDoc.niche === 'cosmétiques' && /^Note du formulaire · Renommée le /.test(edDoc.notes) && edDoc.socials.linkedin === 'https://linkedin.com/company/lymphea-test' && edDoc.socials.instagram === 'https://www.instagram.com/autre.marque/'
       && ed2.status === 400 && ed3.status === 400 && edDoc.email === `dq1-${RUN}@needcreator-test.com`,

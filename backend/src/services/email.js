@@ -135,6 +135,8 @@ async function localize(to, subject, html, { raw, lang }) {
 
 export async function sendEmail(to, subject, html, text = null, { raw = false, preheader = '', attachments = [], replyTo = '', lang = null, from = '' } = {}) {
   try {
+    // Plusieurs adresses (« a@x ; b@y », tableau) : un seul email, toutes en destinataires ; la langue suit la première
+    to = (Array.isArray(to) ? to : String(to || '').split(/[;,]/)).map(a => String(a).trim()).filter(Boolean).join(', ');
     const loc = await localize(to, subject, html, { raw, lang });
     subject = loc.subject; html = loc.html;
     const full = raw ? html : renderLayout(html, { preheader, lang: loc.lang });

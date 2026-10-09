@@ -19,6 +19,8 @@ import logger from '../utils/logger.js';
  * Le client accepte et paie via NeedCreator (mission classique créée, commission « missions extérieures »), ou le créateur marque « payé en direct ».
  */
 const idOf = (x) => (x && x._id ? x._id : x)?.toString();
+/** Adresses du client : une ou plusieurs, séparées par « ; » ou « , » ; null si l'une est illisible. Gardées « a@x, b@y » : un seul email, toutes en destinataires */
+const emailList = (v) => { const l = [...new Set(String(v || '').split(/[;,]/).map(a => a.trim().toLowerCase()).filter(Boolean))]; return l.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a)) ? null : l.join(', '); };
 const creatorLegalOf = (u) => {
   const li = u.legalInfo || {}; const a = li.address || {};
   return { name: [li.firstName, li.lastName].filter(Boolean).join(' ') || u.profile?.name, companyName: li.status === 'company' ? (li.legalName || li.companyName || null) : null, address: [a.line1, a.line2, [a.postalCode, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ') || null, siret: li.siret || null, vatRegistered: !!li.vatRegistered, vatNumber: li.vatRegistered ? li.vatNumber : null };
@@ -37,7 +39,7 @@ async function generatePdfs(q, creator) {
   const link = `${config.cors.origin}/q/${q.token}`;
   const number = q.pdf?.number || quoteNumber();
   const quotePdf = await renderQuotePdf({ number, creator: { name: creator.profile?.name, email: creator.email }, creatorLegal: creatorLegalOf(creator), client: q.client, mission: q.mission, quote: q.quote, payLink: link });
-  const brandLike = { email: q.client.email, profile: { companyName: q.client.companyName, company: { siret: q.client.siret || null, registryAddress: q.client.address || null } }, legalInfo: { signatoryName: q.client.contactName || null } };
+  const brandLike = { email: String(q.client.email || '').split(',')[0].trim(), profile: { companyName: q.client.companyName, company: { siret: q.client.siret || null, registryAddress: q.client.address || null } }, legalInfo: { signatoryName: q.client.contactName || null } };
   const data = buildContractData({ ...pseudoMissionObjects(q, creator, brandLike), maxRevisions: await getMaxRevisions() });
   data.number = `PROJET-${number}`;
   const contractPdf = await generateContractPdf(data);
@@ -50,7 +52,7 @@ function pick(body, creator) {
   const b = body || {};
   const rights = b.rights || {};
   return {
-    client: { companyName: String(b.client?.companyName || '').trim(), contactName: String(b.client?.contactName || '').trim(), email: String(b.client?.email || '').trim().toLowerCase(), siret: String(b.client?.siret || '').replace(/\s/g, '') || undefined, address: String(b.client?.address || '').trim() || undefined },
+    client: { companyName: String(b.client?.companyName || '').trim(), contactName: String(b.client?.contactName || '').trim(), email: emailList(b.client?.email) || '', siret: String(b.client?.siret || '').replace(/\s/g, '') || undefined, address: String(b.client?.address || '').trim() || undefined },
     mission: { title: String(b.title || '').trim(), description: String(b.description || '').trim(), videoType: b.videoType || 'testimonial', deliverables: Math.min(20, Math.max(1, parseInt(b.deliverables || 1, 10))), duration: Math.max(5, parseInt(b.duration || 30, 10)), platforms: Array.isArray(b.platforms) ? b.platforms.slice(0, 8) : [], requirements: Array.isArray(b.requirements) ? b.requirements.map(String).slice(0, 10) : [] },
     quote: { price: Number(b.price), vatRate: creator.legalInfo?.vatRegistered ? config.vat.rate : 0, estimatedDeliveryDays: Math.min(90, Math.max(1, parseInt(b.estimatedDeliveryDays || 7, 10))), revisions: Math.min(10, Math.max(0, parseInt(b.revisions ?? 1, 10))), rights: { duration: rights.duration || '1y', supports: (rights.supports || ['social_organic']).filter(Boolean), territories: rights.territories || 'France', exclusivity: !!rights.exclusivity, exclusivityMonths: rights.exclusivity ? (parseInt(rights.exclusivityMonths, 10) || null) : null }, terms: String(b.terms || '').trim().slice(0, 2000), validUntil: new Date(Date.now() + 30 * 86400000) },
   };
@@ -143,8 +145,8 @@ export async function sendExternalQuote(req, res) {
     const q = await ExternalQuote.findOne({ _id: req.params.id, creatorId: req.user._id });
     if (!q) return res.status(404).json({ error: 'Devis introuvable' });
     if (!['draft', 'sent'].includes(q.status)) return res.status(400).json({ error: 'Ce devis n\'est plus modifiable' });
-    const email = String(req.body?.email || q.client.email || '').trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Email du client invalide' });
+    const email = emailList(req.body?.email || q.client.email);
+    if (!email) return res.status(400).json({ error: 'Email du client invalide' });
     const first = q.status !== 'sent';
     q.client.email = email; q.status = 'sent'; q.sentAt = new Date();
     if (first) q.reminders = { count: 0, lastAt: undefined, auto: q.reminders?.auto !== false }; // premier envoi : le compteur de rappels part de zéro

@@ -222,7 +222,7 @@ function RotationHint({ r, value, onReset }: { r?: any; value: string; onReset: 
 
 /** « Modifier » une fiche : tous les champs corrigeables en une fois ; seuls les champs changés sont envoyés */
 function LeadEditForm({ lead, onDone }: { lead: any; onDone: () => void }) {
-  const init = { name: lead.name || '', website: lead.website || '', email: lead.email || '', instagram: lead.socials?.instagram || '', tiktok: lead.socials?.tiktok || '', linkedin: lead.socials?.linkedin || '', niche: lead.niche || '', notes: lead.notes || '' };
+  const init = { name: lead.name || '', website: lead.website || '', email: [lead.email, ...(lead.extraEmails || [])].filter(Boolean).join('; '), instagram: lead.socials?.instagram || '', tiktok: lead.socials?.tiktok || '', linkedin: lead.socials?.linkedin || '', niche: lead.niche || '', notes: lead.notes || '' };
   const [f, setF] = useState(init);
   const save = useMutation({
     mutationFn: async () => {
@@ -464,7 +464,7 @@ function ManualForm({ onDone }: { onDone: () => void }) {
         <Input label={f.kind === 'creator' ? 'Pseudo' : 'Secteur'} value={f.kind === 'creator' ? f.handle : f.niche} onChange={(e) => set(f.kind === 'creator' ? 'handle' : 'niche', e.target.value)} />
         <Input label="Profil ou page (URL)" value={f.url} onChange={(e) => set('url', e.target.value)} />
         <Input label="Site" value={f.website} onChange={(e) => set('website', e.target.value)} />
-        <Input label="Email" type="email" value={f.email} onChange={(e) => set('email', e.target.value)} />
+        <Input label="Email (plusieurs : séparez par ;)" value={f.email} onChange={(e) => set('email', e.target.value)} placeholder="contact@marque.fr ; marie@marque.fr" />
         <Input label="Instagram (URL)" placeholder="https://www.instagram.com/pseudo/" value={f.socials.instagram} onChange={(e) => set('socials', { ...f.socials, instagram: e.target.value })} />
         <Input label="TikTok (URL)" placeholder="https://www.tiktok.com/@pseudo" value={f.socials.tiktok} onChange={(e) => set('socials', { ...f.socials, tiktok: e.target.value })} />
         <div className="sm:col-span-3"><textarea value={f.description} onChange={(e) => set('description', e.target.value)} rows={2} placeholder="Bio, description, ce que vend la marque… (sert à la qualification IA)" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm" /></div>

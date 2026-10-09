@@ -164,7 +164,9 @@ export async function updateLead(req, res) {
   const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name, website, niche } = req.body || {};
   // Formulaire « Modifier » : la note saisie d'abord, les mentions automatiques (renommage) s'y ajoutent ensuite
   if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
-  if (email !== undefined && String(email).trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim())) return res.status(400).json({ error: 'Adresse email illisible. Rien n\'a été modifié.' });
+  // Plusieurs adresses séparées par « ; » ou « , » : la première est l'adresse de la fiche, les autres sont retenues aussi (mailing, vidéo proposée)
+  const emails = email === undefined ? undefined : [...new Set(String(email).split(/[;,]/).map(a => a.trim().toLowerCase()).filter(Boolean))];
+  if (emails?.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a))) return res.status(400).json({ error: 'Adresse email illisible. Rien n\'a été modifié.' });
   if (website !== undefined) {
     const w = String(website).trim();
     if (!w) lead.website = undefined;
@@ -216,7 +218,7 @@ export async function updateLead(req, res) {
     lead.contactedVia = contactedVia || lead.contactedVia || 'manuel';
     lead.notes = [lead.notes, `Déjà contacté, date rétablie à la main le ${new Date().toLocaleDateString('fr-FR')}`].filter(Boolean).join(' · ').slice(0, 2000);
   } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; if (['hooks', 'competitor', 'followup'].includes(dmVariant)) lead.dmVariant = dmVariant; } }
-  if (email !== undefined) { const e = String(email).trim().toLowerCase() || null; if (e !== (lead.email || null)) { lead.email = e; lead.emailSource = e ? 'manuel' : null; } }
+  if (emails !== undefined) { const e = emails[0] || null; if (e !== (lead.email || null)) { lead.email = e; lead.emailSource = e ? 'manuel' : null; } lead.extraEmails = emails.slice(1); }
   const renamed = lead.isModified('name');
   await lead.save();
   // Les vidéos proposées à la marque portent son nom : elles suivent le renommage (après l'enregistrement, pour ne rien changer si la fiche est refusée)
