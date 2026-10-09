@@ -3176,7 +3176,9 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     expect(allSv.status === 200 && allSv.data.showcases.some(x => String(x.leadId) === String(lead.insertedId) && x.status === 'ready' && x.ready && x.link && x.message), 'La liste « Vidéos vitrine à proposer » doit contenir la vidéo, prête, avec son lien et son message', allSv);
     const sv = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/showcase`);
     expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);
-    const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com` });
+    const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com; achats-vitrine-${RUN}@needcreator-test.com` });
+    const leadMails = await db.collection('leads').findOne({ _id: lead.insertedId });
+    if (sent.status === 200) expect(leadMails.email === `vitrine-${RUN}@needcreator-test.com` && leadMails.extraEmails?.[0] === `achats-vitrine-${RUN}@needcreator-test.com`, 'Les adresses saisies à l\'envoi de la vidéo sont enregistrées sur la fiche', { email: leadMails.email, extra: leadMails.extraEmails });
     expect([200, 500].includes(sent.status), 'La proposition par email doit être tentée', sent); // l'adresse de test est rejetée par le serveur d'envoi selon l'environnement
     // Message privé : marquée proposée, le créateur est prévenu ; la première ouverture de la page par la marque le prévient aussi
     const sentTt = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'tiktok' });

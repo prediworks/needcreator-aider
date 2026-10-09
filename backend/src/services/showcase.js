@@ -59,7 +59,8 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
     if (!to.length || to.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a))) throw Object.assign(new Error('Il manque : une adresse email pour cette marque'), { status: 400 });
     const { sendShowcaseOffer } = await import('./email.js');
     await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
-    if (!lead.email) { lead.email = to[0]; lead.emailSource = 'manuel'; lead.extraEmails = to.slice(1); }
+    // Adresses saisies à l'envoi : elles deviennent celles de la fiche (mailing et envois suivants les reprennent)
+    if (list.length && (lead.email !== to[0] || (lead.extraEmails || []).join(',') !== to.slice(1).join(','))) { lead.email = to[0]; lead.emailSource = lead.emailSource || 'manuel'; lead.extraEmails = to.slice(1); }
   }
   const first = sv.status !== 'sent';
   sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
@@ -75,7 +76,7 @@ export async function listShowcasesForAdmin({ limit = 100 } = {}) {
   const list = await ShowcaseVideo.find({ status: { $in: ['ready', 'sent', 'accepted'] } }).sort({ status: 1, createdAt: -1 }).limit(limit).populate('creatorId', 'profile.name').populate('leadId', 'name email status socials website').lean();
   const quotes = await ExternalQuote.find({ _id: { $in: list.map(s => s.quoteId).filter(Boolean) } }).select('token').lean();
   const tokenOf = new Map(quotes.map(q => [String(q._id), q.token]));
-  return list.map(sv => { const link = tokenOf.get(String(sv.quoteId)) ? `${config.cors.origin}/q/${tokenOf.get(String(sv.quoteId))}` : null; return { id: sv._id, leadId: sv.leadId?._id || null, brandName: sv.brandName, brandEmail: sv.leadId?.email || null, brandWebsite: sv.leadId?.website || null, brandInstagram: sv.leadId?.socials?.instagram || null, brandTiktok: sv.leadId?.socials?.tiktok || null, brandLinkedin: sv.leadId?.socials?.linkedin || null, brandStatus: sv.leadId?.status || null, productName: sv.productName, price: sv.price, note: sv.note, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, ready: !!sv.watermarkedAt, previewUrl: sv.previewUrl || null, sentAt: sv.sentAt || null, sentVia: sv.sentVia || null, viewedAt: sv.viewedAt || null, acceptedAt: sv.acceptedAt || null, link, message: link ? showcaseMessage(sv, link) : null, createdAt: sv.createdAt }; });
+  return list.map(sv => { const link = tokenOf.get(String(sv.quoteId)) ? `${config.cors.origin}/q/${tokenOf.get(String(sv.quoteId))}` : null; return { id: sv._id, leadId: sv.leadId?._id || null, brandName: sv.brandName, brandEmail: sv.leadId?.email || null, brandEmails: [sv.leadId?.email, ...(sv.leadId?.extraEmails || [])].filter(Boolean).join('; '), brandWebsite: sv.leadId?.website || null, brandInstagram: sv.leadId?.socials?.instagram || null, brandTiktok: sv.leadId?.socials?.tiktok || null, brandLinkedin: sv.leadId?.socials?.linkedin || null, brandStatus: sv.leadId?.status || null, productName: sv.productName, price: sv.price, note: sv.note, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, ready: !!sv.watermarkedAt, previewUrl: sv.previewUrl || null, sentAt: sv.sentAt || null, sentVia: sv.sentVia || null, viewedAt: sv.viewedAt || null, acceptedAt: sv.acceptedAt || null, link, message: link ? showcaseMessage(sv, link) : null, createdAt: sv.createdAt }; });
 }
 
 /** Tâche planifiée : vidéos vitrine non filigranées (échec ou redémarrage), quelques-unes par passage */
