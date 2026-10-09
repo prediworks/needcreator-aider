@@ -3174,6 +3174,8 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     const adminQuotes = await brandApi('GET', '/admin/quotes');
     expect(adminQuotes.status === 200 && adminQuotes.data.quotes.some(x => x.viewedAt && x.views >= 1 && x.creator), 'Admin : liste des devis de créateurs avec envoi, ouvertures par le client et issue', { status: adminQuotes.status, first: adminQuotes.data.quotes?.[0] });
     expect(allSv.status === 200 && allSv.data.showcases.some(x => String(x.leadId) === String(lead.insertedId) && x.status === 'ready' && x.ready && x.link && x.message), 'La liste « Vidéos vitrine à proposer » doit contenir la vidéo, prête, avec son lien et son message', allSv);
+    const svQuote = adminQuotes.data.quotes?.find(x => x.showcase && x.showcase.status === 'ready' && !x.showcase.sentAt);
+    expect(!!svQuote, 'Admin devis : une vidéo spontanée pas encore proposée est signalée comme telle (état de la vidéo, pas de date de proposition)', adminQuotes.data.quotes?.filter(x => x.showcase));
     const sv = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/showcase`);
     expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);
     const sent = await brandApi('POST', `/admin/acquisition/leads/${lead.insertedId}/showcase/send`, { via: 'email', email: `vitrine-${RUN}@needcreator-test.com; achats-vitrine-${RUN}@needcreator-test.com` });
