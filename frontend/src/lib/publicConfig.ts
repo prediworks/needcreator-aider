@@ -66,3 +66,12 @@ export async function fetchPublicConfig(): Promise<PublicConfig> {
 }
 
 export const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+
+/**
+ * Commission sur un client extérieur payé via NeedCreator : réglage admin distinct de la commission standard.
+ * Quand elle est plus basse (5 % contre 10 %), le texte le dit ; quand elles sont égales, « comme pour une mission classique ».
+ */
+export function externalFeeWording(cfg: { externalQuoteFeePercent: number; platformFeePercent: number }): string {
+  if (cfg.externalQuoteFeePercent < cfg.platformFeePercent) return `la commission réduite de ${cfg.externalQuoteFeePercent} % s'applique (contre ${cfg.platformFeePercent} % sur une mission classique)`;
+  return `la commission de ${cfg.externalQuoteFeePercent} % s'applique, comme pour une mission classique`;
+}

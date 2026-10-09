@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { CheckCircle, Euro, Lock, FileSignature, CalendarCheck, Star, Gift, ArrowRight, Clock, GraduationCap, QrCode, FileText, ShieldCheck, Target, Calculator, Landmark, Briefcase, Clapperboard } from 'lucide-react';
-import { fetchPublicConfig, plural } from '@/lib/publicConfig';
+import { fetchPublicConfig, plural, externalFeeWording } from '@/lib/publicConfig';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 
 export const metadata: Metadata = {
@@ -132,7 +132,7 @@ export default async function CreatorsPage() {
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
-            <p className="text-lg text-neutral-300 max-w-3xl mx-auto">Un client vous contacte en direct, une agence vous propose une vidéo, vous démarchez vous-même des marques ? Gérez tout depuis votre compte. Gratuit. Si votre client paie via NeedCreator, la commission de {cfg.externalQuoteFeePercent} % s&apos;applique, comme pour une mission classique.</p>
+            <p className="text-lg text-neutral-300 max-w-3xl mx-auto">Un client vous contacte en direct, une agence vous propose une vidéo, vous démarchez vous-même des marques ? Gérez tout depuis votre compte. Gratuit. Si votre client paie via NeedCreator, {externalFeeWording(cfg)}.</p>
           </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {tools.map(([Icon, title, text]) => (

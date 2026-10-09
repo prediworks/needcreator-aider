@@ -13,6 +13,7 @@ import Input from '@/components/ui/Input';
 import Spinner from '@/components/ui/Spinner';
 import MissingHint from '@/components/ui/MissingHint';
 import { usePublicConfig } from '@/hooks/usePublicConfig';
+import { externalFeeWording } from '@/lib/publicConfig';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import QuoteCreateForm, { readQuoteDraft, clearQuoteDraft } from '@/components/QuoteCreateForm';
 import { RIGHTS_DURATION } from '@/lib/labels';
@@ -105,7 +106,7 @@ function QuotesPageInner() {
         ) : !adding && (
           <Card className="p-8 text-center text-neutral-600">Aucun devis pour l&apos;instant. Un client vous contacte en dehors de NeedCreator ? Faites-lui un devis ici : contrat de cession inclus, paiement sécurisé s&apos;il le souhaite, et la mission entre dans votre suivi.</Card>
         )}
-        <p className="text-xs text-neutral-500 mt-6">Client qui paie via NeedCreator : montant bloqué avant de tourner, contrat, factures émises en votre nom, virement à la validation, commission de {cfg.externalQuoteFeePercent} % comme pour une mission classique. Client qui paie en direct : aucune commission, vous facturez vous-même.</p>
+        <p className="text-xs text-neutral-500 mt-6">Client qui paie via NeedCreator : montant bloqué avant de tourner, contrat, factures émises en votre nom, virement à la validation, {externalFeeWording(cfg)}. Client qui paie en direct : aucune commission, vous facturez vous-même.</p>
       </div>
     </div>
   );

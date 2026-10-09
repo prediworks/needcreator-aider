@@ -6,7 +6,7 @@ import { SITE_URL, COMPANY } from '@/lib/legal';
 import FeaturedCreatorsSection from '@/components/FeaturedCreatorsSection';
 import AdScanBanner from '@/components/AdScanBanner';
 import BrandStepsBand from '@/components/BrandStepsBand';
-import { fetchPublicConfig, plural } from '@/lib/publicConfig';
+import { fetchPublicConfig, plural, externalFeeWording } from '@/lib/publicConfig';
 
 export const metadata: Metadata = {
   title: 'NeedCreator : des publicités vidéo qui marchent, tournées par des créateurs',
@@ -206,7 +206,7 @@ export default async function HomePage() {
             <div className="md:col-span-3">
               <div className="inline-flex items-center px-3 py-1 bg-primary-500/20 rounded-full mb-4 text-xs font-medium text-primary-300">Pour les créateurs</div>
               <h2 className="text-2xl md:text-3xl font-bold mb-3">Vos outils pour toute votre activité, même hors NeedCreator</h2>
-              <p className="text-neutral-300 mb-6">Un client en direct, une agence, une marque que vous démarchez vous-même ? Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif. Gratuit. Si votre client paie via NeedCreator, la commission de {cfg.externalQuoteFeePercent} % s&apos;applique, comme pour une mission classique.</p>
+              <p className="text-neutral-300 mb-6">Un client en direct, une agence, une marque que vous démarchez vous-même ? Suivi de prospection, devis et contrat en un clic, registre de vos droits et exclusivités, revenus et seuils micro-entreprise, calculateur de tarif. Gratuit. Si votre client paie via NeedCreator, {externalFeeWording(cfg)}.</p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <Link href="/createurs#outils"><Button className="w-full sm:w-auto">Découvrir les outils créateur</Button></Link>
                 <Link href="/calculateur-tarif-ugc"><Button variant="outline" className="w-full sm:w-auto border-white text-white hover:bg-neutral-800">Calculateur de tarif</Button></Link>
