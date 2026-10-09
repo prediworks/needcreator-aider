@@ -937,6 +937,13 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
     await post({ ref: String(qid), action: 'visit', source: 'quote' });
     await post({ ref: String(qid), action: 'visit', source: 'quote' });
     const afterClient = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    // Ouverture de la page du devis : la lecture publique plus haut compte (viewedAt, 1 vue) ; le créateur connecté et l'aperçu ?apercu=1 ne comptent pas
+    await creatorApi('GET', `/external-quotes/public/${token}`);
+    await fetch(`${API}/external-quotes/public/${token}?apercu=1`);
+    const qViews = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
+    const mine = (await creatorApi('GET', '/external-quotes')).data.quotes.find(x => x._id === q1.data.quote._id);
+    const bellQ = (await creatorApi('GET', '/notifications')).data.notifications || [];
+    expect(qViews.viewedAt && qViews.views === 1 && mine.viewedAt && mine.views === 1 && bellQ.some(n => /a ouvert votre devis/.test(n.title)), 'Ouverture du devis par le client : comptée une fois, visible par le créateur, créateur prévenu ; ses propres ouvertures et les aperçus ne comptent pas', { views: qViews.views, viewedAt: qViews.viewedAt, mine: mine.views, titles: bellQ.slice(0, 5).map(n => n.title) });
     await post({ ref: String(qid), action: 'rights', source: 'quote' });
     const afterRights = await mongoose.connection.db.collection('externalquotes').findOne({ _id: qid });
     expect(afterRights.toolVisits?.some(v => v.action === 'rights'), 'Outils du devis : ouverture du registre des droits rattachée au devis', afterRights.toolVisits);
@@ -3130,6 +3137,8 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   try {
     const allSv = await brandApi('GET', '/admin/acquisition/showcases');
+    const adminQuotes = await brandApi('GET', '/admin/quotes');
+    expect(adminQuotes.status === 200 && adminQuotes.data.quotes.some(x => x.viewedAt && x.views >= 1 && x.creator), 'Admin : liste des devis de créateurs avec envoi, ouvertures par le client et issue', { status: adminQuotes.status, first: adminQuotes.data.quotes?.[0] });
     expect(allSv.status === 200 && allSv.data.showcases.some(x => String(x.leadId) === String(lead.insertedId) && x.status === 'ready' && x.ready && x.link && x.message), 'La liste « Vidéos vitrine à proposer » doit contenir la vidéo, prête, avec son lien et son message', allSv);
     const sv = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/showcase`);
     expect(sv.status === 200 && sv.data.showcase && sv.data.showcase.link && /120 € HT/.test(sv.data.showcase.message), 'L\'admin doit voir la vidéo vitrine du prospect avec son message prêt', sv);

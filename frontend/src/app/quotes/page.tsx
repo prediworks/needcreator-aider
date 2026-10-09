@@ -79,6 +79,7 @@ function QuotesPageInner() {
                       {q.status === 'sent' && q.reminder && !q.reminder.showcase && (
                         <div className="text-xs text-neutral-600 mt-1 flex gap-2 flex-wrap items-center" data-testid="quote-reminder">
                           <span>{q.sentAt ? `Envoyé le ${formatDate(q.sentAt)}` : 'Envoyé'}{q.reminder.count > 0 ? ` · ${q.reminder.count} rappel${q.reminder.count > 1 ? 's' : ''} sur ${q.reminder.max}, le dernier le ${formatDate(q.reminder.lastAt)}` : ' · aucun rappel pour l\'instant'}</span>
+                          <span className={q.viewedAt ? 'text-green-700' : 'text-neutral-500'} title="Ouvertures de la page du devis par le client (les vôtres ne comptent pas)" data-testid="quote-views">{q.viewedAt ? `Ouvert par le client le ${formatDate(q.viewedAt)}${q.views > 1 ? `, ${q.views} fois, la dernière le ${formatDate(q.lastViewedAt)}` : ''}` : 'Jamais ouvert par le client'}</span>
                           <label className="inline-flex items-center gap-1 cursor-pointer" title="Le client reçoit un rappel automatique s'il ne répond pas ; vous êtes prévenu à chaque rappel"><input type="checkbox" checked={q.reminder.auto} onChange={(e) => remind.mutate({ id: q._id, auto: e.target.checked })} /> Rappels automatiques</label>
                           {!q.reminder.canRemind && q.reminder.why && <span className="text-orange-700">{q.reminder.why}</span>}
                         </div>

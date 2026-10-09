@@ -21,6 +21,7 @@ import ExternalCreatorsImport from '@/components/admin/ExternalCreatorsImport';
 import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
 import MemberMessages from '@/components/admin/MemberMessages';
+import QuotesAdmin from '@/components/admin/QuotesAdmin';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
@@ -162,6 +163,7 @@ export default function AdminPage() {
             </div>
           </Card>
         )}
+        {stats?.tools && stats.tools.quotes.total > 0 && <div className="mb-8"><QuotesAdmin /></div>}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">

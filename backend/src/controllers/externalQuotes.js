@@ -186,8 +186,15 @@ export async function publicExternalQuote(req, res) {
   const sv = await ShowcaseVideo.findOne({ quoteId: q._id }).select('previewUrl watermarkedAt productName note status creatorId').lean();
   // Première ouverture après la proposition à la marque : le créateur est prévenu. Les aperçus ne comptent pas, ni avant ni après l'envoi :
   // lien « Page vue par la marque » de l'équipe ou du créateur (?apercu=1), ou page ouverte connecté en admin ou par le créateur de la vidéo
-  const preview = req.query.apercu === '1' || req.user?.role === 'admin' || (req.user && String(req.user._id) === String(sv?.creatorId));
+  const preview = req.query.apercu === '1' || req.user?.role === 'admin' || (req.user && String(req.user._id) === String(q.creatorId?._id || q.creatorId));
   if (sv && !preview) import('../services/showcase.js').then(m => m.markShowcaseViewed(q._id)).catch(() => {});
+  // Ouverture du devis par le client, tant qu'il attend sa réponse : comptée sur le devis ; à la première, le créateur est prévenu
+  // (sauf vidéo spontanée : il l'est déjà par la vidéo)
+  if (!preview && q.status === 'sent') {
+    const first = await ExternalQuote.findOneAndUpdate({ _id: q._id, viewedAt: null }, { $set: { viewedAt: new Date() } }).select('_id').lean();
+    await ExternalQuote.updateOne({ _id: q._id }, { $inc: { views: 1 }, $set: { lastViewedAt: new Date() } });
+    if (first && !sv) notify(q.creatorId?._id || q.creatorId, { type: 'quote', title: `${q.client.companyName} a ouvert votre devis`, text: `« ${q.mission.title} » · ${q.quote.price} € HT. Le client regarde : c'est le moment d'être joignable.`, href: '/quotes' }).catch(() => {});
+  }
   res.json({ showcase: sv ? { productName: sv.productName, note: sv.note, previewUrl: sv.watermarkedAt ? sv.previewUrl : null, ready: !!sv.watermarkedAt } : null, quote: { id: q._id, status: q.status, client: { companyName: q.client.companyName, contactName: q.client.contactName, email: q.client.email }, mission: q.mission, quote: q.quote, pdf: s.pdf, creator: { name: q.creatorId?.profile?.name, avatar: q.creatorId?.profile?.avatar || null, slug: q.creatorId?.profile?.slug || null, completedJobs: q.creatorId?.profile?.stats?.completedJobs || 0, rating: q.creatorId?.profile?.stats?.rating || 0, totalReviews: q.creatorId?.profile?.stats?.totalReviews || 0 }, deliveryId: q.deliveryId || null } });
 }
 
@@ -274,4 +281,14 @@ export async function attachExternalQuoteToNewBrand(user, token) {
   await user.save();
   const r = await convertExternalQuoteToMission(q, user);
   return r.delivery?._id || null;
+}
+
+/** Admin : les devis de créateurs, du plus récent au plus ancien, avec envoi, ouvertures par le client, rappels et issue */
+export async function adminQuotesView(req, res) {
+  try {
+    const list = await ExternalQuote.find({ status: { $ne: 'draft' } }).sort({ sentAt: -1, createdAt: -1 }).limit(100).select('creatorId client.companyName client.email mission.title quote.price status sentAt viewedAt lastViewedAt views reminders acceptedAt declinedAt declineReason toolVisits').populate('creatorId', 'profile.name').lean();
+    const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+    const showcase = new Set((await ShowcaseVideo.distinct('quoteId')).map(String));
+    res.json({ quotes: list.map(q => ({ id: q._id, creator: q.creatorId?.profile?.name || '', company: q.client?.companyName || '', email: q.client?.email || '', title: q.mission?.title || '', price: q.quote?.price ?? null, status: q.status, sentAt: q.sentAt || null, viewedAt: q.viewedAt || null, lastViewedAt: q.lastViewedAt || null, views: q.views || 0, reminders: q.reminders?.count || 0, acceptedAt: q.acceptedAt || null, declinedAt: q.declinedAt || null, declineReason: q.declineReason || '', showcase: showcase.has(String(q._id)), toolVisits: (q.toolVisits || []).length })) });
+  } catch (error) { logger.error('adminQuotesView failed:', error); res.status(500).json({ error: 'Liste des devis indisponible' }); }
 }

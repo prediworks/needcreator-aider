@@ -4,6 +4,7 @@ import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow,
 import { authenticate, authorize } from '../middleware/auth.js';
 import { brandSearchesView, brandSearchAction } from '../controllers/brandSearches.js';
 import { adminScanStatsView, adminProspectFromScan } from '../controllers/adScans.js';
+import { adminQuotesView } from '../controllers/externalQuotes.js';
 import { groupWatchView, addGroupView, updateGroupView, removeGroupView, decideGroupPostView, pasteRequestView } from '../controllers/groupWatch.js';
 import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, listShowcaseRequestsAdmin, showcaseRequestAction, listBrandSuggestionsAdmin, decideBrandSuggestion } from '../controllers/showcase.js';
 import {
@@ -44,6 +45,7 @@ router.use(authenticate, authorize('admin'));
 
 // Dashboard
 router.get('/stats', getDashboardStats);
+router.get('/quotes', adminQuotesView); // devis de créateurs : envoyé, ouvert par le client, accepté
 
 // Creator approval
 router.get('/creators/pending', getPendingCreators);
