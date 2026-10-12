@@ -20,12 +20,14 @@ const WATERMARK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
  */
 export async function watermarkVideoBuffer(input, workDir) {
   const out = path.join(workDir, 'wm.mp4');
-  // Largeur du logo ≈ 30 % de la vidéo (calculée depuis les dimensions réelles), en bas à droite avec un retrait de 3 % ; audio copié tel quel
+  // Largeur du logo ≈ 30 % de la vidéo (calculée depuis les dimensions réelles), en bas à droite avec un retrait de 3 %.
+  // Audio : la première piste seulement, réencodée en AAC. Les iPhone récents ajoutent une piste « audio spatial » (apac) inconnue de ffmpeg :
+  // copiée telle quelle, elle faisait échouer l'écriture du fichier (« Invalid argument », rien d'écrit).
   const { probe } = await import('./video.js');
   const info = await probe(input);
   const wmWidth = Math.max(120, Math.round((info.width || 720) * 0.30));
   const filter = `[1:v]scale=${wmWidth}:-1[wm];[0:v][wm]overlay=x='W-w-(W*0.03)':y='H-h-(H*0.03)':format=auto,format=yuv420p[v]`;
-  await run(ffmpegPath, ['-y', '-i', input, '-i', WATERMARK, '-filter_complex', filter, '-map', '[v]', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-c:a', 'copy', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
+  await run(ffmpegPath, ['-y', '-i', input, '-i', WATERMARK, '-filter_complex', filter, '-map', '[v]', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
   return out;
 }
 
@@ -41,7 +43,7 @@ export async function videoCodec(file) {
 /** Réencode en H.264 + AAC sans filigrane : lisible dans tous les navigateurs (les originaux iPhone sont en HEVC, image noire sous Chrome et Edge) */
 export async function transcodePlayable(input, workDir) {
   const out = path.join(workDir, 'playable.mp4');
-  await run(ffmpegPath, ['-y', '-i', input, '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
+  await run(ffmpegPath, ['-y', '-i', input, '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
   return out;
 }
 

@@ -6,7 +6,7 @@ import { brandSearchesView, brandSearchAction } from '../controllers/brandSearch
 import { adminScanStatsView, adminProspectFromScan } from '../controllers/adScans.js';
 import { adminQuotesView } from '../controllers/externalQuotes.js';
 import { groupWatchView, addGroupView, updateGroupView, removeGroupView, decideGroupPostView, pasteRequestView } from '../controllers/groupWatch.js';
-import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, listShowcaseRequestsAdmin, showcaseRequestAction, listBrandSuggestionsAdmin, decideBrandSuggestion } from '../controllers/showcase.js';
+import { showcaseForLeadView, sendShowcaseToLead, listShowcasesAdmin, refuseShowcaseAdmin, retryShowcaseWatermarkAdmin, listShowcaseRequestsAdmin, showcaseRequestAction, listBrandSuggestionsAdmin, decideBrandSuggestion } from '../controllers/showcase.js';
 import {
   getDashboardStats,
   getPendingCreators,
@@ -118,6 +118,7 @@ router.get('/acquisition', acquisitionOverview);
 router.get('/acquisition/dashboard', acquisitionDashboard);
 router.get('/acquisition/daily-queue', dailyQueue);
 router.get('/acquisition/showcases', listShowcasesAdmin);
+router.post('/acquisition/showcases/:id/retry-watermark', retryShowcaseWatermarkAdmin); // filigrane bloqué (3 échecs) : relance immédiate
 router.post('/acquisition/showcases/:id/refuse', refuseShowcaseAdmin); // refus avant envoi, le créateur est prévenu // toutes les vidéos vitrine à proposer, quel que soit le statut de la marque
 router.get('/acquisition/brand-suggestions', listBrandSuggestionsAdmin); // marques suggérées par les créateurs
 router.post('/acquisition/brand-suggestions/:id', decideBrandSuggestion); // valider ou refuser

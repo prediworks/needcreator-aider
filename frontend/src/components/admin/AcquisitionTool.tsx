@@ -286,6 +286,7 @@ function ShowcaseList() {
     onSuccess: async (d, v: any) => { if (v.via !== 'email' && d.text) { try { await navigator.clipboard.writeText(d.text); } catch { /* presse-papiers indisponible */ } } if (v.url) window.open(v.url, '_blank', 'noopener,noreferrer'); toast.success(v.via !== 'email' ? 'Message copié et vidéo marquée proposée : collez-le dans la conversation' : d.message, { duration: 8000 }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
   });
+  const retryWm = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/showcases/${id}/retry-watermark`)).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 12000 }) });
   const refuse = useMutation({ mutationFn: async ({ id, reason }: any) => (await api.post(`/admin/acquisition/showcases/${id}/refuse`, { reason })).data, onSuccess: (d) => { toast.success(d.message); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const list = data || [];
   const todo = list.filter((s: any) => s.status === 'ready');
@@ -297,7 +298,8 @@ function ShowcaseList() {
       <div className="space-y-3">
         {list.map((s: any) => (
           <div key={s.id} className="border border-neutral-200 rounded-lg p-3 text-sm flex gap-3 flex-wrap items-start">
-            {s.previewUrl ? <video src={s.previewUrl} controls playsInline className="w-40 max-h-56 rounded bg-black" /> : <div className="w-40 h-24 rounded bg-neutral-100 text-xs text-neutral-500 flex items-center justify-center">filigrane en cours</div>}
+            {s.previewUrl ? <video src={s.previewUrl} controls playsInline className="w-40 max-h-56 rounded bg-black" /> : <div className="w-40 h-24 rounded bg-neutral-100 text-xs text-neutral-500 flex items-center justify-center">{s.watermarkStuck ? 'filigrane en échec' : 'filigrane en cours'}</div>}
+            {s.watermarkStuck && <div className="text-xs text-red-700 mt-1 max-w-[160px]" data-testid="showcase-wm-stuck">Échec après 3 tentatives{s.watermarkError ? ` : ${String(s.watermarkError).slice(-120)}` : ''}<br /><button type="button" className="underline font-medium" onClick={() => retryWm.mutate(s.id)} disabled={retryWm.isPending}>{retryWm.isPending ? 'Relance…' : 'Relancer le filigrane'}</button></div>}
             <div className="flex-1 min-w-[16rem]">
               <div className="font-medium text-neutral-900">{s.brandName} · {s.productName} · {s.price} € HT</div>
               <div className="text-neutral-600">par {s.creatorName} · déposée le {formatDateTime(s.createdAt)}{s.note ? ` · ${s.note}` : ''}</div>

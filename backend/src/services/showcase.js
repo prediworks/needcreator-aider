@@ -76,7 +76,18 @@ export async function listShowcasesForAdmin({ limit = 100 } = {}) {
   const list = await ShowcaseVideo.find({ status: { $in: ['ready', 'sent', 'accepted'] } }).sort({ status: 1, createdAt: -1 }).limit(limit).populate('creatorId', 'profile.name').populate('leadId', 'name email status socials website').lean();
   const quotes = await ExternalQuote.find({ _id: { $in: list.map(s => s.quoteId).filter(Boolean) } }).select('token').lean();
   const tokenOf = new Map(quotes.map(q => [String(q._id), q.token]));
-  return list.map(sv => { const link = tokenOf.get(String(sv.quoteId)) ? `${config.cors.origin}/q/${tokenOf.get(String(sv.quoteId))}` : null; return { id: sv._id, leadId: sv.leadId?._id || null, brandName: sv.brandName, brandEmail: sv.leadId?.email || null, brandEmails: [sv.leadId?.email, ...(sv.leadId?.extraEmails || [])].filter(Boolean).join('; '), brandWebsite: sv.leadId?.website || null, brandInstagram: sv.leadId?.socials?.instagram || null, brandTiktok: sv.leadId?.socials?.tiktok || null, brandLinkedin: sv.leadId?.socials?.linkedin || null, brandStatus: sv.leadId?.status || null, productName: sv.productName, price: sv.price, note: sv.note, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, ready: !!sv.watermarkedAt, previewUrl: sv.previewUrl || null, sentAt: sv.sentAt || null, sentVia: sv.sentVia || null, viewedAt: sv.viewedAt || null, acceptedAt: sv.acceptedAt || null, link, message: link ? showcaseMessage(sv, link) : null, createdAt: sv.createdAt }; });
+  return list.map(sv => { const link = tokenOf.get(String(sv.quoteId)) ? `${config.cors.origin}/q/${tokenOf.get(String(sv.quoteId))}` : null; return { id: sv._id, leadId: sv.leadId?._id || null, brandName: sv.brandName, brandEmail: sv.leadId?.email || null, brandEmails: [sv.leadId?.email, ...(sv.leadId?.extraEmails || [])].filter(Boolean).join('; '), brandWebsite: sv.leadId?.website || null, brandInstagram: sv.leadId?.socials?.instagram || null, brandTiktok: sv.leadId?.socials?.tiktok || null, brandLinkedin: sv.leadId?.socials?.linkedin || null, brandStatus: sv.leadId?.status || null, productName: sv.productName, price: sv.price, note: sv.note, creatorName: sv.creatorId?.profile?.name || '', status: sv.status, ready: !!sv.watermarkedAt, watermarkStuck: !sv.watermarkedAt && (sv.watermarkAttempts || 0) >= MAX_ATTEMPTS, watermarkError: sv.watermarkedAt ? null : (sv.watermarkError || null), previewUrl: sv.previewUrl || null, sentAt: sv.sentAt || null, sentVia: sv.sentVia || null, viewedAt: sv.viewedAt || null, acceptedAt: sv.acceptedAt || null, link, message: link ? showcaseMessage(sv, link) : null, createdAt: sv.createdAt }; });
+}
+
+/** Admin : relance du filigrane d'une vidéo bloquée (compteur de tentatives remis à zéro, traitement immédiat) */
+export async function retryShowcaseWatermark(id) {
+  const sv = await ShowcaseVideo.findById(id);
+  if (!sv) throw Object.assign(new Error('Vidéo introuvable'), { status: 404 });
+  if (sv.watermarkedAt) throw Object.assign(new Error('Le filigrane est déjà appliqué'), { status: 400 });
+  sv.watermarkAttempts = 0; await sv.save();
+  const done = await processShowcaseVideo(sv._id);
+  if (!done?.watermarkedAt) throw Object.assign(new Error(`Échec du filigrane : ${done?.watermarkError || 'erreur inconnue'}`), { status: 500 });
+  return done;
 }
 
 /** Tâche planifiée : vidéos vitrine non filigranées (échec ou redémarrage), quelques-unes par passage */

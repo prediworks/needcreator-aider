@@ -3169,6 +3169,13 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   // Admin : la vidéo est visible sur la fiche, proposée par email (adresse saisie) puis marquée proposée
   const users = db.collection('users');
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  // Filigrane en échec (3 tentatives) : l'admin voit l'erreur et peut relancer ; la vidéo factice reste illisible, la relance renvoie l'erreur. Testé sur la 2e vidéo (byKey), jamais filigranée
+  for (let i = 0; i < 120; i++) { const cur = await db.collection('showcasevideos').findOne({ _id: new mongoose.Types.ObjectId(byKey.data.showcase.id) }); if ((cur?.watermarkAttempts || 0) >= 1) break; await new Promise(r => setTimeout(r, 500)); } // le traitement lancé au dépôt doit avoir échoué une fois (sinon il écrase les valeurs posées ici)
+  await db.collection('showcasevideos').updateOne({ _id: new mongoose.Types.ObjectId(byKey.data.showcase.id) }, { $set: { watermarkAttempts: 3, watermarkError: 'Conversion failed!' } });
+  const stuck = await adminApi('GET', '/admin/acquisition/showcases');
+  expect(stuck.status === 200 && stuck.data.showcases.some(x => String(x.id) === String(byKey.data.showcase.id) && x.watermarkStuck && /Conversion failed/.test(x.watermarkError || '')), 'Admin : une vidéo dont le filigrane a échoué 3 fois est signalée « en échec » avec son erreur', { status: stuck.status, mine: byKey.data.showcase.id, rows: stuck.data.showcases?.map(x => ({ id: x.id, stuck: x.watermarkStuck, err: x.watermarkError, status: x.status })) });
+  const retry = await adminApi('POST', `/admin/acquisition/showcases/${byKey.data.showcase.id}/retry-watermark`);
+  expect(retry.status === 500 && /Échec du filigrane/.test(retry.data.error || ''), 'La relance du filigrane retente tout de suite et renvoie l\'erreur si la vidéo reste illisible', retry);
   try {
     const allSv = await brandApi('GET', '/admin/acquisition/showcases');
     const adminQuotes = await brandApi('GET', '/admin/quotes');

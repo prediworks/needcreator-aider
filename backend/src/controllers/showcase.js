@@ -4,7 +4,7 @@ import Lead from '../models/Lead.js';
 import ExternalQuote from '../models/ExternalQuote.js';
 import { uploadFile, createUploadUrl, statObject } from '../services/storage.js';
 import { createQuoteInternal } from './externalQuotes.js';
-import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin, refuseShowcase, MAX_ACTIVE_SHOWCASES } from '../services/showcase.js';
+import { processShowcaseVideo, brandsForShowcase, showcaseMessage, showcaseForLead, offerShowcase, listShowcasesForAdmin, refuseShowcase, retryShowcaseWatermark, MAX_ACTIVE_SHOWCASES } from '../services/showcase.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import { suggestBrand, listMySuggestions, listSuggestionsForAdmin, approveSuggestion, refuseSuggestion } from '../services/brandSuggestions.js';
 import { listShowcaseRequests, registerShowcaseRequest, videoRequestReply, notifyCreatorsOfRequest, prepareFallback, sendFallback } from '../services/showcaseRequests.js';
@@ -149,6 +149,16 @@ export async function listShowcasesAdmin(req, res) {
 }
 
 /** Admin : refuser une vidéo avant tout envoi à la marque, avec un mot pour le créateur */
+export async function retryShowcaseWatermarkAdmin(req, res) {
+  try {
+    const sv = await retryShowcaseWatermark(req.params.id);
+    res.json({ message: 'Filigrane appliqué, la vidéo est prête à proposer', id: sv._id });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('retryShowcaseWatermarkAdmin failed:', error); res.status(500).json({ error: 'Relance impossible' });
+  }
+}
+
 export async function refuseShowcaseAdmin(req, res) {
   try {
     const sv = await refuseShowcase(req.params.id, req.body?.reason);
