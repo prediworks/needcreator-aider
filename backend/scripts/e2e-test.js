@@ -3087,7 +3087,19 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
     const bell2 = await creatorApi('GET', '/notifications');
     expect(logsAfter === logsBefore + 1 && (bell2.data.notifications || []).some(n => n.title === 'E2E annonce générale'), 'Le créateur doit être tracé et notifié une fois', { status: 200, data: { logsBefore, logsAfter } });
     const ov2 = await brandApi('GET', '/admin/member-messages');
-    expect(ov2.data.broadcasts.some(b => b.subject === 'E2E annonce générale' && b.count >= 1), 'L\'annonce doit figurer dans l\'historique avec son nombre d\'envois', ov2);
+    expect(ov2.data.broadcasts.some(b => b.subject === 'E2E annonce générale' && b.count >= 1 && typeof b.total === 'number'), 'L\'annonce doit figurer dans l\'historique avec son nombre d\'envois et la taille du public', ov2);
+    // Paquets horaires : une annonce à un public plus grand que le paquet part en plusieurs fois, la tâche planifiée poursuit
+    const savedPerHour = await db.collection('settings').findOne({ key: 'memberEmailsPerHour' });
+    await brandApi('PUT', '/admin/settings/memberEmailsPerHour', { value: 5 });
+    const many = await brandApi('POST', '/admin/member-messages', { audience: 'creators', subject: 'E2E annonce par paquets', body: 'Bonjour {{prenom}},\n\nUne annonce de test envoyée par paquets horaires.' });
+    const creatorsTotal = await users.countDocuments({ role: 'creator', status: { $in: ['active', 'pending'] } });
+    if (creatorsTotal > 5) {
+      expect(many.status === 200 && many.data.count === 5 && many.data.remaining === creatorsTotal - 5, 'Le premier paquet respecte la taille réglée et annonce le reste', { status: many.status, data: { count: many.data.count, remaining: many.data.remaining, creatorsTotal } });
+      const jobsB = await brandApi('POST', '/admin/jobs/run');
+      const bAfter = await db.collection('memberbroadcasts').findOne({ subject: 'E2E annonce par paquets' });
+      expect(jobsB.status === 200 && bAfter.count >= Math.min(10, creatorsTotal), 'La tâche planifiée envoie le paquet suivant', { status: 200, data: { count: bAfter.count, total: bAfter.total, done: bAfter.done } });
+    }
+    await brandApi('PUT', '/admin/settings/memberEmailsPerHour', { value: savedPerHour ? savedPerHour.value : 25 });
     // Rappel de confirmation d'adresse : créateur non confirmé côté Firebase et en base, inscrit depuis 3 jours → rappel J+1 envoyé, pas encore le J+4
     const fu = await admin.auth().getUserByEmail(creatorEmail);
     await admin.auth().updateUser(fu.uid, { emailVerified: false });

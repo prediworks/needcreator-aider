@@ -38,7 +38,7 @@ export default function MemberTopics() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="font-semibold">Thématiques hebdomadaires</h3>
-          <p className="text-sm text-neutral-600">Un conseil par semaine et par inscrit, dans l&apos;ordre, jamais deux fois le même avant le délai de reprise ; quand tout est reçu, on recommence au début avec un objet de rappel. Un nouvel inscrit commence après sa séquence d&apos;accueil. Jour, heure et délais : Réglages → Messages aux inscrits. Chaque email porte un lien « Ne plus recevoir les conseils ».</p>
+          <p className="text-sm text-neutral-600">Un conseil par semaine et par inscrit, dans l&apos;ordre, jamais deux fois le même avant le délai de reprise ; quand tout est reçu, on recommence au début avec un objet de rappel. Un nouvel inscrit commence après sa séquence d&apos;accueil. Envoi par paquets horaires pendant la fenêtre réglée (3 jours), pour ne pas partir en rafale. Jour, heure, taille des paquets et délais : Réglages → Messages aux inscrits. Chaque email porte un lien « Ne plus recevoir les conseils ».</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setEditing({ ...EMPTY })}>Ajouter une thématique</Button>

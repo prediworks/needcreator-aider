@@ -19,5 +19,8 @@ const broadcastSchema = new mongoose.Schema({
   sentAt: { type: Date, default: Date.now },
   count: { type: Number, default: 0 },
   emailed: { type: Number, default: 0 },
+  total: { type: Number, default: 0 },              // taille du public au lancement
+  done: { type: Boolean, default: true, index: true }, // false : la suite part par paquets horaires (tâche planifiée)
+  finishedAt: Date,
 }, { timestamps: true });
 export const MemberBroadcast = mongoose.models.MemberBroadcast || mongoose.model('MemberBroadcast', broadcastSchema);

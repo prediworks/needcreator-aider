@@ -68,7 +68,7 @@ export default function MemberMessages() {
           <span className="text-xs text-neutral-500 self-center ml-1">Une ligne vide sépare deux paragraphes. « Bonjour Prénom, » et le bouton sont ajoutés automatiquement.</span>
         </div>
         <textarea ref={areaRef} value={body} onChange={(e) => setBody(e.target.value)} rows={10} placeholder={'Un paragraphe par bloc, une ligne vide entre deux. Ne commencez pas par « Bonjour » : l\'email l\'ajoute déjà avec le prénom.\n- Une ligne qui commence par « - » devient une liste ; « Nom : explication » met le nom en gras ; **gras** accepté partout.\n{{prenom}} est remplacé par le prénom dans le texte.'} className="w-full md:w-[36rem] px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
-        <p className="text-xs text-neutral-500 mt-1">Le bouton « Ouvrir mon tableau de bord » est ajouté à la fin. Les inscrits qui ont désactivé les emails ne reçoivent que la notification.</p>
+        <p className="text-xs text-neutral-500 mt-1">Le bouton « Ouvrir mon tableau de bord » est ajouté à la fin. Les inscrits qui ont désactivé les emails ne reçoivent que la notification. L&apos;envoi part par paquets horaires (réglage « emails par heure ») : 100 inscrits en 4 heures environ.</p>
         {previewHtml && (
           <div className="mt-3 w-full md:w-[36rem]" data-testid="member-preview-live">
             <div className="text-xs font-medium text-neutral-700 mb-1">Aperçu de l&apos;email, tel que le recevra Camille Durand</div>
@@ -94,7 +94,7 @@ export default function MemberMessages() {
         <Button size="sm" variant="outline" onClick={() => weekly.mutate()} isLoading={weekly.isPending} title="Envoie le bilan tout de suite, sans attendre lundi" data-testid="weekly-report">M&apos;envoyer le bilan maintenant</Button>
         <h3 className="font-semibold mt-5 mb-2">Annonces envoyées</h3>
         {data?.broadcasts?.length ? (
-          <ul className="text-sm text-neutral-700 space-y-1">{data.broadcasts.map((b: any) => <li key={b._id}><span className="text-neutral-500">{formatDateTime(b.sentAt)}</span> · {b.audience === 'brands' ? 'marques' : 'créateurs'} · <span className="font-medium">{b.subject}</span> · {b.count} envoi(s), {b.emailed} email(s)</li>)}</ul>
+          <ul className="text-sm text-neutral-700 space-y-1">{data.broadcasts.map((b: any) => <li key={b._id}><span className="text-neutral-500">{formatDateTime(b.sentAt)}</span> · {b.audience === 'brands' ? 'marques' : 'créateurs'} · <span className="font-medium">{b.subject}</span> · {b.count} envoi(s), {b.emailed} email(s){b.done === false ? <span className="text-orange-700"> · en cours : {b.count}/{b.total}, la suite par paquets horaires</span> : null}</li>)}</ul>
         ) : <p className="text-sm text-neutral-500">Aucune annonce envoyée pour l&apos;instant.</p>}
       </Card>
     </div>

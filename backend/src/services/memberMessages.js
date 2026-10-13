@@ -103,15 +103,42 @@ export async function broadcastMemberMessage({ audience, subject, body, sentBy, 
     } catch (err) { throw Object.assign(new Error(`Aperçu non envoyé à ${admin.email} : ${err.message}`), { status: 502 }); }
     return { preview: true, to: admin.email };
   }
-  const broadcast = await MemberBroadcast.create({ audience, subject, body, sentBy });
+  // Premier paquet tout de suite, la suite par paquets horaires (tâche planifiée) : pas de rafale vers les messageries
+  const total = await User.countDocuments(audienceFilter(audience));
+  const broadcast = await MemberBroadcast.create({ audience, subject, body, sentBy, total, done: false });
+  const { count, emailed, remaining } = await continueBroadcast(broadcast, await emailsPerHour());
+  return { broadcast, count, emailed, remaining };
+}
+
+export const emailsPerHour = async () => Number(await getSetting(SETTINGS.memberEmailsPerHour.key, SETTINGS.memberEmailsPerHour.default)) || 25;
+
+/** Un paquet d'une annonce : les inscrits du public pas encore servis, les plus récents d'abord ; marque l'annonce terminée quand il ne reste personne */
+export async function continueBroadcast(broadcast, limit) {
   const key = `broadcast:${broadcast._id}`;
-  const cursor = User.find(audienceFilter(audience)).select('email profile.name preferences').lean().cursor({ batchSize: 100 });
+  const done = await MemberMessageLog.distinct('userId', { key });
+  const users = await User.find({ ...audienceFilter(broadcast.audience), _id: { $nin: done } }).sort({ createdAt: -1 }).select('email profile.name preferences').limit(limit + 1).lean();
+  const batch = users.slice(0, limit);
   let count = 0, emailed = 0;
-  for await (const u of cursor) {
-    if (await sendMemberMessage(u, { subject, body, key })) { count++; if (u.preferences?.emailNotifications !== false && u.email) emailed++; }
+  for (const u of batch) {
+    if (await sendMemberMessage(u, { subject: broadcast.subject, body: broadcast.body, key })) { count++; if (u.preferences?.emailNotifications !== false && u.email) emailed++; }
   }
-  broadcast.count = count; broadcast.emailed = emailed; await broadcast.save();
-  return { broadcast, count, emailed };
+  const remaining = users.length > limit ? await User.countDocuments({ ...audienceFilter(broadcast.audience), _id: { $nin: [...done, ...batch.map(u => u._id)] } }) : 0;
+  broadcast.count += count; broadcast.emailed += emailed;
+  if (!remaining) { broadcast.done = true; broadcast.finishedAt = new Date(); }
+  await broadcast.save();
+  return { count, emailed, remaining };
+}
+
+/** Tâche planifiée (chaque heure) : un paquet pour chaque annonce en cours */
+export async function runPendingBroadcasts() {
+  const limit = await emailsPerHour();
+  let sent = 0;
+  for (const b of await MemberBroadcast.find({ done: false }).sort({ sentAt: 1 })) {
+    const r = await continueBroadcast(b, limit);
+    sent += r.count;
+    if (sent >= limit) break;
+  }
+  return sent;
 }
 
 export async function memberMessagesOverview() {

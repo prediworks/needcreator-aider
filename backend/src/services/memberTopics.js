@@ -9,7 +9,7 @@ import Campaign from '../models/Campaign.js';
 import AdScan from '../models/AdScan.js';
 import { MemberMessageLog } from '../models/MemberMessage.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
-import { audienceFilter, sendMemberMessage, renderMemberBody } from './memberMessages.js';
+import { audienceFilter, sendMemberMessage, renderMemberBody, emailsPerHour } from './memberMessages.js';
 import { sendEmail, button } from './email.js';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -73,17 +73,21 @@ export function pickTopic(topics, sentMap, { repeatDays, now = Date.now() }) {
 }
 
 /**
- * Tâche planifiée (chaque heure) : n'envoie qu'au jour et à l'heure réglés (heure de Paris), sauf force (admin, tests).
+ * Tâche planifiée (chaque heure) : à partir du jour et de l'heure réglés (heure de Paris), un paquet par heure pendant la fenêtre d'envoi,
+ * jusqu'à ce que chaque inscrit ait eu son conseil de la semaine (un seul par 6 jours). force (admin, tests) : un paquet tout de suite.
  * Retourne { ran, sent, skipped }.
  */
-export async function runMemberTopics({ force = false, limit = 300 } = {}) {
+export async function runMemberTopics({ force = false, limit = null } = {}) {
   if (!(await getSetting(SETTINGS.memberTopicsEnabled.key, SETTINGS.memberTopicsEnabled.default))) return { ran: false, reason: 'désactivé', sent: 0 };
   if (!force) {
     const { weekday, hour } = parisNow();
     const wd = Number(await getSetting(SETTINGS.memberTopicsWeekday.key, SETTINGS.memberTopicsWeekday.default));
     const h = Number(await getSetting(SETTINGS.memberTopicsHour.key, SETTINGS.memberTopicsHour.default));
-    if (weekday !== wd || hour !== h) return { ran: false, reason: 'hors créneau', sent: 0 };
+    const windowDays = Number(await getSetting(SETTINGS.memberTopicsWindowDays.key, SETTINGS.memberTopicsWindowDays.default));
+    const elapsed = ((weekday - wd + 7) % 7) * 24 + (hour - h); // heures depuis le début de la fenêtre
+    if (elapsed < 0 || elapsed >= windowDays * 24) return { ran: false, reason: 'hors fenêtre', sent: 0 };
   }
+  if (!limit) limit = await emailsPerHour();
   const startDays = Number(await getSetting(SETTINGS.memberTopicsStartDays.key, SETTINGS.memberTopicsStartDays.default));
   const repeatDays = Number(await getSetting(SETTINGS.memberTopicsRepeatDays.key, SETTINGS.memberTopicsRepeatDays.default));
   const usage = await usageSets();
@@ -91,7 +95,7 @@ export async function runMemberTopics({ force = false, limit = 300 } = {}) {
   for (const audience of ['creators', 'brands']) {
     const topics = await MemberTopic.find({ audience, active: true }).sort({ order: 1, createdAt: 1 }).lean();
     if (!topics.length) continue;
-    const users = await User.find({ ...audienceFilter(audience), createdAt: { $lte: new Date(Date.now() - startDays * DAY) }, 'preferences.tipsEmails': { $ne: false } }).select('email profile.name profile.companyName preferences').lean();
+    const users = await User.find({ ...audienceFilter(audience), createdAt: { $lte: new Date(Date.now() - startDays * DAY) }, 'preferences.tipsEmails': { $ne: false } }).sort({ createdAt: -1 }).select('email profile.name profile.companyName preferences').lean();
     for (const u of users) {
       if (sent >= limit) break;
       const logs = await MemberMessageLog.find({ userId: u._id, key: /^topic:/ }).select('key sentAt').lean();

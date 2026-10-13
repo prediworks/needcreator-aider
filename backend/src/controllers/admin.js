@@ -779,7 +779,8 @@ export async function memberMessagesSend(req, res) {
       return res.json({ message: `Aperçu envoyé à ${r.to}`, preview: true });
     }
     const r = await broadcastMemberMessage({ audience, subject, body, sentBy: req.user._id });
-    res.json({ message: `Message envoyé à ${r.count} ${audience === 'brands' ? 'marque(s)' : 'créateur(s)'} (${r.emailed} email(s), notification pour tous)`, count: r.count, emailed: r.emailed, broadcastId: r.broadcast._id });
+    const who = audience === 'brands' ? 'marque(s)' : 'créateur(s)';
+    res.json({ message: r.remaining ? `Premier paquet envoyé à ${r.count} ${who} ; les ${r.remaining} autres suivent par paquets horaires` : `Message envoyé à ${r.count} ${who} (${r.emailed} email(s), notification pour tous)`, count: r.count, emailed: r.emailed, remaining: r.remaining, broadcastId: r.broadcast._id });
   } catch (error) {
     if (error.status === 502) return res.status(502).json({ error: error.message });
     logger.error('memberMessagesSend failed:', error); res.status(500).json({ error: `Envoi impossible : ${error.message}` });
@@ -842,7 +843,7 @@ export async function memberTopicPreview(req, res) {
 }
 /** Envoi immédiat (sans attendre le créneau) : utile pour vérifier, chaque inscrit reste limité à un conseil par semaine */
 export async function memberTopicsRunNow(req, res) {
-  try { const { runMemberTopics } = await import('../services/memberTopics.js'); const r = await runMemberTopics({ force: true }); res.json({ message: r.ran ? `${r.sent} conseil(s) envoyé(s), ${r.skipped} inscrit(s) déjà servis cette semaine` : `Pas d'envoi : ${r.reason}`, ...r }); }
+  try { const { runMemberTopics } = await import('../services/memberTopics.js'); const r = await runMemberTopics({ force: true }); res.json({ message: r.ran ? `${r.sent} conseil(s) envoyé(s) dans ce paquet, ${r.skipped} inscrit(s) déjà servis cette semaine ; le reste suit par paquets horaires` : `Pas d'envoi : ${r.reason}`, ...r }); }
   catch (error) { logger.error('memberTopicsRunNow failed:', error); res.status(500).json({ error: 'Envoi impossible' }); }
 }
 
