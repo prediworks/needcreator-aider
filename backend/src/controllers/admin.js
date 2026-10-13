@@ -786,6 +786,66 @@ export async function memberMessagesSend(req, res) {
   }
 }
 
+/* ---------- Thématiques hebdomadaires ---------- */
+const topicFields = (b) => {
+  const o = {};
+  if (b.audience !== undefined) o.audience = b.audience === 'brands' ? 'brands' : 'creators';
+  for (const k of ['title', 'subject', 'subjectRepeat', 'body', 'href', 'cta']) if (b[k] !== undefined) o[k] = String(b[k] || '').trim();
+  if (b.order !== undefined) o.order = Number(b.order) || 0;
+  if (b.active !== undefined) o.active = !!b.active;
+  if (b.skipIf !== undefined) o.skipIf = String(b.skipIf || '');
+  if (o.href !== undefined && !/^\/[^\s]*$/.test(o.href)) o.href = '/dashboard';
+  return o;
+};
+const topicCheck = (o) => (o.title !== undefined && o.title.length < 3) ? 'Il manque : un titre' : (o.subject !== undefined && o.subject.length < 5) ? 'Il manque : un objet (5 caractères au moins)' : (o.body !== undefined && o.body.length < 20) ? 'Il manque : un texte (20 caractères au moins)' : null;
+export async function memberTopicsView(req, res) {
+  try { const { topicsOverview } = await import('../services/memberTopics.js'); res.json(await topicsOverview()); }
+  catch (error) { logger.error('memberTopicsView failed:', error); res.status(500).json({ error: 'Thématiques indisponibles' }); }
+}
+export async function memberTopicCreate(req, res) {
+  try {
+    const { default: MemberTopic } = await import('../models/MemberTopic.js');
+    const o = topicFields(req.body || {}); const err = topicCheck({ title: '', subject: '', body: '', ...o });
+    if (err) return res.status(400).json({ error: err });
+    if (o.order === undefined) o.order = (await MemberTopic.countDocuments({ audience: o.audience })) + 1;
+    const t = await MemberTopic.create({ ...o, active: !!o.active, createdBy: req.user._id });
+    res.status(201).json({ message: 'Thématique enregistrée', topic: t });
+  } catch (error) { logger.error('memberTopicCreate failed:', error); res.status(500).json({ error: 'Enregistrement impossible' }); }
+}
+export async function memberTopicUpdate(req, res) {
+  try {
+    const { default: MemberTopic } = await import('../models/MemberTopic.js');
+    const o = topicFields(req.body || {}); const err = topicCheck(o);
+    if (err) return res.status(400).json({ error: err });
+    const t = await MemberTopic.findByIdAndUpdate(req.params.id, { $set: o }, { new: true, runValidators: true });
+    if (!t) return res.status(404).json({ error: 'Thématique introuvable' });
+    res.json({ message: o.active === true ? 'Thématique activée' : o.active === false ? 'Thématique désactivée' : 'Thématique enregistrée', topic: t });
+  } catch (error) { logger.error('memberTopicUpdate failed:', error); res.status(500).json({ error: 'Enregistrement impossible' }); }
+}
+export async function memberTopicDelete(req, res) {
+  try {
+    const { default: MemberTopic } = await import('../models/MemberTopic.js');
+    const t = await MemberTopic.findByIdAndDelete(req.params.id);
+    if (!t) return res.status(404).json({ error: 'Thématique introuvable' });
+    res.json({ message: 'Thématique supprimée' });
+  } catch (error) { logger.error('memberTopicDelete failed:', error); res.status(500).json({ error: 'Suppression impossible' }); }
+}
+export async function memberTopicPreview(req, res) {
+  try {
+    const { default: MemberTopic } = await import('../models/MemberTopic.js');
+    const { previewTopic } = await import('../services/memberTopics.js');
+    const t = req.params.id === 'draft' ? topicFields(req.body || {}) : await MemberTopic.findById(req.params.id).lean();
+    if (!t || !t.subject || !t.body) return res.status(400).json({ error: 'Il manque : un objet et un texte' });
+    const r = await previewTopic(t, req.user._id);
+    res.json({ message: `Aperçu envoyé à ${r.to}` });
+  } catch (error) { res.status(502).json({ error: `Aperçu non envoyé : ${error.message}` }); }
+}
+/** Envoi immédiat (sans attendre le créneau) : utile pour vérifier, chaque inscrit reste limité à un conseil par semaine */
+export async function memberTopicsRunNow(req, res) {
+  try { const { runMemberTopics } = await import('../services/memberTopics.js'); const r = await runMemberTopics({ force: true }); res.json({ message: r.ran ? `${r.sent} conseil(s) envoyé(s), ${r.skipped} inscrit(s) déjà servis cette semaine` : `Pas d'envoi : ${r.reason}`, ...r }); }
+  catch (error) { logger.error('memberTopicsRunNow failed:', error); res.status(500).json({ error: 'Envoi impossible' }); }
+}
+
 /** Bilan hebdomadaire envoyé tout de suite aux administrateurs (sinon chaque lundi par la tâche planifiée) */
 export async function weeklyReportNow(req, res) {
   try {

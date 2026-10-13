@@ -32,7 +32,7 @@ import {
   reviewBusiness,
   getSettings,
   updateSetting,
-  memberMessagesView, memberMessagesSend, memberMessageRender, weeklyReportNow,
+  memberMessagesView, memberMessagesSend, memberMessageRender, weeklyReportNow, memberTopicsView, memberTopicCreate, memberTopicUpdate, memberTopicDelete, memberTopicPreview, memberTopicsRunNow,
 } from '../controllers/admin.js';
 import { listReports, resolveReport } from '../controllers/reports.js';
 import { listDisputes, resolveDispute } from '../controllers/disputes.js';
@@ -73,6 +73,12 @@ router.post('/weekly-report', weeklyReportNow); // bilan hebdomadaire à la dema
 router.get('/member-messages', memberMessagesView); // annonces aux inscrits : publics, historique, séquence d'accueil
 router.post('/member-messages', memberMessagesSend); // ?preview=1 : aperçu à l'administrateur
 router.post('/member-messages/render', memberMessageRender); // aperçu en direct du rendu
+router.get('/member-topics', memberTopicsView); // thématiques hebdomadaires : bibliothèque, envois, publics
+router.post('/member-topics', memberTopicCreate);
+router.post('/member-topics/run', memberTopicsRunNow); // envoi immédiat (un conseil par inscrit et par semaine, quoi qu'il arrive)
+router.post('/member-topics/:id/preview', memberTopicPreview); // :id = draft → le texte du formulaire
+router.put('/member-topics/:id', memberTopicUpdate);
+router.delete('/member-topics/:id', memberTopicDelete);
 router.get('/settings', getSettings);
 router.put('/settings/:key', updateSetting);
 

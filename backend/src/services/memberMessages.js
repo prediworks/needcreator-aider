@@ -43,7 +43,7 @@ export function audienceFilter(audience) {
 }
 
 /** Envoie un message à une personne (email si non désactivé, cloche toujours) et le trace ; retourne false si déjà envoyé */
-export async function sendMemberMessage(user, { subject, body, key, href = '/dashboard', cta = 'Ouvrir mon tableau de bord' }) {
+export async function sendMemberMessage(user, { subject, body, key, href = '/dashboard', cta = 'Ouvrir mon tableau de bord', footerHtml = '' }) {
   const already = await MemberMessageLog.findOne({ userId: user._id, key }).lean();
   if (already) return false;
   const { html, text } = renderMemberBody(body, user);
@@ -51,7 +51,7 @@ export async function sendMemberMessage(user, { subject, body, key, href = '/das
   let emailed = false;
   if (emailOn) {
     try {
-      await sendEmail(user.email, subject, `<h1>Bonjour ${esc(firstName(user) || '')},</h1>${html}${button(`${SITE()}${href}`, cta)}`, null, { preheader: text.slice(0, 120) });
+      await sendEmail(user.email, subject, `<h1>Bonjour ${esc(firstName(user) || '')},</h1>${html}${button(`${SITE()}${href}`, cta)}${footerHtml}`, null, { preheader: text.slice(0, 120) });
       emailed = true;
     } catch (err) { logger.error(`Member message ${key} to ${user.email}: ${err.message}`); }
   }

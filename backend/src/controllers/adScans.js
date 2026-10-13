@@ -131,6 +131,16 @@ export async function subscribeScan(req, res) {
   } catch (error) { fail(res, error, 'Abonnement impossible pour le moment', 'subscribeScan'); }
 }
 /** Lien de l'email : ne plus rien recevoir */
+/** Lien « Ne plus recevoir les conseils » des thématiques hebdomadaires (jeton signé, sans connexion) */
+export async function unsubscribeTipsHandler(req, res) {
+  try {
+    const { unsubscribeTips } = await import('../services/memberTopics.js');
+    const r = await unsubscribeTips(req.body?.token);
+    if (!r) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    res.json({ message: `C'est noté : ${r.email} ne recevra plus les conseils hebdomadaires. Les notifications de vos missions continuent.` });
+  } catch (error) { res.status(500).json({ error: 'Désinscription impossible' }); }
+}
+
 export async function unsubscribeScan(req, res) {
   try {
     const { unsubscribeScanReports } = await import('../services/adScanReports.js');

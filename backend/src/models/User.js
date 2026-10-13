@@ -342,6 +342,7 @@ const userSchema = new mongoose.Schema({
       type: Boolean,
       default: true,
     },
+    tipsEmails: { type: Boolean, default: true },   // conseil hebdomadaire (thématiques) : lien « ne plus recevoir » dans chaque email
     pushNotifications: {
       type: Boolean,
       default: true,

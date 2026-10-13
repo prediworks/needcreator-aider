@@ -352,6 +352,7 @@ export async function updateProfile(req, res) {
           'profile.publicConsent.site', 'profile.publicConsent.marketing',
           'profile.availability.unavailableUntil', 'profile.availability.note',
           'preferences.emailNotifications',
+          'preferences.tipsEmails',
           'preferences.language',
         ]
       : [
@@ -364,6 +365,7 @@ export async function updateProfile(req, res) {
           'profile.avatar',
           'profile.companySize',
           'preferences.emailNotifications',
+          'preferences.tipsEmails',
           'preferences.language',
         ];
     if (user.role === 'creator') allowedFields.push('preferences.acceptGifting');

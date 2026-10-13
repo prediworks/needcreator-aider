@@ -9,6 +9,7 @@ import Input from '@/components/ui/Input';
 import { formatDateTime } from '@/lib/utils';
 import { toast } from 'sonner';
 import { Send, Mail, Bold, List, User, Link2 } from 'lucide-react';
+import MemberTopics from '@/components/admin/MemberTopics';
 
 /** Annonces aux inscrits (email depuis needcreator.com + cloche) ; la séquence d'accueil se règle dans Réglages → « Messages aux inscrits » */
 export default function MemberMessages() {
@@ -83,6 +84,7 @@ export default function MemberMessages() {
           <Button size="sm" onClick={() => { if (confirm(`Envoyer ce message à ${count} ${audience === 'creators' ? 'créateur(s)' : 'marque(s)'} ? Cette action ne peut pas être annulée.`)) send.mutate(); }} disabled={!ready || !count} isLoading={send.isPending} title="Envoie à tous les inscrits du public choisi, une seule fois par personne" data-testid="member-send"><Send className="w-4 h-4 mr-1" /> Envoyer à {count} {audience === 'creators' ? 'créateur(s)' : 'marque(s)'}</Button>
         </div>
       </Card>
+      <MemberTopics />
       <Card className="p-6">
         <h3 className="font-semibold mb-2">Séquence d&apos;accueil : envois effectués</h3>
         <p className="text-sm text-neutral-600">Créateurs · message 1 (les outils) : {data?.onboarding?.onboarding1 ?? 0} · message 2 (portfolio et Ambassadeur) : {data?.onboarding?.onboarding2 ?? 0} · message 3 (premier devis client) : {data?.onboarding?.onboarding3 ?? 0}</p>

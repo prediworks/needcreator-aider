@@ -3129,6 +3129,79 @@ await step('Messages aux inscrits : séquence d\'accueil J+N par la tâche plani
   }
 });
 
+await step('Thématiques hebdomadaires : bibliothèque admin, un conseil par semaine dans l\'ordre, condition « déjà utilisé », reprise en boucle avec objet de rappel, désinscription', async () => {
+  const db = mongoose.connection.db;
+  const users = db.collection('users');
+  const creatorDoc = await users.findOne({ email: creatorEmail });
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  await users.updateOne({ _id: creatorDoc._id }, { $set: { createdAt: new Date(Date.now() - 20 * 86400000), 'preferences.tipsEmails': true } });
+  await db.collection('membermessagelogs').deleteMany({ key: /^topic:/ });
+  await db.collection('membertopics').deleteMany({});
+  const savedEnabled = await db.collection('settings').findOne({ key: 'memberTopicsEnabled' });
+  await db.collection('settings').updateOne({ key: 'memberTopicsEnabled' }, { $set: { value: true } }, { upsert: true });
+  const created = [];
+  try {
+    const lib = await brandApi('GET', '/admin/member-topics');
+    expect(lib.status === 200 && lib.data.topics.length >= 10 && lib.data.topics.every(t => !t.active) && typeof lib.data.audiences.creators === 'number', 'La bibliothèque arrive avec les thématiques de départ, toutes désactivées', { status: lib.status, n: lib.data.topics?.length });
+    await db.collection('membertopics').deleteMany({}); // on teste avec deux thématiques créateurs maîtrisées
+    const t1 = await brandApi('POST', '/admin/member-topics', { audience: 'creators', title: 'E2E devis', subject: 'E2E conseil devis', body: 'Un client vous contacte en direct ? Faites le devis depuis NeedCreator, {{prenom}}.', href: '/quotes', cta: 'Créer un devis', order: 1, active: true, skipIf: 'quote' });
+    const t2 = await brandApi('POST', '/admin/member-topics', { audience: 'creators', title: 'E2E vitrine', subject: 'E2E conseil vitrine', subjectRepeat: 'E2E vitrine, le retour', body: 'Proposez spontanément vos vidéos aux marques que nous démarchons.', href: '/vitrine', cta: 'Voir', order: 2, active: true });
+    expect(t1.status === 201 && t2.status === 201, 'Deux thématiques créées', { t1: t1.status, t2: t2.status });
+    created.push(t1.data.topic._id, t2.data.topic._id);
+    const bad = await brandApi('POST', '/admin/member-topics', { audience: 'creators', title: 'x', subject: 'E2E', body: 'court' });
+    expect(bad.status === 400, 'Une thématique sans titre, objet ou texte suffisant est refusée', bad);
+    // Le créateur a déjà un devis client (hors vidéo spontanée) : la thématique « devis » est inutile pour lui, il reçoit la vitrine
+    const usedQuote = await db.collection('externalquotes').insertOne({ creatorId: creatorDoc._id, status: 'sent', client: { companyName: 'E2E Usage', email: 'usage@needcreator-test.com' }, mission: { title: 'E2E usage' }, quote: { price: 100 }, token: `e2eusage${RUN}`, createdAt: new Date(), updatedAt: new Date() });
+    created.push(usedQuote.insertedId);
+    const run1 = await brandApi('POST', '/admin/member-topics/run');
+    expect(run1.status === 200 && run1.data.sent >= 1, 'L\'envoi immédiat envoie un conseil', run1);
+    const logs1 = await db.collection('membermessagelogs').find({ userId: creatorDoc._id, key: /^topic:/ }).toArray();
+    expect(logs1.length === 1 && logs1[0].key === `topic:${t2.data.topic._id}:1`, 'Le créateur qui a déjà des devis saute la thématique devis et reçoit la vitrine (tour 1)', logs1.map(l => l.key));
+    const bell = await creatorApi('GET', '/notifications');
+    expect((bell.data.notifications || []).some(n => n.title === 'E2E conseil vitrine' && n.href === '/vitrine'), 'Le conseil arrive aussi dans la cloche, avec le lien de la thématique', bell.data.notifications?.slice(0, 3));
+    const run2 = await brandApi('POST', '/admin/member-topics/run');
+    const logs2 = await db.collection('membermessagelogs').countDocuments({ userId: creatorDoc._id, key: /^topic:/ });
+    expect(run2.status === 200 && logs2 === 1, 'Un second envoi dans la semaine ne renvoie rien à la même personne', { status: run2.status, logs2, skipped: run2.data.skipped });
+    // Tout reçu : 100 jours plus tard, on recommence (tour 2) avec l'objet de rappel
+    await db.collection('membermessagelogs').updateMany({ userId: creatorDoc._id, key: /^topic:/ }, { $set: { sentAt: new Date(Date.now() - 100 * 86400000) } });
+    const run3 = await brandApi('POST', '/admin/member-topics/run');
+    const logs3 = await db.collection('membermessagelogs').find({ userId: creatorDoc._id, key: /^topic:/ }).toArray();
+    expect(run3.status === 200 && logs3.some(l => l.key === `topic:${t2.data.topic._id}:2`), 'Toutes reçues et délai de reprise passé : la thématique revient (tour 2)', logs3.map(l => l.key));
+    const bell2 = await creatorApi('GET', '/notifications');
+    expect((bell2.data.notifications || []).some(n => n.title === 'E2E vitrine, le retour'), 'Le second tour porte l\'objet de rappel', bell2.data.notifications?.slice(0, 3));
+    // Reprise avant le délai : rien
+    await db.collection('membermessagelogs').updateMany({ userId: creatorDoc._id, key: /^topic:/ }, { $set: { sentAt: new Date(Date.now() - 30 * 86400000) } });
+    const run4 = await brandApi('POST', '/admin/member-topics/run');
+    const logs4 = await db.collection('membermessagelogs').countDocuments({ userId: creatorDoc._id, key: /^topic:/ });
+    expect(run4.status === 200 && logs4 === 2, 'Avant le délai de reprise, aucune thématique ne revient', { logs4 });
+    // Désactivation, modification, stats
+    const off = await brandApi('PUT', `/admin/member-topics/${t2.data.topic._id}`, { active: false });
+    const lib2 = await brandApi('GET', '/admin/member-topics');
+    const row = lib2.data.topics.find(t => t._id === t2.data.topic._id);
+    expect(off.status === 200 && row && row.active === false && row.sent >= 2 && row.lastSentAt, 'Désactiver une thématique ; la bibliothèque montre ses envois (d\'autres inscrits de test reçoivent aussi)', { status: off.status, active: row?.active, sent: row?.sent });
+    // Désinscription par le lien signé de l'email
+    const { tipsToken } = await import('../src/services/memberTopics.js');
+    const unsub = await fetch(`${API}/ad-scans/unsubscribe-tips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tipsToken(creatorDoc._id) }) }).then(async r => ({ status: r.status, data: await r.json() }));
+    const after = await users.findOne({ _id: creatorDoc._id });
+    expect(unsub.status === 200 && after.preferences?.tipsEmails === false, 'Le lien « Ne plus recevoir les conseils » désactive les conseils pour cet inscrit', unsub);
+    const forged = await fetch(`${API}/ad-scans/unsubscribe-tips`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: `${creatorDoc._id}.${'0'.repeat(32)}` }) }).then(r => r.status);
+    expect(forged === 404, 'Un jeton falsifié est refusé', { forged });
+    await db.collection('membermessagelogs').deleteMany({ userId: creatorDoc._id, key: /^topic:/ });
+    await db.collection('membertopics').updateOne({ _id: new mongoose.Types.ObjectId(t2.data.topic._id) }, { $set: { active: true } });
+    const run5 = await brandApi('POST', '/admin/member-topics/run');
+    const logs5 = await db.collection('membermessagelogs').countDocuments({ userId: creatorDoc._id, key: /^topic:/ });
+    expect(run5.status === 200 && logs5 === 0, 'Un inscrit désinscrit ne reçoit plus de conseil', { logs5 });
+    return 'bibliothèque de départ, création, refus, condition « déjà utilisé », un conseil par semaine, reprise à 100 jours avec objet de rappel, pas avant le délai, désactivation, désinscription signée';
+  } finally {
+    await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+    await users.updateOne({ _id: creatorDoc._id }, { $set: { 'preferences.tipsEmails': true } });
+    await db.collection('membertopics').deleteMany({});
+    await db.collection('membermessagelogs').deleteMany({ key: /^topic:/ });
+    await db.collection('externalquotes').deleteMany({ token: `e2eusage${RUN}` });
+    if (savedEnabled) await db.collection('settings').updateOne({ key: 'memberTopicsEnabled' }, { $set: { value: savedEnabled.value } }); else await db.collection('settings').deleteOne({ key: 'memberTopicsEnabled' });
+  }
+});
+
 await step('Vidéo vitrine : dépôt par un créateur pour une marque prospectée, devis créé, aperçu sur la page publique, proposition par l\'admin, achat par la marque livré d\'office', async () => {
   const db = mongoose.connection.db;
   await db.collection('leads').deleteMany({ name: 'E2E Marque Vitrine' });
