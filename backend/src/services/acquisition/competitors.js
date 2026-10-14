@@ -58,6 +58,8 @@ export async function prepareCompetitors(leads, { budgetMs = 60000, concurrency 
         if (l.competitor?.pageId) {
           const scan = await ensureScanForPage({ pageId: l.competitor.pageId, pageName: l.competitor.pageName });
           l.competitor.slug = scan?.slug || undefined;
+          const starts = (scan?.ads || []).map(a => a.startedAt).filter(Boolean).map(d => new Date(d).getTime());
+          if (starts.length) l.competitor.oldestAt = new Date(Math.min(...starts));
           if (scan) ready++;
         }
         await Lead.updateOne({ _id: l._id }, { $set: { competitors: l.competitors || [], competitor: l.competitor } });
@@ -66,4 +68,19 @@ export async function prepareCompetitors(leads, { budgetMs = 60000, concurrency 
   };
   await Promise.all(Array.from({ length: concurrency }, worker));
   return { ready };
+}
+
+/** Fiches dont le concurrent est vérifié mais sans date de plus ancienne publicité (préparées avant le 14/10/2026) : complétée depuis le scan déjà en base, sans appel à Meta */
+export async function fillCompetitorAge(leads) {
+  const todo = leads.filter(l => l.kind === 'brand' && l.competitor?.slug && !l.competitor.oldestAt);
+  if (!todo.length) return;
+  const { default: AdScan } = await import('../../models/AdScan.js');
+  const scans = await AdScan.find({ slug: { $in: [...new Set(todo.map(l => l.competitor.slug))] } }).select('slug ads.startedAt').lean();
+  const oldest = new Map(scans.map(sc => { const t = (sc.ads || []).map(a => a.startedAt).filter(Boolean).map(d => new Date(d).getTime()); return [sc.slug, t.length ? new Date(Math.min(...t)) : null]; }));
+  for (const l of todo) {
+    const at = oldest.get(l.competitor.slug);
+    if (!at) continue;
+    l.competitor.oldestAt = at;
+    await Lead.updateOne({ _id: l._id }, { $set: { 'competitor.oldestAt': at } }).catch(() => {});
+  }
 }

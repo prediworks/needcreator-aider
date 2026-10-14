@@ -310,6 +310,7 @@ export async function queuePrefillMessage(lead, { network, createdBy, url: urlOv
   const url = urlOverride && /^https:\/\/(www\.)?linkedin\.com\/in\//i.test(urlOverride) ? urlOverride : lead.socials?.[net]; // urlOverride : profil d'un contact LinkedIn de la fiche
   if (!url) throw Object.assign(new Error(`Pas de profil ${net} sur la fiche`), { status: 400 });
   const { dmFor } = await import('./acquisition/followUp.js');
+  if (lead.kind === 'brand') { const { fillCompetitorAge } = await import('./acquisition/competitors.js'); await fillCompetitorAge([lead]).catch(() => {}); }
   const text = dmFor(lead).text; // relance courte après un email ; version « concurrent » pour une marque sur deux (test) ; sinon le message de l'IA
   if (!text) throw Object.assign(new Error('Pas de message préparé sur la fiche : requalifiez-la'), { status: 400 });
   const label = `Messages du jour · ${new Date().toLocaleDateString('fr-FR')}`;

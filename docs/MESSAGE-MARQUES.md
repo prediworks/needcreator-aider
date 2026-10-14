@@ -202,12 +202,16 @@ sur le bon interlocuteur. **On garde la structure** (elle obtient des réponses)
 **Appliqué** (la phrase finale, rodée sur le terrain depuis le 26/09, est gardée telle quelle ; seule la présentation change) :
 > Bonjour, j'ai vu votre publicité pour [produit]. Un de nos créateurs l'ouvrirait ainsi : « [accroche] ». Je ne suis pas créatrice : je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. J'en ai deux autres, tournables sous dix jours par un créateur vérifié : à quelle adresse puis-je vous les envoyer ?
 
-**Test depuis le 08/10/2026** : une marque sur deux reçoit, quand un concurrent a été trouvé chez Meta, la version « concurrent » :
-> Bonjour, j'ai vu votre publicité pour votre sérum. Un de nos créateurs l'ouvrirait ainsi : « Mes yeux tiraient chaque matin ». Je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés. J'ai relevé les publicités de Typology qui tournent depuis le plus longtemps : à quelle adresse puis-je vous les envoyer ?
+**Test depuis le 08/10/2026, version « outil » réécrite le 14/10/2026** : une marque sur deux reçoit la version « outil », qui part d'un fait sur
+son concurrent et propose l'analyse gratuite, sans lien et sans « un de nos créateurs » (lu comme une demande de collaboration) :
+> Bonjour, la plus ancienne publicité de Typology tourne depuis 140 jours sur Facebook et Instagram : c'est souvent le signe qu'elle rapporte. Je m'occupe de NeedCreator, ce n'est pas une demande de collaboration : nous repérons les publicités qui marchent dans votre secteur et les faisons tourner par des créateurs vérifiés, payées seulement si elles vous conviennent. Je peux vous envoyer l'analyse gratuite de ses publicités et des vôtres ?
 
-L'autre moitié garde le message ci-dessus. Quand la marque donne son adresse, l'email proposé contient le lien vers les publicités de ce
-concurrent, puis celui de l'audit de ses propres publicités. Résultat du test en haut de la file du jour (réponses par version) : décider
-au bout de deux semaines, avec au moins 30 messages par version.
+Sans concurrent vérifié chez Meta, la même moitié reçoit l'audit de ses propres publicités :
+> Bonjour, j'ai regardé les publicités que [marque] fait tourner sur Facebook et Instagram. Je m'occupe de NeedCreator, ce n'est pas une demande de collaboration : […]. Je peux vous envoyer l'analyse gratuite de vos publicités : celles qui tournent depuis le plus longtemps, et ce qu'il serait utile de tester ?
+
+Concurrent pas encore cherché : le message « accroches » ci-dessus, en attendant. L'autre moitié garde le message « accroches ». Quand la
+marque répond oui, la réponse proposée contient le lien vers les publicités du concurrent puis celui de l'audit (ou l'audit seul). Résultat
+du test en haut de la file du jour (accroches / outil) : décider au bout de deux semaines, avec au moins 30 messages par version.
 
 ---
 

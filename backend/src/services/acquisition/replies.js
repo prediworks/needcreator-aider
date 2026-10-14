@@ -21,6 +21,10 @@ export async function classifyReply(lead, text, { via = 'email', emailFound = ''
   const signup = lead.kind === 'creator' ? `${config.cors.origin}/register?role=creator&from=${encodeURIComponent((lead.handle || '').replace(/^@/, ''))}` : `${config.cors.origin}/register?role=brand&lead=${lead._id}&email=${encodeURIComponent(lead.email || '')}&company=${encodeURIComponent(lead.name || '')}`;
   // Message privé « concurrent » (test du 08/10/2026) : l'email promis donne le lien vers les publicités de ce concurrent
   let promised = '';
+  if (lead.kind === 'brand' && lead.dmVariant === 'audit' && via !== 'email') {
+    const { scanLinks } = await import('./outreach.js');
+    promised = `Notre message privé proposait l'analyse gratuite de ses propres publicités : la réponse la donne d'abord, avec ce lien exact : ${scanLinks(lead).audit_link} (ses publicités Meta actives, celles qui tournent depuis le plus longtemps, ce qu'il serait utile de tester), puis présente NeedCreator en une phrase.`;
+  }
   if (lead.kind === 'brand' && lead.dmVariant === 'competitor' && lead.competitor?.slug && via !== 'email') {
     const { scanLinks } = await import('./outreach.js');
     const links = scanLinks(lead);

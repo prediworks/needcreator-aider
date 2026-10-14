@@ -64,12 +64,12 @@ const leadSchema = new mongoose.Schema({
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
   // Marques : concurrents cités par l'IA à la qualification, puis le premier trouvé chez Meta (page vérifiée, scan préparé) : l'email 1 montre ses publicités
   competitors: [String],
-  competitor: { name: String, pageId: String, pageName: String, slug: String, ads: Number, checkedAt: Date },
+  competitor: { name: String, pageId: String, pageName: String, slug: String, ads: Number, oldestAt: Date, checkedAt: Date }, // oldestAt : début de sa plus ancienne publicité active (message privé « outil »)
   // Visites venues des liens de l'email (paramètre ref) : outil de scan, audit, brief ; une marque qui a cliqué est à relancer en priorité
   scanVisits: [{ at: Date, action: String, slug: String, pageName: String, _id: false }],
   lastScanVisitAt: { type: Date, index: true },
   // Message privé envoyé depuis la file du jour (test du 08/10/2026) : 'hooks' (deux autres accroches), 'competitor' (publicités d'un concurrent), 'followup' (relance après email)
-  dmVariant: { type: String, enum: ['hooks', 'competitor', 'followup'] },
+  dmVariant: { type: String, enum: ['hooks', 'competitor', 'audit', 'followup'] }, // 'competitor' et 'audit' : version « outil » (depuis le 14/10/2026), comptées ensemble dans le test
 }, { timestamps: true });
 
 leadSchema.index({ source: 1, externalId: 1 }, { unique: true });

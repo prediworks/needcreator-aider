@@ -217,7 +217,7 @@ export async function updateLead(req, res) {
     lead.contactedAt = new Date(Date.now() - 7 * 86400000);
     lead.contactedVia = contactedVia || lead.contactedVia || 'manuel';
     lead.notes = [lead.notes, `Déjà contacté, date rétablie à la main le ${new Date().toLocaleDateString('fr-FR')}`].filter(Boolean).join(' · ').slice(0, 2000);
-  } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; if (['hooks', 'competitor', 'followup'].includes(dmVariant)) lead.dmVariant = dmVariant; } }
+  } else if (status && LEAD_STATUSES.includes(status)) { lead.status = status; if (status === 'contacted') { lead.contactedAt = new Date(); lead.contactedVia = contactedVia || lead.contactedVia || 'manuel'; if (['hooks', 'competitor', 'audit', 'followup'].includes(dmVariant)) lead.dmVariant = dmVariant; } }
   if (emails !== undefined) { const e = emails[0] || null; if (e !== (lead.email || null)) { lead.email = e; lead.emailSource = e ? 'manuel' : null; } lead.extraEmails = emails.slice(1); }
   const renamed = lead.isModified('name');
   await lead.save();
@@ -523,6 +523,7 @@ export async function dailyQueue(req, res) {
     // Sans email d'abord : pour eux le message privé est le seul canal ; ensuite par score
     const leads = left ? await Lead.aggregate([{ $match: filter }, { $addFields: { hasEmail: { $cond: [{ $gt: ['$email', null] }, 1, 0] }, mailed: { $cond: [{ $gt: ['$mailing.pushedAt', null] }, 1, 0] } } }, { $sort: { mailed: 1, hasEmail: 1, score: -1, createdAt: 1 } }, { $limit: left }, { $project: { name: 1, handle: 1, niche: 1, score: 1, stats: 1, socials: 1, socialsCheck: 1, nameCheck: 1, 'mailing.pushedAt': 1, 'mailing.replyAt': 1, contactedAt: 1, firstName: 1, kind: 1, url: 1, aiSummary: 1, signals: 1, message: 1, email: 1, status: 1, description: 1, hooks: 1, contacts: 1, extraEmails: 1, competitor: 1, competitors: 1, website: 1 } }]) : [];
     const { followUpMessage, dmFor, inCompetitorGroup } = await import('../services/acquisition/followUp.js');
+    if (kind === 'brand') { const { fillCompetitorAge } = await import('../services/acquisition/competitors.js'); await fillCompetitorAge(leads).catch(err => logger.warn(`fillCompetitorAge: ${err.message}`)); }
     for (const l of leads) {
       const f = followUpMessage(l); if (f) l.followUpMessage = f; // relance courte pour les prospects déjà joints par email
       if (kind === 'brand' && !f) { const d = dmFor(l); l.message = d.text; l.dmVariant = d.variant; l.competitorPending = inCompetitorGroup(l) && !l.competitor?.checkedAt; }
@@ -555,11 +556,12 @@ async function prepareQueueCompetitors(filter) {
 async function dmAbStats() {
   const since = new Date('2026-10-08T00:00:00Z');
   const rows = await Lead.aggregate([
-    { $match: { kind: 'brand', dmVariant: { $in: ['hooks', 'competitor'] }, contactedAt: { $gte: since } } },
+    { $match: { kind: 'brand', dmVariant: { $in: ['hooks', 'competitor', 'audit'] }, contactedAt: { $gte: since } } },
     { $group: { _id: '$dmVariant', sent: { $sum: 1 }, replied: { $sum: { $cond: [{ $gt: ['$mailing.replyAt', null] }, 1, 0] } } } },
   ]);
   const get = (k) => { const r = rows.find(x => x._id === k); return { sent: r?.sent || 0, replied: r?.replied || 0 }; };
-  return { since, hooks: get('hooks'), competitor: get('competitor') };
+  const c = get('competitor'), a = get('audit');
+  return { since, hooks: get('hooks'), competitor: { sent: c.sent + a.sent, replied: c.replied + a.replied } }; // « outil » : concurrent + audit
 }
 
 /** Réponse reçue en message privé (Instagram, TikTok, LinkedIn) collée à la main : classée par l'IA, email ou formulaire relevés, statut « A répondu » */

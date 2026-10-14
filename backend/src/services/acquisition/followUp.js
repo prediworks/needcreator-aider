@@ -20,25 +20,36 @@ export function followUpMessage(lead) {
 }
 
 /**
- * Test du 08/10/2026 sur le message privé aux marques : une fiche sur deux (identifiant impair) reçoit, à la place de l'offre de deux autres
- * accroches, les publicités de son concurrent qui tournent depuis le plus longtemps. Sans concurrent vérifié, elle garde le message actuel.
+ * Test du message privé aux marques (depuis le 08/10/2026) : une fiche sur deux (identifiant impair) reçoit la version « outil » à la place
+ * de la version « accroches ». Depuis le 14/10/2026, la version « outil » part d'un fait sur le concurrent (âge de sa plus ancienne publicité)
+ * et propose l'analyse gratuite, sans lien ni « un de nos créateurs » (lu comme une demande de collaboration). Sans concurrent vérifié :
+ * l'audit gratuit des publicités de la marque. Concurrent pas encore cherché : version « accroches » en attendant.
  */
 export const inCompetitorGroup = (lead) => lead?.kind === 'brand' && parseInt(String(lead._id || '').slice(-1), 16) % 2 === 1;
 
-export function competitorMessage(lead) {
-  const name = lead?.competitor?.pageId ? String(lead.competitor.pageName || '').trim() : '';
+const WHO = "Je m'occupe de NeedCreator, ce n'est pas une demande de collaboration : nous repérons les publicités qui marchent dans votre secteur et les faisons tourner par des créateurs vérifiés, payées seulement si elles vous conviennent.";
+
+export function competitorMessage(lead, now = Date.now()) {
+  const name = lead?.competitor?.pageId ? clip(String(lead.competitor.pageName || '').trim(), 50) : '';
   if (!name) return null;
-  // Première phrase du message de l'IA : la publicité vue et l'accroche entre guillemets
-  const msg = String(lead.message || '');
-  const m = msg.match(/^([\s\S]*?ainsi\s*:\s*«[^»]*»)/) || msg.match(/^([\s\S]*?»)/);
-  const first = m ? `${m[1].trim()}.` : (Array.isArray(lead.hooks) && lead.hooks[0] ? `Bonjour, j'ai vu votre publicité. Un de nos créateurs l'ouvrirait ainsi : « ${clip(lead.hooks[0], 90)} ».` : 'Bonjour, j\'ai vu vos publicités.');
-  return `${first} Je m'occupe de NeedCreator, qui repère les publicités qui marchent dans votre secteur et les fait tourner par des créateurs vérifiés. J'ai relevé les publicités de ${clip(name, 50)} qui tournent depuis le plus longtemps : à quelle adresse puis-je vous les envoyer ?`;
+  const days = lead.competitor.oldestAt ? Math.floor((now - new Date(lead.competitor.oldestAt).getTime()) / 86400000) : 0;
+  const fact = days >= 30
+    ? `Bonjour, la plus ancienne publicité de ${name} tourne depuis ${days} jours sur Facebook et Instagram : c'est souvent le signe qu'elle rapporte.`
+    : `Bonjour, j'ai relevé les publicités de ${name} qui tournent depuis le plus longtemps sur Facebook et Instagram.`;
+  return `${fact} ${WHO} Je peux vous envoyer l'analyse gratuite de ses publicités et des vôtres ?`;
+}
+
+export function auditMessage(lead) {
+  return `Bonjour, j'ai regardé les publicités que ${clip(String(lead?.name || 'votre marque').trim(), 40)} fait tourner sur Facebook et Instagram. ${WHO} Je peux vous envoyer l'analyse gratuite de vos publicités : celles qui tournent depuis le plus longtemps, et ce qu'il serait utile de tester ?`;
 }
 
 /** Message privé à envoyer depuis la file du jour, et sa version (enregistrée sur la fiche au clic « Contacté ») */
 export function dmFor(lead) {
   const f = followUpMessage(lead);
   if (f) return { text: f, variant: lead.kind === 'brand' ? 'followup' : undefined };
-  if (inCompetitorGroup(lead)) { const c = competitorMessage(lead); if (c) return { text: c, variant: 'competitor' }; }
+  if (inCompetitorGroup(lead) && lead.competitor?.checkedAt) {
+    const c = competitorMessage(lead);
+    return c ? { text: c, variant: 'competitor' } : { text: auditMessage(lead), variant: 'audit' };
+  }
   return { text: lead.message || '', variant: lead.kind === 'brand' ? 'hooks' : undefined };
 }
