@@ -130,7 +130,14 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
         {scan.isPending && <p className="text-sm text-neutral-600 mt-3">Recherche de la page dans la bibliothèque publicitaire Meta…</p>}
         {candidates && (
           <div className="mt-4" data-testid="ad-scan-candidates">
-            <div className="text-sm font-medium text-neutral-900 mb-2">Plusieurs pages portent ce nom. Laquelle ?</div>
+            {candidates.some((c) => c.match) ? (
+              <div className="text-sm font-medium text-neutral-900 mb-2">Plusieurs pages portent ce nom. Laquelle ?</div>
+            ) : (
+              <div className="mb-2" data-testid="ad-scan-no-match">
+                <div className="text-sm font-medium text-neutral-900">Aucune page à ce nom parmi les annonceurs actifs.</div>
+                <div className="text-xs text-neutral-600 mt-0.5">Essayez le nom exact de sa page Facebook (par exemple « Respire France ») ou l'adresse de son site (par exemple marque.fr). Autres annonceurs qui citent ce mot :</div>
+              </div>
+            )}
             <div className="grid sm:grid-cols-2 gap-2">
               {candidates.map((c) => (
                 <button key={c.pageId} type="button" onClick={() => scan.mutate({ pageId: c.pageId, pageName: c.pageName })} className="text-left p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">

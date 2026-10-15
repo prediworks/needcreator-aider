@@ -147,19 +147,30 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
 }
 
 /** Pages candidates pour un nom tapé : regroupement des publicités trouvées par mot-clé, nom exact d'abord, puis par nombre de publicités */
+// Pages de fiction en épisodes ou de contenu adulte : elles citent n'importe quel mot dans leurs textes et ne sont jamais une marque à scanner
+const JUNK_PAGE = /version compl[eè]te|lisez la suite|lire la suite|commencez [àa] lire|\bchapitres?\b|\bépisodes? gratuits?\b|\bwebnovel|\bérotique|\bvierge\b|son membre|\bsexe\b|\bporn/i;
+
+/**
+ * Pages candidates pour un nom tapé. La bibliothèque Meta cherche le mot dans tout le texte des publicités : on garde d'abord les pages
+ * dont le nom (ou le site) contient le mot, on écarte la fiction et le contenu adulte ; sans aucune page au bon nom, on rend les autres
+ * annonceurs qui citent le mot, marqués `match: false`.
+ */
 export async function findPages(q) {
   const ads = await fetchAds({ terms: q, max: 100 }); // une seule page de résultats : quelques secondes
   const byPage = new Map();
   for (const ad of ads) {
     if (!ad.page_id) continue;
-    const cur = byPage.get(ad.page_id) || { pageId: String(ad.page_id), pageName: ad.page_name || '', ads: 0, website: null, sample: '' };
+    const cur = byPage.get(ad.page_id) || { pageId: String(ad.page_id), pageName: ad.page_name || '', ads: 0, website: null, sample: '', junk: false };
     cur.ads++;
     if (!cur.website) cur.website = domainOf(ad.ad_creative_link_captions?.[0]);
     if (!cur.sample && ad.ad_creative_bodies?.[0]) cur.sample = String(ad.ad_creative_bodies[0]).slice(0, 160);
+    if (!cur.junk && JUNK_PAGE.test(`${ad.page_name || ''} ${(ad.ad_creative_bodies || []).join(' ')} ${(ad.ad_creative_link_titles || []).join(' ')}`)) cur.junk = true;
     byPage.set(ad.page_id, cur);
   }
   const target = norm(q);
-  return [...byPage.values()].sort((a, b) => (norm(b.pageName) === target) - (norm(a.pageName) === target) || b.ads - a.ads).slice(0, 6);
+  const pages = [...byPage.values()].filter(p => !p.junk).map(({ junk, ...p }) => ({ ...p, match: !!target && (norm(p.pageName).includes(target) || norm(p.website).includes(target)) }));
+  const matching = pages.filter(p => p.match);
+  return (matching.length ? matching : pages).sort((a, b) => (norm(b.pageName) === target) - (norm(a.pageName) === target) || b.ads - a.ads).slice(0, 6);
 }
 
 async function uniqueSlug(pageName, pageId) {
@@ -241,7 +252,8 @@ export async function runScan({ q, pageId, pageName, ip, user, origin = 'visitor
       return { scan };
     }
     const exact = candidates.filter(c => norm(c.pageName) === norm(name));
-    if (candidates.length > 1 && exact.length !== 1) return { candidates };
+    // Une seule page, mais dont le nom n'a rien à voir : on la montre au lieu de la scanner d'office
+    if ((candidates.length > 1 && exact.length !== 1) || (!exact.length && !candidates[0].match)) return { candidates };
     page = exact[0] || candidates[0];
   }
   if (isBlockedPage(st.scanBlockedPages, page)) throw Object.assign(new Error('Cette marque a demandé à ne pas apparaître dans l\'outil.'), { status: 410, code: 'BLOCKED' });
