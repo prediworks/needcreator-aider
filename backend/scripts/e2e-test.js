@@ -217,17 +217,22 @@ await step('Marque : essai Pro offert à l\'inscription + vérification d\'entre
   const formal = await brandApi('POST', '/auth/business-verification', { siret: '732 829 320 00074', website: 'https://exemple.fr' });
   expect(formal.status === 200 && formal.data.business.status === 'verified' && formal.data.registryChecked === false, 'Registre désactivé : contrôle formel seulement', formal);
   await settings.updateOne({ key: 'businessRegistryCheck' }, { $set: { value: true } });
-  // Entreprise hors France : numéro au registre local → contrôle manuel systématique, visible dans la file admin
+  // Entreprise hors France : numéro au registre local accepté tel quel (Belgique : clé BCE contrôlée), vérifiée avec le second signal (site web ou email pro)
   const noId = await brandApi('POST', '/auth/business-verification', { country: 'CH', website: 'https://exemple.ch' });
   expect(noId.status === 400, 'Sans aucun identifiant la demande doit être refusée', noId);
   const swiss = await brandApi('POST', '/auth/business-verification', { country: 'CH', registrationNumber: 'CHE-123.456.789', website: 'https://exemple.ch' });
-  expect(swiss.status === 200 && swiss.data.business.status === 'pending' && /hors France \(CH\)/.test(swiss.data.business.note), 'Une entreprise suisse doit passer en contrôle manuel', swiss);
+  expect(swiss.status === 200 && swiss.data.business.status === 'verified', 'Une entreprise suisse avec son numéro et un site web est vérifiée sans contrôle manuel', swiss);
+  const badBe = await brandApi('POST', '/auth/business-verification', { country: 'BE', registrationNumber: '0403.170.702', website: 'https://exemple.be' });
+  const goodBe = await brandApi('POST', '/auth/business-verification', { country: 'BE', registrationNumber: '403170701', website: 'https://exemple.be' });
+  const storedBe = await users.findOne({ email: brandEmail }, { projection: { 'profile.company': 1 } });
+  expect(badBe.data.business?.status === 'rejected' && goodBe.data.business?.status === 'verified' && storedBe.profile.company.registrationNumber === '0403.170.701', 'Belgique : numéro BCE à la clé fausse refusé, bon numéro vérifié et mis au format 0123.456.789', { bad: badBe.data, good: goodBe.data, stored: storedBe.profile.company });
+  await brandApi('POST', '/auth/business-verification', { country: 'CH', registrationNumber: 'CHE-123.456.789', website: 'https://exemple.ch' });
   const stored = await users.findOne({ email: brandEmail }, { projection: { 'profile.company': 1, 'verification.business': 1 } });
-  expect(stored?.profile?.company?.country === 'CH' && stored.profile.company.registrationNumber === 'CHE-123.456.789' && stored.verification.business.status === 'pending', 'Pays et numéro d\'immatriculation doivent être enregistrés pour la file de contrôle manuel (admin)', stored);
+  expect(stored?.profile?.company?.country === 'CH' && stored.profile.company.registrationNumber === 'CHE-123.456.789' && stored.verification.business.status === 'verified', 'Pays et numéro d\'immatriculation doivent être enregistrés', stored);
   // Retour à une entreprise française vérifiée pour la suite du test
   const backFr = await brandApi('POST', '/auth/business-verification', { siret: '356 000 000 00048', website: 'https://exemple.fr' });
   expect(backFr.status === 200 && backFr.data.business.status === 'verified', 'Retour à la vérification française échoué', backFr);
-  return `registre : ${ok.data.registry?.legalName || 'injoignable, contrôle formel'} ; désactivation admin OK ; entreprise suisse → contrôle manuel`;
+  return `registre : ${ok.data.registry?.legalName || 'injoignable, contrôle formel'} ; désactivation admin OK ; entreprise suisse et belge vérifiées`;
 });
 
 await step('Inscription créateur (bio vide acceptée)', async () => {
@@ -1563,6 +1568,13 @@ await step('TVA : créateur assujetti → devis HT, marque paie TTC, créateur r
   expect((bySiren.status === 200 && /^356000000\d{5}$/.test(bySiren.data.legalInfo.siret) && bySiren.data.siretResolved === bySiren.data.legalInfo.siret) || (bySiren.status === 400 && /SIREN/.test(bySiren.data.error)), 'Un SIREN à 9 chiffres doit donner le SIRET du siège, ou un message clair si le registre ne répond pas', bySiren);
   const badNine = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '123456789', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, billingMandate: true });
   expect(badNine.status === 400 && /9 chiffres|SIREN/.test(badNine.data.error), 'Un numéro à 9 chiffres invalide doit être refusé avec une explication', badNine);
+  // Créatrice belge : numéro BCE (clé contrôlée, mis au format), TVA belge, aucune TVA française sur ses devis ; autre pays : numéro libre
+  const beAddr = { line1: '1 rue Neuve', postalCode: '1000', city: 'Bruxelles', country: 'Belgique' };
+  const beBad = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', country: 'BE', siret: '0403.170.702', address: beAddr, billingMandate: true });
+  const beOk = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', country: 'BE', siret: '0403170701', address: beAddr, vatRegistered: true, vatNumber: 'BE0403170701', billingMandate: true });
+  const chOk = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', country: 'CH', siret: 'CHE-123.456.789', address: { line1: '1 rue du Lac', postalCode: '1201', city: 'Genève', country: 'Suisse' }, billingMandate: true });
+  const { chargesFrenchVat } = await import('../src/utils/business.js');
+  expect(beBad.status === 400 && /BCE/.test(beBad.data.error) && beOk.status === 200 && beOk.data.legalInfo.country === 'BE' && beOk.data.legalInfo.siret === '0403.170.701' && beOk.data.hasLegalInfo && !chargesFrenchVat({ legalInfo: beOk.data.legalInfo }) && chOk.status === 200 && chOk.data.legalInfo.siret === 'CHE-123.456.789' && chOk.data.hasLegalInfo, 'Créateur hors de France : numéro BCE contrôlé en Belgique, numéro libre ailleurs, pas de TVA française', { beBad: beBad.data, beOk: beOk.data?.legalInfo, chOk: chOk.data?.legalInfo });
   const back = await c2Api('PUT', '/auth/legal-info', { firstName: 'Léa', lastName: 'Test', status: 'micro', siret: '35600000000048', address: { line1: '2 rue de la Paix', postalCode: '75002', city: 'Paris', country: 'France' }, vatRegistered: false, billingMandate: true });
   expect(back.status === 200 && back.data.legalInfo.vatRegistered === false, 'Retour en franchise échoué', back);
   return 'devis 100 HT → 120 TTC payés, 108 au créateur, commission 10 HT + 2 TVA';

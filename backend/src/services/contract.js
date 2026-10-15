@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit';
+import { companyIdLabel, isForeign, REVERSE_CHARGE_NOTE } from '../utils/business.js';
 import crypto from 'crypto';
 import { config } from '../config/index.js';
 import { uploadFile } from './storage.js';
@@ -38,7 +39,8 @@ export function buildContractData({ campaign, application, delivery, brand, crea
     parties: {
       brand: {
         legalName: brand.profile?.company?.legalName || brand.profile?.companyName,
-        siret: brand.profile?.company?.siret || null,
+        siret: brand.profile?.company?.siret || brand.profile?.company?.registrationNumber || null,
+        country: brand.profile?.company?.siret ? 'FR' : (brand.profile?.company?.country || 'FR'),
         vatNumber: brand.profile?.company?.vatNumber || null,
         address: brand.profile?.company?.registryAddress || null,
         signatoryName: bli.signatoryName || null,
@@ -52,6 +54,7 @@ export function buildContractData({ campaign, application, delivery, brand, crea
         vatNumber: cli.vatRegistered ? (cli.vatNumber || null) : null,
         companyName: cli.status === 'company' ? (cli.legalName || cli.companyName || null) : (cli.legalName || null),
         siret: cli.siret || null,
+        country: cli.country || 'FR',
         address: creatorAddress(cli) || cli.registryAddress || null,
         email: creator.email,
       },
@@ -143,7 +146,7 @@ function partiesBlock(doc, parties) {
   H(doc, '1. Parties');
   doc.font('Helvetica-Bold').text('La Marque (le Client)');
   KV(doc, 'Dénomination', b.legalName);
-  KV(doc, 'SIRET', b.siret); KV(doc, 'TVA intracommunautaire', b.vatNumber);
+  KV(doc, companyIdLabel(b.country, b.siret), b.siret); KV(doc, 'TVA intracommunautaire', b.vatNumber);
   KV(doc, 'Siège', b.address);
   KV(doc, 'Représentée par', [b.signatoryName, b.signatoryTitle].filter(Boolean).join(', '));
   KV(doc, 'Email', b.email);
@@ -151,9 +154,9 @@ function partiesBlock(doc, parties) {
   KV(doc, 'Nom', c.name);
   KV(doc, 'Statut', STATUS[c.status] || c.status);
   KV(doc, 'Raison sociale', c.companyName);
-  KV(doc, 'SIRET', c.siret);
+  KV(doc, companyIdLabel(c.country, c.siret), c.siret);
   KV(doc, 'Adresse', c.address);
-  KV(doc, 'TVA', c.vatRegistered ? `assujetti${c.vatNumber ? ` (${c.vatNumber})` : ''}` : 'non applicable, art. 293 B du CGI (franchise en base)');
+  KV(doc, 'TVA', isForeign(c.country) ? `prestataire établi hors de France${c.vatNumber ? ` (${c.vatNumber})` : ''} : autoliquidation par la Marque` : c.vatRegistered ? `assujetti${c.vatNumber ? ` (${c.vatNumber})` : ''}` : 'non applicable, art. 293 B du CGI (franchise en base)');
   KV(doc, 'Email', c.email);
   if (c.status === 'individual') P(doc, 'Le Créateur déclare agir à titre occasionnel et faire son affaire de la déclaration des revenus perçus.');
 }
@@ -200,7 +203,7 @@ export async function generateContractPdf(data) {
         KV(doc, `TVA (${data.vatRate} %)`, fmtEur(data.vatAmount).replace(' HT', ''));
         KV(doc, 'Total payé par la Marque (TTC)', fmtEur(data.paidTTC).replace(' HT', ' TTC'));
       } else {
-        P(doc, 'TVA non applicable au prix de la mission, art. 293 B du CGI (Créateur en franchise en base).');
+        P(doc, isForeign(data.parties?.creator?.country) ? `Prix sans TVA française, Créateur établi hors de France. ${REVERSE_CHARGE_NOTE}` : 'TVA non applicable au prix de la mission, art. 293 B du CGI (Créateur en franchise en base).');
       }
       P(doc, 'Le prix est bloqué par la Marque sur la plateforme à l\'acceptation du devis et débité à la validation de la livraison. Il est versé au Créateur, déduction faite de la commission de la plateforme prévue par les conditions générales, par virement sur son compte de paiement. La facture du Créateur à la Marque est établie par la plateforme au nom et pour le compte du Créateur (mandat de facturation accepté dans son profil).');
     }

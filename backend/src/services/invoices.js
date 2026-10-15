@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { companyIdLabel, isForeign, REVERSE_CHARGE_NOTE } from '../utils/business.js';
 import PDFDocument from 'pdfkit';
 import { config } from '../config/index.js';
 import { uploadFile } from './storage.js';
@@ -27,7 +28,7 @@ const counterSchema = new mongoose.Schema({ key: { type: String, unique: true },
 const Counter = mongoose.models.Counter || mongoose.model('Counter', counterSchema);
 
 const partySchema = new mongoose.Schema({
-  name: String, legalName: String, address: String, siret: String, vatNumber: String, email: String,
+  name: String, legalName: String, address: String, siret: String, country: String, vatNumber: String, email: String,
   vatRegistered: Boolean, status: String,
 }, { _id: false });
 
@@ -76,7 +77,7 @@ function creatorParty(user) {
   return {
     name: [li.firstName, li.lastName].filter(Boolean).join(' ') || user.profile?.name,
     legalName: li.status === 'company' ? (li.legalName || li.companyName || null) : (li.legalName || null),
-    address, siret: li.siret || null,
+    address, siret: li.siret || null, country: li.country || 'FR',
     vatRegistered: !!li.vatRegistered, vatNumber: li.vatRegistered ? (li.vatNumber || null) : null,
     status: li.status || null, email: user.email,
   };
@@ -87,7 +88,7 @@ function brandParty(user) {
   return {
     name: user.profile?.companyName || user.profile?.name,
     legalName: c.legalName || user.profile?.companyName || null,
-    address: c.registryAddress || null, siret: c.siret || null, vatNumber: c.vatNumber || null,
+    address: c.registryAddress || null, siret: c.siret || c.registrationNumber || null, country: c.siret ? 'FR' : (c.country || 'FR'), vatNumber: c.vatNumber || null,
     email: user.email, status: 'company', vatRegistered: !!c.vatNumber,
   };
 }
@@ -116,7 +117,7 @@ export function renderInvoicePdf(inv) {
       if (p.legalName && p.legalName !== p.name) doc.text(p.legalName, x);
       doc.text(p.name || '', x);
       if (p.address) doc.text(p.address, x, undefined, { width: 230 });
-      if (p.siret) doc.text(`${String(p.siret).replace(/\s/g, '').length === 9 ? 'SIREN' : 'SIRET'} ${p.siret}`, x);
+      if (p.siret) doc.text(`${companyIdLabel(p.country, p.siret)} ${p.siret}`, x);
       if (p.vatNumber) doc.text(`TVA ${p.vatNumber}`, x);
       if (p.email) doc.text(p.email, x);
     };
@@ -192,7 +193,8 @@ export async function issueCreatorInvoices({ delivery, creator, brand, campaignT
   if (!(amounts.ht > 0)) return out;
   const cParty = creatorParty(creator);
   const bParty = brandParty(brand);
-  const franchise = !cParty.vatRegistered;
+  const foreign = isForeign(cParty.country); // établi hors de France : sans TVA française, autoliquidée par la marque
+  const franchise = !cParty.vatRegistered || foreign;
   const key = `creator:${creator._id}`;
   const number = await nextNumber(key, `CR-${shortId(creator._id)}`, 4);
   out.push(await persist({
@@ -201,7 +203,7 @@ export async function issueCreatorInvoices({ delivery, creator, brand, campaignT
     deliveryId: delivery._id, campaignId: delivery.campaignId?._id || delivery.campaignId, source,
     lines: [{ label, quantity: 1, unitHT: r2(amounts.ht), totalHT: r2(amounts.ht) }],
     totals: { ht: r2(amounts.ht), vatRate: franchise ? 0 : amounts.vatRate, vat: r2(amounts.vat), ttc: r2(amounts.ttc) },
-    vatNote: franchise ? 'TVA non applicable, art. 293 B du CGI.' : null,
+    vatNote: foreign ? REVERSE_CHARGE_NOTE : franchise ? 'TVA non applicable, art. 293 B du CGI.' : null,
     mandate: true,
     paymentNote: `Réglée via ${PLATFORM.brand} (paiement bloqué à la commande, versé à la validation). ${campaignTitle ? `Campagne : ${campaignTitle}.` : ''}`,
   }));
@@ -346,7 +348,7 @@ export async function renderStatementPdf(user, month) {
     const chunks = []; doc.on('data', (c) => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);
     doc.font('Helvetica-Bold').fontSize(18).fillColor('#111').text(`Relevé ${isBrand ? 'de factures' : "d'activité"} — ${label}`);
     const party = isBrand ? brandParty(user) : creatorParty(user);
-    doc.font('Helvetica').fontSize(10).fillColor('#444').text(`${party.legalName && party.legalName !== party.name ? party.legalName + ' · ' : ''}${party.name}${party.siret ? ` · SIRET ${party.siret}` : ''}${party.vatNumber ? ` · TVA ${party.vatNumber}` : ''}`);
+    doc.font('Helvetica').fontSize(10).fillColor('#444').text(`${party.legalName && party.legalName !== party.name ? party.legalName + ' · ' : ''}${party.name}${party.siret ? ` · ${companyIdLabel(party.country, party.siret)} ${party.siret}` : ''}${party.vatNumber ? ` · TVA ${party.vatNumber}` : ''}`);
     doc.text(`Établi le ${fmtDate(new Date())} par ${PLATFORM.brand} (${PLATFORM.name}). Document récapitulatif, sans valeur de facture : les factures listées font foi.`);
     doc.moveDown(1);
 
@@ -379,7 +381,7 @@ export async function renderStatementPdf(user, month) {
       const ca = sum(sales, i => i.totals.ht), vat = sum(sales, i => i.totals.vat), feeTTC = sum(fees, i => i.totals.ttc), net = r2(sum(sales, i => i.totals.ttc) - feeTTC);
       doc.font('Helvetica-Bold').fontSize(11).text(`Chiffre d'affaires facturé : ${fmt(ca)} HT${vat ? ` · TVA collectée : ${fmt(vat)}` : ''}`);
       doc.text(`Commissions NeedCreator : ${fmt(feeTTC)} TTC · Net versé sur votre compte Stripe : ${fmt(net)}`);
-      if (!party.vatRegistered) { doc.moveDown(0.4); doc.font('Helvetica').fontSize(9).fillColor('#555').text('Franchise en base de TVA (art. 293 B du CGI) : à déclarer dans vos recettes selon votre régime. La TVA figurant sur les commissions NeedCreator est un coût, non récupérable.'); }
+      if (!party.vatRegistered && !isForeign(party.country)) { doc.moveDown(0.4); doc.font('Helvetica').fontSize(9).fillColor('#555').text('Franchise en base de TVA (art. 293 B du CGI) : à déclarer dans vos recettes selon votre régime. La TVA figurant sur les commissions NeedCreator est un coût, non récupérable.'); }
     }
     doc.end();
   });

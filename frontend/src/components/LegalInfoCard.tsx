@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { COUNTRIES, countryName, companyIdLabel } from '@/lib/countries';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import Card from '@/components/ui/Card';
@@ -28,7 +29,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
   const complete = !!profile.hasLegalInfo;
   const [editing, setEditing] = useState(!complete);
   const [form, setForm] = useState<any>({
-    firstName: li.firstName || '', lastName: li.lastName || '', status: li.status || 'micro', companyName: li.companyName || '', siret: li.siret || '',
+    firstName: li.firstName || '', lastName: li.lastName || '', status: li.status || 'micro', companyName: li.companyName || '', siret: li.siret || '', country: li.country || 'FR',
     address: { line1: '', line2: '', postalCode: '', city: '', country: 'France', ...(li.address || {}) },
     individualAcknowledged: !!li.individualAcknowledged,
     vatRegistered: !!li.vatRegistered, vatNumber: li.vatNumber || '', billingMandate: !!li.billingMandateAcceptedAt,
@@ -41,7 +42,7 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     mutationFn: async () => {
       const body = isBrand
         ? { signatoryName: form.signatoryName, signatoryTitle: form.signatoryTitle }
-        : { firstName: form.firstName, lastName: form.lastName, status: form.status, companyName: form.companyName, siret: form.status === 'individual' ? '' : form.siret, address: form.address, individualAcknowledged: form.individualAcknowledged, vatRegistered: form.status !== 'individual' && form.vatRegistered, vatNumber: form.vatRegistered ? form.vatNumber : '', billingMandate: form.billingMandate };
+        : { firstName: form.firstName, lastName: form.lastName, status: form.status, companyName: form.companyName, country: form.country, siret: form.status === 'individual' ? '' : form.siret, address: form.address, individualAcknowledged: form.individualAcknowledged, vatRegistered: form.status !== 'individual' && form.vatRegistered, vatNumber: form.vatRegistered ? form.vatNumber : '', billingMandate: form.billingMandate };
       return (await api.put('/auth/legal-info', body)).data;
     },
     onSuccess: async (data) => {
@@ -59,7 +60,9 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
     ? (form.signatoryName.trim().length >= 2 ? [] : ['le nom du signataire'])
     : [
         !form.firstName && 'le prénom', !form.lastName && 'le nom',
-        form.status !== 'individual' && ![9, 14].includes(form.siret.replace(/\s/g, '').length) && `un SIRET de 14 chiffres, ou votre SIREN de 9 chiffres (${form.siret.replace(/\s/g, '').length} saisis)`,
+        form.status !== 'individual' && form.country === 'FR' && ![9, 14].includes(form.siret.replace(/\s/g, '').length) && `un SIRET de 14 chiffres, ou votre SIREN de 9 chiffres (${form.siret.replace(/\s/g, '').length} saisis)`,
+        form.status !== 'individual' && form.country === 'BE' && ![9, 10].includes(form.siret.replace(/^BE/i, '').replace(/[\s.-]/g, '').length) && 'votre numéro d\'entreprise BCE (10 chiffres)',
+        form.status !== 'individual' && !['FR', 'BE'].includes(form.country) && form.siret.trim().length < 3 && 'le numéro d\'immatriculation de votre entreprise',
         form.status === 'individual' && !form.individualAcknowledged && 'la déclaration « activité occasionnelle »',
         form.vatRegistered && form.vatNumber.trim().length < 4 && 'le numéro de TVA intracommunautaire',
         !form.address.line1 && "l'adresse", !form.address.postalCode && 'le code postal', !form.address.city && 'la ville',
@@ -92,8 +95,8 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
             <>
               <div><strong>{li.firstName} {li.lastName}</strong> · {STATUS_LABELS[li.status] || '—'}</div>
               {li.legalName && <div>{li.legalName}{li.registryChecked ? ' (vérifiée au registre)' : ''}</div>}
-              {li.siret && <div>SIRET {li.siret}</div>}
-              <div>{li.vatRegistered ? `Assujetti à la TVA${li.vatNumber ? ` (${li.vatNumber})` : ''} : vos devis sont HT, la marque paie la TVA en plus` : 'Non assujetti à la TVA (franchise en base) : vos devis sont facturés sans TVA'}</div>
+              {li.siret && <div>{companyIdLabel(li.country, li.siret)} {li.siret}{li.country && li.country !== 'FR' ? ` (${countryName(li.country)})` : ''}</div>}
+              <div>{li.country && li.country !== 'FR' ? `Établi hors de France${li.vatRegistered && li.vatNumber ? ` (TVA ${li.vatNumber})` : ''} : vos devis et factures sont sans TVA française, la marque l'autoliquide` : li.vatRegistered ? `Assujetti à la TVA${li.vatNumber ? ` (${li.vatNumber})` : ''} : vos devis sont HT, la marque paie la TVA en plus` : 'Non assujetti à la TVA (franchise en base) : vos devis sont facturés sans TVA'}</div>
               {li.billingMandateAcceptedAt && <div className="text-xs text-neutral-500">Mandat de facturation accepté le {new Date(li.billingMandateAcceptedAt).toLocaleDateString('fr-FR')} : NeedCreator émet vos factures en votre nom.</div>}
               {li.address?.line1 && <div>{li.address.line1}{li.address.line2 ? `, ${li.address.line2}` : ''}, {li.address.postalCode} {li.address.city}, {li.address.country}</div>}
             </>
@@ -121,11 +124,28 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
               {Object.entries(STATUS_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">Pays de votre {form.status === 'individual' ? 'résidence' : 'entreprise'}</label>
+            <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, address: { ...form.address, country: countryName(e.target.value) } })} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" data-testid="legal-country">
+              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+            </select>
+          </div>
           {form.status === 'company' && <Input label="Raison sociale" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />}
           {form.status !== 'individual' ? (
             <div>
-              <Input label="SIRET (14 chiffres) ou SIREN (9 chiffres)" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="123 456 789 00012" />
-              <p className="text-xs text-neutral-500 mt-1">Vous n&apos;avez que 9 chiffres ? C&apos;est votre SIREN : saisissez-le, le SIRET de votre siège est retrouvé au registre national.</p>
+              {form.country === 'FR' ? (
+                <>
+                  <Input label="SIRET (14 chiffres) ou SIREN (9 chiffres)" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="123 456 789 00012" />
+                  <p className="text-xs text-neutral-500 mt-1">Vous n&apos;avez que 9 chiffres ? C&apos;est votre SIREN : saisissez-le, le SIRET de votre siège est retrouvé au registre national.</p>
+                </>
+              ) : form.country === 'BE' ? (
+                <Input label="Numéro d'entreprise (BCE, 10 chiffres)" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="0123.456.789" />
+              ) : (
+                <>
+                  <Input label="Numéro d'immatriculation de votre entreprise" value={form.siret} onChange={(e) => set('siret', e.target.value)} placeholder="Le numéro au registre de votre pays" />
+                  <p className="text-xs text-neutral-500 mt-1">Celui qui figure sur vos factures (par exemple IDE en Suisse, RCS au Luxembourg).</p>
+                </>
+              )}
             </div>
           ) : (
             <label className="flex items-start gap-2 text-sm text-neutral-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
@@ -137,10 +157,11 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
             <div className="space-y-2">
               <label className="block text-sm font-medium text-neutral-700">TVA</label>
               <select value={form.vatRegistered ? 'yes' : 'no'} onChange={(e) => set('vatRegistered', e.target.value === 'yes')} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-                <option value="no">Non assujetti (franchise en base, cas général des micro-entrepreneurs) : devis sans TVA</option>
-                <option value="yes">Assujetti à la TVA : devis HT, la marque paie la TVA en plus</option>
+                <option value="no">{form.country === 'FR' ? 'Non assujetti (franchise en base, cas général des micro-entrepreneurs) : devis sans TVA' : 'Non assujetti à la TVA dans mon pays (franchise)'}</option>
+                <option value="yes">{form.country === 'FR' ? 'Assujetti à la TVA : devis HT, la marque paie la TVA en plus' : 'Assujetti à la TVA dans mon pays'}</option>
               </select>
-              {form.vatRegistered && <Input label="Numéro de TVA intracommunautaire" value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} placeholder="FR12345678901" />}
+              {form.vatRegistered && <Input label="Numéro de TVA" value={form.vatNumber} onChange={(e) => set('vatNumber', e.target.value)} placeholder={form.country === 'FR' ? 'FR12345678901' : form.country === 'BE' ? 'BE0123456789' : 'Votre numéro de TVA'} />}
+              {form.country !== 'FR' && <p className="text-xs text-neutral-500">Établi hors de France : vos devis et factures sont émis sans TVA française, la marque l&apos;autoliquide (mention ajoutée automatiquement).</p>}
             </div>
           )}
           <Input label="Adresse" value={form.address.line1} onChange={(e) => setAddr('line1', e.target.value)} placeholder="12 rue des Lilas" />

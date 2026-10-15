@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { config } from '../config/index.js';
+import { companyIdLabel, isForeign, REVERSE_CHARGE_NOTE } from '../utils/business.js';
 
 const RIGHTS_DURATION = { '6m': '6 mois', '1y': '1 an', '2y': '2 ans', '3y': '3 ans', unlimited: 'illimitée' };
 const SUPPORTS = { social_organic: 'réseaux sociaux (organique)', paid_ads: 'publicité payante', website: 'site web / page produit', email: 'emailing', marketplace: 'marketplaces', tv: 'TV / affichage', other: 'autre' };
@@ -19,7 +20,7 @@ export function renderQuotePdf({ number, creator, creatorLegal, client, mission,
     const top = doc.y;
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text('Prestataire', 50, top);
     doc.font('Helvetica').fontSize(10).fillColor('#222');
-    [creatorLegal.name, creatorLegal.companyName, creatorLegal.address, creatorLegal.siret ? `SIRET ${creatorLegal.siret}` : null, creatorLegal.vatNumber ? `TVA ${creatorLegal.vatNumber}` : (creatorLegal.vatRegistered ? null : 'TVA non applicable, art. 293 B du CGI'), creator.email].filter(Boolean).forEach(l => doc.text(l, 50, undefined, { width: 230 }));
+    [creatorLegal.name, creatorLegal.companyName, creatorLegal.address, creatorLegal.siret ? `${companyIdLabel(creatorLegal.country, creatorLegal.siret)} ${creatorLegal.siret}` : null, creatorLegal.vatNumber ? `TVA ${creatorLegal.vatNumber}` : (creatorLegal.vatRegistered || isForeign(creatorLegal.country) ? null : 'TVA non applicable, art. 293 B du CGI'), creator.email].filter(Boolean).forEach(l => doc.text(l, 50, undefined, { width: 230 }));
     const y1 = doc.y;
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text('Client', 320, top);
     doc.font('Helvetica').fontSize(10).fillColor('#222');
@@ -42,6 +43,7 @@ export function renderQuotePdf({ number, creator, creatorLegal, client, mission,
     doc.font('Helvetica').fontSize(10).fillColor('#222').text(`Prix HT : ${fmt(quote.price)}`, 320, doc.y, { align: 'right', width: 225 });
     if (quote.vatRate) { doc.text(`TVA ${quote.vatRate} % : ${fmt(vat)}`, 320, undefined, { align: 'right', width: 225 }); }
     doc.font('Helvetica-Bold').fontSize(12).fillColor('#111').text(`Total ${quote.vatRate ? 'TTC' : ''} : ${fmt(quote.price + vat)}`, 320, undefined, { align: 'right', width: 225 });
+    if (isForeign(creatorLegal.country)) doc.font('Helvetica').fontSize(9).fillColor('#555').text(REVERSE_CHARGE_NOTE, 320, undefined, { align: 'right', width: 225 });
     doc.moveDown(1.2); doc.x = 50;
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#111').text('Règlement', 50, doc.y);
     doc.font('Helvetica').fontSize(10).fillColor('#222').text(`Paiement sécurisé via NeedCreator : le montant est bloqué à l'acceptation et versé au prestataire après validation des vidéos, un contrat de cession de droits est généré automatiquement. Lien : ${payLink}`, { width: 495 });

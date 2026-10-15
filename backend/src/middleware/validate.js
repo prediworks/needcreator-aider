@@ -78,7 +78,8 @@ export const schemas = {
     lastName: Joi.string().trim().min(1).max(80).required(),
     status: Joi.string().valid('micro', 'company', 'individual').required(),
     companyName: Joi.string().trim().max(120).allow(''),
-    siret: Joi.string().trim().pattern(/^[0-9 ]{9,17}$/).allow(''),
+    country: Joi.string().trim().length(2).uppercase().default('FR'), // pays d'immatriculation : FR = SIRET, BE = BCE, autre = numéro local
+    siret: Joi.string().trim().max(40).allow('').when('country', { is: 'FR', then: Joi.string().pattern(/^[0-9 ]{9,17}$/) }),
     address: Joi.object({
       line1: Joi.string().trim().min(2).max(120).required(),
       line2: Joi.string().trim().max(120).allow(''),

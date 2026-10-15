@@ -28,6 +28,7 @@ import {
   sendShareAfterMission,
 } from '../services/email.js';
 import { updateBrandStats } from '../utils/brandStats.js';
+import { chargesFrenchVat } from '../utils/business.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
@@ -88,7 +89,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
     ? round2(giftingFeeHT * (1 + config.vat.rate / 100))
     : (price ?? application?.price ?? campaign.budget?.total);
   // TVA du créateur : figée au devis, sinon statut actuel du profil
-  const vatRate = application?.quote?.vatRate ?? (creatorDoc?.legalInfo?.vatRegistered ? config.vat.rate : 0);
+  const vatRate = application?.quote?.vatRate ?? (chargesFrenchVat(creatorDoc) ? config.vat.rate : 0);
   const days = application?.estimatedDeliveryDays || 7;
   const delivery = new Delivery({
     campaignId: campaign._id,

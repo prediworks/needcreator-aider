@@ -10,7 +10,7 @@ import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { deleteFile } from '../services/storage.js';
 import logger from '../utils/logger.js';
-import { isValidSiret, isValidVat, lookupRegistry } from '../utils/business.js';
+import { isValidSiret, isValidVat, lookupRegistry, isValidBce, formatBce } from '../utils/business.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 
 const ACTIVE_DELIVERY = ['pending', 'submitted', 'revision_requested'];
@@ -45,9 +45,17 @@ export async function updateLegalInfo(req, res) {
       return res.json({ legalInfo: user.legalInfo, hasLegalInfo: user.hasLegalInfo() });
     }
 
-    let siret = (body.siret || '').replace(/\s/g, '');
+    const country = String(body.country || 'FR').toUpperCase();
+    let siret = country === 'FR' ? (body.siret || '').replace(/\s/g, '') : String(body.siret || '').trim();
     let siretResolved = false;
-    if (body.status !== 'individual') {
+    if (body.status !== 'individual' && country === 'BE') {
+      // Belgique : numéro d'entreprise BCE, clé de contrôle vérifiée (pas de registre interrogé)
+      if (!isValidBce(siret)) return res.status(400).json({ error: 'Numéro d\'entreprise belge (BCE) invalide : 10 chiffres, par exemple 0123.456.789' });
+      siret = formatBce(siret);
+    } else if (body.status !== 'individual' && country !== 'FR') {
+      // Autre pays : numéro au registre local, accepté tel quel
+      if (siret.length < 3) return res.status(400).json({ error: 'Indiquez le numéro d\'immatriculation de votre entreprise dans votre pays' });
+    } else if (body.status !== 'individual') {
       if (!siret) return res.status(400).json({ error: 'Le SIRET est obligatoire pour un micro-entrepreneur ou une société' });
       // 9 chiffres : c'est le SIREN ; le SIRET du siège est retrouvé au registre national
       if (/^\d{9}$/.test(siret)) {
@@ -61,12 +69,12 @@ export async function updateLegalInfo(req, res) {
     }
     const vatRegistered = body.status !== 'individual' && !!body.vatRegistered;
     const vatNumber = vatRegistered ? String(body.vatNumber || '').replace(/\s/g, '').toUpperCase() : '';
-    if (vatRegistered && !isValidVat(vatNumber)) return res.status(400).json({ error: 'Numéro de TVA intracommunautaire invalide (ex. FR12345678901)' });
+    if (vatRegistered && !isValidVat(vatNumber)) return res.status(400).json({ error: `Numéro de TVA invalide (ex. ${country === 'BE' ? 'BE0123456789' : 'FR12345678901'})` });
     if (!body.billingMandate && !user.legalInfo?.billingMandateAcceptedAt) return res.status(400).json({ error: 'Acceptez le mandat de facturation : NeedCreator émet vos factures en votre nom pour chaque mission.' });
 
     let registry = null;
     const registryEnabled = await getSetting(SETTINGS.businessRegistryCheck.key, SETTINGS.businessRegistryCheck.default);
-    if (siret && registryEnabled) {
+    if (siret && registryEnabled && country === 'FR') {
       registry = await lookupRegistry({ siret });
       if (registry?.found === false) return res.status(400).json({ error: 'SIRET introuvable au registre national des entreprises. Vérifiez le numéro.' });
       if (registry?.found && !registry.active) return res.status(400).json({ error: `Établissement fermé ou inactif au registre (${registry.legalName})` });
@@ -77,6 +85,7 @@ export async function updateLegalInfo(req, res) {
       lastName: body.lastName,
       status: body.status,
       companyName: body.companyName || '',
+      country,
       siret: siret || '',
       legalName: registry?.found ? registry.legalName : '',
       registryAddress: registry?.found ? registry.address : '',

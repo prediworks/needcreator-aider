@@ -98,7 +98,7 @@ export async function getPayouts(req, res) {
     await syncExternalIncomes(user._id).catch(() => {});
     const ytdExternal = await externalIncomeYtd(user._id, year);
     const ytdTotal = Math.round((ytd + ytdExternal) * 100) / 100;
-    const thresholds = user.legalInfo?.status === 'micro' ? {
+    const thresholds = user.legalInfo?.status === 'micro' && (user.legalInfo?.country || 'FR') === 'FR' ? { // seuils français uniquement
       revenue: config.business.microRevenueThreshold,
       vat: config.business.vatFranchiseThreshold,
       vatTolerance: config.business.vatFranchiseTolerance,

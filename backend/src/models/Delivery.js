@@ -181,8 +181,8 @@ const deliverySchema = new mongoose.Schema({
     generatedAt: Date,
     termsVersion: String,
     parties: {
-      brand: { legalName: String, siret: String, vatNumber: String, address: String, signatoryName: String, signatoryTitle: String, email: String },
-      creator: { name: String, status: String, companyName: String, siret: String, address: String, email: String },
+      brand: { legalName: String, siret: String, country: String, vatNumber: String, address: String, signatoryName: String, signatoryTitle: String, email: String },
+      creator: { name: String, status: String, companyName: String, siret: String, country: String, address: String, email: String },
     },
     mission: { title: String, deliverables: Number, videoType: String, estimatedDeliveryDays: Number, revisions: Number, terms: String, brief: mongoose.Schema.Types.Mixed },
     rights: {

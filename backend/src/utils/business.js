@@ -57,16 +57,15 @@ export function evaluateBusiness({ siret, vatNumber, website, email, country = '
   const siretOk = siret ? isValidSiret(siret) : false;
   const vatOk = vatNumber ? isValidVat(vatNumber) : false;
   const freeEmail = isFreeEmail(email);
-  // Entreprise hors France sans identifiant vérifiable automatiquement : numéro au registre local → contrôle manuel systématique
-  const foreign = String(country || 'FR').toUpperCase() !== 'FR';
-  if (!siretOk && !vatOk && foreign && registrationNumber) {
-    reasons.push(`Entreprise immatriculée hors France (${String(country).toUpperCase()}) : contrôle manuel sous 24 h à partir du numéro ${registrationNumber}${website ? '' : ' (ajoutez votre site web pour faciliter le contrôle)'}`);
-    return { status: 'pending', reasons, identifierValid: false, freeEmail, foreign: true };
-  }
+  // Entreprise hors France : numéro au registre local accepté tel quel (Belgique : clé BCE contrôlée), même règle du second signal ensuite
+  const c = String(country || 'FR').toUpperCase();
+  const foreign = c !== 'FR';
+  const regOk = foreign && !!registrationNumber && (c === 'BE' ? isValidBce(registrationNumber) : String(registrationNumber).trim().length >= 4);
   if (siret && !siretOk) reasons.push('SIRET invalide');
   if (vatNumber && !vatOk) reasons.push('Numéro de TVA invalide');
-  if (!siretOk && !vatOk) reasons.push('Aucun identifiant d\'entreprise valide');
-  const valid = siretOk || vatOk;
+  if (foreign && registrationNumber && !regOk) reasons.push(c === 'BE' ? 'Numéro d\'entreprise BCE invalide' : 'Numéro d\'immatriculation trop court');
+  if (!siretOk && !vatOk && !regOk) reasons.push('Aucun identifiant d\'entreprise valide');
+  const valid = siretOk || vatOk || regOk;
   // Règle : identifiant d'entreprise valide + un second signal de confiance (email au nom de l'entreprise OU site web) = vérifiée.
   // Email grand public (gmail…) sans site web = contrôle manuel sous 24 h.
   let status = 'rejected';
@@ -77,7 +76,7 @@ export function evaluateBusiness({ siret, vatNumber, website, email, country = '
       reasons.push('Email grand public sans site web : contrôle manuel sous 24 h (ajoutez votre site web pour une vérification immédiate)');
     }
   }
-  return { status, reasons, identifierValid: valid, freeEmail };
+  return { status, reasons, identifierValid: valid, freeEmail, foreign };
 }
 
 /**
@@ -135,3 +134,34 @@ export async function resolveSiretFromSiren(siren) {
   if (!registry.found || !registry.siret) return { error: 'SIREN introuvable au registre national des entreprises. Vérifiez le numéro, ou saisissez les 14 chiffres du SIRET.' };
   return { siret: registry.siret, registry };
 }
+
+/**
+ * Entreprises hors France : France = SIRET (contrôlé au registre), Belgique = numéro BCE (clé modulo 97 contrôlée),
+ * tout autre pays = numéro au registre local, accepté tel quel (aucune vérification possible à distance).
+ */
+export const COMPANY_ID_LABEL = { FR: 'SIRET', BE: 'BCE' };
+
+export function companyIdLabel(country = 'FR', id = '') {
+  const c = String(country || 'FR').toUpperCase();
+  if (c === 'FR') return String(id || '').replace(/\s/g, '').length === 9 ? 'SIREN' : 'SIRET';
+  return COMPANY_ID_LABEL[c] || 'N° d\'entreprise';
+}
+
+/** Numéro d'entreprise belge (BCE) : 10 chiffres (0 ou 1 en tête ; 9 chiffres = ancien format, 0 ajouté), 97 − (8 premiers mod 97) = 2 derniers */
+export function normalizeBce(v = '') {
+  let d = String(v).replace(/^BE/i, '').replace(/[\s.\-]/g, '');
+  if (/^\d{9}$/.test(d)) d = `0${d}`;
+  return d;
+}
+export function isValidBce(v = '') {
+  const d = normalizeBce(v);
+  if (!/^[01]\d{9}$/.test(d)) return false;
+  return 97 - (parseInt(d.slice(0, 8), 10) % 97) === parseInt(d.slice(8), 10);
+}
+export const formatBce = (v = '') => { const d = normalizeBce(v); return /^\d{10}$/.test(d) ? `${d.slice(0, 4)}.${d.slice(4, 7)}.${d.slice(7)}` : String(v || ''); };
+
+/** Prestataire établi hors de France : facture sans TVA française, autoliquidée par la marque cliente */
+export const REVERSE_CHARGE_NOTE = 'Autoliquidation : TVA due par le preneur (art. 283-2 du CGI, art. 196 de la directive 2006/112/CE).';
+export const isForeign = (country) => String(country || 'FR').toUpperCase() !== 'FR';
+/** Le créateur facture-t-il la TVA française ? Assujetti et établi en France ; hors de France, autoliquidation par la marque */
+export const chargesFrenchVat = (user) => !!user?.legalInfo?.vatRegistered && !isForeign(user?.legalInfo?.country);

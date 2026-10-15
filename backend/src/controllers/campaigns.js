@@ -20,6 +20,7 @@ import { notify } from '../services/notifications.js';
 import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAlerts.js';
 import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
+import { chargesFrenchVat } from '../utils/business.js';
 import logger from '../utils/logger.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
@@ -578,7 +579,7 @@ export async function applyToCampaign(req, res) {
         deliveryTypes,
         platforms: platforms?.length ? platforms : campaign.brief.platforms,
         revisions: revisions ?? maxRevisions,
-        vatRate: creator.legalInfo?.vatRegistered ? config.vat.rate : 0,
+        vatRate: chargesFrenchVat(creator) ? config.vat.rate : 0,
         terms,
         history: [],
       },
@@ -661,7 +662,7 @@ export async function updateQuote(req, res) {
     application.quote.deliveryTypes = deliveryTypes;
     application.quote.platforms = platforms?.length ? platforms : campaign.brief.platforms;
     application.quote.revisions = revisions ?? maxRevisions;
-    application.quote.vatRate = creator.legalInfo?.vatRegistered ? config.vat.rate : 0;
+    application.quote.vatRate = chargesFrenchVat(creator) ? config.vat.rate : 0;
     application.quote.terms = terms;
     // Un nouveau devis remplace une contre-proposition en attente
     if (application.counterOffer?.status === 'pending') {

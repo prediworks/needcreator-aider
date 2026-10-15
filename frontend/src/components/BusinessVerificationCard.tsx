@@ -9,12 +9,12 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { isFreeEmail, emailDomain } from '@/lib/email';
+import { COUNTRIES } from '@/lib/countries';
 import { ShieldCheck, ShieldAlert, Clock } from 'lucide-react';
 
-const EU_COUNTRIES = ['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'DE', 'EL', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'];
 
 /**
- * Vérification de l'entreprise (marque) : SIRET ou TVA (site web facultatif) + email pro
+ * Vérification de l'entreprise (marque) : SIRET ou TVA en France, numéro d'entreprise ou TVA ailleurs (site web facultatif) + email pro
  */
 export default function BusinessVerificationCard({ profile }: { profile: any }) {
   const refreshUser = useAuthStore((s) => s.refreshUser);
@@ -24,18 +24,18 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
   const [vat, setVat] = useState(profile.profile?.company?.vatNumber || '');
   const [website, setWebsite] = useState(profile.profile?.website || '');
   const initialCountry = profile.profile?.company?.country || 'FR';
-  const [zone, setZone] = useState<'FR' | 'EU' | 'OTHER'>(initialCountry === 'FR' ? 'FR' : EU_COUNTRIES.includes(initialCountry) ? 'EU' : 'OTHER');
-  const [country, setCountry] = useState(initialCountry);
+  const [country, setCountry] = useState(COUNTRIES.some(c => c.code === initialCountry) ? initialCountry : 'FR');
+  const fr = country === 'FR';
   const [registrationNumber, setRegistrationNumber] = useState(profile.profile?.company?.registrationNumber || '');
   const [open, setOpen] = useState(business.status !== 'verified');
-  const canSubmit = zone === 'FR' ? !!(siret || vat) : zone === 'EU' ? !!vat : !!(country.length === 2 && registrationNumber.trim().length >= 4);
+  const canSubmit = fr ? !!(siret || vat) : !!(vat || registrationNumber.trim().length >= 4);
 
   const verify = useMutation({
     mutationFn: async () => (await api.post('/auth/business-verification', {
-      siret: zone === 'FR' && siret ? siret : undefined,
-      vatNumber: zone !== 'OTHER' && vat ? vat : undefined,
-      country: zone === 'FR' ? 'FR' : zone === 'EU' ? (vat.trim().slice(0, 2).toUpperCase() || undefined) : country.toUpperCase(),
-      registrationNumber: zone === 'OTHER' && registrationNumber ? registrationNumber : undefined,
+      siret: fr && siret ? siret : undefined,
+      vatNumber: vat ? vat : undefined,
+      country,
+      registrationNumber: !fr && registrationNumber ? registrationNumber : undefined,
       website: website || undefined,
     })).data,
     onSuccess: async (d) => {
@@ -69,37 +69,32 @@ export default function BusinessVerificationCard({ profile }: { profile: any }) 
       {open && (
         <div className="space-y-3">
           <div>
-            <label htmlFor="business-zone" className="block text-sm font-medium text-neutral-700 mb-1">Où votre entreprise est-elle immatriculée ?</label>
-            <select id="business-zone" value={zone} onChange={(e) => setZone(e.target.value as any)} className="border border-neutral-300 rounded-lg px-3 py-2 text-sm">
-              <option value="FR">France</option>
-              <option value="EU">Autre pays de l&apos;Union européenne</option>
-              <option value="OTHER">Hors Union européenne (Suisse, Royaume-Uni, États-Unis…)</option>
+            <label htmlFor="business-country" className="block text-sm font-medium text-neutral-700 mb-1">Où votre entreprise est-elle immatriculée ?</label>
+            <select id="business-country" value={country} onChange={(e) => setCountry(e.target.value)} className="border border-neutral-300 rounded-lg px-3 py-2 text-sm" data-testid="business-country">
+              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
           </div>
-          {zone === 'FR' && <p className="text-sm text-neutral-600">Indiquez votre SIRET ou votre numéro de TVA intracommunautaire : il est contrôlé au registre national des entreprises.</p>}
-          {zone === 'EU' && <p className="text-sm text-neutral-600">Indiquez votre numéro de TVA intracommunautaire (deux lettres du pays puis le numéro). Son format est contrôlé ; l&apos;email professionnel ou le site web confirme la vérification.</p>}
-          {zone === 'OTHER' && <p className="text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-lg p-3">Hors Union européenne, notre équipe contrôle votre entreprise manuellement sous 24 h à partir de votre numéro d&apos;immatriculation au registre de votre pays (UID pour la Suisse, Company number pour le Royaume-Uni, EIN pour les États-Unis…). Ajoutez votre site web pour faciliter le contrôle.</p>}
-          {zone !== 'OTHER' && (isFreeEmail(profile.email) ? (
-            <p className="text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-lg p-3">Votre adresse <strong>{emailDomain(profile.email)}</strong> est une adresse grand public : sans site web, notre équipe contrôle votre entreprise manuellement sous 24 h. <strong>Ajoutez votre site web ci-dessous pour une vérification immédiate.</strong></p>
+          {fr ? <p className="text-sm text-neutral-600">Indiquez votre SIRET ou votre numéro de TVA intracommunautaire : il est contrôlé au registre national des entreprises.</p>
+            : <p className="text-sm text-neutral-600">Indiquez le numéro de votre entreprise au registre de votre pays{country === 'BE' ? ' (BCE, 10 chiffres)' : ''}, ou votre numéro de TVA. Il est enregistré tel quel ; l&apos;email professionnel ou le site web confirme la vérification.</p>}
+          {isFreeEmail(profile.email) ? (
+            <p className="text-sm text-orange-800 bg-orange-50 border border-orange-200 rounded-lg p-3">Votre adresse <strong>{emailDomain(profile.email)}</strong> est une adresse grand public : sans site web, notre équipe contrôle votre entreprise manuellement sous 24 h. <strong>Ajoutez votre site web</strong> pour une vérification immédiate.</p>
           ) : (
             <p className="text-sm text-neutral-600">Votre adresse email est au nom de votre entreprise : la vérification est immédiate. Le site web est facultatif.</p>
-          ))}
-          {zone === 'FR' && (
+          )}
+          {fr ? (
             <div className="grid sm:grid-cols-2 gap-3">
               <Input label="SIRET (14 chiffres) ou SIREN (9 chiffres)" value={siret} onChange={(e) => setSiret(e.target.value)} placeholder="732 829 320 00074" />
               <Input label="ou numéro de TVA" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="FR40303265045" />
             </div>
-          )}
-          {zone === 'EU' && <Input label="Numéro de TVA intracommunautaire" value={vat} onChange={(e) => setVat(e.target.value)} placeholder="BE0123456789, DE123456789…" />}
-          {zone === 'OTHER' && (
-            <div className="grid sm:grid-cols-[120px_1fr] gap-3">
-              <Input label="Pays (code)" value={country === 'FR' ? '' : country} onChange={(e) => setCountry(e.target.value.toUpperCase().slice(0, 2))} placeholder="CH, GB, US…" maxLength={2} />
-              <Input label="Numéro d'immatriculation" value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="CHE-123.456.789, 01234567, 12-3456789…" />
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input label={country === 'BE' ? "Numéro d'entreprise (BCE)" : "Numéro d'immatriculation"} value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder={country === 'BE' ? '0123.456.789' : 'Le numéro au registre de votre pays'} />
+              <Input label="ou numéro de TVA" value={vat} onChange={(e) => setVat(e.target.value)} placeholder={country === 'BE' ? 'BE0123456789' : 'Votre numéro de TVA'} />
             </div>
           )}
-          <Input label={zone === 'OTHER' ? 'Site web (recommandé)' : isFreeEmail(profile.email) ? 'Site web (pour une vérification immédiate)' : 'Site web (facultatif)'} type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://votre-site.fr" />
-          <Button onClick={() => verify.mutate()} isLoading={verify.isPending} disabled={!canSubmit}>{zone === 'OTHER' ? 'Envoyer pour contrôle manuel' : 'Vérifier mon entreprise'}</Button>
-          {!canSubmit && <p className="text-xs text-neutral-500">Il manque : {zone === 'FR' ? 'un SIRET ou un numéro de TVA' : zone === 'EU' ? 'un numéro de TVA' : 'le code du pays et un numéro d\'immatriculation'}.</p>}
+          <Input label={isFreeEmail(profile.email) ? 'Site web (pour une vérification immédiate)' : 'Site web (facultatif)'} type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://votre-site.fr" />
+          <Button onClick={() => verify.mutate()} isLoading={verify.isPending} disabled={!canSubmit}>Vérifier mon entreprise</Button>
+          {!canSubmit && <p className="text-xs text-neutral-500">Il manque : {fr ? 'un SIRET ou un numéro de TVA' : 'un numéro d\'entreprise ou de TVA'}.</p>}
         </div>
       )}
     </Card>

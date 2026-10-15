@@ -12,6 +12,7 @@ import { sendExternalQuoteToClient, sendExternalQuoteAccepted, sendExternalQuote
 import { notify } from '../services/notifications.js';
 import { attachQuoteToProspect } from './prospects.js';
 import { reminderState, remindQuoteManually } from '../services/quoteReminders.js';
+import { chargesFrenchVat } from '../utils/business.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -23,7 +24,7 @@ const idOf = (x) => (x && x._id ? x._id : x)?.toString();
 const emailList = (v) => { const l = [...new Set(String(v || '').split(/[;,]/).map(a => a.trim().toLowerCase()).filter(Boolean))]; return l.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a)) ? null : l.join(', '); };
 const creatorLegalOf = (u) => {
   const li = u.legalInfo || {}; const a = li.address || {};
-  return { name: [li.firstName, li.lastName].filter(Boolean).join(' ') || u.profile?.name, companyName: li.status === 'company' ? (li.legalName || li.companyName || null) : null, address: [a.line1, a.line2, [a.postalCode, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ') || null, siret: li.siret || null, vatRegistered: !!li.vatRegistered, vatNumber: li.vatRegistered ? li.vatNumber : null };
+  return { name: [li.firstName, li.lastName].filter(Boolean).join(' ') || u.profile?.name, companyName: li.status === 'company' ? (li.legalName || li.companyName || null) : null, address: [a.line1, a.line2, [a.postalCode, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ') || null, siret: li.siret || null, country: li.country || 'FR', vatRegistered: !!li.vatRegistered, vatNumber: li.vatRegistered ? li.vatNumber : null };
 };
 const quoteNumber = () => `DV-${new Date().getFullYear()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
@@ -54,7 +55,7 @@ function pick(body, creator) {
   return {
     client: { companyName: String(b.client?.companyName || '').trim(), contactName: String(b.client?.contactName || '').trim(), email: emailList(b.client?.email) || '', siret: String(b.client?.siret || '').replace(/\s/g, '') || undefined, address: String(b.client?.address || '').trim() || undefined },
     mission: { title: String(b.title || '').trim(), description: String(b.description || '').trim(), videoType: b.videoType || 'testimonial', deliverables: Math.min(20, Math.max(1, parseInt(b.deliverables || 1, 10))), duration: Math.max(5, parseInt(b.duration || 30, 10)), platforms: Array.isArray(b.platforms) ? b.platforms.slice(0, 8) : [], requirements: Array.isArray(b.requirements) ? b.requirements.map(String).slice(0, 10) : [] },
-    quote: { price: Number(b.price), vatRate: creator.legalInfo?.vatRegistered ? config.vat.rate : 0, estimatedDeliveryDays: Math.min(90, Math.max(1, parseInt(b.estimatedDeliveryDays || 7, 10))), revisions: Math.min(10, Math.max(0, parseInt(b.revisions ?? 1, 10))), rights: { duration: rights.duration || '1y', supports: (rights.supports || ['social_organic']).filter(Boolean), territories: rights.territories || 'France', exclusivity: !!rights.exclusivity, exclusivityMonths: rights.exclusivity ? (parseInt(rights.exclusivityMonths, 10) || null) : null }, terms: String(b.terms || '').trim().slice(0, 2000), validUntil: new Date(Date.now() + 30 * 86400000) },
+    quote: { price: Number(b.price), vatRate: chargesFrenchVat(creator) ? config.vat.rate : 0, estimatedDeliveryDays: Math.min(90, Math.max(1, parseInt(b.estimatedDeliveryDays || 7, 10))), revisions: Math.min(10, Math.max(0, parseInt(b.revisions ?? 1, 10))), rights: { duration: rights.duration || '1y', supports: (rights.supports || ['social_organic']).filter(Boolean), territories: rights.territories || 'France', exclusivity: !!rights.exclusivity, exclusivityMonths: rights.exclusivity ? (parseInt(rights.exclusivityMonths, 10) || null) : null }, terms: String(b.terms || '').trim().slice(0, 2000), validUntil: new Date(Date.now() + 30 * 86400000) },
   };
 }
 

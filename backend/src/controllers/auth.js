@@ -9,7 +9,7 @@ import {
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
-import { resolveSiretFromSiren, evaluateBusiness, isFreeEmail, lookupRegistry } from '../utils/business.js';
+import { resolveSiretFromSiren, evaluateBusiness, isFreeEmail, lookupRegistry, isValidBce, formatBce } from '../utils/business.js';
 import { getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { SERVICE_KEYS } from '../../config/services.js';
 import { planInfo } from './billing.js';
@@ -440,7 +440,7 @@ export async function startStripeConnect(req, res) {
     let accountId = user.profile.stripeConnect?.accountId || user.stripeAccountId;
 
     if (!accountId) {
-      const account = await createConnectAccount(user.email, user.profile?.country || 'FR');
+      const account = await createConnectAccount(user.email, user.legalInfo?.country || user.profile?.country || 'FR');
       accountId = account.id;
       user.set('profile.stripeConnect.accountId', accountId);
       user.stripeAccountId = accountId;
@@ -643,7 +643,7 @@ export async function verifyBusiness(req, res) {
       siret: siret ? String(siret).replace(/\s/g, '') : undefined,
       vatNumber: vatNumber ? String(vatNumber).replace(/\s/g, '').toUpperCase() : undefined,
       country: (country || 'FR').toUpperCase(),
-      registrationNumber: registrationNumber ? String(registrationNumber).trim() : undefined,
+      registrationNumber: registrationNumber ? (String(country || '').toUpperCase() === 'BE' && isValidBce(registrationNumber) ? formatBce(registrationNumber) : String(registrationNumber).trim()) : undefined,
     });
     const result = evaluateBusiness({ siret, vatNumber, website: user.profile.website, email: user.email, country, registrationNumber });
     let status = result.status === 'rejected' ? 'rejected' : result.status;
@@ -677,7 +677,7 @@ export async function verifyBusiness(req, res) {
     await user.save();
     logger.info(`Business verification for ${user._id}: ${status} (${result.reasons.join(', ') || 'ok'})`);
     res.json({
-      message: status === 'verified' ? 'Entreprise vérifiée' : status === 'pending' ? (result.foreign ? 'Informations reçues : entreprise hors France, contrôle manuel sous 24 h' : 'Informations reçues : vérification manuelle sous 24 h') : 'Identifiant d\'entreprise invalide',
+      message: status === 'verified' ? 'Entreprise vérifiée' : status === 'pending' ? ('Informations reçues : vérification manuelle sous 24 h') : 'Identifiant d\'entreprise invalide',
       business: user.verification.business,
       reasons: result.reasons,
       freeEmail: isFreeEmail(user.email),

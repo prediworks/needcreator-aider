@@ -248,7 +248,8 @@ const userSchema = new mongoose.Schema({
     lastName: String,
     status: { type: String, enum: ['micro', 'company', 'individual'] }, // micro-entrepreneur, société, particulier
     companyName: String,
-    siret: String,
+    country: { type: String, default: 'FR' }, // pays d'immatriculation (code ISO) : FR = SIRET, BE = BCE, autre = numéro local sans contrôle
+    siret: String,            // identifiant de l'entreprise : SIRET en France, BCE en Belgique, numéro local ailleurs
     legalName: String,        // raison sociale trouvée au registre
     registryAddress: String,
     registryChecked: Boolean,
