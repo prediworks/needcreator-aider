@@ -25,6 +25,8 @@ const showcaseSchema = new mongoose.Schema({
   sentVia: String, // email, instagram, mailing
   viewedAt: Date,
   acceptedAt: Date,
+  declinedBy: { type: String, enum: ['team', 'brand'] }, // non proposée par l'équipe, ou non retenue par la marque
+  declineReason: String,
 }, { timestamps: true });
 showcaseSchema.index({ leadId: 1, status: 1 });
 

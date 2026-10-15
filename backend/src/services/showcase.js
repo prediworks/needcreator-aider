@@ -9,7 +9,16 @@ import { watermarkVideoBuffer, videoCodec, transcodePlayable } from './watermark
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { config } from '../config/index.js';
 import { notify } from './notifications.js';
+import User from '../models/User.js';
 import logger from '../utils/logger.js';
+
+/** Email au créateur sur le suivi de sa vidéo (sauf emails désactivés dans son profil) ; la cloche est envoyée à part */
+export async function emailShowcaseCreator(sv, event, reason = '') {
+  const c = await User.findById(sv.creatorId).select('email profile.name preferences').lean();
+  if (!c?.email || c.preferences?.emailNotifications === false) return;
+  const { sendShowcaseUpdate } = await import('./email.js');
+  await sendShowcaseUpdate(c.email, c.profile?.name || '', { event, brandName: sv.brandName, productName: sv.productName, price: sv.price, reason }, `${config.cors.origin}/vitrine`, c.preferences?.language === 'en' ? 'en' : 'fr');
+}
 
 const MAX_ATTEMPTS = 3;
 
@@ -65,6 +74,7 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
   const first = sv.status !== 'sent';
   sv.status = 'sent'; sv.sentAt = new Date(); sv.sentVia = via; await sv.save();
   if (first) notify(sv.creatorId, { type: 'application', title: `Votre vidéo a été proposée à ${sv.brandName}`, text: `${sv.productName} · ${sv.price} € HT. Vous serez prévenu quand la marque ouvre la page.`, href: '/vitrine' }).catch(() => {});
+  if (first) emailShowcaseCreator(sv, 'sent').catch(err => logger.warn(`Showcase email (sent) ${sv._id}: ${err.message}`));
   if (!['replied', 'registered'].includes(lead.status)) { lead.status = 'contacted'; lead.contactedAt = lead.contactedAt || new Date(); lead.contactedVia = lead.contactedVia || via; }
   lead.notes = [lead.notes, `Vidéo vitrine proposée le ${new Date().toLocaleDateString('fr-FR')} (${via}) : ${sv.productName}, ${sv.price} €`].filter(Boolean).join(' · ').slice(0, 2000);
   await lead.save();
@@ -132,10 +142,11 @@ export async function refuseShowcase(showcaseId, reason = '') {
   const sv = await ShowcaseVideo.findById(showcaseId);
   if (!sv) throw Object.assign(new Error('Vidéo introuvable'), { status: 404 });
   if (sv.status === 'accepted') throw Object.assign(new Error('Cette vidéo a été achetée : elle ne se refuse plus'), { status: 400 });
-  sv.status = 'declined'; await sv.save();
-  if (sv.quoteId) await ExternalQuote.updateOne({ _id: sv.quoteId, status: { $in: ['draft', 'sent'] } }, { $set: { status: 'declined', declinedAt: new Date(), declineReason: `Refusée par NeedCreator${reason ? ` : ${reason}` : ''}` } });
   const why = String(reason || '').trim().slice(0, 300);
+  sv.status = 'declined'; sv.declinedBy = 'team'; sv.declineReason = why; await sv.save();
+  if (sv.quoteId) await ExternalQuote.updateOne({ _id: sv.quoteId, status: { $in: ['draft', 'sent'] } }, { $set: { status: 'declined', declinedAt: new Date(), declineReason: `Refusée par NeedCreator${reason ? ` : ${reason}` : ''}` } });
   await notify(sv.creatorId, { type: 'application', title: `Votre vidéo pour ${sv.brandName} n'a pas été proposée`, text: why || 'Elle ne respecte pas les règles de la candidature spontanée. Vous pouvez en déposer une autre.', href: '/vitrine' });
+  emailShowcaseCreator(sv, 'declined_team', why).catch(err => logger.warn(`Showcase email (refused) ${sv._id}: ${err.message}`));
   return sv;
 }
 
@@ -143,5 +154,16 @@ export async function refuseShowcase(showcaseId, reason = '') {
 export async function markShowcaseViewed(quoteId) {
   const sv = await ShowcaseVideo.findOneAndUpdate({ quoteId, viewedAt: null, status: { $in: ['sent'] } }, { $set: { viewedAt: new Date() } });
   if (sv) notify(sv.creatorId, { type: 'application', title: `${sv.brandName} a ouvert la page de votre vidéo`, text: `${sv.productName} · ${sv.price} € HT`, href: '/vitrine' }).catch(() => {});
+  if (sv) emailShowcaseCreator(sv, 'viewed').catch(err => logger.warn(`Showcase email (viewed) ${sv._id}: ${err.message}`));
   return !!sv;
+}
+
+/** La marque décline le devis d'une vidéo spontanée : vidéo « non retenue par la marque », place libérée, créateur prévenu (cloche + email) */
+export async function markShowcaseDeclinedByBrand(quoteId, reason = '') {
+  const why = String(reason || '').trim().slice(0, 300);
+  const sv = await ShowcaseVideo.findOneAndUpdate({ quoteId, status: { $in: ['ready', 'sent'] } }, { $set: { status: 'declined', declinedBy: 'brand', declineReason: why } }, { new: true });
+  if (!sv) return null;
+  notify(sv.creatorId, { type: 'application', title: `${sv.brandName} n'a pas retenu votre vidéo`, text: why || `${sv.productName} · ${sv.price} € HT. Vous pouvez en déposer une autre.`, href: '/vitrine' }).catch(() => {});
+  emailShowcaseCreator(sv, 'declined_brand', why).catch(err => logger.warn(`Showcase email (declined) ${sv._id}: ${err.message}`));
+  return sv;
 }

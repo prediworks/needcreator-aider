@@ -206,8 +206,13 @@ export async function declineExternalQuote(req, res) {
   if (!['draft', 'sent'].includes(q.status)) return res.status(400).json({ error: 'Ce devis est déjà clos' });
   q.status = 'declined'; q.declinedAt = new Date(); q.declineReason = String(req.body?.reason || '').trim().slice(0, 500);
   await q.save();
-  sendExternalQuoteDeclined(q.creatorId.email, q.creatorId.profile?.name, q.client.companyName, q.mission.title, q.declineReason).catch(() => {});
-  notify(q.creatorId._id, { type: 'application', title: `${q.client.companyName} a décliné votre devis`, text: q.mission.title, href: '/quotes' }).catch(() => {});
+  // Vidéo spontanée : message propre à la vidéo (vitrine), pas celui d'un devis
+  const { markShowcaseDeclinedByBrand } = await import('../services/showcase.js');
+  const sv = await markShowcaseDeclinedByBrand(q._id, q.declineReason).catch(err => { logger.warn(`markShowcaseDeclinedByBrand: ${err.message}`); return null; });
+  if (!sv) {
+    sendExternalQuoteDeclined(q.creatorId.email, q.creatorId.profile?.name, q.client.companyName, q.mission.title, q.declineReason).catch(() => {});
+    notify(q.creatorId._id, { type: 'application', title: `${q.client.companyName} a décliné votre devis`, text: q.mission.title, href: '/quotes' }).catch(() => {});
+  }
   res.json({ message: 'Devis décliné, le créateur est prévenu' });
 }
 

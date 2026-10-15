@@ -93,7 +93,7 @@ export async function createShowcase(req, res) {
 
 async function serialize(sv) {
   const q = sv.quoteId ? await ExternalQuote.findById(sv.quoteId).select('token status').lean() : null;
-  return { id: sv._id, brandName: sv.brandName, productName: sv.productName, note: sv.note, price: sv.price, status: sv.status, ready: !!sv.watermarkedAt, watermarkError: sv.watermarkError || null, previewUrl: sv.previewUrl || null, playableUrl: sv.playableUrl || sv.videoUrl, sentAt: sv.sentAt || null, acceptedAt: sv.acceptedAt || null, link: q?.token ? `${SITE()}/q/${q.token}` : null, quoteStatus: q?.status || null, createdAt: sv.createdAt };
+  return { id: sv._id, brandName: sv.brandName, productName: sv.productName, note: sv.note, price: sv.price, status: sv.status, ready: !!sv.watermarkedAt, watermarkError: sv.watermarkError || null, previewUrl: sv.previewUrl || null, playableUrl: sv.playableUrl || sv.videoUrl, sentAt: sv.sentAt || null, acceptedAt: sv.acceptedAt || null, declinedBy: sv.declinedBy || null, declineReason: sv.declineReason || null, link: q?.token ? `${SITE()}/q/${q.token}` : null, quoteStatus: q?.status || null, createdAt: sv.createdAt };
 }
 
 export async function listMyShowcases(req, res) {

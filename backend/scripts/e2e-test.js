@@ -3301,6 +3301,15 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     expect(titles.some(t => /Votre vidéo a été proposée à E2E Marque Vitrine/.test(t)) && titles.some(t => /E2E Marque Vitrine a ouvert la page de votre vidéo/.test(t)), 'Le créateur doit être prévenu de la proposition et de l\'ouverture de la page', { status: 200, data: titles.slice(0, 6) });
     const leadAfter = await db.collection('leads').findOne({ _id: lead.insertedId });
     if (sent.status === 200) expect(leadAfter.status === 'contacted' && /Vidéo vitrine proposée/.test(leadAfter.notes || ''), 'Le prospect passe en contacté avec la trace de la proposition', leadAfter);
+    // La marque décline la vidéo depuis sa page : « non retenue par la marque » avec le motif, le créateur est prévenu (pas comme un devis)
+    const svDec = await fetch(`${API}/external-quotes/public/${token}/decline`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Pas le bon produit' }) });
+    const svDeclined = await db.collection('showcasevideos').findOne({ _id: new mongoose.Types.ObjectId(dep.data.showcase.id) });
+    const mineDec = (await creatorApi('GET', '/showcase')).data.showcases.find(x => x.id === dep.data.showcase.id);
+    const bellDec = (await creatorApi('GET', '/notifications')).data.notifications || [];
+    expect(svDec.status === 200 && svDeclined.status === 'declined' && svDeclined.declinedBy === 'brand' && mineDec?.declinedBy === 'brand' && mineDec?.declineReason === 'Pas le bon produit' && bellDec.some(n => /E2E Marque Vitrine n'a pas retenu votre vidéo/.test(n.title) && /Pas le bon produit/.test(n.text)) && !bellDec.some(n => /a décliné votre devis/.test(n.title)), 'La marque qui décline une vidéo spontanée : vidéo « non retenue par la marque », motif visible, créateur prévenu', { status: svDec.status, sv: svDeclined && { status: svDeclined.status, by: svDeclined.declinedBy }, titles: bellDec.map(n => n.title).slice(0, 5) });
+    // Remise en l'état pour la suite (achat de cette même vidéo)
+    await db.collection('showcasevideos').updateOne({ _id: svDeclined._id }, { $set: { status: 'sent' }, $unset: { declinedBy: '', declineReason: '' } });
+    await db.collection('externalquotes').updateOne({ token }, { $set: { status: 'sent' }, $unset: { declinedAt: '', declineReason: '' } });
   } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
   // Refus par l'équipe avant envoi : la vidéo déposée en direct (seconde marque) n'est pas proposée, le créateur est prévenu avec le motif
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
@@ -3310,7 +3319,7 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
   } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
   const mineAfterRefuse = await creatorApi('GET', '/showcase');
   const bellRefuse = await creatorApi('GET', '/notifications');
-  expect(mineAfterRefuse.data.showcases.find(x => x.id === byKey.data.showcase.id)?.status === 'declined' && (bellRefuse.data.notifications || []).some(n => /n'a pas été proposée/.test(n.title) && /Son inaudible/.test(n.text)), 'La vidéo refusée passe « non retenue » et le créateur reçoit le motif', { status: 200, data: mineAfterRefuse.data.showcases.map(x => x.status) });
+  expect(mineAfterRefuse.data.showcases.find(x => x.id === byKey.data.showcase.id)?.status === 'declined' && mineAfterRefuse.data.showcases.find(x => x.id === byKey.data.showcase.id)?.declinedBy === 'team' && (bellRefuse.data.notifications || []).some(n => /n'a pas été proposée/.test(n.title) && /Son inaudible/.test(n.text)), 'La vidéo refusée passe « non retenue » et le créateur reçoit le motif', { status: 200, data: mineAfterRefuse.data.showcases.map(x => x.status) });
   // Une marque qui répond « oui » est marquée « vidéo demandée » et passe en tête pour les créateurs
   const reqLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-vitrine3-${RUN}`, name: 'E2E Marque Vitrine Demande', website: `https://vitrine3-${RUN}.example.com`, status: 'contacted', score: 10, mailing: {}, createdAt: new Date(), updatedAt: new Date() });
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });

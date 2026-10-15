@@ -844,6 +844,29 @@ export async function sendShowcaseRequestAlert(email, name, lead, product, link,
   return sendEmail(email, subject, html, null, { preheader: `${lead.name} attend une vidéo${product && !isLink ? ` pour ${product}` : ''} : la première déposée lui est proposée.`, lang });
 }
 
+/**
+ * Candidature spontanée : le créateur suit sa vidéo par email (en plus de la cloche) — proposée à la marque, page ouverte par la marque,
+ * non retenue par la marque (motif) ou non proposée par l'équipe (motif)
+ */
+export async function sendShowcaseUpdate(email, name, { event, brandName, productName, price, reason = '' }, link, lang = null) {
+  const what = `${esc(productName)} · ${price} € HT`;
+  const why = reason ? `<p>Motif indiqué : « ${esc(reason)} »</p>` : '';
+  const t = {
+    sent: { subject: `Votre vidéo a été proposée à ${brandName}`, body: `<p>Votre vidéo pour <strong>${esc(brandName)}</strong> (${what}) vient de lui être proposée. La marque la voit avec le filigrane et peut l'acheter en un clic.</p><p>Vous recevrez un email dès qu'elle ouvre la page de la vidéo.</p>`, cta: 'Suivre ma vidéo' },
+    viewed: { subject: `${brandName} a regardé votre vidéo`, body: `<p><strong>${esc(brandName)}</strong> vient d'ouvrir la page de votre vidéo (${what}).</p><p>Rien à faire de votre côté : si elle l'achète, vous êtes prévenu et payé via NeedCreator.</p>`, cta: 'Voir ma vidéo' },
+    declined_brand: { subject: `${brandName} n'a pas retenu votre vidéo`, body: `<p><strong>${esc(brandName)}</strong> a regardé votre vidéo (${what}) et ne l'a pas retenue.</p>${why}<p>Votre place est libérée : vous pouvez déposer une autre vidéo, pour cette marque ou une autre.</p>`, cta: 'Déposer une autre vidéo' },
+    declined_team: { subject: `Votre vidéo pour ${brandName} n'a pas été proposée`, body: `<p>Nous n'avons pas proposé votre vidéo (${what}) à <strong>${esc(brandName)}</strong>.</p>${why || '<p>Elle ne respecte pas les règles de la candidature spontanée.</p>'}<p>Vous pouvez en déposer une autre.</p>`, cta: 'Déposer une autre vidéo' },
+  }[event];
+  if (!t) return null;
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    ${t.body}
+    ${button(link, t.cta)}
+    <p style="color:#6b7280;font-size:13px">Les notifications par email se désactivent dans votre profil.</p>
+  `;
+  return sendEmail(email, t.subject, html, null, { lang });
+}
+
 /** Marque cherchée par un créateur dans « Candidature vidéo », désormais proposable (réservée s'il est le seul à l'avoir cherchée) */
 export async function sendSearchedBrandAvailable(email, name, brandName, link, reservedUntil = null, lang = null) {
   const subject = `${brandName}, que vous cherchiez, est disponible${reservedUntil ? ' et vous est réservée' : ''}`;

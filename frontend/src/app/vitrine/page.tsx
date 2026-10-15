@@ -112,7 +112,8 @@ export default function ShowcasePage() {
               {mine.map((s: any) => (
                 <div key={s.id} className="border border-neutral-200 rounded-lg p-3 flex items-start justify-between gap-3 flex-wrap" data-testid="showcase-item">
                   <div className="text-sm">
-                    <div className="font-medium text-neutral-900">{s.brandName} · {s.productName} <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${STATUS[s.status]?.cls}`}>{STATUS[s.status]?.label}</span></div>
+                    <div className="font-medium text-neutral-900">{s.brandName} · {s.productName} <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${STATUS[s.status]?.cls}`}>{s.status === 'declined' && s.declinedBy === 'brand' ? 'Non retenue par la marque' : s.status === 'declined' && s.declinedBy === 'team' ? 'Non proposée' : STATUS[s.status]?.label}</span></div>
+                    {s.status === 'declined' && s.declineReason && <div className="text-xs text-neutral-500 mt-0.5" data-testid="showcase-decline-reason">Motif : « {s.declineReason} »</div>}
                     <div className="text-neutral-600">{formatCurrency(s.price)} HT · déposée le {formatDate(s.createdAt)}{s.sentAt ? ` · proposée le ${formatDate(s.sentAt)}` : ''}{!s.ready && s.status !== 'accepted' ? ' · filigrane en cours' : ''}</div>
                     {s.link && <a href={`${s.link}?apercu=1`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary-700 underline inline-flex items-center gap-1"><ExternalLink className="w-3 h-3" /> Page vue par la marque</a>}
                   </div>
