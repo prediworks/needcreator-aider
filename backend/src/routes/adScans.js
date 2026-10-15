@@ -9,7 +9,7 @@ const router = express.Router();
 // Scan concurrentiel : publicités Meta actives d'une marque, page publique sans compte ; un compte donne la lecture complète
 router.get('/recent', recentScans);
 router.get('/mine', authenticate, myScans);
-router.post('/', optionalAuth, validate(Joi.object({ q: Joi.string().max(120).allow(''), pageId: Joi.string().pattern(/^\d{3,30}$/).allow(''), pageName: Joi.string().max(160).allow('') }).or('q', 'pageId')), createScan);
+router.post('/', optionalAuth, validate(Joi.object({ q: Joi.string().max(120).allow(''), pageId: Joi.string().pattern(/^\d{3,30}$/).allow(''), pageName: Joi.string().max(160).allow(''), ref: Joi.string().max(40).allow(''), quoteRef: Joi.string().max(40).allow('') }).or('q', 'pageId')), createScan); // ref / quoteRef : origine du scan (lien de l'email, devis)
 router.post('/ref', optionalAuth, validate(Joi.object({ ref: Joi.string().pattern(/^[a-f0-9]{24}$/i).required(), action: Joi.string().valid('visit', 'scan', 'audit', 'brief', 'rights').required(), slug: Joi.string().max(80).allow(''), source: Joi.string().valid('lead', 'quote').default('lead') })), trackRef); // lead : email marques ; quote : outils offerts avec un devis de créateur
 router.post('/unsubscribe', validate(Joi.object({ token: Joi.string().hex().length(36).required() })), unsubscribeScan);
 router.post('/unsubscribe-tips', validate(Joi.object({ token: Joi.string().pattern(/^[0-9a-f]{24}\.[0-9a-f]{32}$/).required() })), unsubscribeTipsHandler); // conseils hebdomadaires aux inscrits // lien des emails de rapport

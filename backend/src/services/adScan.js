@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import AdScan, { AdScanRequest } from '../models/AdScan.js';
+import AdScan, { AdScanRequest, AdScanLog } from '../models/AdScan.js';
 import Lead from '../models/Lead.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { fetchAds, metaConfigured } from './acquisition/meta.js';
@@ -186,7 +186,18 @@ const quotaError = (message, code) => Object.assign(new Error(message), { status
  * Lance ou relit un scan. `q` : nom tapé ; `pageId` : page choisie parmi les candidates. Retourne { scan } ou { candidates } quand le nom
  * correspond à plusieurs pages. Une relecture (scan de moins de 24 h) ne compte dans aucun plafond.
  */
-export async function runScan({ q, pageId, pageName, ip, user } = {}) {
+/** Origine d'un scan demandé depuis le site : équipe, prospect venu de l'email, client d'un devis, inscrit, visiteur */
+export function scanOrigin({ user, ref, quoteRef } = {}) {
+  if (user?.role === 'admin') return 'team';
+  if (ref) return 'lead';
+  if (quoteRef) return 'quote';
+  if (user?.role === 'brand') return 'brand';
+  if (user?.role === 'creator') return 'creator';
+  return 'visitor';
+}
+const logScan = (scan, { origin, fresh, user, ip }) => AdScanLog.create({ slug: scan?.slug, pageName: scan?.pageName, origin, fresh: !!fresh, userId: user?._id, ip }).catch(err => logger.warn(`Ad scan log: ${err.message}`));
+
+export async function runScan({ q, pageId, pageName, ip, user, origin = 'visitor' } = {}) {
   const st = await scanSettings();
   const tier = tierOf(user);
   const name = String(q || '').trim().slice(0, 120);
@@ -197,10 +208,10 @@ export async function runScan({ q, pageId, pageName, ip, user } = {}) {
   const fresh = new Date(Date.now() - DAY);
   if (pageId) {
     const cached = await AdScan.findOne({ pageId: String(pageId), status: { $in: ['ready', 'empty'] }, fetchedAt: { $gte: fresh } });
-    if (cached) return { scan: cached, cached: true };
+    if (cached) { logScan(cached, { origin, fresh: false, user, ip }); return { scan: cached, cached: true }; }
   } else {
     const cached = await AdScan.findOne({ $or: [{ slug: slugify(name) }, { query: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }], status: { $in: ['ready', 'empty', 'pending'] }, fetchedAt: { $gte: fresh } });
-    if (cached && (cached.status !== 'pending' || cached.updatedAt >= new Date(Date.now() - 3 * 60000))) return { scan: cached, cached: true };
+    if (cached && (cached.status !== 'pending' || cached.updatedAt >= new Date(Date.now() - 3 * 60000))) { logScan(cached, { origin, fresh: false, user, ip }); return { scan: cached, cached: true }; }
   }
 
   // Plafonds : par IP et par heure (tous), par palier sur la journée, global
@@ -219,13 +230,14 @@ export async function runScan({ q, pageId, pageName, ip, user } = {}) {
   if (pageId) {
     // Lecture déjà en cours pour cette page (lancée il y a moins de trois minutes) : on la suit, sans nouvelle lecture
     const pending = await AdScan.findOne({ pageId: String(pageId), status: 'pending', updatedAt: { $gte: new Date(Date.now() - 3 * 60000) } });
-    if (pending) return { scan: pending, cached: true };
+    if (pending) { logScan(pending, { origin, fresh: false, user, ip }); return { scan: pending, cached: true }; }
     page = { pageId: String(pageId), pageName: String(pageName || '').trim().slice(0, 160) };
   } else {
     const candidates = await findPages(name);
     if (!candidates.length) {
       const scan = await AdScan.findOneAndUpdate({ slug: slugify(name) }, { $set: { query: name, pageId: `none:${slugify(name)}`, pageName: name, ads: [], totalActive: 0, stats: {}, insights: null, status: 'empty', ip, userId: user?._id, fetchedAt: new Date() } }, { upsert: true, new: true, setDefaultsOnInsert: true });
       await AdScanRequest.create({ ip, userId: user?._id, slug: scan.slug });
+      logScan(scan, { origin, fresh: true, user, ip });
       return { scan };
     }
     const exact = candidates.filter(c => norm(c.pageName) === norm(name));
@@ -242,6 +254,7 @@ export async function runScan({ q, pageId, pageName, ip, user } = {}) {
     $inc: { scans: 1, memberScans: tier === 'anon' ? 0 : 1 },
   }, { upsert: true, new: true, setDefaultsOnInsert: true });
   await AdScanRequest.create({ ip, userId: user?._id, slug: scan.slug });
+  logScan(scan, { origin, fresh: true, user, ip });
   setImmediate(() => processScan(scan._id, { page, name, tier, ip, settings: st }).catch(err => logger.error(`Ad scan ${scan.slug} failed: ${err.message}`)));
   return { scan };
 }
@@ -277,7 +290,7 @@ export async function processScan(scanId, { page, name = '', tier = 'anon', ip =
  * Hors plafonds des visiteurs ; une seule lecture à la fois (file d'attente) ; un scan de moins de `maxAgeDays` jours est réutilisé.
  */
 let prepQueue = Promise.resolve();
-export async function ensureScanForPage(page, { maxAgeDays = 14 } = {}) {
+export async function ensureScanForPage(page, { maxAgeDays = 14, origin = 'auto_competitor' } = {}) {
   const pageId = String(page?.pageId || '');
   if (!pageId) return null;
   const cur = await AdScan.findOne({ pageId });
@@ -286,6 +299,7 @@ export async function ensureScanForPage(page, { maxAgeDays = 14 } = {}) {
   const pageName = String(page.pageName || '').trim().slice(0, 160);
   const slug = cur?.slug || await uniqueSlug(pageName, pageId);
   const scan = await AdScan.findOneAndUpdate({ pageId }, { $set: { slug, query: pageName, pageName, status: 'pending', error: null }, $setOnInsert: { ads: [], totalActive: 0 } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  logScan(scan, { origin, fresh: true });
   prepQueue = prepQueue.then(() => processScan(scan._id, { page: { pageId, pageName }, name: pageName, tier: 'prospection' })).catch(err => logger.error(`Prepared ad scan ${slug} failed: ${err.message}`));
   return scan;
 }
@@ -500,16 +514,24 @@ async function trackQuoteToolVisit(ref, { action, slug, userId }) {
 /** Admin : activité de l'outil (lectures, consultations, briefs, audits) et marques les plus scannées, avec leur fiche prospect quand elle existe */
 export async function adminScanStats() {
   const day = new Date(Date.now() - DAY); const week = new Date(Date.now() - 7 * DAY);
-  const [reads24h, members24h, newPages7d, totals, top] = await Promise.all([
-    AdScanRequest.countDocuments({ createdAt: { $gte: day } }),
-    AdScanRequest.countDocuments({ createdAt: { $gte: day }, userId: { $ne: null } }),
+  const [byOrigin24h, originsBySlug, journal, newPages7d, totals, top] = await Promise.all([
+    AdScanLog.aggregate([{ $match: { createdAt: { $gte: day } } }, { $group: { _id: '$origin', n: { $sum: 1 } } }]),
+    AdScanLog.aggregate([{ $group: { _id: { slug: '$slug', origin: '$origin' }, n: { $sum: 1 } } }]),
+    AdScanLog.find().sort({ createdAt: -1 }).limit(60).select('slug pageName origin fresh createdAt').lean(),
     AdScan.countDocuments({ createdAt: { $gte: week } }),
     AdScan.aggregate([{ $group: { _id: null, pages: { $sum: 1 }, scans: { $sum: '$scans' }, views: { $sum: '$views' }, briefs: { $sum: '$briefs' }, audits: { $sum: '$audits' }, proposals: { $sum: '$proposals' } } }]),
     AdScan.find({ status: { $in: ['ready', 'empty'] } }).sort({ scans: -1, views: -1, fetchedAt: -1 }).limit(30).select('slug pageId pageName website totalActive stats.oldestDays scans memberScans views briefs audits proposals leadId status fetchedAt').lean(),
   ]);
+  const o24 = Object.fromEntries(byOrigin24h.map(x => [x._id, x.n]));
+  const REAL = ['visitor', 'lead', 'quote', 'brand', 'creator'];
+  const reads24h = REAL.reduce((a, k) => a + (o24[k] || 0), 0); // vrais visiteurs : ni l'équipe, ni l'automatique
+  const members24h = (o24.brand || 0) + (o24.creator || 0);
+  const origins24h = { visitor: o24.visitor || 0, lead: (o24.lead || 0) + (o24.quote || 0), members: members24h, team: o24.team || 0, auto: (o24.auto_competitor || 0) + (o24.auto_alert || 0) };
+  const originsOf = new Map();
+  for (const x of originsBySlug) { const m = originsOf.get(x._id.slug) || {}; m[x._id.origin] = x.n; originsOf.set(x._id.slug, m); }
   const rows = await Promise.all(top.map(async (s) => {
     const lead = s.leadId ? await Lead.findById(s.leadId).select('_id name status').lean() : await leadForScan(s);
-    return { slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
+    return { origins: originsOf.get(s.slug) || {}, slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
   }));
   const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
     .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
@@ -519,7 +541,7 @@ export async function adminScanStats() {
   const { scanSubscribersStats } = await import('./adScanReports.js');
   const subscribers = await scanSubscribersStats();
   const t = totals[0] || {};
-  return { subscribers, fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+  return { journal: journal.map(l => ({ slug: l.slug, pageName: l.pageName, origin: l.origin, fresh: !!l.fresh, at: l.createdAt })), origins24h, subscribers, fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
 }
 
 /**

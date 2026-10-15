@@ -84,7 +84,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   useEffect(() => { if (slug && data?.scan?.status === 'ready') api.post(`/ad-scans/${slug}/view`).catch(() => null); }, [slug, data?.scan?.slug, data?.scan?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scan = useMutation({
-    mutationFn: async (body: { q?: string; pageId?: string; pageName?: string }) => (await api.post('/ad-scans', body)).data,
+    mutationFn: async (body: { q?: string; pageId?: string; pageName?: string }) => { const r = readRef(); return (await api.post('/ad-scans', { ...body, ...(r.startsWith('devis:') ? { quoteRef: r.slice(6) } : r ? { ref: r } : {}) })).data; }, // origine du scan dans le journal de l'équipe
     onSuccess: (d) => { if (d.candidates) { setCandidates(d.candidates); return; } setCandidates(null); setSlug(d.scan.slug); trackRef('scan', d.scan.slug, isAdmin); router.replace(`/publicites/${d.scan.slug}${auditView ? '?vue=audit' : ''}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
   });

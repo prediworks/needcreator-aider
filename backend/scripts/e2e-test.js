@@ -2045,6 +2045,20 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const adminStats = await brandApi('GET', '/admin/acquisition/ad-scans');
   const row = adminStats.data.top?.find(x => x.slug === slug);
+  // Journal des scans : l'origine est notée (équipe, prospect venu de l'email, visiteur), les vrais visiteurs comptés à part
+  const scanDoc = await db.collection('adscans').findOne({ slug });
+  {
+    await db.collection('adscans').updateOne({ slug }, { $set: { status: 'ready', fetchedAt: new Date() } }); // scan récent : relu sans appel Meta
+    await db.collection('adscanlogs').deleteMany({ slug });
+    await brandApi('POST', '/ad-scans', { pageId: scanDoc.pageId, pageName: scanDoc.pageName });
+    await pubApi('POST', '/ad-scans', { pageId: scanDoc.pageId, pageName: scanDoc.pageName, ref: String(scanLead.insertedId) });
+    await pubApi('POST', '/ad-scans', { pageId: scanDoc.pageId, pageName: scanDoc.pageName });
+    await new Promise(r => setTimeout(r, 300));
+    const logs = await db.collection('adscanlogs').find({ slug }).toArray();
+    const st2 = await brandApi('GET', '/admin/acquisition/ad-scans');
+    const row2 = st2.data.top?.find(x => x.slug === slug);
+    expect(['team', 'lead', 'visitor'].every(o => logs.some(l => l.origin === o && l.fresh === false)) && row2?.origins?.team === 1 && row2.origins.lead === 1 && row2.origins.visitor === 1 && st2.data.journal?.some(l => l.slug === slug && l.origin === 'team') && st2.data.origins24h.team >= 1, 'Journal des scans : origine notée (équipe, prospect de l\'email, visiteur), visible par marque et dans le journal', { logs: logs.map(l => l.origin), origins: row2?.origins, o24: st2.data.origins24h });
+  }
   const pros = await brandApi('POST', '/admin/acquisition/ad-scans/prospect', { slug });
   const leadAfterPros = await db.collection('leads').findOne({ _id: scanLead.insertedId });
   await db.collection('adscans').updateOne({ slug }, { $set: { totalActive: 450 } });

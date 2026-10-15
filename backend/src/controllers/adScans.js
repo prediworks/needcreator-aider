@@ -1,5 +1,5 @@
 import AdScan from '../models/AdScan.js';
-import { runScan, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights, requestAudit } from '../services/adScan.js';
+import { runScan, scanOrigin, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights, requestAudit } from '../services/adScan.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -14,7 +14,9 @@ const fail = (res, error, fallback, label) => {
 /** Public (compte facultatif) : lance ou relit le scan d'une marque. { q } ou { pageId } → { scan } ou { candidates } */
 export async function createScan(req, res) {
   try {
-    const r = await runScan({ q: req.body?.q, pageId: req.body?.pageId, pageName: req.body?.pageName, ip: clientIp(req), user: req.user });
+    const hex = (v) => /^[a-f0-9]{24}$/i.test(String(v || '')) ? String(v) : '';
+    const origin = scanOrigin({ user: req.user, ref: hex(req.body?.ref), quoteRef: hex(req.body?.quoteRef) });
+    const r = await runScan({ q: req.body?.q, pageId: req.body?.pageId, pageName: req.body?.pageName, ip: clientIp(req), user: req.user, origin });
     if (r.candidates) return res.json({ candidates: r.candidates });
     res.status(r.cached ? 200 : 201).json({ scan: await serializeScan(r.scan, { user: req.user }) });
   } catch (error) { fail(res, error, 'Lecture impossible pour le moment, réessayez dans quelques minutes', 'createScan'); }

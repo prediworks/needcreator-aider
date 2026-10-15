@@ -93,7 +93,7 @@ export async function runScanReportAlerts({ maxPages = 30 } = {}) {
   for (const s of subs) { if (!byPage.has(s.pageId)) byPage.set(s.pageId, []); byPage.get(s.pageId).push(s); }
   let pages = 0, sent = 0, failed = 0;
   for (const [pageId, list] of [...byPage.entries()].slice(0, maxPages)) {
-    const scan = await ensureScanForPage({ pageId, pageName: list[0].pageName }, { maxAgeDays: WEEK_DAYS });
+    const scan = await ensureScanForPage({ pageId, pageName: list[0].pageName }, { maxAgeDays: WEEK_DAYS, origin: 'auto_alert' });
     if (!scan || scan.status !== 'ready') continue; // lecture en cours ou page retirée : au prochain passage
     pages++;
     const ids = adIds(scan);

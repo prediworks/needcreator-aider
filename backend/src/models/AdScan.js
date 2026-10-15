@@ -81,6 +81,23 @@ const requestSchema = new mongoose.Schema({
 });
 requestSchema.index({ createdAt: 1 }, { expireAfterSeconds: 2 * 86400 });
 
+/**
+ * Journal des scans, gardé 90 jours : qui l'a demandé (origine), lecture fraîche chez Meta ou relecture d'un scan récent.
+ * Sert à distinguer les vrais visiteurs de l'équipe et des scans automatiques (concurrents préparés pour les emails, alertes des abonnés).
+ */
+export const SCAN_ORIGINS = ['visitor', 'lead', 'quote', 'brand', 'creator', 'team', 'auto_competitor', 'auto_alert'];
+const logSchema = new mongoose.Schema({
+  slug: String,
+  pageName: String,
+  origin: { type: String, enum: SCAN_ORIGINS, index: true },
+  fresh: Boolean,            // lecture chez Meta (sinon : scan de moins de 24 h relu)
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  ip: String,
+  createdAt: { type: Date, default: Date.now, index: true },
+});
+logSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 86400 });
+export const AdScanLog = mongoose.models.AdScanLog || mongoose.model('AdScanLog', logSchema);
+
 export const AdScanRequest = mongoose.models.AdScanRequest || mongoose.model('AdScanRequest', requestSchema);
 const AdScan = mongoose.models.AdScan || mongoose.model('AdScan', adScanSchema);
 export default AdScan;
