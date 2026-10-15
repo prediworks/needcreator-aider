@@ -1108,11 +1108,12 @@ function scanAdRows(scan, ads, limit = 5) {
 }
 const scanFooter = (unsubscribeLink, pageName) => `<p style="color:#6b7280;font-size:12px">Vous recevez cet email parce que vous avez demandé le rapport des publicités de ${esc(pageName)} sur NeedCreator. Un email par semaine au plus, seulement s'il y a du nouveau. <a href="${unsubscribeLink}" style="color:#6b7280">Ne plus rien recevoir</a>.</p>`;
 
-export async function sendScanReport(email, scan, { link, unsubscribeLink }) {
+export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName }) {
   const subject = `Rapport : les publicités Meta de ${scan.pageName}`;
   const st = scan.stats || {}; const ins = scan.insights || {};
   const html = `
     <h1>Les publicités de ${esc(scan.pageName)}</h1>
+    ${firstName ? `<p>Bonjour ${esc(firstName)},</p>` : ''}
     <p><strong>${scan.totalActive || 0}</strong> publicité(s) Meta active(s) en France${st.oldestDays != null ? `, la plus ancienne tourne depuis <strong>${st.oldestDays} jours</strong>` : ''}${st.over90Days ? `, <strong>${st.over90Days}</strong> depuis plus de 90 jours` : ''}. Une publicité maintenue depuis trois mois est une publicité qui rapporte.</p>
     ${ins.summary ? `<p>${esc(ins.summary)}</p>` : ''}
     ${(scan.ads || []).length ? `<p style="margin-bottom:4px"><strong>Celles qui tournent depuis le plus longtemps</strong></p><ul style="padding-left:18px;margin-top:4px">${scanAdRows(scan, scan.ads)}</ul>` : ''}
@@ -1126,10 +1127,11 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink }) {
 }
 
 /** Alerte hebdomadaire : nouvelles publicités depuis le dernier email, et celles qui viennent de passer les 90 jours */
-export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], link, unsubscribeLink }) {
+export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], link, unsubscribeLink, firstName }) {
   const subject = newAds.length ? `${scan.pageName} : ${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}` : `${scan.pageName} : une publicité passe les 90 jours`;
   const html = `
     <h1>${esc(scan.pageName)}</h1>
+    ${firstName ? `<p>Bonjour ${esc(firstName)},</p>` : ''}
     ${newAds.length ? `<p><strong>${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}</strong> depuis notre dernier email :</p><ul style="padding-left:18px">${scanAdRows(scan, newAds, 6)}</ul>` : ''}
     ${crossing.length ? `<p><strong>${crossing.length === 1 ? 'Une publicité passe' : `${crossing.length} publicités passent`} les 90 jours</strong> : ${crossing.length === 1 ? 'elle' : 'elles'} rapporte${crossing.length > 1 ? 'nt' : ''}, sinon la marque l'aurait arrêtée.</p><ul style="padding-left:18px">${scanAdRows(scan, crossing, 4)}</ul>` : ''}
     <p>${scan.totalActive || 0} publicité(s) active(s) au total.</p>

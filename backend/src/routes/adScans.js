@@ -14,7 +14,7 @@ router.post('/ref', optionalAuth, validate(Joi.object({ ref: Joi.string().patter
 router.post('/unsubscribe', validate(Joi.object({ token: Joi.string().hex().length(36).required() })), unsubscribeScan);
 router.post('/unsubscribe-tips', validate(Joi.object({ token: Joi.string().pattern(/^[0-9a-f]{24}\.[0-9a-f]{32}$/).required() })), unsubscribeTipsHandler); // conseils hebdomadaires aux inscrits // lien des emails de rapport
 router.get('/:slug', optionalAuth, getScan);
-router.post('/:slug/subscribe', optionalAuth, validate(Joi.object({ email: Joi.string().email().max(160).required(), role: Joi.string().valid('brand', 'creator', '').allow('') })), subscribeScan); // rapport par email + alertes
+router.post('/:slug/subscribe', optionalAuth, validate(Joi.object({ email: Joi.string().email().max(160).required(), role: Joi.string().valid('brand', 'creator', '').allow(''), firstName: Joi.string().trim().max(60).allow(''), company: Joi.string().trim().max(120).allow('') })), subscribeScan); // rapport par email + alertes
 router.post('/:slug/view', viewScan);
 router.post('/:slug/brief', optionalAuth, validate(Joi.object({ adId: Joi.string().max(40).allow(''), proposal: Joi.number().integer().min(0).max(2).allow(null, '') })), briefFromScanHandler);
 router.post('/:slug/audit', optionalAuth, auditScan);

@@ -1980,10 +1980,13 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   expect(audAgain.status === 200 && audAgain.data.started === false, 'Un audit de moins de 24 h n\'est pas refait', audAgain);
   // Rapport par email : une adresse sous le scan → abonnement, rapport envoyé, fiche « Nouveau » pour une marque sans compte ; jamais pour un créateur
   const repEmail = `e2e-rapport-${RUN}@needcreator-test.com`;
-  const subBrand = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: repEmail, role: 'brand' });
+  const subNoName = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: repEmail, role: 'brand' });
+  const subNoFirst = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: `e2e-rapport-c-${RUN}@needcreator-test.com`, role: 'creator' });
+  expect(subNoName.status === 400 && subNoFirst.status === 400, 'Rapport par email : une marque sans compte donne le nom de sa marque, un créateur son prénom', { subNoName: subNoName.status, subNoFirst: subNoFirst.status });
+  const subBrand = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: repEmail, role: 'brand', company: 'Marque E2E Rapport' });
   const subRow = await db.collection('adscansubscriptions').findOne({ email: repEmail });
   const subLead = await db.collection('leads').findOne({ externalId: `scan-report:${repEmail}` });
-  expect(subBrand.status === 200 && /Rapport envoyé/.test(subBrand.data.message) && subRow && subRow.active && subRow.role === 'brand' && subRow.token && subRow.lastAdIds.length === ads.length && subRow.sentCount === 1 && subLead && subLead.status === 'new' && subLead.keyword === 'rapport scan' && String(subRow.leadId) === String(subLead._id), 'Rapport par email : abonnement créé, rapport envoyé, fiche de prospection « Nouveau » pour la marque', { status: subBrand.status, data: subBrand.data, sub: subRow && { role: subRow.role, ids: subRow.lastAdIds?.length }, lead: subLead && subLead.status });
+  expect(subBrand.status === 200 && /Rapport envoyé/.test(subBrand.data.message) && subRow && subRow.active && subRow.role === 'brand' && subRow.token && subRow.lastAdIds.length === ads.length && subRow.sentCount === 1 && subLead && subLead.status === 'new' && subLead.keyword === 'rapport scan' && subLead.name === 'Marque E2E Rapport' && subRow.company === 'Marque E2E Rapport' && String(subRow.leadId) === String(subLead._id), 'Rapport par email : abonnement créé, rapport envoyé, fiche de prospection « Nouveau » pour la marque', { status: subBrand.status, data: subBrand.data, sub: subRow && { role: subRow.role, ids: subRow.lastAdIds?.length }, lead: subLead && subLead.status });
   const subCreator = await creatorApi('POST', `/ad-scans/${slug}/subscribe`, { email: 'ignored@example.com', role: 'brand' });
   const subCreatorRow = await db.collection('adscansubscriptions').findOne({ email: creatorEmail });
   expect(subCreator.status === 200 && subCreatorRow && subCreatorRow.role === 'creator' && String(subCreatorRow.userId) === String((await db.collection('users').findOne({ email: creatorEmail }))._id) && !subCreatorRow.leadId, 'Un créateur connecté est abonné avec l\'adresse de son compte, comme créateur, sans fiche de prospection', { status: subCreator.status, row: subCreatorRow && { role: subCreatorRow.role, lead: subCreatorRow.leadId } });
@@ -2066,7 +2069,7 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   const opt = await pubApi('POST', `/ad-scans/${slug}/opt-out`, { email: `marque-${RUN}@needcreator-test.com`, reason: 'Nous ne souhaitons pas apparaître' });
   const still = await pubApi('GET', `/ad-scans/${slug}`);
   expect(opt.status === 200 && /transmise/.test(opt.data.message) && still.status === 200, 'La demande de retrait est transmise, la page reste jusqu\'à décision de l\'équipe', { opt: opt.data, still: still.status });
-  // « Commander l'équivalent » : brief NeedCreator rattaché au scan, repris par le pont du brief depuis URL
+  // « Tester cette publicité avec un créateur » : brief NeedCreator rattaché au scan, repris par le pont du brief depuis URL
   const bf = await brandApi('POST', `/ad-scans/${slug}/brief`, { adId: ads[0].id });
   if (aiOn) {
     const pb = bf.data.briefId ? await db.collection('productbriefs').findOne({ _id: new mongoose.Types.ObjectId(String(bf.data.briefId)) }) : null;

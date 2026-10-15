@@ -19,7 +19,7 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
 
 /**
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
- * marchent), des constats factuels par l'IA, et « Commander l'équivalent » en vidéo créateur. Sans compte : un aperçu ; inscrit : tout.
+ * marchent), des constats factuels par l'IA, et « Tester cette publicité avec un créateur » (brief gratuit). Sans compte : un aperçu ; inscrit : tout.
  */
 /**
  * Référence gardée pour la session, chaque action y est rattachée : fiche prospect (lien de l'email marques, ?ref=) ou devis de créateur
@@ -167,7 +167,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 {user?.role === 'creator' ? (
                   <Link href={proposeHref}><Button size="sm" title="Vous possédez un produit de cette marque ? Tournez votre version de sa publicité qui marche : elle la reçoit finie avec un devis et l'achète en un clic" data-testid="ad-scan-propose"><Clapperboard className="w-4 h-4 mr-1" /> Proposer une vidéo à cette marque</Button></Link>
                 ) : (
-                  <Button size="sm" onClick={() => brief.mutate({})} isLoading={brief.isPending} disabled={s.status !== 'ready'} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Commander l&apos;équivalent <ArrowRight className="w-4 h-4 ml-1" /></Button>
+                  <div className="flex flex-col items-end gap-1"><Button size="sm" onClick={() => brief.mutate({})} isLoading={brief.isPending} disabled={s.status !== 'ready'} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Tester cette publicité avec un créateur <ArrowRight className="w-4 h-4 ml-1" /></Button><span className="text-[11px] text-neutral-500" data-testid="ad-scan-brief-free">Gratuit, vous ne payez que la vidéo qui vous convient.</span></div>
                 )}
               </div>
             </div>

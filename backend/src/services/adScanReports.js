@@ -28,7 +28,7 @@ async function resolveRole(email, user, declared) {
 }
 
 /** Marque sans compte : fiche de prospection « Nouveau », à relire par l'équipe (une adresse personnelle n'entre pas dans la file sans relecture) */
-async function leadForSubscriber(email, scan) {
+async function leadForSubscriber(email, scan, company = '') {
   const domain = email.split('@')[1] || '';
   const free = FREE_MAIL.test(domain);
   const day = new Date().toLocaleDateString('fr-FR');
@@ -40,7 +40,7 @@ async function leadForSubscriber(email, scan) {
     return existing;
   }
   const label = free ? '' : domain.replace(/^www\./, '').split('.').slice(0, -1).sort((a, b) => b.length - a.length)[0] || '';
-  const name = label ? label.charAt(0).toUpperCase() + label.slice(1) : email;
+  const name = company || (label ? label.charAt(0).toUpperCase() + label.slice(1) : email); // nom saisi d'abord, sinon déduit du domaine
   return Lead.create({
     kind: 'brand', source: 'manual', externalId: `scan-report:${email}`, name, email, website: free ? '' : `https://${domain}`, country: 'FR',
     status: 'new', score: 40, keyword: 'rapport scan', notes: note,
@@ -48,24 +48,29 @@ async function leadForSubscriber(email, scan) {
   });
 }
 
-export async function subscribeToScan({ slug, email, role, user, ip }) {
+export async function subscribeToScan({ slug, email, role, firstName, company, user, ip }) {
   const scan = await AdScan.findOne({ slug: String(slug || '').toLowerCase() });
   if (!scan) throw fail(404, 'Scan introuvable');
   if (!['ready', 'empty'].includes(scan.status)) throw fail(400, 'La lecture est encore en cours : réessayez dans un instant');
   const addr = String(user?.email || email || '').trim().toLowerCase(); // connecté : l'adresse du compte, toujours
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) throw fail(400, 'Adresse email invalide');
   if (ip && await AdScanSubscription.countDocuments({ ip, createdAt: { $gte: new Date(Date.now() - 3600000) } }) >= 10) throw fail(429, 'Trop de demandes : réessayez dans une heure');
+  const first = String(firstName || '').trim().slice(0, 60), brandName = String(company || '').trim().slice(0, 120);
+  if (!user && role === 'creator' && !first) throw fail(400, 'Indiquez votre prénom');
+  if (!user && role === 'brand' && !brandName) throw fail(400, 'Indiquez le nom de votre marque');
   const who = await resolveRole(addr, user, role);
   let sub = await AdScanSubscription.findOne({ email: addr, pageId: scan.pageId });
   const fresh = !sub;
   if (!sub) sub = new AdScanSubscription({ email: addr, pageId: scan.pageId, token: crypto.randomBytes(18).toString('hex'), lastAdIds: adIds(scan), ip });
   sub.set({ slug: scan.slug, pageName: scan.pageName, active: true, userId: who.userId || sub.userId, role: who.userId ? who.role : (sub.role !== 'unknown' ? sub.role : who.role) });
+  if (!user && first) sub.firstName = first;
+  if (!user && brandName) sub.company = brandName;
   if (sub.role === 'brand' && !sub.userId && !sub.leadId) {
-    try { sub.leadId = (await leadForSubscriber(addr, scan))._id; } catch (err) { logger.warn(`scan report lead: ${err.message}`); }
+    try { sub.leadId = (await leadForSubscriber(addr, scan, sub.company))._id; } catch (err) { logger.warn(`scan report lead: ${err.message}`); }
   }
   sub.lastSentAt = new Date(); sub.lastCheckedAt = new Date(); sub.sentCount += 1;
   await sub.save();
-  sendScanReport(addr, scan, links(scan, sub.token)).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
+  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
   return { message: `Rapport envoyé à ${addr}. Vous serez prévenu quand ${scan.pageName} lancera de nouvelles publicités.`, renewed: !fresh };
 }
 
@@ -100,7 +105,7 @@ export async function runScanReportAlerts({ maxPages = 30 } = {}) {
       const update = { lastCheckedAt: new Date() };
       if (newAds.length || crossing.length) {
         // Envoi tenté une fois : une adresse qui rejette n'est pas réessayée chaque semaine sur les mêmes publicités
-        try { await sendScanNewAds(s.email, scan, { newAds, crossing, ...links(scan, s.token) }); sent++; }
+        try { await sendScanNewAds(s.email, scan, { newAds, crossing, ...links(scan, s.token), firstName: s.firstName }); sent++; }
         catch (err) { failed++; logger.warn(`Scan alert not sent to ${s.email}: ${err.message}`); }
         await AdScanSubscription.updateOne({ _id: s._id }, { $set: { ...update, lastSentAt: new Date(), lastAdIds: ids }, $inc: { sentCount: 1 } });
         continue;
