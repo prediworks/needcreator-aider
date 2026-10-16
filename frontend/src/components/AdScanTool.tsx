@@ -19,7 +19,7 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
 
 /**
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
- * marchent), des constats factuels par l'IA, et « Tester cette publicité avec un créateur » (brief gratuit). Sans compte : un aperçu ; inscrit : tout.
+ * durent), des constats factuels par l'IA, et « Tester cette publicité avec un créateur » (brief gratuit). Sans compte : un aperçu ; inscrit : tout.
  */
 /**
  * Référence gardée pour la session, chaque action y est rattachée : fiche prospect (lien de l'email marques, ?ref=) ou devis de créateur
@@ -143,7 +143,6 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 <button key={c.pageId} type="button" onClick={() => scan.mutate({ pageId: c.pageId, pageName: c.pageName })} className="text-left p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
                   <div className="font-medium text-neutral-900">{c.pageName}</div>
                   <div className="text-xs text-neutral-600">{c.ads} publicité{c.ads > 1 ? 's' : ''} active{c.ads > 1 ? 's' : ''}{c.website ? ` · ${c.website}` : ''}</div>
-                  {c.sample && <div className="text-xs text-neutral-500 mt-1 line-clamp-2">{c.sample}</div>}
                 </button>
               ))}
             </div>

@@ -5,7 +5,7 @@ import Card from '@/components/ui/Card';
 
 export const metadata = {
   title: 'Comment ça marche',
-  description: 'Côté marque : savoir quelles publicités marchent, préparer le brief, faire tourner les vidéos par des créateurs vérifiés, les diffuser en règle. Côté créateur : vendre ses vidéos au prix qu\'on fixe.',
+  description: 'Côté marque : savoir quelles publicités durent, préparer le brief, faire tourner les vidéos par des créateurs vérifiés, les diffuser en règle. Côté créateur : vendre ses vidéos au prix qu\'on fixe.',
   alternates: { canonical: '/how-it-works' },
 };
 
@@ -50,7 +50,7 @@ export default async function HowItWorksPage() {
       <div className="container mx-auto px-4 max-w-5xl">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-neutral-900 mb-3">Comment ça marche</h1>
-          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Pour les marques : savoir quelles publicités marchent, les faire tourner par des créateurs, les diffuser en règle. Pour les créateurs : vendre leurs vidéos, au prix qu&apos;ils fixent.</p>
+          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Pour les marques : savoir quelles publicités durent, les faire tourner par des créateurs, les diffuser en règle. Pour les créateurs : vendre leurs vidéos, au prix qu&apos;ils fixent.</p>
         </div>
 
         <div className="grid gap-8">

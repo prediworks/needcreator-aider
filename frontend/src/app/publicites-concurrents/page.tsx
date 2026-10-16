@@ -16,11 +16,11 @@ export default function AdScanPage() {
         <div className="text-center mb-8">
           <CreatorAware creator={<>
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-4 text-sm font-medium text-primary-700">Outil gratuit pour les créateurs</div>
-          <h1 className="text-3xl md:text-5xl font-bold text-neutral-900 mb-3">Les publicités qui marchent, pour proposer la vôtre</h1>
+          <h1 className="text-3xl md:text-5xl font-bold text-neutral-900 mb-3">Les publicités qui durent, pour proposer la vôtre</h1>
           <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Une publicité qu&apos;une marque laisse tourner trois mois est une publicité qui lui rapporte. Entrez le nom d&apos;une marque que vous aimeriez avoir comme cliente : vous voyez ses publicités Meta actives, de la plus ancienne à la plus récente, et les angles qu&apos;elle laisse libres. Vous avez un de ses produits ? Tournez votre version et proposez-la-lui, finie, avec votre prix.</p>
           </>}>
           <div className="inline-flex items-center px-4 py-2 bg-primary-100 rounded-full mb-4 text-sm font-medium text-primary-700">Outil gratuit pour les marques</div>
-          <h1 className="text-3xl md:text-5xl font-bold text-neutral-900 mb-3">Vos concurrents font de la pub. Lesquelles marchent ?</h1>
+          <h1 className="text-3xl md:text-5xl font-bold text-neutral-900 mb-3">Vos concurrents font de la pub. Lesquelles durent ?</h1>
           <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Une publicité maintenue depuis trois mois est une publicité qui rapporte. Entrez le nom d&apos;une marque : ses publicités Meta actives, de la plus ancienne à la plus récente, les angles qu&apos;elle utilise, ceux qu&apos;elle laisse libres. Puis commandez l&apos;équivalent en vidéo créateur, avec l&apos;angle qui manque.</p>
           </CreatorAware>
         </div>

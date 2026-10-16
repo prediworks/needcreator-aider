@@ -19,7 +19,7 @@ export default function AdScanBanner() {
         <div className="grid md:grid-cols-2 gap-8 items-center">
           <div>
             <div className="inline-flex items-center px-3 py-1 bg-white/10 rounded-full mb-3 text-xs font-medium">Outil gratuit · sans compte</div>
-            <h2 className="text-2xl md:text-3xl font-bold mb-2">Vos concurrents font de la pub. Lesquelles marchent ?</h2>
+            <h2 className="text-2xl md:text-3xl font-bold mb-2">Vos concurrents font de la pub. Lesquelles durent ?</h2>
             <p className="text-neutral-300">Une publicité maintenue depuis trois mois est une publicité qui rapporte. Tapez le nom d&apos;un concurrent : ses publicités Meta actives, de la plus ancienne à la plus récente, les angles qu&apos;il utilise et ceux qu&apos;il laisse libres.</p>
           </div>
           <div>

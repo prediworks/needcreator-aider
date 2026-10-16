@@ -69,7 +69,7 @@ export default async function HomePage() {
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold text-neutral-900 mb-6">
-              Sachez quelles publicités marchent.
+              Sachez quelles publicités durent.
               <span className="text-primary-500"> Faites-les tourner par des créateurs.</span>
             </h1>
 

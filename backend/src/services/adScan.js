@@ -151,26 +151,52 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
 const JUNK_PAGE = /version compl[eè]te|lisez la suite|lire la suite|la suite (?:de l'histoire|dans l'appli)|commencez [àa] lire|\bchapitres?\s+\d|\bépisodes? gratuits?\b|\bwebnovel|\broman (?:érotique|complet)|\bérotique\b|son membre|\bporn/i;
 
 /**
- * Pages candidates pour un nom tapé. La bibliothèque Meta cherche le mot dans tout le texte des publicités : on garde d'abord les pages
- * dont le nom (ou le site) contient le mot, on écarte la fiction et le contenu adulte ; sans aucune page au bon nom, on rend les autres
- * annonceurs qui citent le mot, marqués `match: false`.
+ * Pages candidates pour un nom tapé. La bibliothèque Meta cherche le mot dans tout le texte des publicités et ne rend que les 100 premières :
+ * avec un mot courant, la page de la marque peut ne pas y figurer. On cherche donc aussi dans nos données (pages déjà scannées, fiches
+ * marques reliées à leur page Meta), puis, sans aucune page au bon nom, on lit jusqu'à 300 publicités. On garde les pages dont le nom
+ * (ou le site) contient le mot, on écarte la fiction en épisodes ; sans aucune page au bon nom, on rend les autres annonceurs qui citent
+ * le mot, marqués `match: false`. Aucun texte d'annonce n'est renvoyé : la liste est visible sans compte.
  */
 export async function findPages(q) {
-  const ads = await fetchAds({ terms: q, max: 100 }); // une seule page de résultats : quelques secondes
-  const byPage = new Map();
-  for (const ad of ads) {
-    if (!ad.page_id) continue;
-    const cur = byPage.get(ad.page_id) || { pageId: String(ad.page_id), pageName: ad.page_name || '', ads: 0, website: null, sample: '', junk: false };
-    cur.ads++;
-    if (!cur.website) cur.website = domainOf(ad.ad_creative_link_captions?.[0]);
-    if (!cur.sample && ad.ad_creative_bodies?.[0]) cur.sample = String(ad.ad_creative_bodies[0]).slice(0, 160);
-    if (!cur.junk && JUNK_PAGE.test(`${ad.page_name || ''} ${(ad.ad_creative_bodies || []).join(' ')} ${(ad.ad_creative_link_titles || []).join(' ')}`)) cur.junk = true;
-    byPage.set(ad.page_id, cur);
-  }
   const target = norm(q);
-  const pages = [...byPage.values()].filter(p => !p.junk).map(({ junk, ...p }) => ({ ...p, match: !!target && (norm(p.pageName).includes(target) || norm(p.website).includes(target)) }));
+  const byPage = new Map();
+  const read = (ads) => {
+    for (const ad of ads) {
+      if (!ad.page_id) continue;
+      const id = String(ad.page_id);
+      const cur = byPage.get(id) || { pageId: id, pageName: ad.page_name || '', ads: 0, website: null, junk: false, seen: new Set() };
+      if (cur.seen.has(ad.id)) continue;
+      cur.seen.add(ad.id);
+      cur.ads++;
+      if (!cur.website) cur.website = domainOf(ad.ad_creative_link_captions?.[0]);
+      if (!cur.junk && JUNK_PAGE.test(`${ad.page_name || ''} ${(ad.ad_creative_bodies || []).join(' ')} ${(ad.ad_creative_link_titles || []).join(' ')}`)) cur.junk = true;
+      byPage.set(id, cur);
+    }
+  };
+  const matches = (p) => !!target && (norm(p.pageName).includes(target) || norm(p.website).includes(target));
+  const local = await localPages(q);
+  const ads = await fetchAds({ terms: q, max: 100 }); // une seule page de résultats : quelques secondes
+  read(ads);
+  if (!local.length && ads.length >= 100 && ![...byPage.values()].some(p => !p.junk && matches(p))) read(await fetchAds({ terms: q, max: 300 }));
+  const pages = [...byPage.values()].filter(p => !p.junk).map(({ junk, seen, ...p }) => ({ ...p, match: matches(p) }));
+  for (const l of local) if (!byPage.has(l.pageId)) pages.push({ ...l, match: true }); // page connue, absente des publicités lues
   const matching = pages.filter(p => p.match);
   return (matching.length ? matching : pages).sort((a, b) => (norm(b.pageName) === target) - (norm(a.pageName) === target) || b.ads - a.ads).slice(0, 6);
+}
+
+/** Pages Meta déjà connues dont le nom contient le mot : scans passés et fiches marques venues de la bibliothèque publicitaire */
+async function localPages(q) {
+  const target = norm(q);
+  if (target.length < 2) return [];
+  const rx = new RegExp(String(q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  const [scans, leads] = await Promise.all([
+    AdScan.find({ pageName: rx, pageId: { $not: /^none:/ } }).select('pageId pageName website totalActive').limit(20).lean(),
+    Lead.find({ kind: 'brand', source: 'meta', name: rx }).select('externalId name website stats.ads').limit(20).lean(),
+  ]);
+  const out = new Map();
+  for (const s of scans) out.set(String(s.pageId), { pageId: String(s.pageId), pageName: s.pageName || '', ads: s.totalActive || 0, website: s.website || null });
+  for (const l of leads) if (!out.has(String(l.externalId))) out.set(String(l.externalId), { pageId: String(l.externalId), pageName: l.name || '', ads: l.stats?.ads || 0, website: domainOf(l.website) });
+  return [...out.values()].filter(p => norm(p.pageName).includes(target));
 }
 
 async function uniqueSlug(pageName, pageId) {
