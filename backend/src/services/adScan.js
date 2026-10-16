@@ -148,7 +148,7 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
 
 /** Pages candidates pour un nom tapé : regroupement des publicités trouvées par mot-clé, nom exact d'abord, puis par nombre de publicités */
 // Pages de fiction en épisodes ou de contenu adulte : elles citent n'importe quel mot dans leurs textes et ne sont jamais une marque à scanner
-const JUNK_PAGE = /version compl[eè]te|lisez la suite|lire la suite|commencez [àa] lire|\bchapitres?\b|\bépisodes? gratuits?\b|\bwebnovel|\bérotique|\bvierge\b|son membre|\bsexe\b|\bporn/i;
+const JUNK_PAGE = /version compl[eè]te|lisez la suite|lire la suite|la suite (?:de l'histoire|dans l'appli)|commencez [àa] lire|\bchapitres?\s+\d|\bépisodes? gratuits?\b|\bwebnovel|\broman (?:érotique|complet)|\bérotique\b|son membre|\bporn/i;
 
 /**
  * Pages candidates pour un nom tapé. La bibliothèque Meta cherche le mot dans tout le texte des publicités : on garde d'abord les pages
