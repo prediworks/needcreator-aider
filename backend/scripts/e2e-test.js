@@ -362,7 +362,19 @@ await step('Créateur : réseaux sociaux et réalisations externes', async () =>
   expect(res.status === 200, 'Mise à jour réseaux échouée', res);
   expect(res.data.user.profile.socials.length === 2 && res.data.user.profile.stats.totalFollowers === 20000, 'Réseaux / abonnés incorrects', res);
   expect(res.data.user.profile.realisations.length === 1, 'Réalisation externe non enregistrée', res);
-  return '2 réseaux (20 000 abonnés), 1 réalisation';
+  // Admin → Utilisateurs : filtres créateurs (réseau, abonnés déclarés, tri)
+  const users = mongoose.connection.db.collection('users');
+  await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  try {
+    const inRange = await brandApi('GET', '/admin/users?role=creator&networks=tiktok&minFollowers=10000&maxFollowers=15000&sort=followers&limit=500');
+    const me = (inRange.data?.users || []).find(u => String(u._id) === String(creatorUser.id));
+    expect(inRange.status === 200 && me && me.followers === 12000, 'Le filtre TikTok 10 k – 15 k doit trouver le créateur avec ses 12 000 abonnés TikTok', inRange);
+    const out = await brandApi('GET', '/admin/users?role=creator&networks=youtube&limit=500');
+    expect(out.status === 200 && !(out.data.users || []).some(u => String(u._id) === String(creatorUser.id)), 'Le filtre YouTube ne doit pas trouver un créateur sans YouTube', out);
+    const big = await brandApi('GET', '/admin/users?role=creator&minFollowers=25000&limit=500');
+    expect(big.status === 200 && !(big.data.users || []).some(u => String(u._id) === String(creatorUser.id)), 'Plus de 25 000 abonnés : le créateur (20 000) doit être exclu', big);
+  } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  return '2 réseaux (20 000 abonnés), 1 réalisation, filtres admin par réseau et abonnés';
 });
 
 await step('Marque : invite le créateur (contourne l\'avant-première)', async () => {

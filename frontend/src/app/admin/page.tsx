@@ -22,6 +22,7 @@ import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
 import MemberMessages from '@/components/admin/MemberMessages';
 import QuotesAdmin from '@/components/admin/QuotesAdmin';
+import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, socialsLine, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
@@ -49,10 +50,12 @@ export default function AdminPage() {
   const [userSearch, setUserSearch] = useState('');
   const [userFilters, setUserFilters] = useState<any>({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' });
   const setUserFilter = (k: string, v: string) => setUserFilters((p: any) => ({ ...p, [k]: v }));
+  const [creatorFilters, setCreatorFilters] = useState<CreatorFilterState>(EMPTY_CREATOR_FILTERS);
+  const userBaseParams = { search: userSearch || undefined, ...Object.fromEntries(Object.entries(userFilters).filter(([, v]) => v)) };
 
   const { data: stats } = useAdminStats(ready);
   const { data: pending, isLoading: pendingLoading } = usePendingCreators(ready);
-  const { data: users } = useAdminUsers({ search: userSearch || undefined, limit: 100, ...Object.fromEntries(Object.entries(userFilters).filter(([, v]) => v)) }, ready && tab === 'users');
+  const { data: users } = useAdminUsers({ ...userBaseParams, limit: 100, ...(userFilters.role === 'creator' ? creatorParams(creatorFilters) : {}) }, ready && tab === 'users');
   const { data: campaigns } = useAdminCampaigns(ready && tab === 'campaigns');
   const { data: deliveries } = useAdminDeliveries(ready && tab === 'deliveries');
 
@@ -462,14 +465,16 @@ export default function AdminPage() {
                   {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               ))}
-              {Object.values(userFilters).some(Boolean) && <button type="button" onClick={() => setUserFilters({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' })} className="text-primary-600 underline">Réinitialiser</button>}
+              {Object.values(userFilters).some(Boolean) && <button type="button" onClick={() => { setUserFilters({ role: '', status: '', origin: '', verified: '', plan: '', ambassador: '' }); setCreatorFilters(EMPTY_CREATOR_FILTERS); }} className="text-primary-600 underline">Réinitialiser</button>}
             </div>
+            {userFilters.role === 'creator' ? <CreatorFilters value={creatorFilters} onChange={setCreatorFilters} baseParams={userBaseParams} total={users?.pagination?.total} /> : <p className="text-xs text-neutral-500 mb-3">Choisissez « Rôle : Créateurs » pour filtrer par réseau, abonnés, niche, lieu…</p>}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-neutral-500 border-b">
                     <th className="py-2 pr-4">Nom</th>
                     <th className="py-2 pr-4">Email</th>
+                    {userFilters.role === 'creator' && <th className="py-2 pr-4">Réseaux</th>}
                     <th className="py-2 pr-4">Rôle</th>
                     <th className="py-2 pr-4">Statut</th>
                     <th className="py-2 pr-4">Inscrit le</th>
@@ -481,6 +486,7 @@ export default function AdminPage() {
                     <tr key={u._id} className="border-b border-neutral-100">
                       <td className="py-2 pr-4 font-medium">{u.profile?.companyName || u.profile?.name}</td>
                       <td className="py-2 pr-4 text-neutral-600">{u.email}</td>
+                      {userFilters.role === 'creator' && <td className="py-2 pr-4 text-xs text-neutral-700">{socialsLine(u) || <span className="text-neutral-400">aucun réseau</span>}{u.followers != null && creatorFilters.networks.length > 0 && <div className="text-neutral-500">{formatFollowers(u.followers)} sur la sélection</div>}{(u.profile?.niches || []).length > 0 && <div className="text-neutral-500">{u.profile.niches.map((n: string) => NICHES[n] || n).join(', ')}</div>}</td>}
                       <td className="py-2 pr-4">{u.role === 'creator' ? 'Créateur' : u.role === 'brand' ? 'Marque' : 'Admin'}</td>
                       <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} />{u.role === 'creator' && u.status === 'pending' && <div className="text-[11px] text-orange-700 mt-0.5" title="Ce qui manque pour que le profil soit complet et validable">{u.missing?.length ? `manque : ${u.missing.join(', ')}` : 'profil complet, à valider'}</div>}</td>
                       <td className="py-2 pr-4 text-neutral-600">{formatDate(u.createdAt)}</td>

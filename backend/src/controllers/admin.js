@@ -461,9 +461,68 @@ function creatorMissing(u) {
   return out;
 }
 
+const CREATOR_FILTERS = ['networks', 'minFollowers', 'maxFollowers', 'niches', 'sort', 'complete', 'business', 'missions', 'active', 'place'];
+const listOf = (v) => String(v || '').split(',').map(x => x.trim()).filter(Boolean);
+const escapeRx = (v) => String(v).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Abonnés déclarés d'un créateur : sur les réseaux choisis, sinon sur tous */
+function followersOf(u, networks = []) {
+  return (u.profile?.socials || []).filter(s => !networks.length || networks.includes(s.network)).reduce((n, s) => n + (s.followers || 0), 0);
+}
+
+/**
+ * Créateurs filtrés par réseau, abonnés, niche, complétude, entreprise vérifiée, missions, activité et lieu. Les abonnés et la complétude
+ * se calculent par créateur : on lit tous les créateurs du filtre de base (quelques centaines) et on filtre, trie et découpe en mémoire.
+ */
+async function filterCreators(q) {
+  const page = Math.max(1, parseInt(q.page) || 1), limit = Math.min(5000, parseInt(q.limit) || 20);
+  const query = { role: 'creator' };
+  if (q.status) query.status = q.status;
+  if (q.origin === 'seed') query['seed.batch'] = { $exists: true, $ne: null };
+  if (q.origin === 'real') query['seed.batch'] = { $in: [null] };
+  if (q.verified === '1') query['verification.email'] = true;
+  if (q.verified === '0') query['verification.email'] = { $ne: true };
+  if (q.plan === 'pro') query['subscription.plan'] = 'pro';
+  if (q.plan === 'free') query['subscription.plan'] = { $ne: 'pro' };
+  if (q.ambassador === '1') query['profile.ambassador.status'] = 'approved';
+  if (q.ambassador === 'pending') query['profile.ambassador.status'] = 'pending';
+  if (q.search) query.$or = [{ email: { $regex: escapeRx(q.search), $options: 'i' } }, { 'profile.name': { $regex: escapeRx(q.search), $options: 'i' } }, { 'profile.companyName': { $regex: escapeRx(q.search), $options: 'i' } }];
+  const networks = listOf(q.networks), niches = listOf(q.niches);
+  if (networks.length) query['profile.socials.network'] = { $in: networks };
+  if (niches.length) query['profile.niches'] = { $in: niches };
+  if (q.business === '1') query['verification.business.status'] = 'verified';
+  if (q.business === '0') query['verification.business.status'] = { $ne: 'verified' };
+  if (q.missions === '1') query['profile.stats.completedJobs'] = { $gt: 0 };
+  if (q.missions === '0') query['profile.stats.completedJobs'] = { $in: [0, null] };
+  if (q.active === '30') query.lastLoginAt = { $gte: new Date(Date.now() - 30 * 86400000) };
+  if (q.active === 'old') query.lastLoginAt = { $not: { $gte: new Date(Date.now() - 30 * 86400000) } };
+  if (q.place) {
+    const p = String(q.place).trim();
+    const rx = /^\d{2,3}$/.test(p) ? new RegExp(`^${p}`) : new RegExp(escapeRx(p), 'i');
+    query.$and = [{ $or: /^\d/.test(p) ? [{ 'profile.address.postalCode': rx }, { 'legalInfo.address.postalCode': rx }] : [{ 'profile.address.city': rx }, { 'legalInfo.address.city': rx }] }];
+  }
+  let list = await User.find(query).select('-__v').limit(5000).lean();
+  const min = q.minFollowers !== undefined && q.minFollowers !== '' ? Number(q.minFollowers) : null;
+  const max = q.maxFollowers !== undefined && q.maxFollowers !== '' ? Number(q.maxFollowers) : null;
+  for (const u of list) { u.missing = creatorMissing(u); u.followers = followersOf(u, networks); }
+  if (min != null && !Number.isNaN(min)) list = list.filter(u => u.followers >= min);
+  if (max != null && !Number.isNaN(max)) list = list.filter(u => u.followers <= max);
+  if (q.complete === '1') list = list.filter(u => !u.missing.length);
+  if (q.complete === '0') list = list.filter(u => u.missing.length);
+  const by = {
+    followers: (a, b) => b.followers - a.followers,
+    rating: (a, b) => (b.profile?.stats?.rating || 0) - (a.profile?.stats?.rating || 0) || (b.profile?.stats?.totalReviews || 0) - (a.profile?.stats?.totalReviews || 0),
+    missions: (a, b) => (b.profile?.stats?.completedJobs || 0) - (a.profile?.stats?.completedJobs || 0),
+  }[q.sort] || ((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  list.sort(by);
+  const total = list.length;
+  return { users: list.slice((page - 1) * limit, page * limit), pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
+}
+
 export async function getUsers(req, res) {
   try {
     const { role, status, search, origin, verified, plan, ambassador, page = 1, limit = 20 } = req.query;
+    if (role === 'creator' && CREATOR_FILTERS.some(k => req.query[k])) return res.json(await filterCreators(req.query));
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
     let query = {};
