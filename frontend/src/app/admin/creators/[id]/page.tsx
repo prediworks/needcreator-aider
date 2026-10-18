@@ -14,6 +14,7 @@ import VideoPlayer from '@/components/ui/VideoPlayer';
 import { ArrowLeft, CheckCircle, XCircle, CreditCard, Trash2, RefreshCw } from 'lucide-react';
 import { NICHES, VIDEO_TYPES, USER_STATUS } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
+import { SocialLinks } from '@/components/admin/CreatorFilters';
 
 export default function AdminCreatorPage() {
   const params = useParams();
@@ -57,6 +58,22 @@ export default function AdminCreatorPage() {
                 {p.pricing?.minPrice && <span className="text-sm text-neutral-600">dès {p.pricing.minPrice}€</span>}
               </div>
               {p.bio && <p className="text-neutral-700 mt-3 whitespace-pre-line">{p.bio}</p>}
+              <div className="mt-3 text-sm" data-testid="admin-creator-socials"><span className="text-neutral-500 mr-2">Réseaux :</span><SocialLinks socials={p.socials} views /></div>
+              {(p.realisations || []).length > 0 && (
+                <div className="mt-2 text-sm">
+                  <span className="text-neutral-500 mr-2">Réalisations extérieures :</span>
+                  <span className="inline-flex flex-wrap gap-x-3 gap-y-0.5">{p.realisations.map((r: any, i: number) => <a key={i} href={r.url} target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline" title={r.url}>{r.title || r.platform || 'vidéo'}{r.brandName ? ` (${r.brandName})` : ''}</a>)}</span>
+                </div>
+              )}
+              {(() => { const a: any = p.address?.city ? p.address : data.legalInfo?.address || {}; return (
+                <div className="mt-2 text-xs text-neutral-600 flex flex-wrap gap-x-4 gap-y-1">
+                  {a.city && <span>{a.city}{a.postalCode ? ` (${String(a.postalCode).slice(0, 2)})` : ''}</span>}
+                  <span>{p.stats?.completedJobs || 0} mission{(p.stats?.completedJobs || 0) > 1 ? 's' : ''} réalisée{(p.stats?.completedJobs || 0) > 1 ? 's' : ''}</span>
+                  {p.stats?.totalReviews > 0 && <span>note {Number(p.stats.rating).toFixed(1)}/5 ({p.stats.totalReviews} avis)</span>}
+                  <span>{data.lastLoginAt ? `dernière connexion le ${formatDate(data.lastLoginAt)}` : 'jamais connecté depuis le suivi'}</span>
+                  <span className={data.verification?.business?.status === 'verified' ? 'text-green-700' : 'text-orange-700'}>{data.verification?.business?.status === 'verified' ? 'entreprise vérifiée' : 'entreprise non vérifiée'}</span>
+                </div>
+              ); })()}
             </div>
             {data.status !== 'active' && (
               <div className="flex gap-2">

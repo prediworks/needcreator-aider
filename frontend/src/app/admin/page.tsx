@@ -22,7 +22,7 @@ import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
 import MemberMessages from '@/components/admin/MemberMessages';
 import QuotesAdmin from '@/components/admin/QuotesAdmin';
-import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, socialsLine, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
+import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, SocialLinks, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
@@ -486,7 +486,7 @@ export default function AdminPage() {
                     <tr key={u._id} className="border-b border-neutral-100">
                       <td className="py-2 pr-4 font-medium">{u.profile?.companyName || u.profile?.name}</td>
                       <td className="py-2 pr-4 text-neutral-600">{u.email}</td>
-                      {userFilters.role === 'creator' && <td className="py-2 pr-4 text-xs text-neutral-700">{socialsLine(u) || <span className="text-neutral-400">aucun réseau</span>}{u.followers != null && creatorFilters.networks.length > 0 && <div className="text-neutral-500">{formatFollowers(u.followers)} sur la sélection</div>}{(u.profile?.niches || []).length > 0 && <div className="text-neutral-500">{u.profile.niches.map((n: string) => NICHES[n] || n).join(', ')}</div>}</td>}
+                      {userFilters.role === 'creator' && <td className="py-2 pr-4 text-xs text-neutral-700"><SocialLinks socials={u.profile?.socials} />{u.followers != null && creatorFilters.networks.length > 0 && <div className="text-neutral-500">{formatFollowers(u.followers)} sur la sélection</div>}{(u.profile?.niches || []).length > 0 && <div className="text-neutral-500">{u.profile.niches.map((n: string) => NICHES[n] || n).join(', ')}</div>}</td>}
                       <td className="py-2 pr-4">{u.role === 'creator' ? 'Créateur' : u.role === 'brand' ? 'Marque' : 'Admin'}</td>
                       <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} />{u.role === 'creator' && u.status === 'pending' && <div className="text-[11px] text-orange-700 mt-0.5" title="Ce qui manque pour que le profil soit complet et validable">{u.missing?.length ? `manque : ${u.missing.join(', ')}` : 'profil complet, à valider'}</div>}</td>
                       <td className="py-2 pr-4 text-neutral-600">{formatDate(u.createdAt)}</td>

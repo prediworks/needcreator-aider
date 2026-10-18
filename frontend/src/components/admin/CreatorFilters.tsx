@@ -29,6 +29,20 @@ export function socialsLine(u: any) {
   return (u.profile?.socials || []).map((s: any) => `${NETWORKS[s.network] || s.network}${s.followers ? ` ${formatFollowers(s.followers)}` : ''}`).join(' · ');
 }
 
+/** Réseaux en liens cliquables (nouvel onglet), avec les abonnés déclarés */
+export function SocialLinks({ socials, views = false }: { socials?: any[]; views?: boolean }) {
+  if (!socials?.length) return <span className="text-neutral-400">aucun réseau</span>;
+  return (
+    <span className="inline-flex flex-wrap gap-x-2 gap-y-0.5">
+      {socials.map((s: any, i: number) => (
+        <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary-700 hover:underline whitespace-nowrap" title={s.url}>
+          {NETWORKS[s.network] || s.network}{s.handle ? ` ${s.handle}` : ''}{s.followers ? ` · ${formatFollowers(s.followers)}${views ? ' abonnés' : ''}` : ''}{views && s.avgViews ? ` · ${formatFollowers(s.avgViews)} vues` : ''}
+        </a>
+      ))}
+    </span>
+  );
+}
+
 export default function CreatorFilters({ value, onChange, baseParams, total }: { value: CreatorFilterState; onChange: (v: CreatorFilterState) => void; baseParams: Record<string, any>; total?: number }) {
   const set = (k: keyof CreatorFilterState, v: any) => onChange({ ...value, [k]: v });
   const toggle = (k: 'networks' | 'niches', v: string) => set(k, value[k].includes(v) ? value[k].filter((x) => x !== v) : [...value[k], v]);
