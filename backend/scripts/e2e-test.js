@@ -307,9 +307,15 @@ await step('Campagne : publication refusée tant que l\'entreprise n\'est pas v�
 await step('Campagne : publication', async () => {
   const res = await brandApi('POST', `/campaigns/${campaign._id}/publish`);
   expect(res.status === 200 && res.data.campaign.status === 'active', 'Publication échouée', res);
-  const locked = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Tentative après publication' });
-  expect(locked.status === 400, 'Une campagne publiée ne doit plus être modifiable', locked);
-  return `${res.data.notifiedCreators} créateur(s) notifié(s) ; modification verrouillée`;
+  // Publiée sans aucune réponse : le brief se corrige, le type et la visibilité non
+  const live = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Vidéo UGC test de bout en bout (corrigée)' });
+  expect(live.status === 200 && live.data.campaign.title.endsWith('(corrigée)'), 'Une campagne publiée sans candidature doit rester modifiable', live);
+  const vis = await brandApi('PATCH', `/campaigns/${campaign._id}`, { visibility: 'private' });
+  expect(vis.status === 400, 'Campagne publiée : la visibilité ne doit plus changer', vis);
+  const seen = await brandApi('GET', `/campaigns/${campaign._id}`);
+  expect(seen.data?.campaign?.editable === true, 'La campagne publiée sans candidature doit être signalée modifiable', seen);
+  await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Vidéo UGC test de bout en bout' });
+  return `${res.data.notifiedCreators} créateur(s) notifié(s) ; brief corrigeable tant que personne n'a répondu`;
 });
 
 await step('Site public : campagnes ouvertes listées sans connexion (pages indexables)', async () => {
@@ -558,7 +564,9 @@ await step('Candidature du créateur', async () => {
   expect(dup.status === 400, 'Une double candidature devrait être refusée', dup);
   const mine = await creatorApi('GET', '/campaigns?filter=applied');
   expect(mine.data.campaigns.some(c => c._id === campaign._id && c.myApplication?.status === 'pending'), '"Mes candidatures" ne liste pas la candidature', mine);
-  return `match ${res.data.application.matchScore}%`;
+  const locked = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Tentative après une candidature' });
+  expect(locked.status === 400, 'Après la première candidature, la campagne ne doit plus être modifiable', locked);
+  return `match ${res.data.application.matchScore}% ; brief figé`;
 });
 
 await step('Créateur : modifie son devis (droits, conditions), version 2', async () => {

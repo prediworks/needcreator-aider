@@ -226,6 +226,14 @@ export default function CampaignDetailPage() {
               </Card>
             )}
 
+            {/* Publiée sans aucune réponse : le brief se corrige encore */}
+            {isOwnCampaign && campaign.status === 'active' && campaign.editable && (
+              <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap" data-testid="live-edit">
+                <p className="text-sm text-neutral-700">Aucun créateur n&apos;a encore répondu : vous pouvez corriger le brief. Dès la première candidature, il sera figé.</p>
+                <Link href={`/campaigns/new?edit=${campaignId}`}><Button variant="outline" size="sm">Modifier la campagne</Button></Link>
+              </Card>
+            )}
+
             {/* Paiements groupés en attente (marque) */}
             {isOwnCampaign && campaign.pendingPayments?.length > 0 && (
               <GroupPaymentCard campaignId={campaignId} pending={campaign.pendingPayments} />

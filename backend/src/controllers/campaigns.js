@@ -469,6 +469,7 @@ export async function getCampaign(req, res) {
         }
       });
       campaign.applications.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+      campaign.editable = isCampaignEditable(campaign);
     }
 
     res.json({ campaign });
@@ -1066,6 +1067,12 @@ export async function selectCreator(req, res) {
 /**
  * Update campaign
  */
+/** Modifiable : brouillon, ou publiée tant qu'aucun créateur n'a répondu (candidature ou devis) */
+export function isCampaignEditable(campaign) {
+  if (campaign.status === 'draft') return true;
+  return campaign.status === 'active' && !(campaign.applications || []).length && !campaign.selectedCreator;
+}
+
 export async function updateCampaign(req, res) {
   try {
     const { campaignId } = req.params;
@@ -1081,10 +1088,15 @@ export async function updateCampaign(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    if (campaign.status !== 'draft') {
+    if (!isCampaignEditable(campaign)) {
       return res.status(400).json({
-        error: 'Seule une campagne en brouillon peut être modifiée'
+        error: campaign.status === 'active' ? 'Un créateur a déjà répondu : la campagne ne peut plus être modifiée (vous pouvez l\'annuler tant qu\'aucun créateur n\'est sélectionné)' : 'Seule une campagne en brouillon, ou publiée sans aucune candidature, peut être modifiée'
       });
+    }
+    const published = campaign.status === 'active';
+    // Publiée : le type (rémunérée / produit offert) et la visibilité ont déjà décidé qui a été prévenu, ils restent tels quels
+    if (published && ((u.type !== undefined && u.type !== campaign.type) || (u.visibility !== undefined && u.visibility !== campaign.visibility))) {
+      return res.status(400).json({ error: 'Campagne publiée : le type et la visibilité ne changent plus. Annulez-la et recréez-la pour les changer.' });
     }
 
     if (u.title !== undefined) campaign.title = u.title;
@@ -1124,7 +1136,15 @@ export async function updateCampaign(req, res) {
 
     await campaign.save();
 
-    logger.info(`Campaign updated: ${campaign._id}`);
+    // Créateurs déjà invités et prévenus : le brief qu'ils ont reçu a changé
+    if (published) {
+      const brandName = brand.profile?.companyName || 'La marque';
+      for (const inv of (campaign.invitations || []).filter(i => i.notifiedAt && i.creatorId)) {
+        notify(inv.creatorId, { type: 'invitation', title: `${brandName} a mis à jour le brief de sa campagne`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      }
+    }
+
+    logger.info(`Campaign updated: ${campaign._id}${published ? ' (published, no application yet)' : ''}`);
 
     res.json({
       message: 'Campaign updated successfully',

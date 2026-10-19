@@ -101,13 +101,13 @@ function NewCampaignForm() {
 
   if (!ready || (editId && loadingExisting)) return <Spinner />;
 
-  if (editId && existing && existing.status !== 'draft') {
+  if (editId && existing && existing.status !== 'draft' && !existing.editable) {
     return (
       <div className="min-h-screen bg-neutral-50 py-8">
         <div className="container mx-auto px-4 max-w-3xl">
           <Card className="p-8 text-center">
             <h1 className="text-xl font-semibold mb-2">Cette campagne n&apos;est plus modifiable</h1>
-            <p className="text-neutral-600 mb-4">Seules les campagnes en brouillon peuvent être modifiées. Une campagne publiée peut être annulée tant qu&apos;aucun créateur n&apos;est sélectionné.</p>
+            <p className="text-neutral-600 mb-4">Une campagne se modifie en brouillon, ou après publication tant qu&apos;aucun créateur n&apos;a répondu. Elle peut encore être annulée tant qu&apos;aucun créateur n&apos;est sélectionné.</p>
             <Link href={`/campaigns/${editId}`}><Button>Retour à la campagne</Button></Link>
           </Card>
         </div>
@@ -116,6 +116,8 @@ function NewCampaignForm() {
   }
 
   const isEdit = !!editId;
+  // Campagne déjà publiée, sans aucune réponse : le brief se corrige, le type et la visibilité restent ceux de la publication
+  const isLiveEdit = isEdit && existing?.status === 'active';
 
   const handleNicheToggle = (niche: string) => {
     setNiches(prev =>
@@ -179,7 +181,8 @@ function NewCampaignForm() {
   };
 
   const handleSaveDraft = async () => {
-    await saveDraft();
+    const id = await saveDraft();
+    if (isLiveEdit) { toast.success('Campagne mise à jour. Les créateurs invités sont prévenus.'); router.push(`/campaigns/${id}`); return; }
     setStep(3);
   };
 
@@ -203,7 +206,7 @@ function NewCampaignForm() {
 
         <Card className="p-8">
           <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-            {isEdit ? 'Modifier le brouillon' : 'Créer une campagne'}
+            {isLiveEdit ? 'Modifier la campagne' : isEdit ? 'Modifier le brouillon' : 'Créer une campagne'}
           </h1>
           <p className="text-neutral-600 mb-8">
             5 minutes suffisent. Les créateurs correspondant à vos niches seront notifiés à la publication.
@@ -342,7 +345,9 @@ function NewCampaignForm() {
                       key={o.v}
                       type="button"
                       onClick={() => setCampaignType(o.v as any)}
-                      className={`text-left p-4 rounded-lg border-2 transition ${campaignType === o.v ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
+                      disabled={isLiveEdit && campaignType !== o.v}
+                      title={isLiveEdit ? 'Campagne publiée : le type ne change plus' : undefined}
+                      className={`text-left p-4 rounded-lg border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${campaignType === o.v ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-neutral-300'}`}
                     >
                       <div className="font-semibold text-neutral-900">{o.t}</div>
                       <div className="text-xs text-neutral-600 mt-1">{o.d}</div>
@@ -436,7 +441,7 @@ function NewCampaignForm() {
 
               <div className="bg-neutral-50 rounded-lg p-4">
                 <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
-                  <input type="checkbox" checked={visibility === 'private'} onChange={(e) => setVisibility(e.target.checked ? 'private' : 'public')} />
+                  <input type="checkbox" checked={visibility === 'private'} onChange={(e) => setVisibility(e.target.checked ? 'private' : 'public')} disabled={isLiveEdit} title={isLiveEdit ? 'Campagne publiée : la visibilité ne change plus' : undefined} />
                   Campagne privée : visible uniquement par les créateurs que vous invitez
                 </label>
                 <p className="text-xs text-neutral-500 mt-1">Pour un lancement confidentiel. Aucune notification aux créateurs à la publication ; invitez-les depuis l&apos;annuaire ou la page de la campagne.</p>
