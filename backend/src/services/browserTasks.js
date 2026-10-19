@@ -69,11 +69,18 @@ export async function batchFromAdLibrary({ keywords, count = 15, country = 'FR',
   return createBatch({ label: `Bibliothèque publicitaire · ${kws.join(', ')}`.slice(0, 160), kind: 'brand', origin: 'bibliothèque Meta', createdBy, items });
 }
 
+/**
+ * Page d'un hashtag Instagram. L'ancienne adresse /explore/tags/<tag>/ redirige depuis octobre 2026 vers une recherche « #tag » qui affiche
+ * « Page not found » ; la recherche par mot clé sans le # affiche bien les publications.
+ */
+export const hashtagUrl = (tag) => `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(String(tag).replace(/^#/, ''))}`;
+const OLD_HASHTAG_URL = /^https?:\/\/(?:www\.)?instagram\.com\/explore\/tags\/([^/?#]+)/i;
+
 /** Lot « hashtag » : N publications récentes, puis auteur et profil en tâches filles */
 export async function batchFromHashtags({ hashtags, count = 20, createdBy } = {}) {
   const tags = [...new Set((hashtags || []).map(h => String(h).trim().replace(/^#/, '')).filter(Boolean))].slice(0, 10);
   if (!tags.length) return null;
-  return createBatch({ label: `Hashtags Instagram · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'creator', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/` })) });
+  return createBatch({ label: `Hashtags Instagram · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'creator', createdBy, items: tags.map(t => ({ type: 'list_hashtag', query: t, count, url: hashtagUrl(t) })) });
 }
 
 export const LINKEDIN_DAY_CAP = 20; // pages LinkedIn par jour, toutes tâches confondues : le réseau le plus sévère, un compte neuf
@@ -171,7 +178,7 @@ export async function batchFromPartnershipHashtags({ hashtags, count = 20, creat
   const waiting = await Lead.find({ kind: 'brand', profilePending: true, status: 'new', 'socials.instagram': { $nin: [null, ''] } }).sort({ createdAt: 1 }).limit(60).select('socials.instagram').lean();
   const planned = new Set((await BrowserTask.distinct('input.leadId', { type: 'read_profile', status: { $in: ['pending', 'running'] }, 'input.leadId': { $in: waiting.map(l => l._id) } })).map(String));
   const checks = waiting.filter(l => !planned.has(String(l._id))).map(l => ({ type: 'read_profile', url: l.socials.instagram, leadId: l._id, kind: 'brand' }));
-  return createBatch({ label: `Marques taguées par les créateurs · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'brand', origin: 'créateurs UGC (tag)', createdBy, items: [...checks, ...tags.map(t => ({ type: 'list_hashtag', query: t, count, url: `https://www.instagram.com/explore/tags/${encodeURIComponent(t)}/`, purpose: 'brands' }))] });
+  return createBatch({ label: `Marques taguées par les créateurs · ${tags.map(t => `#${t}`).join(' ')}`.slice(0, 160), kind: 'brand', origin: 'créateurs UGC (tag)', createdBy, items: [...checks, ...tags.map(t => ({ type: 'list_hashtag', query: t, count, url: hashtagUrl(t), purpose: 'brands' }))] });
 }
 
 /** Lot « TikTok Creative Center » : meilleures publicités par mot-clé (page publique, sans compte), annonceurs relevés par l'IA */
@@ -290,6 +297,13 @@ export async function claimNextTask({ workspaceId = 'default', types = null } = 
     { sort: { createdAt: 1 }, new: true },
   ).lean();
   if (!task) return null;
+  // Tâche hashtag créée avant le changement d'adresse d'Instagram : la nouvelle adresse est donnée à l'extension et enregistrée
+  const old = task.type === 'list_hashtag' && String(task.input?.url || '').match(OLD_HASHTAG_URL);
+  if (old) {
+    let tag = old[1]; try { tag = decodeURIComponent(tag); } catch { /* étiquette illisible : gardée telle quelle */ }
+    task.input = { ...task.input, url: hashtagUrl(tag) };
+    await BrowserTask.updateOne({ _id: task._id }, { $set: { 'input.url': task.input.url } });
+  }
   return { id: task._id, type: task.type, input: task.input, batchId: task.batchId };
 }
 
@@ -687,17 +701,18 @@ export async function submitTaskResult(id, result) {
   const slim = { url: result?.url, finalUrl: result?.finalUrl, title: String(result?.title || '').slice(0, 300), text: String(result?.text || '').slice(0, 20000), links: (result?.links || []).slice(0, 800).map(l => ({ href: String(l.href || '').slice(0, 500), text: String(l.text || '').slice(0, 120) })), blocked: result?.blocked || null, emails: Array.isArray(result?.emails) ? result.emails.slice(0, 10).map(e => String(e).slice(0, 120)) : [], meta: result?.meta ? { description: String(result.meta.description || '').slice(0, 1000), ogTitle: String(result.meta.ogTitle || '').slice(0, 300), ogDescription: String(result.meta.ogDescription || '').slice(0, 1000) } : undefined, self: result?.self ? String(result.self).slice(0, 40) : null, items: Array.isArray(result?.items) ? result.items.slice(0, 100).map(i => ({ text: String(i?.text || '').slice(0, 2000), href: i?.href ? String(i.href).slice(0, 500) : null })) : undefined, contact: result?.contact ? { email: String(result.contact.email || '').slice(0, 200).toLowerCase(), source: String(result.contact.source || '').slice(0, 20), category: String(result.contact.category || '').slice(0, 80), professional: result.contact.professional ?? null } : null };
   task.result = slim;
   if (slim.blocked) {
-    const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome' }[slim.blocked] || slim.blocked;
-    const exhausted = task.attempts >= MAX_ATTEMPTS;
+    const reason = { login: 'page de connexion', captcha: 'captcha', restricted: 'restriction du réseau', consent: 'consentement aux cookies à accepter une fois dans Chrome', not_found: 'page introuvable' }[slim.blocked] || slim.blocked;
+    // Page introuvable (lien mort, adresse changée par le réseau) : ni blocage ni nouvel essai, la tâche s'arrête là
+    const exhausted = task.attempts >= MAX_ATTEMPTS || slim.blocked === 'not_found';
     task.status = exhausted ? 'failed' : 'pending';
     task.error = String(result?.error || '').slice(0, 500) || undefined;
-    const why = slim.blocked === 'error' ? `page illisible${task.error ? ` : ${task.error}` : ''}` : `bloqué : ${reason}`;
-    task.outcome = exhausted ? `abandonnée après ${MAX_ATTEMPTS} tentatives (${why})` : why;
+    const why = slim.blocked === 'error' ? `page illisible${task.error ? ` : ${task.error}` : ''}` : slim.blocked === 'not_found' ? 'page introuvable' : `bloqué : ${reason}`;
+    task.outcome = slim.blocked === 'not_found' ? 'page introuvable (lien mort ou adresse changée par le réseau)' : exhausted ? `abandonnée après ${MAX_ATTEMPTS} tentatives (${why})` : why;
     if (exhausted) task.finishedAt = new Date();
     await task.save();
     if (batch) {
       // Une erreur de lecture (page trop lente, onglet fermé) n'est pas un blocage du réseau : le lot n'est pas marqué bloqué
-      if (slim.blocked !== 'error') { batch.blockedAt = new Date(); batch.blockedReason = reason; }
+      if (slim.blocked !== 'error' && slim.blocked !== 'not_found') { batch.blockedAt = new Date(); batch.blockedReason = reason; }
       if (exhausted) { batch.counts.failed += 1; if (batch.counts.done + batch.counts.failed >= batch.counts.total) batch.closedAt = new Date(); }
       await batch.save();
     }

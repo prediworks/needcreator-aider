@@ -14,6 +14,7 @@
   if (/\/accounts\/login|\/login\b|\/checkpoint\//.test(path) || (hasLoginForm && bodyText.length < 4000)) blocked = 'login';
   else if (/^consent\./.test(location.hostname) || /before you continue|avant d.accéder|accept all|tout accepter|bevor sie.*fortfahren/.test(lower) && document.querySelector('form[action*="consent"], button[aria-label*="ccept"]')) blocked = 'consent';
   else if (/captcha|verify you are human|confirm you're human|prouvez que vous êtes humain|vérification de sécurité/.test(lower) || document.querySelector('iframe[src*="captcha"], iframe[src*="challenge"]')) blocked = 'captcha';
+  else if (/page not found|sorry, this page isn.t available|cette page n.est pas disponible|page introuvable|the link you followed may be broken|le lien que vous avez suivi est peut-être rompu/.test(lower) && bodyText.length < 2500) blocked = 'not_found';
   else if (/we restrict certain activity|nous limitons certaines activités|try again later|réessayez plus tard|temporarily blocked|temporairement bloqué|suspicious activity|activité suspecte|something went wrong|une erreur s.est produite/.test(lower) && bodyText.length < 2500) blocked = 'restricted';
   const seen = new Set();
   const links = [];

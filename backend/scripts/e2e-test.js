@@ -3668,6 +3668,7 @@ await step('Extension Chrome : jeton, lot de tâches, remise, résultats (auteur
     batchIds.push(lot5.data.batch._id);
     const t5 = (await ext('GET', '/next')).data.task;
     expect(t5 && t5.type === 'list_hashtag' && t5.input.purpose === 'brands', 'La tâche hashtag doit porter le but « marques »', t5);
+    expect(/instagram\.com\/explore\/search\/keyword\/\?q=[^%#]/.test(t5.input.url), 'La tâche hashtag doit ouvrir la recherche par mot clé (sans #), l\'ancienne adresse /explore/tags/ affiche Page not found', t5);
     const r5 = await ext('POST', `/${t5.id}/result`, { url: t5.input.url, title: '#e2epartenariat', text: 'e2epartenariat', links: [{ href: 'https://www.instagram.com/p/E2EEXTTAG1/', text: '' }, { href: 'https://www.instagram.com/p/E2EEXTTAG1/?img_index=2', text: '' }], list: { steps: [1, 1, 1], links: 1, visibility: 'hidden' } });
     expect(r5.status === 200 && /marques taguées à lire/.test(r5.data.outcome) && /onglet caché/.test(r5.data.outcome), 'Les publications doivent donner des tâches « marques taguées », et une liste restée sur ses premiers éléments doit être signalée', r5);
     const t6 = (await ext('GET', '/next')).data.task;

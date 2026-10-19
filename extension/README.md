@@ -12,10 +12,12 @@ Header on every call: `X-Extension-Token: <token>`.
 |---|---|---|
 | `GET {serverUrl}/ext/status` | connection test (the options page also requests host permission for the server origin; if refused, the server must accept the `chrome-extension://` origin on these routes) | `{ ok, pending, running }` |
 | `GET {serverUrl}/ext/next` | claim the next task | `{ task: { id, type, input: { url, query, count } } \| null, pending, running }` |
-| `POST {serverUrl}/ext/{id}/result` | send the page | body `{ url, finalUrl, title, text, links: [{ href, text }], blocked: null \| 'login' \| 'captcha' \| 'restricted' \| 'consent' \| 'error', error? }` → `{ outcome, blocked }` |
+| `POST {serverUrl}/ext/{id}/result` | send the page | body `{ url, finalUrl, title, text, links: [{ href, text }], blocked: null \| 'login' \| 'captcha' \| 'restricted' \| 'consent' \| 'not_found' \| 'error', error? }` → `{ outcome, blocked }` |
 
 Task types the extension knows: `read_post_author`, `read_profile` (one page, no scroll), `list_hashtag` (4 scrolls),
 `list_ad_library` (6 scrolls), `list_tiktok_ads` (6 scrolls), `read_post_brands` (one page), and `prefill_message` (opens the profile in a visible tab, opens the conversation, pastes `input.text`, stops; result `{ prefilled, copied, error }`). Any other type is read as a single page.
+
+**Page not found (0.3.0).** A short page saying « Page not found » / « Sorry, this page isn't available » is reported as `blocked: 'not_found'`: a dead link or an address the site changed, not a restriction. The extension logs it and goes on with the next task instead of stopping.
 
 **Post links (0.2.9).** On a `list_group_posts` page the result also carries `items: [{ text, href }]`: one entry per top-level post (`[role="article"]` that is not nested in another), with the first 700 characters of its text and the permalink its timestamp links to (`/groups/<g>/posts/<id>/` or `/permalink/<id>/`), `null` when the page shows none. Items are merged across scrolls like the text. The server ties a request to its post by matching the excerpt against the item text, and falls back to a group search when no link was seen.
 

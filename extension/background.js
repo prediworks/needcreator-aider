@@ -238,7 +238,9 @@ async function tick() {
     catch (err) { await api(`/ext/${task.id}/result`, { method: 'POST', body: { url: task.input.url, blocked: 'error', error: err.message, text: '', links: [] } }); log(`Page error: ${err.message}`); return; }
     state.session += 1; state.day += 1;
     const res = await api(`/ext/${task.id}/result`, { method: 'POST', body: page });
-    if (page.blocked) {
+    if (page.blocked === 'not_found') {
+      log(`Page not found: ${task.input.url} (dead link or address changed by the site), next task`); // not a block: the queue goes on
+    } else if (page.blocked) {
       state.running = false;
       log(page.blocked === 'consent' ? 'Stopped: the site asks to accept cookies. Open the tab, accept once, then start again.' : `Stopped: the site showed a ${page.blocked} page. Open the tab, sort it out by hand, then start again later.`);
       chrome.action.setBadgeText({ text: '!' }); chrome.action.setBadgeBackgroundColor({ color: '#dc2626' });
