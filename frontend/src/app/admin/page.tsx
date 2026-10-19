@@ -546,6 +546,7 @@ export default function AdminPage() {
                     <th className="py-2 pr-4">Statut</th>
                     <th className="py-2 pr-4">Budget</th>
                     <th className="py-2 pr-4">Candidatures</th>
+                    <th className="py-2 pr-4" title="Créateurs invités par la marque : inscrits, plus les invitations par email encore sans inscription">Invités</th>
                     <th className="py-2 pr-4">Créateur</th>
                     <th className="py-2">Créée le</th>
                   </tr>
@@ -558,6 +559,7 @@ export default function AdminPage() {
                       <td className="py-2 pr-4"><Badge map={CAMPAIGN_STATUS} value={c.status} /></td>
                       <td className="py-2 pr-4">{formatCurrency(c.budget?.total)}</td>
                       <td className="py-2 pr-4">{c.analytics?.applications || 0}</td>
+                      <td className="py-2 pr-4">{(c.invitations?.length || 0) + (c.externalInvitations || []).filter((e: any) => !e.acceptedAt).length || '—'}</td>
                       <td className="py-2 pr-4 text-neutral-600">{c.selectedCreator?.profile?.name || '—'}</td>
                       <td className="py-2 text-neutral-600">{formatDate(c.createdAt)}</td>
                     </tr>

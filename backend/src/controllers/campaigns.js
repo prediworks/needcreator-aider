@@ -470,6 +470,7 @@ export async function getCampaign(req, res) {
       });
       campaign.applications.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
       campaign.editable = isCampaignEditable(campaign);
+      campaign.invitedCreators = await invitedList(campaign);
     }
 
     res.json({ campaign });
@@ -1067,6 +1068,72 @@ export async function selectCreator(req, res) {
 /**
  * Update campaign
  */
+export const REMIND_EVERY_DAYS = 3;
+
+/**
+ * Créateurs invités sur une campagne, pour la marque : inscrits (nom, profil) et extérieurs (email), avec où ils en sont
+ * (invité, a répondu ; pour un extérieur : pas encore inscrit, inscrit) et si une relance est possible (une tous les trois jours).
+ */
+async function invitedList(campaign) {
+  const answered = new Set((campaign.applications || []).map(a => idOf(a.creatorId)).filter(Boolean));
+  const canRemind = (last) => !last || Date.now() - new Date(last).getTime() >= REMIND_EVERY_DAYS * 86400000;
+  const ids = (campaign.invitations || []).map(i => idOf(i.creatorId)).filter(Boolean);
+  const users = new Map((await User.find({ _id: { $in: ids } }).select('profile.name profile.slug profile.avatar status').lean()).map(u => [String(u._id), u]));
+  const viaEmail = new Map((campaign.externalInvitations || []).filter(e => e.creatorId).map(e => [String(e.creatorId), e.email]));
+  const out = [];
+  for (const i of campaign.invitations || []) {
+    const id = idOf(i.creatorId); const u = users.get(id);
+    if (!u) continue;
+    const status = answered.has(id) ? 'answered' : 'invited';
+    out.push({ kind: 'member', creatorId: id, name: u.profile?.name || '', slug: u.profile?.slug || '', avatar: u.profile?.avatar || '', email: viaEmail.get(id) || '', invitedAt: i.invitedAt, remindedAt: i.remindedAt || null, status, profilePending: u.status !== 'active', canRemind: status === 'invited' && campaign.status === 'active' && canRemind(i.remindedAt || i.notifiedAt || i.invitedAt) });
+  }
+  for (const e of campaign.externalInvitations || []) {
+    if (e.acceptedAt) continue; // inscrit : déjà dans la liste des membres
+    out.push({ kind: 'external', email: e.email, name: e.name || '', invitedAt: e.invitedAt, remindedAt: e.remindedAt || null, status: 'not_registered', canRemind: campaign.status === 'active' && canRemind(e.remindedAt || e.invitedAt) });
+  }
+  return out.sort((a, b) => new Date(b.invitedAt) - new Date(a.invitedAt));
+}
+
+/** Relance d'un créateur invité qui n'a pas répondu (inscrit : email + notification ; extérieur : l'email d'invitation renvoyé) */
+export async function remindInvitation(req, res) {
+  try {
+    const brand = req.user;
+    const campaign = await Campaign.findOne({ _id: req.params.campaignId, brandId: brand._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.status !== 'active') return res.status(400).json({ error: 'La campagne doit être publiée pour relancer un invité' });
+    const brandName = brand.profile?.companyName || brand.profile?.name || 'La marque';
+    const tooSoon = (last) => last && Date.now() - new Date(last).getTime() < REMIND_EVERY_DAYS * 86400000;
+    const { creatorId, email } = req.body || {};
+    if (creatorId) {
+      const inv = (campaign.invitations || []).find(i => idOf(i.creatorId) === String(creatorId));
+      if (!inv) return res.status(404).json({ error: 'Ce créateur n\'est pas invité sur cette campagne' });
+      if ((campaign.applications || []).some(a => idOf(a.creatorId) === String(creatorId))) return res.status(400).json({ error: 'Ce créateur a déjà répondu' });
+      if (tooSoon(inv.remindedAt || inv.notifiedAt || inv.invitedAt)) return res.status(429).json({ error: `Une relance tous les ${REMIND_EVERY_DAYS} jours au plus` });
+      const creator = await User.findById(creatorId).select('email profile.name');
+      if (!creator) return res.status(404).json({ error: 'Créateur introuvable' });
+      inv.remindedAt = new Date();
+      await campaign.save();
+      sendCampaignInvitation(creator.email, creator.profile?.name, brandName, campaign.title, campaign._id, 'Petit rappel : votre profil nous intéresse toujours pour cette campagne.').catch(err => logger.warn(`Reminder not sent: ${err.message}`));
+      notify(creator._id, { type: 'invitation', title: `${brandName} vous relance sur sa campagne`, text: campaign.title, href: `/campaigns/${campaign._id}` }).catch(() => {});
+      return res.json({ message: `${creator.profile?.name || 'Le créateur'} a été relancé(e)` });
+    }
+    if (email) {
+      const inv = (campaign.externalInvitations || []).find(i => i.email === String(email).toLowerCase().trim() && !i.acceptedAt);
+      if (!inv) return res.status(404).json({ error: 'Aucune invitation en attente pour cet email' });
+      if (tooSoon(inv.remindedAt || inv.invitedAt)) return res.status(429).json({ error: `Une relance tous les ${REMIND_EVERY_DAYS} jours au plus` });
+      inv.remindedAt = new Date();
+      campaign.markModified('externalInvitations');
+      await campaign.save();
+      sendExternalCampaignInvitation(inv.email, inv.name, brandName, campaign.title, `${config.cors.origin}/register?role=creator&campaignInvite=${inv.token}`).catch(err => logger.warn(`Reminder not sent: ${err.message}`));
+      return res.json({ message: `Invitation renvoyée à ${inv.email}` });
+    }
+    res.status(400).json({ error: 'Indiquez le créateur ou l\'email à relancer' });
+  } catch (error) {
+    logger.error('remindInvitation failed:', error);
+    res.status(500).json({ error: 'Relance impossible' });
+  }
+}
+
 /** Modifiable : brouillon, ou publiée tant qu'aucun créateur n'a répondu (candidature ou devis) */
 export function isCampaignEditable(campaign) {
   if (campaign.status === 'draft') return true;

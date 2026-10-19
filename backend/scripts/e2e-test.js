@@ -394,7 +394,13 @@ await step('Marque : invite le créateur (contourne l\'avant-première)', async 
   expect(after.status === 200 && after.data.campaign.invited === true, 'Le créateur invité devrait accéder à la campagne', after);
   const feed = await creatorApi('GET', '/campaigns');
   expect(feed.data.campaigns[0]?._id === campaign._id && feed.data.campaigns[0].invited, 'L\'invitation devrait être en tête du feed', feed);
-  return 'invité, campagne accessible et en tête du feed';
+  // Côté marque : liste des invités et relance (une tous les trois jours)
+  const own = await brandApi('GET', `/campaigns/${campaign._id}`);
+  const me = (own.data?.campaign?.invitedCreators || []).find(i => i.creatorId === String(creatorUser.id));
+  expect(me && me.status === 'invited' && me.canRemind === false, 'La marque doit voir le créateur invité, sans réponse, pas encore relançable', own);
+  const early = await brandApi('POST', `/campaigns/${campaign._id}/invitations/remind`, { creatorId: creatorUser.id });
+  expect(early.status === 429, 'Relance moins de trois jours après l\'invitation : refusée', early);
+  return 'invité, campagne accessible et en tête du feed ; visible dans les invités de la marque';
 });
 
 let earlyCampaign;
@@ -564,6 +570,8 @@ await step('Candidature du créateur', async () => {
   expect(dup.status === 400, 'Une double candidature devrait être refusée', dup);
   const mine = await creatorApi('GET', '/campaigns?filter=applied');
   expect(mine.data.campaigns.some(c => c._id === campaign._id && c.myApplication?.status === 'pending'), '"Mes candidatures" ne liste pas la candidature', mine);
+  const inv = await brandApi('GET', `/campaigns/${campaign._id}`);
+  expect((inv.data?.campaign?.invitedCreators || []).find(i => i.creatorId === String(creatorUser.id))?.status === 'answered', 'Le créateur invité qui a postulé doit apparaître « A répondu »', inv);
   const locked = await brandApi('PATCH', `/campaigns/${campaign._id}`, { title: 'Tentative après une candidature' });
   expect(locked.status === 400, 'Après la première candidature, la campagne ne doit plus être modifiable', locked);
   return `match ${res.data.application.matchScore}% ; brief figé`;

@@ -151,6 +151,7 @@ const campaignSchema = new mongoose.Schema({
     invitedAt: { type: Date, default: Date.now },
     message: String,
     notifiedAt: Date, // email + notification envoyés (à l'invitation, ou à la publication pour une campagne créée avec des invités)
+    remindedAt: Date, // dernière relance de la marque
   }],
   // Mission issue d'un devis extérieur accepté et payé via NeedCreator
   externalQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalQuote' },
@@ -170,6 +171,7 @@ const campaignSchema = new mongoose.Schema({
     invitedAt: { type: Date, default: Date.now },
     acceptedAt: Date,
     creatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    remindedAt: Date, // dernière relance de la marque
   }],
 
   notifications: {

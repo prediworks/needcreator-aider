@@ -6,6 +6,7 @@ import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote, useCounterOffer, useRespondCounterOffer } from '@/hooks/useCampaigns';
 import { CounterOfferForm, CounterOfferStatus, CounterOfferPrompt } from '@/components/CounterOfferForm';
 import CandidatesCompare from '@/components/CandidatesCompare';
+import InvitedCreators from '@/components/InvitedCreators';
 import InviteExternalCreator from '@/components/InviteExternalCreator';
 import QuoteForm, { QuoteSummary } from '@/components/QuoteForm';
 import LevelBadges from '@/components/LevelBadges';
@@ -238,6 +239,9 @@ export default function CampaignDetailPage() {
             {isOwnCampaign && campaign.pendingPayments?.length > 0 && (
               <GroupPaymentCard campaignId={campaignId} pending={campaign.pendingPayments} />
             )}
+
+            {/* Créateurs invités et où ils en sont (marque) */}
+            {isOwnCampaign && campaign.invitedCreators?.length > 0 && <InvitedCreators campaignId={campaignId} invited={campaign.invitedCreators} />}
 
             {/* Inviter un créateur extérieur (marque, campagne publiée) */}
             {isOwnCampaign && campaign.status === 'active' && (campaign.remainingSlots ?? 1) > 0 && (

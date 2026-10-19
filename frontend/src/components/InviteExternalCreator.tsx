@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import MissingHint from '@/components/ui/MissingHint';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
@@ -18,9 +18,10 @@ export default function InviteExternalCreator({ campaignId }: { campaignId: stri
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [sent, setSent] = useState<string[]>([]);
+  const qc = useQueryClient();
   const invite = useMutation({
     mutationFn: async () => (await api.post(`/campaigns/${campaignId}/invite-external`, { email, name })).data,
-    onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); setSent((s) => [...s, email]); setEmail(''); setName(''); },
+    onSuccess: (d) => { toast.success(d.message, { duration: 6000 }); setSent((s) => [...s, email]); qc.invalidateQueries({ queryKey: ['campaign', campaignId] }); setEmail(''); setName(''); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
   });
   const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);

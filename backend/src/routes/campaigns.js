@@ -20,6 +20,7 @@ import {
   listPublicCampaigns,
   getPublicCampaign,
   inviteExternalCreator,
+  remindInvitation,
   externalInvitationInfo,
   renewWithCreator,
 } from '../controllers/campaigns.js';
@@ -53,6 +54,7 @@ router.post('/:campaignId/publish', authenticate, authorize('brand'), requireVer
 router.post('/:campaignId/apply', authenticate, authorize('creator'), requireVerifiedEmail, validate(schemas.quote), applyToCampaign);
 router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(schemas.quote), updateQuote);
 router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
+router.post('/:campaignId/invitations/remind', authenticate, authorize('brand'), remindInvitation); // relance d'un invité sans réponse
 router.post('/:campaignId/invite-external', authenticate, authorize('brand'), validate(schemas.externalInvite), inviteExternalCreator); // créateur non inscrit
 router.post('/:campaignId/applications/:creatorId/counter', authenticate, authorize('brand'), validate(schemas.counterOffer), counterOffer); // contre-proposition
 router.post('/:campaignId/counter/respond', authenticate, authorize('creator'), validate(schemas.counterOfferResponse), respondCounterOffer);
