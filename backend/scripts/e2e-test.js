@@ -1050,6 +1050,30 @@ await step('Devis pour un client hors plateforme : PDF, envoi, page publique, re
   expect(direct.status === 200 && direct.data.quote.status === 'accepted_direct' && !direct.data.quote.deliveryId, 'Marquage payé en direct échoué', direct);
   const noDel = await creatorApi('DELETE', `/external-quotes/${q1.data.quote._id}`);
   expect(noDel.status === 400, 'Un devis converti en mission ne se supprime pas', noDel);
+  // Accepter et payer sans compte : seulement l'adresse du devis, jamais une adresse qui a déjà un compte ; compte créé, connexion, mission
+  const guestEmail = `e2e-invite-${RUN}@needcreator-test.com`;
+  const q5 = await creatorApi('POST', '/external-quotes', { ...base, client: { ...base.client, email: guestEmail }, title: 'Devis accepté sans compte', price: 180 });
+  const guest = (email) => fetch(`${API}/external-quotes/public/${q5.data.quote.token}/accept-guest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) }).then(async r => ({ status: r.status, data: await r.json() }));
+  const gWrong = await guest(`autre-${RUN}@needcreator-test.com`);
+  const gExisting = await creatorApi('PATCH', `/external-quotes/${q5.data.quote._id}`, { ...base, client: { ...base.client, email: brandEmail }, title: 'Devis accepté sans compte', price: 180 }).then(() => guest(brandEmail));
+  await creatorApi('PATCH', `/external-quotes/${q5.data.quote._id}`, { ...base, client: { ...base.client, email: guestEmail }, title: 'Devis accepté sans compte', price: 180 });
+  const gOk = await guest(guestEmail);
+  const guestUser = await users.findOne({ email: guestEmail });
+  const guestQuote = await mongoose.connection.db.collection('externalquotes').findOne({ _id: new mongoose.Types.ObjectId(q5.data.quote._id) });
+  const gTwice = await guest(guestEmail);
+  try {
+    expect(gWrong.status === 403 && gWrong.data.code === 'EMAIL_MISMATCH' && gExisting.status === 409 && gExisting.data.code === 'ACCOUNT_EXISTS' && gOk.status === 201 && gOk.data.customToken && gOk.data.deliveryId
+      && guestUser && guestUser.role === 'brand' && guestUser.profile?.companyName === 'Boutique Externe' && guestQuote.status === 'accepted_needcreator' && String(guestQuote.brandId) === String(guestUser._id) && gTwice.status === 400,
+    'Accepter et payer sans compte : adresse du devis seulement, compte existant renvoyé vers la connexion, compte créé et mission lancée', { wrong: gWrong.data, existing: gExisting.data, ok: gOk.data, twice: gTwice.data });
+  } finally {
+    if (guestUser) {
+      const gc = await mongoose.connection.db.collection('campaigns').find({ brandId: guestUser._id }).project({ _id: 1 }).toArray();
+      await mongoose.connection.db.collection('deliveries').deleteMany({ campaignId: { $in: gc.map(c => c._id) } });
+      await mongoose.connection.db.collection('campaigns').deleteMany({ brandId: guestUser._id });
+      await users.deleteOne({ _id: guestUser._id });
+      await admin.auth().deleteUser(guestUser.firebaseUid).catch(() => {});
+    }
+  }
   // Nettoyage : mission et campagne du client, devis
   const db = mongoose.connection.db;
   const clientId = new mongoose.Types.ObjectId(reg.data.user.id);
@@ -1149,6 +1173,19 @@ await step('Créateur : suivi de prospection (relances, devis lié) et calculate
   expect(calc.perVideo && calc.perVideo.low <= calc.perVideo.mid && calc.perVideo.mid <= calc.perVideo.high && calc.total.mid === calc.perVideo.mid * 3 && calc.factors.length >= 4, 'Calculateur : fourchette et facteurs attendus', { status: 200, data: calc });
   const plain = await fetch(`${API}/campaigns/rate-calculator?videoType=demo`).then(r => r.json());
   expect(calc.perVideo.mid > plain.perVideo.mid, 'Droits étendus + publicité + exclusivité doivent augmenter le tarif', { status: 200, data: { calc: calc.perVideo, plain: plain.perVideo } });
+  // « Demander un devis » sans compte, depuis la page publique : la demande entre dans le suivi (à traiter aujourd'hui), le créateur est prévenu
+  const pubReq = (body) => fetch(`${API}/creators/${creatorUser.id}/quote-request`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(async r => ({ status: r.status, data: await r.json() }));
+  const reqBody = { company: 'Marque Demande', contactName: 'Paul', email: `e2e-demande-${RUN}@needcreator-test.com`, need: 'Deux vidéos témoignage pour notre sérum, diffusées en publicité Meta.', budget: '300 €' };
+  const qrShort = await pubReq({ ...reqBody, need: 'court' });
+  const qrBot = await pubReq({ ...reqBody, website2: 'http://spam.example' });
+  const qr = await pubReq(reqBody);
+  const qrAgain = await pubReq(reqBody);
+  const qrUnknown = await fetch(`${API}/creators/${'a'.repeat(24)}/quote-request`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqBody) });
+  const reqProspect = await db.collection('prospects').findOne({ creatorId, email: reqBody.email });
+  await new Promise(r => setTimeout(r, 500));
+  const bellReq = ((await creatorApi('GET', '/notifications')).data.notifications || []).find(n => /Demande de devis de Marque Demande/.test(n.title));
+  expect(qrShort.status === 400 && qrBot.status === 400 && qr.status === 201 && qrAgain.status === 429 && qrUnknown.status === 404 && reqProspect && reqProspect.status === 'replied' && reqProspect.request?.need === reqBody.need && reqProspect.nextFollowUpAt && bellReq && /\/quotes\?prospect=/.test(bellReq.href || ''),
+    'Demande de devis sans compte : besoin requis, robots écartés, une demande par jour, suivi de prospection et notification avec le devis pré-rempli', { short: qrShort.data, qr: qr.data, again: qrAgain.status, unknown: qrUnknown.status, bell: bellReq });
   await db.collection('prospects').deleteMany({ creatorId });
   await db.collection('externalquotes').deleteMany({ creatorId });
   await db.collection('externalincomes').deleteMany({ creatorId });
@@ -2112,6 +2149,32 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
     && /\/publicites\/concurrent-sa\?ref=/.test(withC.competitor_link) && !/https?:/.test(withC.competitor_line) && withC.competitor_name === 'Concurrent SA' && /page=123456/.test(withC.audit_link) && /ref=/.test(withC.audit_link)
     && /nom d'un de vos concurrents :$/.test(noC.competitor_line) && /\/publicites-concurrents\?ref=/.test(noC.competitor_link) && noC.competitor_name === 'vos concurrents' && !/page=/.test(noC.audit_link),
   'Email marques : concurrent ou phrase générique, liens avec la référence de la fiche ; visite rattachée à la fiche, sans doublon sur l\'heure, listée dans « Marques venues de l\'email »', { badRef: badRef.status, visits: visited.scanVisits, refRow, withC, noC });
+  // « Concurrent » saisi à la main dans « Modifier » : vérifié chez Meta avant tout enregistrement ; vide = retour au calcul automatique
+  await db.collection('leads').updateOne({ _id: scanLead.insertedId }, { $set: { competitor: { checkedAt: new Date() }, competitors: ['Ancien'] } });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+  const metaOn = await metaConfigured();
+  const manualC = metaOn ? null : await brandApi('PATCH', `/admin/acquisition/leads/${lid}`, { competitor: 'Concurrent Inconnu', notes: 'ne doit pas changer' });
+  const afterManual = await db.collection('leads').findOne({ _id: scanLead.insertedId });
+  const clearC = await brandApi('PATCH', `/admin/acquisition/leads/${lid}`, { competitor: '' });
+  // Filtre par niche : le secteur libre d'une marque (« Cosmétiques bio ») est rapproché de la niche Beauté
+  await db.collection('leads').updateOne({ _id: scanLead.insertedId }, { $set: { niche: 'Cosmétiques bio' } });
+  const nBeauty = await brandApi('GET', `/admin/acquisition/leads?kind=brand&niche=beauty&q=${encodeURIComponent(`E2E Scan Marque ${RUN}`)}`);
+  const nFood = await brandApi('GET', `/admin/acquisition/leads?kind=brand&niche=food&q=${encodeURIComponent(`E2E Scan Marque ${RUN}`)}`);
+  // « Texte pour le formulaire » : formulaire saisi sur la fiche, message avec le lien d'audit suivi, puis « Formulaire rempli » = contactée
+  const badForm = await brandApi('PATCH', `/admin/acquisition/leads/${lid}`, { formUrl: 'pas un lien' });
+  const setForm = await brandApi('PATCH', `/admin/acquisition/leads/${lid}`, { formUrl: 'e2escan-test.fr/pages/contact' });
+  const ft = await brandApi('GET', `/admin/acquisition/leads/${lid}/form-text`);
+  const ff = await brandApi('POST', `/admin/acquisition/leads/${lid}/form-filled`);
+  const afterForm = await db.collection('leads').findOne({ _id: scanLead.insertedId });
+  await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } });
+  expect(badForm.status === 400 && setForm.status === 200 && ft.status === 200 && ft.data.url === 'https://e2escan-test.fr/pages/contact' && ft.data.text.includes(`/audit-publicites?q=`) && ft.data.text.includes(`ref=${lid}`) && /Partenariat/.test(ft.data.tip)
+    && ff.status === 200 && afterForm.formFilledAt && afterForm.contactedVia === 'formulaire' && /Formulaire rempli le/.test(afterForm.notes || ''),
+  'Texte pour le formulaire : lien d\'audit suivi, formulaire ouvert, « Formulaire rempli » passe la fiche en contactée', { bad: badForm.status, ft: ft.data, ff: ff.data });
+  expect(nBeauty.data.leads?.some(l => String(l._id) === lid) && !nFood.data.leads?.some(l => String(l._id) === lid), 'Prospection : filtre par niche, secteur libre d\'une marque rapproché par mots', { beauty: nBeauty.data.total, food: nFood.data.total });
+  const cleared = await db.collection('leads').findOne({ _id: scanLead.insertedId });
+  expect((metaOn || (manualC.status === 503 && /Rien n'a été modifié/.test(manualC.data.error) && afterManual.notes !== 'ne doit pas changer' && afterManual.competitors[0] === 'Ancien'))
+    && clearC.status === 200 && /concurrent effacé/.test(clearC.data.message) && !cleared.competitor && cleared.competitors.length === 0,
+  'Concurrent saisi à la main : refusé sans rien modifier quand Meta ne répond pas, effacé = recherche automatique', { manual: manualC?.status, clear: clearC.data });
   // Page retirée : plus affichée
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } }); // le réglage se change en administrateur (le serveur garde ses réglages en cache 30 s : passer par son API)
   const blockSet = await brandApi('PUT', '/admin/settings/scanBlockedPages', { value: `E2E Scan Marque ${RUN}` });
@@ -3364,7 +3427,22 @@ await step('Vidéo vitrine : dépôt par un créateur pour une marque prospecté
     // Remise en l'état pour la suite (achat de cette même vidéo)
     await db.collection('showcasevideos').updateOne({ _id: svDeclined._id }, { $set: { status: 'sent' }, $unset: { declinedBy: '', declineReason: '' } });
     await db.collection('externalquotes').updateOne({ token }, { $set: { status: 'sent' }, $unset: { declinedAt: '', declineReason: '' } });
+    // Page « Vidéos tournées pour [marque] » : lien personnel sans compte, la vidéo proposée avec son devis ; lien inconnu refusé
+    const vl = await brandApi('GET', `/admin/acquisition/leads/${lead.insertedId}/videos-link`);
+    const vt = vl.data?.link?.split('/videos/')[1];
+    const vpub = await fetch(`${API}/brand-videos/public/${vt}`).then(async r => ({ status: r.status, data: await r.json() }));
+    const vbad = await fetch(`${API}/brand-videos/public/${'0'.repeat(32)}`);
+    expect(vl.status === 200 && vl.data.count === 1 && vpub.status === 200 && vpub.data.brandName === 'E2E Marque Vitrine' && vpub.data.videos.length === 1 && vpub.data.videos[0].status === 'available' && vpub.data.videos[0].quoteLink === `/q/${token}` && vpub.data.videos[0].previewUrl && vbad.status === 404,
+      'Page « Vidéos tournées pour [marque] » : lien personnel, vidéo proposée avec son devis, lien inconnu refusé', { vl: vl.data, vpub: vpub.data, bad: vbad.status });
   } finally { await users.updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+  // Espace marque : une marque inscrite rattachée à la fiche voit la vidéo tournée pour elle
+  const brandUser = await users.findOne({ email: brandEmail });
+  const mineBefore = await brandApi('GET', '/brand-videos/mine');
+  await db.collection('leads').updateOne({ _id: lead.insertedId }, { $set: { registeredUserId: brandUser._id } });
+  const mineVideos = await brandApi('GET', '/brand-videos/mine');
+  await db.collection('leads').updateOne({ _id: lead.insertedId }, { $unset: { registeredUserId: '' } });
+  expect(mineBefore.status === 200 && !mineBefore.data.videos.some(v => v.productName === 'Bougie Figuier') && mineVideos.data.videos?.some(v => v.productName === 'Bougie Figuier' && v.status === 'available'),
+    'Espace marque : les vidéos tournées pour la marque inscrite, et seulement pour elle', { before: mineBefore.data, after: mineVideos.data });
   // Refus par l'équipe avant envoi : la vidéo déposée en direct (seconde marque) n'est pas proposée, le créateur est prévenu avec le motif
   await users.updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   try {

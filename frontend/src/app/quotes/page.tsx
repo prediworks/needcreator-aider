@@ -33,7 +33,8 @@ function QuotesPageInner() {
   const cfg = usePublicConfig();
   const queryClient = useQueryClient();
   const sp = useSearchParams();
-  const prefill = sp.get('prospect') ? { prospectId: sp.get('prospect') || undefined, companyName: sp.get('company') || '', contactName: sp.get('contact') || '', email: sp.get('email') || '' } : undefined;
+  // Prospect du suivi, ou demande de devis reçue depuis la page publique (« need » : le besoin écrit par la marque)
+  const prefill = sp.get('prospect') ? { prospectId: sp.get('prospect') || undefined, companyName: sp.get('company') || '', contactName: sp.get('contact') || '', email: sp.get('email') || '', ...(sp.get('need') ? { title: `Vidéo UGC pour ${sp.get('company') || 'votre marque'}`.slice(0, 150), description: sp.get('need') || '' } : {}) } : undefined;
   const [adding, setAdding] = useState(!!prefill);
   const [editing, setEditing] = useState<any>(null);
   const [draft, setDraft] = useState<any>(null);

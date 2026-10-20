@@ -1,12 +1,13 @@
 import express from 'express';
 import { authenticate, authorize, optionalAuth } from '../middleware/auth.js';
-import { listExternalQuotes, createExternalQuote, updateExternalQuote, sendExternalQuote, remindExternalQuote, markExternalQuoteDirect, deleteExternalQuote, publicExternalQuote, declineExternalQuote, acceptExternalQuoteAsBrand } from '../controllers/externalQuotes.js';
+import { listExternalQuotes, createExternalQuote, updateExternalQuote, sendExternalQuote, remindExternalQuote, markExternalQuoteDirect, deleteExternalQuote, publicExternalQuote, declineExternalQuote, acceptExternalQuoteAsBrand, acceptExternalQuoteAsGuest } from '../controllers/externalQuotes.js';
 
 const router = express.Router();
 // Public : vue du devis par le client, refus, acceptation par une marque connectée
 router.get('/public/:token', optionalAuth, publicExternalQuote);
 router.post('/public/:token/decline', declineExternalQuote);
 router.post('/public/:token/accept', authenticate, authorize('brand'), acceptExternalQuoteAsBrand);
+router.post('/public/:token/accept-guest', acceptExternalQuoteAsGuest); // sans compte : l'adresse du devis, compte créé et connecté pour payer
 // Créateur
 router.get('/', authenticate, authorize('creator'), listExternalQuotes);
 router.post('/', authenticate, authorize('creator'), createExternalQuote);

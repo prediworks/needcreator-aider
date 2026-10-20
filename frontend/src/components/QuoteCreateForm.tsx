@@ -22,14 +22,14 @@ export function clearQuoteDraft() { try { localStorage.removeItem(QUOTE_DRAFT_KE
  * Formulaire de devis client. `guest` : sans compte, le devis est gardé en brouillon dans le navigateur et l'inscription est demandée pour le générer.
  * `draft` : brouillon à reprendre (après inscription). `initial` : devis existant à modifier.
  */
-export default function QuoteCreateForm({ onDone = () => undefined, prefill, initial, guest = false, draft }: { onDone?: () => void; prefill?: { prospectId?: string; companyName?: string; contactName?: string; email?: string }; initial?: any; guest?: boolean; draft?: any }) {
+export default function QuoteCreateForm({ onDone = () => undefined, prefill, initial, guest = false, draft }: { onDone?: () => void; prefill?: { prospectId?: string; companyName?: string; contactName?: string; email?: string; title?: string; description?: string }; initial?: any; guest?: boolean; draft?: any }) {
   const router = useRouter();
   const cfg = usePublicConfig();
   const [f, setF] = useState<any>(draft ? { ...draft } : initial ? {
     companyName: initial.client?.companyName || '', contactName: initial.client?.contactName || '', email: initial.client?.email || '', siret: initial.client?.siret || '', address: initial.client?.address || '',
     title: initial.mission?.title || '', description: initial.mission?.description || '', videoType: initial.mission?.videoType || 'testimonial', deliverables: String(initial.mission?.deliverables || 1), duration: String(initial.mission?.duration || 30), platforms: initial.mission?.platforms || [],
     price: String(initial.quote?.price ?? ''), estimatedDeliveryDays: String(initial.quote?.estimatedDeliveryDays || 7), revisions: String(initial.quote?.revisions ?? 1), duration_rights: initial.quote?.rights?.duration || '1y', supports: initial.quote?.rights?.supports || ['social_organic'], territories: initial.quote?.rights?.territories || 'France', exclusivity: !!initial.quote?.rights?.exclusivity, exclusivityMonths: String(initial.quote?.rights?.exclusivityMonths || ''), terms: initial.quote?.terms || '',
-  } : { companyName: prefill?.companyName || '', contactName: prefill?.contactName || '', email: prefill?.email || '', siret: '', address: '', title: '', description: '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
+  } : { companyName: prefill?.companyName || '', contactName: prefill?.contactName || '', email: prefill?.email || '', siret: '', address: '', title: prefill?.title || '', description: prefill?.description || '', videoType: 'testimonial', deliverables: '1', duration: '30', platforms: ['tiktok', 'instagram'], price: '', estimatedDeliveryDays: '7', revisions: '1', duration_rights: '1y', supports: ['social_organic'], territories: 'France', exclusivity: false, exclusivityMonths: '', terms: '' });
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const toggle = (k: string, v: string) => set(k, f[k].includes(v) ? f[k].filter((x: string) => x !== v) : [...f[k], v]);
   const price = parseFloat(f.price) || 0;

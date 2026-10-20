@@ -280,6 +280,58 @@ export async function acceptExternalQuoteAsBrand(req, res) {
   }
 }
 
+/**
+ * Accepter et payer sans créer de compte d'abord : le client du devis donne seulement son adresse. Elle doit être celle à laquelle le
+ * créateur a envoyé le devis (le lien est arrivé dans cette boîte : il vaut preuve). Le compte marque est créé pour lui, la mission aussi, et
+ * il est connecté tout de suite (jeton de connexion) pour payer ; un email lui permet de choisir son mot de passe ensuite.
+ * Une adresse qui a déjà un compte doit se connecter : jamais de compte créé à la place de quelqu'un.
+ */
+export async function acceptExternalQuoteAsGuest(req, res) {
+  try {
+    const q = await ExternalQuote.findOne({ token: req.params.token });
+    if (!q) return res.status(404).json({ error: 'Devis introuvable' });
+    if (!['draft', 'sent'].includes(q.status)) return res.status(400).json({ error: q.status === 'accepted_needcreator' ? 'Devis déjà accepté' : 'Ce devis n\'est plus disponible' });
+    if (q.quote.validUntil && new Date(q.quote.validUntil) < new Date()) return res.status(400).json({ error: 'Ce devis a expiré : demandez-en un nouveau au créateur' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const allowed = String(q.client.email || '').split(',').map(a => a.trim().toLowerCase()).filter(Boolean);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Adresse email invalide' });
+    if (!allowed.includes(email)) return res.status(403).json({ error: 'Sans compte, seule l\'adresse à laquelle le devis a été envoyé peut l\'accepter. Utilisez celle-ci, ou créez un compte marque.', code: 'EMAIL_MISMATCH' });
+    if (await User.exists({ email })) return res.status(409).json({ error: 'Un compte existe déjà avec cette adresse : connectez-vous, puis revenez sur cette page.', code: 'ACCOUNT_EXISTS' });
+    const { default: admin } = await import('firebase-admin');
+    let fbUser = await admin.auth().getUserByEmail(email).catch(err => { if (err?.code === 'auth/user-not-found') return null; throw err; });
+    if (fbUser) return res.status(409).json({ error: 'Un compte existe déjà avec cette adresse : connectez-vous, puis revenez sur cette page.', code: 'ACCOUNT_EXISTS' });
+    fbUser = await admin.auth().createUser({ email, emailVerified: true, password: crypto.randomBytes(24).toString('base64url') });
+    const companyName = String(req.body?.companyName || q.client.companyName || '').trim().slice(0, 120) || q.client.companyName;
+    const { createCustomer } = await import('../services/stripe.js');
+    let brand;
+    try {
+      const customer = await createCustomer(email, companyName);
+      brand = new User({
+        firebaseUid: fbUser.uid, email, role: 'brand', preferences: { language: 'fr' },
+        profile: { name: companyName, companyName, country: 'FR' }, stripeCustomerId: customer.id, status: 'active',
+        legal: { termsVersion: config.legal.termsVersion, acceptedAt: new Date() },
+        subscription: config.plans.proTrialDays > 0 ? { plan: 'pro', status: 'trialing', trialEndsAt: new Date(Date.now() + config.plans.proTrialDays * 86400000) } : undefined,
+      });
+      brand.ensureReferralCode();
+      brand.set('legalInfo.signatoryName', String(req.body?.contactName || q.client.contactName || companyName).trim().slice(0, 120));
+      await brand.save();
+    } catch (err) { await admin.auth().deleteUser(fbUser.uid).catch(() => {}); throw err; }
+    const r = await convertExternalQuoteToMission(q, brand);
+    const customToken = await admin.auth().createCustomToken(fbUser.uid);
+    // Mot de passe à choisir plus tard : lien signé envoyé par notre serveur d'emails
+    import('./authEmails.js').then(async ({ actionLink }) => {
+      const link = await actionLink('reset', email, '/login');
+      const { sendGuestBrandAccount } = await import('../services/email.js');
+      await sendGuestBrandAccount(email, companyName, q.mission.title, link);
+    }).catch(err => logger.warn(`Guest brand account email: ${err.message}`));
+    logger.info(`External quote ${q._id} accepted without prior account: brand ${brand._id} created`);
+    res.status(201).json({ message: 'Devis accepté et compte créé : réglez maintenant pour lancer la mission', customToken, deliveryId: r.delivery?._id, campaignId: r.campaign._id });
+  } catch (error) {
+    logger.error('acceptExternalQuoteAsGuest failed:', error);
+    res.status(500).json({ error: `Acceptation impossible : ${error.message}` });
+  }
+}
+
 /** Appelé par registerBrand : le client vient de créer son compte marque depuis le lien du devis */
 export async function attachExternalQuoteToNewBrand(user, token) {
   if (!token) return null;

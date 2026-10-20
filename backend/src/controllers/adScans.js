@@ -129,7 +129,7 @@ export async function adminProspectFromScan(req, res) {
 export async function subscribeScan(req, res) {
   try {
     const { subscribeToScan } = await import('../services/adScanReports.js');
-    res.json(await subscribeToScan({ slug: req.params.slug, email: req.body?.email, role: req.body?.role, firstName: req.body?.firstName, company: req.body?.company, user: req.user, ip: clientIp(req) }));
+    res.json(await subscribeToScan({ slug: req.params.slug, email: req.body?.email, role: req.body?.role, firstName: req.body?.firstName, company: req.body?.company, lang: req.body?.lang, user: req.user, ip: clientIp(req) }));
   } catch (error) { fail(res, error, 'Abonnement impossible pour le moment', 'subscribeScan'); }
 }
 /** Lien de l'email : ne plus rien recevoir */

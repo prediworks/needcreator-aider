@@ -339,6 +339,46 @@ export async function sendProspectFollowUpDue(email, name, companies) {
   return sendEmail(email, subject, html);
 }
 
+/** Devis accepté sans compte : le compte marque a été créé, le client choisit son mot de passe quand il veut */
+export async function sendGuestBrandAccount(email, companyName, missionTitle, link) {
+  const subject = 'Votre compte NeedCreator est créé : choisissez votre mot de passe';
+  const html = `
+    <h1>Bonjour,</h1>
+    <p>Vous avez accepté le devis « ${esc(missionTitle)} ». Pour suivre la mission, valider la vidéo et télécharger vos factures, un compte marque a été créé pour <strong>${esc(companyName)}</strong> avec cette adresse.</p>
+    <p>Choisissez votre mot de passe pour vous reconnecter plus tard :</p>
+    ${button(link, 'Choisir mon mot de passe')}
+    <p style="color:#6b7280;font-size:13px">Le paiement reste bloqué jusqu'à ce que vous validiez la vidéo. Ce n'est pas vous ? Répondez à cet email.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/** Demande de devis déposée sans compte sur la page publique du créateur : au créateur, avec le lien qui pré-remplit son devis */
+export async function sendQuoteRequestToCreator(email, name, r, link) {
+  const subject = `Demande de devis : ${r.company}`;
+  const html = `
+    <h1>Bonjour ${esc(name)},</h1>
+    <p><strong>${esc(r.company)}</strong>${r.contactName ? ` (${esc(r.contactName)})` : ''} vous demande un devis depuis votre page NeedCreator :</p>
+    <blockquote style="border-left:3px solid #0f766e;margin:0 0 12px;padding:4px 12px;color:#374151">${esc(r.need).replace(/\n/g, '<br>')}</blockquote>
+    <p>${r.budget ? `Budget indiqué : <strong>${esc(r.budget)}</strong>. ` : ''}${r.website ? `Site : ${esc(r.website)}. ` : ''}Adresse : ${esc(r.email)}.</p>
+    <p>Répondez vite : une marque qui demande un devis en contacte souvent plusieurs. Le devis et le contrat se génèrent en un clic, avec les coordonnées du client déjà remplies.</p>
+    ${button(link, 'Préparer le devis')}
+    <p style="color:#6b7280;font-size:13px">La demande est aussi dans votre suivi de prospection. Le client accepte et paie via NeedCreator (paiement bloqué jusqu'à sa validation), ou vous règle en direct.</p>
+  `;
+  return sendEmail(email, subject, html, null, { preheader: `${r.company} vous demande un devis.` });
+}
+
+/** Accusé de réception à la marque qui a demandé un devis */
+export async function sendQuoteRequestReceived(email, name, creatorName) {
+  const subject = `Votre demande de devis est transmise à ${creatorName}`;
+  const html = `
+    <h1>Bonjour${name ? ` ${esc(name)}` : ''},</h1>
+    <p>Votre demande est transmise à <strong>${esc(creatorName)}</strong>. Vous recevrez son devis par email, avec le projet de contrat de cession des droits.</p>
+    <p>Si vous l'acceptez, vous pourrez payer via NeedCreator : le montant est bloqué, pas débité, et versé au créateur seulement quand vous validez la vidéo.</p>
+    <p style="color:#6b7280;font-size:13px">Vous n'avez pas fait cette demande ? Ignorez cet email, rien d'autre ne vous sera envoyé.</p>
+  `;
+  return sendEmail(email, subject, html);
+}
+
 /** Registre créateur : droits d'un contenu extérieur bientôt expirés */
 export async function sendCreatorRightsExpiring(email, name, title, clientName, endAt, days) {
   const subject = `Droits de « ${title} » : fin dans ${days} jour${days > 1 ? 's' : ''}`;
@@ -802,13 +842,14 @@ export async function sendVerificationReminder(email, name, link, last = false) 
 }
 
 /** Vidéo vitrine proposée à une marque prospectée : la vidéo est déjà tournée, elle se regarde et s'achète sur la page du devis */
-export async function sendShowcaseOffer(email, brandName, creatorName, productName, price, link, note = '') {
+export async function sendShowcaseOffer(email, brandName, creatorName, productName, price, link, note = '', { allLink = '', others = 0 } = {}) {
   const subject = `Candidature spontanée : une vidéo déjà tournée pour ${productName}`;
   const html = `
     <h1>Bonjour,</h1>
     <p>${esc(creatorName)}, créateur vérifié sur NeedCreator, a tourné une vidéo pour <strong>${esc(productName)}</strong>${brandName ? ` (${esc(brandName)})` : ''}, sans que personne ne le lui demande.${note ? ` ${esc(note)}` : ''}</p>
     <p>Elle se regarde ici, en filigrane, avec le devis : <strong>${price} € HT</strong>, droits inclus (durée et supports écrits dans le devis). Si elle vous plaît, elle est à vous en un clic ; sinon, rien, et personne ne vous relancera.</p>
     ${button(link, 'Voir la vidéo et le devis')}
+    ${allLink ? `<p>${others === 1 ? 'Une autre vidéo vous a déjà été proposée' : `${others} autres vidéos vous ont déjà été proposées`} : <a href="${allLink}">toutes les vidéos tournées pour ${esc(brandName || 'vous')}</a>.</p>` : ''}
     <p style="color:#666;font-size:13px">Le paiement est bloqué à l'acceptation et versé au créateur seulement après votre validation. La version sans filigrane vous est livrée dans la minute ; vous pouvez demander une modification (coupe, texte à l'écran, son) avant de valider.</p>
   `;
   const sender = await showcaseSender();
@@ -1131,7 +1172,7 @@ function scanAdRows(scan, ads, limit = 5) {
 }
 const scanFooter = (unsubscribeLink, pageName) => `<p style="color:#6b7280;font-size:12px">Vous recevez cet email parce que vous avez demandé le rapport des publicités de ${esc(pageName)} sur NeedCreator. Un email par semaine au plus, seulement s'il y a du nouveau. <a href="${unsubscribeLink}" style="color:#6b7280">Ne plus rien recevoir</a>.</p>`;
 
-export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName }) {
+export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName, lang = null }) {
   const subject = `Rapport : les publicités Meta de ${scan.pageName}`;
   const st = scan.stats || {}; const ins = scan.insights || {};
   const html = `
@@ -1146,11 +1187,11 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink, first
     <p>Vous serez prévenu quand ${esc(scan.pageName)} lancera de nouvelles publicités, ou qu'une passera les 90 jours.</p>
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;
-  return sendEmail(email, subject, html, null, { preheader: `${scan.totalActive || 0} publicités actives${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.` });
+  return sendEmail(email, subject, html, null, { preheader: `${scan.totalActive || 0} publicités actives${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.`, lang: lang === 'en' ? 'en' : null });
 }
 
 /** Alerte hebdomadaire : nouvelles publicités depuis le dernier email, et celles qui viennent de passer les 90 jours */
-export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], link, unsubscribeLink, firstName }) {
+export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], link, unsubscribeLink, firstName, lang = null }) {
   const subject = newAds.length ? `${scan.pageName} : ${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}` : `${scan.pageName} : une publicité passe les 90 jours`;
   const html = `
     <h1>${esc(scan.pageName)}</h1>
@@ -1161,5 +1202,5 @@ export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], 
     ${button(link, 'Voir toutes les publicités')}
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;
-  return sendEmail(email, subject, html, null, { preheader: newAds.length ? `${newAds.length} nouvelle(s) publicité(s) chez ${scan.pageName}.` : `Une publicité de ${scan.pageName} passe les 90 jours.` });
+  return sendEmail(email, subject, html, null, { preheader: newAds.length ? `${newAds.length} nouvelle(s) publicité(s) chez ${scan.pageName}.` : `Une publicité de ${scan.pageName} passe les 90 jours.`, lang: lang === 'en' ? 'en' : null });
 }

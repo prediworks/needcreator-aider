@@ -43,6 +43,34 @@ export async function resolveCompetitor(lead) {
 }
 
 /**
+ * « Concurrent » saisi à la main sur la fiche : un nom de page, ou un lien de la bibliothèque publicitaire (view_all_page_id=…). La page doit
+ * avoir au moins une publicité active en France ; elle remplace celle de l'IA et n'est plus jamais recalculée. Nom vide : retour au calcul auto.
+ */
+export async function setManualCompetitor(lead, input) {
+  const v = String(input || '').trim();
+  if (!v) { lead.competitors = []; lead.competitor = undefined; return null; }
+  if (!(await metaConfigured())) throw Object.assign(new Error('Bibliothèque publicitaire Meta non configurée sur le serveur'), { status: 503 });
+  const { findPages, ensureScanForPage } = await import('../adScan.js');
+  const id = (v.match(/view_all_page_id=(\d+)/) || v.match(/^(\d{6,})$/) || [])[1];
+  let hit = null;
+  if (id) {
+    const scan = await ensureScanForPage({ pageId: id, pageName: '' }, { origin: 'auto_competitor' });
+    if (scan?.totalActive) hit = { pageId: id, pageName: scan.pageName, ads: scan.totalActive };
+  } else {
+    const n = norm(v);
+    const pages = (await findPages(v)).filter(p => p.match !== false && p.ads > 0);
+    hit = pages.find(p => norm(p.pageName) === n) || pages.find(p => norm(p.pageName).startsWith(n)) || pages[0] || null;
+  }
+  if (!hit) throw Object.assign(new Error(`Aucune page avec des publicités actives en France pour « ${v.slice(0, 60)} ». Essayez le nom exact de sa page Facebook, ou collez le lien de ses publicités dans la bibliothèque Meta.`), { status: 404 });
+  if (String(hit.pageId) === String(lead.externalId) || norm(hit.pageName) === norm(lead.name)) throw Object.assign(new Error('C\'est la page de la marque elle-même : indiquez un concurrent'), { status: 400 });
+  const scan = await ensureScanForPage({ pageId: hit.pageId, pageName: hit.pageName });
+  const starts = (scan?.ads || []).map(a => a.startedAt).filter(Boolean).map(d => new Date(d).getTime());
+  lead.competitors = [hit.pageName];
+  lead.competitor = { name: v.slice(0, 80), pageId: String(hit.pageId), pageName: scan?.pageName || hit.pageName, slug: scan?.slug || undefined, ads: scan?.totalActive || hit.ads, oldestAt: starts.length ? new Date(Math.min(...starts)) : undefined, checkedAt: new Date(), manual: true };
+  return lead.competitor;
+}
+
+/**
  * Avant l'envoi au mailing : concurrent vérifié et scan préparé pour chaque marque, dans la limite de temps donnée (la recherche Meta prend
  * quelques secondes par nom) ; les fiches non traitées partent avec la phrase générique. Modifie les objets reçus et enregistre en base.
  */

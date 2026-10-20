@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -67,7 +68,10 @@ export async function offerShowcase(sv, lead, { via = 'email', email = '' } = {}
     const to = list.length ? list : [lead.email, ...(lead.extraEmails || [])].filter(Boolean);
     if (!to.length || to.some(a => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a))) throw Object.assign(new Error('Il manque : une adresse email pour cette marque'), { status: 400 });
     const { sendShowcaseOffer } = await import('./email.js');
-    await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note);
+    // Déjà d'autres vidéos proposées à cette marque : l'email renvoie aussi vers la page qui les montre toutes
+    const others = await ShowcaseVideo.countDocuments({ leadId: lead._id, _id: { $ne: sv._id }, status: { $in: SHOWN }, watermarkedAt: { $ne: null } });
+    const allLink = others ? await brandVideosLink(lead) : '';
+    await sendShowcaseOffer(to, lead.name, creator?.profile?.name || 'un créateur vérifié', sv.productName, sv.price, link, sv.note, { allLink, others });
     // Adresses saisies à l'envoi : elles deviennent celles de la fiche (mailing et envois suivants les reprennent)
     if (list.length && (lead.email !== to[0] || (lead.extraEmails || []).join(',') !== to.slice(1).join(','))) { lead.email = to[0]; lead.emailSource = lead.emailSource || 'manuel'; lead.extraEmails = to.slice(1); }
   }
@@ -166,4 +170,43 @@ export async function markShowcaseDeclinedByBrand(quoteId, reason = '') {
   notify(sv.creatorId, { type: 'application', title: `${sv.brandName} n'a pas retenu votre vidéo`, text: why || `${sv.productName} · ${sv.price} € HT. Vous pouvez en déposer une autre.`, href: '/vitrine' }).catch(() => {});
   emailShowcaseCreator(sv, 'declined_brand', why).catch(err => logger.warn(`Showcase email (declined) ${sv._id}: ${err.message}`));
   return sv;
+}
+
+/**
+ * Page « Vidéos tournées pour [marque] » : toutes les vidéos déjà proposées à la marque (ou achetées), au même endroit, chacune avec son
+ * aperçu en filigrane, son prix et le lien de son devis. Accessible sans compte par un lien personnel, et dans l'espace de la marque inscrite.
+ * Les vidéos pas encore proposées (« ready ») n'y sont jamais : l'équipe relit avant que la marque voie quoi que ce soit.
+ */
+const SHOWN = ['sent', 'accepted'];
+
+export async function brandVideosLink(lead) {
+  if (!lead.videosToken) { lead.videosToken = crypto.randomBytes(16).toString('hex'); await Lead.updateOne({ _id: lead._id }, { $set: { videosToken: lead.videosToken } }); }
+  return `${config.cors.origin}/videos/${lead.videosToken}`;
+}
+
+async function videosForLeads(leadIds) {
+  const list = await ShowcaseVideo.find({ leadId: { $in: leadIds }, status: { $in: SHOWN }, watermarkedAt: { $ne: null } }).sort({ sentAt: -1, createdAt: -1 }).limit(60).populate('creatorId', 'profile.name profile.slug profile.avatar').lean();
+  const quotes = new Map((await ExternalQuote.find({ _id: { $in: list.map(v => v.quoteId).filter(Boolean) } }).select('token status quote.validUntil').lean()).map(q => [String(q._id), q]));
+  return list.map(v => {
+    const q = quotes.get(String(v.quoteId));
+    const open = v.status === 'sent' && q && ['draft', 'sent'].includes(q.status) && !(q.quote?.validUntil && new Date(q.quote.validUntil) < new Date());
+    return { id: v._id, productName: v.productName, note: v.note || '', price: v.price, previewUrl: v.status === 'accepted' ? null : v.previewUrl, duration: v.duration || null, proposedAt: v.sentAt || v.createdAt, status: v.status === 'accepted' ? 'bought' : open ? 'available' : 'closed', creator: { name: v.creatorId?.profile?.name || 'Créateur vérifié', slug: v.creatorId?.profile?.slug || null, avatar: v.creatorId?.profile?.avatar || null }, quoteLink: q?.token ? `/q/${q.token}` : null };
+  });
+}
+
+/** Public, par le lien personnel : la marque et ses vidéos */
+export async function brandVideosByToken(token) {
+  if (!/^[a-f0-9]{32}$/.test(String(token || ''))) return null;
+  const lead = await Lead.findOne({ videosToken: token, kind: 'brand' }).select('_id name').lean();
+  if (!lead) return null;
+  return { brandName: lead.name, videos: await videosForLeads([lead._id]) };
+}
+
+/** Marque connectée : les fiches prospect à son adresse ou rattachées à son compte (ou à celui de l'équipe dont elle fait partie) */
+export async function brandVideosForUser(user) {
+  const ids = [user._id, user.team?.ownerId].filter(Boolean);
+  const emails = [String(user.email || '').toLowerCase()].filter(Boolean);
+  if (user.team?.ownerId) { const owner = await User.findById(user.team.ownerId).select('email').lean(); if (owner?.email) emails.push(owner.email.toLowerCase()); }
+  const leads = await Lead.find({ kind: 'brand', $or: [{ registeredUserId: { $in: ids } }, { email: { $in: emails } }, { extraEmails: { $in: emails } }] }).select('_id').limit(20).lean();
+  return leads.length ? videosForLeads(leads.map(l => l._id)) : [];
 }

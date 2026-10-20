@@ -1,6 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { signInWithCustomToken } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -42,6 +45,13 @@ export default function PublicQuotePage() {
     mutationFn: async () => (await api.post(`/external-quotes/public/${token}/accept`)).data,
     onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); if (d.deliveryId) router.push(`/deliveries/${d.deliveryId}`); },
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  // Sans compte : l'adresse à laquelle le devis a été envoyé suffit ; le compte est créé et la personne connectée pour payer
+  const [guestEmail, setGuestEmail] = useState<string | null>(null);
+  const acceptGuest = useMutation({
+    mutationFn: async (email: string) => (await api.post(`/external-quotes/public/${token}/accept-guest`, { email })).data,
+    onSuccess: async (d) => { await signInWithCustomToken(auth, d.customToken); toast.success(d.message, { duration: 8000 }); router.push(d.deliveryId ? `/deliveries/${d.deliveryId}` : '/dashboard'); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 12000 }),
   });
   const decline = useMutation({ mutationFn: async (reason: string) => (await api.post(`/external-quotes/public/${token}/decline`, { reason })).data, onSuccess: (d) => { toast.success(d.message); router.refresh(); window.location.reload(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   if (isLoading || loading) return <Spinner />;
@@ -92,9 +102,18 @@ export default function PublicQuotePage() {
             ) : user ? (
               <p className="text-sm text-neutral-600">Vous êtes connecté avec un compte créateur. Connectez-vous avec le compte de l&apos;entreprise cliente pour accepter.</p>
             ) : (
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-                <Link href={`/register?role=brand&quote=${token}`}><Button size="lg" className="w-full sm:w-auto"><CheckCircle className="w-4 h-4 mr-2" /> Accepter : créer mon compte et payer</Button></Link>
-                <Link href="/login" className="text-sm text-primary-600 underline">Déjà un compte marque ? Connectez-vous puis revenez sur cette page</Link>
+              <div className="space-y-3">
+                <form className="flex flex-col sm:flex-row gap-3 sm:items-end" onSubmit={(e) => { e.preventDefault(); const em = (guestEmail ?? String(q.client.email || '').split(',')[0]).trim(); if (em) acceptGuest.mutate(em); }} data-testid="quote-accept-guest">
+                  <label className="text-sm text-neutral-700 flex-1">Votre email, celui où vous avez reçu ce devis
+                    <input type="email" required value={guestEmail ?? String(q.client.email || '').split(',')[0].trim()} onChange={(e) => setGuestEmail(e.target.value)} className="mt-1 w-full border border-neutral-300 rounded-lg px-3 py-2 text-sm" />
+                  </label>
+                  <Button size="lg" type="submit" isLoading={acceptGuest.isPending}><CheckCircle className="w-4 h-4 mr-2" /> Accepter et payer {formatCurrency(q.quote.price + vat)}</Button>
+                </form>
+                <p className="text-xs text-neutral-500">Sans inscription préalable : votre compte marque est créé avec cette adresse pour suivre la mission et valider la vidéo, et vous recevez un email pour choisir votre mot de passe.</p>
+                <div className="flex gap-4 flex-wrap text-sm">
+                  <Link href="/login" className="text-primary-600 underline">Déjà un compte marque ? Connectez-vous puis revenez sur cette page</Link>
+                  <Link href={`/register?role=brand&quote=${token}`} className="text-primary-600 underline">Autre adresse : créer un compte marque</Link>
+                </div>
               </div>
             )}
             <div className="mt-4 text-xs text-neutral-500">Vous préférez régler {q.creator.name} directement ? Dites-le lui : le devis et le contrat PDF restent valables, sans passer par NeedCreator. <button type="button" className="underline ml-2" onClick={() => { const r = prompt('Décliner ce devis ? Un mot pour le créateur (optionnel) :'); if (r !== null) decline.mutate(r); }}>Décliner le devis</button></div>

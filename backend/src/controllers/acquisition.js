@@ -124,9 +124,28 @@ export async function acquisitionDashboard(req, res) {
   }
 }
 
+// Filtre par niche : les créateurs ont une des clés, les marques un secteur libre écrit par l'IA (« cosmétiques », « thés ») rapproché par mots
+const BRAND_NICHE_WORDS = {
+  beauty: 'cosm|beaut|soin|skin|maquill|parfum|capill|cheveu|ongle',
+  fashion: 'mode|v[êe]te|textile|chauss|accessoir|bijou|maroquin|lingerie|sac|lunette',
+  health: 'sant[ée]|compl[ée]ment|nutrition|bien-[êe]tre|pharma|cbd',
+  fitness: 'sport|fitness|yoga|muscu',
+  food: 'food|aliment|th[ée]s?\\b|caf[ée]|boisson|[ée]picer|chocolat|vins?\\b|snack|gourmand|biscuit|miel',
+  home: 'maison|d[ée]co|meuble|literie|jardin|m[ée]nage|entretien|bougie',
+  parenting: 'b[ée]b[ée]|enfant|pu[ée]ricult|jouet|parent|maternit',
+  pets: 'anim|chien|chat|pet',
+  tech: 'tech|[ée]lectroni|informatique|audio|t[ée]l[ée]phon',
+  travel: 'voyage|travel|touris|bagage',
+  gaming: 'gaming|jeux? vid[ée]o',
+  business: 'services|b2b|business|saas|logiciel',
+  education: '[ée]ducation|formation|apprentissage|livre',
+  lifestyle: 'lifestyle',
+};
+
 export async function listLeads(req, res) {
-  const { kind, status, source, q, hasEmail, minScore, noHandle, limit = 100, page = 1 } = req.query;
+  const { kind, status, source, q, hasEmail, minScore, noHandle, niche, limit = 100, page = 1 } = req.query;
   const filter = {};
+  if (niche && BRAND_NICHE_WORDS[niche]) filter.niche = kind === 'creator' ? niche : new RegExp(`^${niche}$|${BRAND_NICHE_WORDS[niche]}`, 'i');
   if (kind) filter.kind = kind;
   if (status) filter.status = status;
   if (source) filter.source = source;
@@ -161,7 +180,7 @@ function cleanSocials(obj = {}, rejected = []) {
 export async function updateLead(req, res) {
   const lead = await Lead.findById(req.params.id);
   if (!lead) return res.status(404).json({ error: 'Prospect introuvable' });
-  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name, website, niche } = req.body || {};
+  const { status, notes, email, contactedVia, socials, handle, skip, already, fixLink, dmVariant, name, website, niche, competitor, formUrl } = req.body || {};
   // Formulaire « Modifier » : la note saisie d'abord, les mentions automatiques (renommage) s'y ajoutent ensuite
   if (notes !== undefined && already !== true) lead.notes = String(notes).slice(0, 2000);
   // Plusieurs adresses séparées par « ; » ou « , » : la première est l'adresse de la fiche, les autres sont retenues aussi (mailing, vidéo proposée)
@@ -173,6 +192,11 @@ export async function updateLead(req, res) {
     else { try { const u = new URL(/^https?:\/\//i.test(w) ? w : `https://${w}`); if (!u.hostname.includes('.')) throw new Error('domaine'); lead.website = `${u.origin}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 300); } catch { return res.status(400).json({ error: 'Adresse du site illisible : par exemple lymphea.fr ou https://www.lymphea.fr. Rien n\'a été modifié.' }); } }
   }
   if (niche !== undefined) lead.niche = String(niche).trim().slice(0, 40) || undefined;
+  if (formUrl !== undefined) {
+    const f = String(formUrl).trim();
+    if (f && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(f.startsWith('http') ? f : `https://${f}`)) return res.status(400).json({ error: 'Adresse du formulaire illisible : collez le lien de la page du formulaire. Rien n\'a été modifié.' });
+    lead.formUrl = f ? (f.startsWith('http') ? f : `https://${f}`).slice(0, 500) : undefined;
+  }
   // « Renommer » : faute de frappe, nom de société au lieu du nom de marque ; l'ancien nom reste dans la note, les vidéos proposées suivent
   if (name !== undefined) {
     const n = String(name).replace(/\s+/g, ' ').trim();
@@ -181,6 +205,12 @@ export async function updateLead(req, res) {
       lead.notes = [lead.notes, `Renommée le ${new Date().toLocaleDateString('fr-FR')} (avant : ${lead.name || 'sans nom'})`].filter(Boolean).join(' · ').slice(0, 2000);
       lead.name = n;
     }
+  }
+  // « Concurrent » saisi à la main : vérifié chez Meta et scan préparé avant d'enregistrer quoi que ce soit
+  let competitorNote = '';
+  if (typeof competitor === 'string' && lead.kind === 'brand') {
+    const { setManualCompetitor } = await import('../services/acquisition/competitors.js');
+    try { const c = await setManualCompetitor(lead, competitor); competitorNote = c ? ` · concurrent : ${c.pageName} (${c.ads} publicité${c.ads > 1 ? 's' : ''} active${c.ads > 1 ? 's' : ''})${lead.mailing?.pushedAt ? '. La fiche est déjà dans SalesBlink : le changement n\'y passe qu\'en relançant repush-brand-list.mjs' : ''}` : ' · concurrent effacé : il sera recherché automatiquement'; } catch (err) { return res.status(err.status || 500).json({ error: `${err.message} Rien n'a été modifié.` }); }
   }
   if (skip === true) lead.enrich = { ...(lead.enrich?.toObject?.() || lead.enrich || {}), skippedAt: new Date() }; // « Passer » dans la file du jour : ne revient pas avant 7 jours
   // Auteur d'une publication relevé par l'aperçu intégré : pseudo, nom et lien du profil
@@ -223,7 +253,7 @@ export async function updateLead(req, res) {
   await lead.save();
   // Les vidéos proposées à la marque portent son nom : elles suivent le renommage (après l'enregistrement, pour ne rien changer si la fiche est refusée)
   if (renamed && lead.kind === 'brand') { const ShowcaseVideo = (await import('../models/ShowcaseVideo.js')).default; await ShowcaseVideo.updateMany({ leadId: lead._id }, { $set: { brandName: String(lead.name).slice(0, 120) } }); }
-  res.json({ message: 'Prospect mis à jour', lead });
+  res.json({ message: `Prospect mis à jour${competitorNote}`, lead });
 }
 
 export async function bulkUpdateLeads(req, res) {
@@ -565,6 +595,48 @@ async function dmAbStats() {
 }
 
 /** Réponse reçue en message privé (Instagram, TikTok, LinkedIn) collée à la main : classée par l'IA, email ou formulaire relevés, statut « A répondu » */
+/**
+ * « Texte pour le formulaire » : la marque renvoie vers un formulaire de contact. Quatre phrases avec du concret dès la première ligne (le
+ * concurrent vérifié, sinon l'audit de ses publicités), les liens suivis (ref), et l'adresse de réponse, car beaucoup de formulaires n'envoient
+ * pas de copie. « Formulaire rempli » : fiche contactée, la file du jour la fait revenir à J+7.
+ */
+export async function formText(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
+  const { scanLinks } = await import('../services/acquisition/outreach.js');
+  const { showcaseSender } = await import('../services/email.js');
+  const l = scanLinks(lead);
+  const c = lead.competitor?.pageId && lead.competitor?.slug ? lead.competitor : null;
+  const days = c?.oldestAt ? Math.floor((Date.now() - new Date(c.oldestAt).getTime()) / 86400000) : 0;
+  const reply = (await showcaseSender()) || req.user?.email || '';
+  const first = c
+    ? `Bonjour, j'ai relevé les publicités de ${c.pageName} qui tournent depuis le plus longtemps${days >= 30 ? ` (${days} jours pour la plus ancienne)` : ''} : ${l.competitor_link}\nEt ce qui dure dans les vôtres, avec les angles que vous n'avez pas encore essayés : ${l.audit_link}`
+    : `Bonjour, j'ai relevé ce qui dure dans vos publicités Facebook et Instagram, et les angles que vous n'avez pas encore essayés : ${l.audit_link}`;
+  const text = `${first}\n\nNeedCreator fait tourner ces vidéos par des créateurs vérifiés : vous les regardez avant de payer. Pouvez-vous transmettre à la personne en charge des publicités ?${reply ? `\n\nMon adresse : ${reply}` : ''}\n\nNeedCreator · needcreator.com`;
+  res.json({ text, url: lead.formUrl || '', filledAt: lead.formFilledAt || null, tip: 'Catégorie à choisir : « Partenariat », « Marketing », « Fournisseur » ou « Autre », pas « Influence » ni « Collaboration » (la pile des demandes de produits gratuits).' });
+}
+
+/** Lien personnel de la page « Vidéos tournées pour [marque] » (créé au premier appel), avec le nombre de vidéos qu'elle montre */
+export async function brandVideosLinkView(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
+  const { brandVideosLink, brandVideosByToken } = await import('../services/showcase.js');
+  const link = await brandVideosLink(lead);
+  const data = await brandVideosByToken(lead.videosToken);
+  res.json({ link, count: data?.videos?.length || 0 });
+}
+
+export async function formFilled(req, res) {
+  const lead = await Lead.findById(req.params.id);
+  if (!lead || lead.kind !== 'brand') return res.status(404).json({ error: 'Marque introuvable' });
+  const today = new Date().toLocaleDateString('fr-FR');
+  lead.formFilledAt = new Date();
+  if (!['replied', 'registered'].includes(lead.status)) { lead.status = 'contacted'; lead.contactedAt = new Date(); lead.contactedVia = 'formulaire'; }
+  lead.notes = [lead.notes, `Formulaire rempli le ${today}`].filter(Boolean).join(' · ').slice(0, 2000);
+  await lead.save();
+  res.json({ message: `Formulaire noté comme rempli le ${today}. Sans réponse, la fiche revient dans la file du jour dans sept jours : relancez alors en message privé.`, lead });
+}
+
 export async function pasteReply(req, res) {
   try {
     const lead = await Lead.findById(req.params.id);

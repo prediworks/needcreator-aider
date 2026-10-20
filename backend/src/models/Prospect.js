@@ -18,9 +18,12 @@ const prospectSchema = new mongoose.Schema({
   notes: [{ text: { type: String, maxlength: 2000 }, at: { type: Date, default: Date.now }, _id: false }],
   externalQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalQuote' },
   brandId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // si la marque s'est inscrite sur NeedCreator
+  // Demande de devis déposée sans compte sur la page publique du créateur : le besoin, le budget indiqué, l'adresse IP (limite d'envois)
+  request: { need: { type: String, maxlength: 1500 }, budget: { type: String, maxlength: 60 }, at: Date, ip: String },
 }, { timestamps: true });
 
 prospectSchema.index({ creatorId: 1, nextFollowUpAt: 1 });
+prospectSchema.index({ 'request.ip': 1, 'request.at': -1 }, { sparse: true });
 
 const Prospect = mongoose.models.Prospect || mongoose.model('Prospect', prospectSchema);
 export default Prospect;

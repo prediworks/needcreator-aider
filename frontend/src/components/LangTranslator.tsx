@@ -18,7 +18,7 @@ const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
 const cache = new Map<string, string | null>();
 const EN_VALUES = new Set(Object.values(EN)); // déjà traduit : ne pas retraduire ni signaler
 
-const NUM = /\d+(?:[ \u00a0.,]\d+)*/g; // 3, 1 234, 4,5, 12.03.2027 : un seul gabarit {n}
+const NUM = /\d+(?:[ \u00a0\u202f.,]\d+)*/g; // 3, 1 234, 4,5, 12.03.2027 : un seul gabarit {n}
 function templateKey(text: string): string { return text.replace(NUM, '{n}'); }
 
 export function translate(text: string): string | null {

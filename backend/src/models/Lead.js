@@ -39,6 +39,7 @@ const leadSchema = new mongoose.Schema({
   contactedAt: Date,
   contactedVia: String,
   registeredUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  videosToken: { type: String, index: { unique: true, sparse: true } }, // lien personnel de la page « Vidéos tournées pour [marque] », sans compte
   externalCreatorId: { type: mongoose.Schema.Types.ObjectId, ref: 'ExternalCreator' },
   notes: String,
   error: String,
@@ -64,7 +65,9 @@ const leadSchema = new mongoose.Schema({
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
   // Marques : concurrents cités par l'IA à la qualification, puis le premier trouvé chez Meta (page vérifiée, scan préparé) : l'email 1 montre ses publicités
   competitors: [String],
-  competitor: { name: String, pageId: String, pageName: String, slug: String, ads: Number, oldestAt: Date, checkedAt: Date }, // oldestAt : début de sa plus ancienne publicité active (message privé « outil »)
+  formUrl: String, // formulaire de contact donné par la marque (réponse, ou saisi dans « Modifier ») ; formFilledAt : « Formulaire rempli »
+  formFilledAt: Date,
+  competitor: { name: String, pageId: String, pageName: String, slug: String, ads: Number, oldestAt: Date, checkedAt: Date, manual: Boolean }, // manual : saisi sur la fiche, jamais recalculé ; // oldestAt : début de sa plus ancienne publicité active (message privé « outil »)
   // Visites venues des liens de l'email (paramètre ref) : outil de scan, audit, brief ; une marque qui a cliqué est à relancer en priorité
   scanVisits: [{ at: Date, action: String, slug: String, pageName: String, _id: false }],
   lastScanVisitAt: { type: Date, index: true },

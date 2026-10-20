@@ -35,6 +35,13 @@ export function useAdScanStats() {
  * Scan concurrentiel côté équipe : activité de l'outil et marques les plus scannées. Une marque scannée par plusieurs visiteurs intéresse le
  * marché : « Mettre en prospection » crée sa fiche (page Meta, site, annonces, résumé de la lecture IA), avec le contrôle de taille habituel.
  */
+/** Abonnés regroupés par marque suivie : une marque suivie par une autre marque est souvent son concurrent */
+function followedBrands(rows: any[]) {
+  const m = new Map<string, any[]>();
+  for (const r of rows) m.set(r.pageName, [...(m.get(r.pageName) || []), r]);
+  return [...m.entries()].map(([pageName, list]) => ({ pageName, rows: list })).sort((a, b) => b.rows.length - a.rows.length || a.pageName.localeCompare(b.pageName));
+}
+
 export default function AdScanAdmin() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useAdScanStats();
@@ -45,6 +52,7 @@ export default function AdScanAdmin() {
   });
   const d = data || {};
   const [realOnly, setRealOnly] = useState(true);
+  const [byBrand, setByBrand] = useState(false);
   const [journalFilter, setJournalFilter] = useState<'all' | 'real' | 'team' | 'auto'>('all');
   const o24 = d.origins24h || {};
   const top = (d.top || []).filter((s: any) => !realOnly || REAL.some(k => s.origins?.[k]));
@@ -91,8 +99,21 @@ export default function AdScanAdmin() {
           )}
           {d.subscribers?.rows?.length > 0 && (
             <div className="mb-5" data-testid="ad-scan-subscribers">
-              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Abonnés au rapport par email</h3>
+              <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                <h3 className="text-sm font-semibold text-neutral-900">Abonnés au rapport par email</h3>
+                <label className="text-xs text-neutral-600 flex items-center gap-1"><input type="checkbox" checked={byBrand} onChange={(e) => setByBrand(e.target.checked)} data-testid="ad-scan-subscribers-by-brand" /> Regrouper par marque suivie</label>
+              </div>
               <p className="text-xs text-neutral-600 mb-2">Ils ont laissé leur adresse sous un scan : rapport envoyé, puis une alerte par semaine au plus quand la marque lance de nouvelles publicités. Les marques sans compte ont une fiche « Nouveau » dans la prospection (à relire avant d&apos;écrire) ; les créateurs et les inscrits n&apos;en ont pas.</p>
+              {byBrand ? (
+                <ul className="space-y-1 text-sm" data-testid="ad-scan-followed-brands">
+                  {followedBrands(d.subscribers.rows).map((b) => (
+                    <li key={b.pageName} className="border-b border-neutral-100 py-1">
+                      <span className="font-medium text-neutral-900">{b.pageName}</span>
+                      <span className="text-xs text-neutral-600"> · suivie par {b.rows.length} : {b.rows.map((r: any) => `${r.lead?.name || r.email} (${r.role === 'brand' ? 'marque' : r.role === 'creator' ? 'créateur' : 'inconnu'}${r.active ? '' : ', désinscrit'})`).join(', ')}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
               <ul className="space-y-1 text-sm">
                 {d.subscribers.rows.map((r: any) => (
                   <li key={r.id} className="flex flex-wrap items-center gap-2 border-b border-neutral-100 py-1" data-testid="ad-scan-subscriber-row">
@@ -103,6 +124,7 @@ export default function AdScanAdmin() {
                   </li>
                 ))}
               </ul>
+              )}
             </div>
           )}
           {d.fromQuotes?.length > 0 && (

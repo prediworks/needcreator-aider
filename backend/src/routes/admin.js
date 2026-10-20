@@ -1,6 +1,6 @@
 import express from 'express';
 import { previewSeed, runSeed, listSeedBatches, deleteSeedBatch } from '../controllers/seed.js';
-import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, prefillMessage, useContactEmail, requalifyLead, findLeadEmail, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
+import { acquisitionOverview, acquisitionDashboard, mailingStatus, pushLeadsNow, syncMailingNow, replyToLead, reclassifyReply, listLeads, updateLead, bulkUpdateLeads, deleteLead, createLead, importLeadsBulk, enrichLeadSocials, enrichLeadEmails, mailingBreakdownView, assistantBatch, offerBriefToLead, dailyQueue, pasteReply, formText, formFilled, brandVideosLinkView, prefillMessage, useContactEmail, requalifyLead, findLeadEmail, startAcquisitionRun, exportLeadsCsv, importLeadsToDirectory } from '../controllers/acquisition.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { brandSearchesView, brandSearchAction } from '../controllers/brandSearches.js';
 import { adminScanStatsView, adminProspectFromScan } from '../controllers/adScans.js';
@@ -149,6 +149,9 @@ router.get('/acquisition/mailing', mailingStatus);
 router.get('/acquisition/mailing/breakdown', mailingBreakdownView); // pourquoi tel prospect n'est pas dans l'outil de mailing
 router.post('/acquisition/leads/:id/reply', replyToLead);
 router.post('/acquisition/leads/:id/offer-brief', offerBriefToLead);
+router.get('/acquisition/leads/:id/form-text', formText); // « Texte pour le formulaire » de contact de la marque
+router.post('/acquisition/leads/:id/form-filled', formFilled);
+router.get('/acquisition/leads/:id/videos-link', brandVideosLinkView); // page « Vidéos tournées pour [marque] » (lien personnel)
 router.post('/acquisition/leads/:id/paste-reply', pasteReply); // réponse reçue en message privé, collée à la main // brief offert préparé depuis le site de la marque
 router.post('/acquisition/leads/:id/reclassify', reclassifyReply);
 router.post('/acquisition/mailing/push', pushLeadsNow);

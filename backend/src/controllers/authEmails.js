@@ -12,7 +12,7 @@ import { rewriteActionLink } from '../utils/authLinks.js';
  * Firebase fournit seulement le lien signé, l'email part avec l'expéditeur NeedCreator.
  */
 
-async function actionLink(kind, email, path) {
+export async function actionLink(kind, email, path) {
   const settings = { url: `${config.cors.origin}${path}` };
   const gen = kind === 'verify'
     ? (s) => admin.auth().generateEmailVerificationLink(email, s)

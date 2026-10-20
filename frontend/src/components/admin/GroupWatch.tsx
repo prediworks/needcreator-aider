@@ -20,6 +20,20 @@ const AUDIENCE: Record<string, string> = { creators: 'Créateurs UGC', brands: '
 const STATUS: Record<string, string> = { lead: 'Fiche créée, email à envoyer', answered: 'Répondu', relayed: 'Relayée aux créateurs', skipped: 'Passée' };
 const OPEN = ['todo', 'lead'];
 
+/** File vide : ce que la dernière lecture a donné, pour savoir s'il faut relancer, attendre demain ou rejoindre des groupes */
+function emptyMessage(groups: any[], toRead: number) {
+  const active = groups.filter((g) => g.active);
+  const read = active.filter((g) => g.lastReadAt);
+  if (!read.length) return 'Aucun groupe lu pour l\'instant. Lancez « Lire les groupes », puis Start dans l\'extension (profil de lecture).';
+  const last = read.reduce((a, g) => (new Date(g.lastReadAt) > new Date(a.lastReadAt) ? g : a));
+  const recent = read.filter((g) => Date.now() - new Date(g.lastReadAt).getTime() < 36 * 3600 * 1000);
+  const blind = recent.filter((g) => /presque vide|non rejoint/.test(g.lastOutcome || ''));
+  const parts = [`Aucune demande en attente. Dernière lecture le ${formatDate(last.lastReadAt)} : ${recent.length} groupe(s) lu(s), rien de nouveau qui exprime un besoin.`];
+  if (blind.length) parts.push(`${blind.length} groupe(s) n'ont presque rien montré (${blind.slice(0, 3).map((g) => g.name || g.key).join(', ')}${blind.length > 3 ? '…' : ''}) : rejoignez-les avec le compte Facebook du profil de lecture, ou retirez-les.`);
+  parts.push(toRead ? `${toRead} groupe(s) peuvent être relus maintenant : « Lire les groupes », puis Start.` : 'Tous les groupes ont été lus depuis moins de 20 h : prochaine lecture possible demain.');
+  return parts.join(' ');
+}
+
 /** Requête partagée avec le bouton à compteur de l'outil de prospection */
 export function useGroupWatch() {
   return useQuery({ queryKey: ['acq-groups'], queryFn: async () => (await api.get('/admin/acquisition/groups')).data, refetchInterval: 60000 });
@@ -60,7 +74,7 @@ export default function GroupWatch() {
     <Card className="p-6" data-testid="group-watch">
       <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
         <h2 className="text-lg font-semibold text-neutral-900">Demandes de marques : groupes Facebook et annonces collées</h2>
-        <Button size="sm" onClick={() => read.mutate()} isLoading={read.isPending} disabled={!data?.toRead} data-testid="groups-read" title="Crée le lot « Groupes Facebook » : l'extension (profil de lecture) ouvre la page de chaque groupe à lire, une fois par jour au plus">Lire les groupes ({data?.toRead ?? 0})</Button>
+        <Button size="sm" onClick={() => read.mutate()} isLoading={read.isPending} disabled={!data?.toRead} data-testid="groups-read" title={data?.toRead ? "Crée le lot « Groupes Facebook » : l'extension (profil de lecture) ouvre la page de chaque groupe à lire, une fois par jour au plus" : 'Tous les groupes actifs ont été lus depuis moins de 20 h : prochaine lecture demain'}>Lire les groupes ({data?.toRead ?? 0})</Button>
       </div>
       <p className="text-sm text-neutral-600 mb-3">L&apos;extension lit les publications récentes des groupes suivis. Ne sont gardées que celles qui expriment un besoin, avec un commentaire proposé. Vous relisez, vous publiez vous-même, depuis votre compte : l&apos;outil ne publie rien et ne garde aucune liste de membres. Une annonce vue ailleurs (autre groupe, LinkedIn, story, newsletter) qui donne une adresse se colle ci-dessous : même file, mêmes boutons.</p>
       <div className="mb-4">
@@ -83,7 +97,7 @@ export default function GroupWatch() {
             <h3 className="text-sm font-semibold text-neutral-900">À répondre : {data?.todo ?? 0}</h3>
             <label className="text-xs text-neutral-600 flex items-center gap-1"><input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Afficher aussi les demandes traitées</label>
           </div>
-          {posts.length === 0 ? <p className="text-sm text-neutral-500 mb-4">{groups.length ? 'Aucune demande en attente. Lancez « Lire les groupes », puis Start dans l\'extension.' : 'Ajoutez un premier groupe ci-dessous.'}</p> : (
+          {posts.length === 0 ? <p className="text-sm text-neutral-500 mb-4" data-testid="groups-empty">{groups.length ? emptyMessage(groups, data?.toRead ?? 0) : 'Ajoutez un premier groupe ci-dessous.'}</p> : (
             <div className="space-y-3 mb-5">
               {posts.map((p: any) => (
                 <div key={p.id} className={`border rounded-lg p-3 text-sm ${p.status === 'todo' ? 'border-neutral-200' : 'border-neutral-100 bg-neutral-50'}`} data-testid="group-post">

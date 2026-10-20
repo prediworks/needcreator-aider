@@ -193,7 +193,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               </div>
             )}
           </Card>
-          {s.status === 'ready' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} />}
+          {s.status === 'ready' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} />}
 
           {auditView && s.status === 'ready' && (
             <Card className="p-6 border-primary-200" data-testid="ad-scan-audit">
@@ -284,12 +284,12 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
           {s.ads?.length > 0 && (
             <Card className="p-6" data-testid="ad-scan-ads">
               <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>
-              <p className="text-xs text-neutral-500 mb-4">{s.shown} affichée{s.shown > 1 ? 's' : ''} sur {s.kept} gardée{s.kept > 1 ? 's' : ''}{s.totalActive > s.kept ? ` (${s.totalActive} actives chez Meta)` : ''}. Meta ne fournit que le texte : l&apos;aperçu (vidéo, image) s&apos;ouvre dans la bibliothèque.</p>
+              <p className="text-xs text-neutral-500 mb-4">{/* une phrase par nœud de texte : traduisible par gabarit (en.ts) */}<span>{`Affichées : ${s.shown} sur ${s.kept}${s.totalActive > s.kept ? ` (${s.totalActive} actives chez Meta)` : ''}.`}</span> <span>Meta ne fournit que le texte : l&apos;aperçu (vidéo, image) s&apos;ouvre dans la bibliothèque.</span></p>
               <div className="space-y-3">
                 {s.ads.map((a: any) => (
                   <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
                     <div className="flex items-start justify-between gap-3 flex-wrap text-xs text-neutral-600">
-                      <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{a.days} jour{a.days > 1 ? 's' : ''}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
+                      <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{`${a.days} jour${a.days > 1 ? 's' : ''}`}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
                       <div className="flex gap-2">
                         <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Aperçu Meta <ExternalLink className="w-3 h-3" /></a>
                         {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => { if (!brief.isPending) brief.mutate({ adId: a.id }); }} disabled={brief.isPending} title="Prépare un brief NeedCreator : la version créateur de cette publicité">{brief.isPending && brief.variables?.adId === a.id ? 'Préparation du brief… (jusqu\'à une minute)' : 'l\'équivalent en vidéo créateur'}</button>}
@@ -304,7 +304,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               {s.hidden > 0 && (
                 <div className="mt-4 p-4 rounded-lg bg-primary-50 border border-primary-100 text-sm text-neutral-800 flex items-start gap-2" data-testid="ad-scan-locked">
                   <Lock className="w-4 h-4 mt-0.5 text-primary-600" />
-                  <div>{s.hidden} autre{s.hidden > 1 ? 's' : ''} publicité{s.hidden > 1 ? 's' : ''}, la lecture complète de l&apos;IA et {s.limits?.memberPerDay} marques par jour avec un compte gratuit. <Link href={signupHref} className="underline text-primary-700 font-medium">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline">Me connecter</Link></div>
+                  <div><span>{`${s.hidden} autre${s.hidden > 1 ? 's' : ''} publicité${s.hidden > 1 ? 's' : ''}, la lecture complète de l'IA et ${s.limits?.memberPerDay} marques par jour avec un compte gratuit.`}</span> <Link href={signupHref} className="underline text-primary-700 font-medium">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline">Me connecter</Link></div>
                 </div>
               )}
             </Card>
@@ -333,7 +333,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             {recent.map((r: any) => (
               <Link key={r.slug} href={`/publicites/${r.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
                 <div className="font-medium text-neutral-900">{r.pageName}{r.pinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-primary-600">exemple</span> : null}</div>
-                <div className="text-xs text-neutral-600">{r.totalActive} publicité{r.totalActive > 1 ? 's' : ''} active{r.totalActive > 1 ? 's' : ''}{r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}</div>
+                <div className="text-xs text-neutral-600">{`${r.totalActive} publicité${r.totalActive > 1 ? 's' : ''} active${r.totalActive > 1 ? 's' : ''}${r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}`}</div>
               </Link>
             ))}
           </div>

@@ -48,7 +48,7 @@ async function leadForSubscriber(email, scan, company = '') {
   });
 }
 
-export async function subscribeToScan({ slug, email, role, firstName, company, user, ip }) {
+export async function subscribeToScan({ slug, email, role, firstName, company, user, ip, lang }) {
   const scan = await AdScan.findOne({ slug: String(slug || '').toLowerCase() });
   if (!scan) throw fail(404, 'Scan introuvable');
   if (!['ready', 'empty'].includes(scan.status)) throw fail(400, 'La lecture est encore en cours : réessayez dans un instant');
@@ -65,12 +65,13 @@ export async function subscribeToScan({ slug, email, role, firstName, company, u
   sub.set({ slug: scan.slug, pageName: scan.pageName, active: true, userId: who.userId || sub.userId, role: who.userId ? who.role : (sub.role !== 'unknown' ? sub.role : who.role) });
   if (!user && first) sub.firstName = first;
   if (!user && brandName) sub.company = brandName;
+  if (['fr', 'en'].includes(lang)) sub.lang = lang;
   if (sub.role === 'brand' && !sub.userId && !sub.leadId) {
     try { sub.leadId = (await leadForSubscriber(addr, scan, sub.company))._id; } catch (err) { logger.warn(`scan report lead: ${err.message}`); }
   }
   sub.lastSentAt = new Date(); sub.lastCheckedAt = new Date(); sub.sentCount += 1;
   await sub.save();
-  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
+  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName, lang: sub.lang }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
   return { message: `Rapport envoyé à ${addr}. Vous serez prévenu quand ${scan.pageName} lancera de nouvelles publicités.`, renewed: !fresh };
 }
 
@@ -105,7 +106,7 @@ export async function runScanReportAlerts({ maxPages = 30 } = {}) {
       const update = { lastCheckedAt: new Date() };
       if (newAds.length || crossing.length) {
         // Envoi tenté une fois : une adresse qui rejette n'est pas réessayée chaque semaine sur les mêmes publicités
-        try { await sendScanNewAds(s.email, scan, { newAds, crossing, ...links(scan, s.token), firstName: s.firstName }); sent++; }
+        try { await sendScanNewAds(s.email, scan, { newAds, crossing, ...links(scan, s.token), firstName: s.firstName, lang: s.lang }); sent++; }
         catch (err) { failed++; logger.warn(`Scan alert not sent to ${s.email}: ${err.message}`); }
         await AdScanSubscription.updateOne({ _id: s._id }, { $set: { ...update, lastSentAt: new Date(), lastAdIds: ids }, $inc: { sentCount: 1 } });
         continue;

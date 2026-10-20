@@ -14,6 +14,7 @@ import LevelBadges from '@/components/LevelBadges';
 import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
 import SocialIcons, { PlatformIcon, formatFollowers } from '@/components/SocialIcons';
 import InviteCreatorButton from '@/components/InviteCreatorButton';
+import QuoteRequestForm from '@/components/QuoteRequestForm';
 import ReportButton from '@/components/ReportButton';
 import { ArrowLeft, Star, Briefcase, Video, Clock, Users, Link2 } from 'lucide-react';
 import Link from 'next/link';
@@ -110,8 +111,9 @@ export default function PublicProfilePage() {
             </div>
             {!user && (
               <div className="flex flex-col gap-2 w-full sm:w-auto">
-                <Link href={`/register?role=brand&creator=${creator.id || creator._id}`}><Button className="w-full">Me proposer une mission</Button></Link>
-                <p className="text-xs text-neutral-500 max-w-[220px]">Créez votre compte marque (gratuit), puis invitez {creator.profile.name.split(' ')[0]} sur votre campagne. Paiement bloqué, contrat automatique.</p>
+                <QuoteRequestForm creatorId={creator.id || creator._id} creatorName={creator.profile.name} />
+                <Link href={`/register?role=brand&creator=${creator.id || creator._id}`}><Button variant="outline" className="w-full">Me proposer une mission</Button></Link>
+                <p className="text-xs text-neutral-500 max-w-[220px]">Ou créez votre compte marque (gratuit), puis invitez {creator.profile.name.split(' ')[0]} sur votre campagne. Paiement bloqué, contrat automatique.</p>
               </div>
             )}
             {user?.role === 'brand' && (

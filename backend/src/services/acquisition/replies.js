@@ -122,7 +122,7 @@ export async function recordReply(lead, text, { via = 'instagram' } = {}) {
   const forms = (clean.match(URL_RE) || []).filter(u => !/instagram\.com|tiktok\.com|facebook\.com|linkedin\.com/.test(u));
   if (emails.length && !lead.email) { lead.email = emails[0]; lead.emailSource = `réponse ${via}`; extracted.email = emails[0]; }
   else if (emails.length) extracted.email = emails[0];
-  if (forms.length) { extracted.form = forms[0]; lead.notes = [lead.notes, `Formulaire de collaboration : ${forms[0]}`].filter(Boolean).join(' · '); }
+  if (forms.length) { extracted.form = forms[0]; lead.formUrl = forms[0].slice(0, 500); lead.notes = [lead.notes, `Formulaire de collaboration : ${forms[0]}`].filter(Boolean).join(' · '); }
   // « Oui vidéo » : demande explicite, réponse proposée (produit, délai de dix jours), créateurs prévenus
   let videoRequested = false;
   if (lead.kind === 'brand' && isVideoRequest(clean) && !['refusal', 'unsubscribe'].includes(c?.intent)) {

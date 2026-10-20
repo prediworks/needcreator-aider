@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { NICHES } from '@/lib/labels';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import ShowcaseRequests, { useShowcaseRequests } from '@/components/admin/ShowcaseRequests';
@@ -139,6 +140,7 @@ function DailyQueue({ kind }: { kind: 'creator' | 'brand' }) {
                 <Button size="sm" onClick={() => { const email = prompt('Adresses de la marque (plusieurs : séparez par ;). Elles sont enregistrées sur la fiche.', [l.email, ...(l.extraEmails || [])].filter(Boolean).join('; ')); if (email && email.trim()) sendShowcase.mutate({ id: l._id, via: 'email', email: email.trim() }); }} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Envoie à la marque un email avec le lien de la page où la vidéo se regarde et s'achète ; les adresses se vérifient avant l'envoi">Proposer par email</Button>
                 <Button size="sm" variant="outline" onClick={() => sendShowcase.mutate({ id: l._id, via: 'instagram' })} isLoading={sendShowcase.isPending} disabled={!showcase.ready} title="Copie le message avec le lien de la vidéo, à coller dans la conversation Instagram, et marque la vidéo comme proposée">Copier le message vitrine</Button>
                 {showcase.link && <a href={`${showcase.link}?apercu=1`} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline self-center">Page vue par la marque</a>}
+                {showcase.status === 'sent' && <BrandVideosLinkButton leadId={l._id} />}
               </div>
             </div>
           )}
@@ -222,12 +224,12 @@ function RotationHint({ r, value, onReset }: { r?: any; value: string; onReset: 
 
 /** « Modifier » une fiche : tous les champs corrigeables en une fois ; seuls les champs changés sont envoyés */
 function LeadEditForm({ lead, onDone }: { lead: any; onDone: () => void }) {
-  const init = { name: lead.name || '', website: lead.website || '', email: [lead.email, ...(lead.extraEmails || [])].filter(Boolean).join('; '), instagram: lead.socials?.instagram || '', tiktok: lead.socials?.tiktok || '', linkedin: lead.socials?.linkedin || '', niche: lead.niche || '', notes: lead.notes || '' };
+  const init = { name: lead.name || '', website: lead.website || '', email: [lead.email, ...(lead.extraEmails || [])].filter(Boolean).join('; '), instagram: lead.socials?.instagram || '', tiktok: lead.socials?.tiktok || '', linkedin: lead.socials?.linkedin || '', niche: lead.niche || '', notes: lead.notes || '', competitor: lead.competitor?.pageName || '', formUrl: lead.formUrl || '' };
   const [f, setF] = useState(init);
   const save = useMutation({
     mutationFn: async () => {
       const body: any = {};
-      for (const k of ['name', 'website', 'email', 'niche', 'notes'] as const) if (f[k].trim() !== init[k].trim()) body[k] = f[k].trim();
+      for (const k of ['name', 'website', 'email', 'niche', 'notes', 'competitor', 'formUrl'] as const) if (f[k].trim() !== init[k].trim()) body[k] = f[k].trim();
       const soc: any = {};
       for (const k of ['instagram', 'tiktok', 'linkedin'] as const) if (f[k].trim() !== init[k].trim()) soc[k] = f[k].trim();
       if (Object.keys(soc).length) body.socials = soc;
@@ -250,6 +252,8 @@ function LeadEditForm({ lead, onDone }: { lead: any; onDone: () => void }) {
         {field('instagram', 'Instagram', '@marque ou instagram.com/marque')}
         {field('tiktok', 'TikTok', '@marque ou tiktok.com/@marque')}
         {field('linkedin', 'LinkedIn', 'linkedin.com/company/marque')}
+        {lead.kind === 'brand' && field('competitor', lead.competitor?.manual ? 'Concurrent de l\'email (saisi à la main)' : 'Concurrent de l\'email (vide : recherche automatique)', 'nom de sa page Facebook, ou lien de ses pubs Meta')}
+        {lead.kind === 'brand' && field('formUrl', 'Formulaire de contact (bouton « Texte pour le formulaire »)', 'marque.fr/pages/contact')}
       </div>
       <label className="text-xs text-neutral-600 flex flex-col gap-0.5 mt-2">Note<textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={3} className="border border-neutral-300 rounded px-2 py-1 text-sm text-neutral-900" data-testid="lead-edit-notes" /></label>
       <div className="flex gap-2 mt-2 items-center flex-wrap">
@@ -259,6 +263,41 @@ function LeadEditForm({ lead, onDone }: { lead: any; onDone: () => void }) {
         <span className="text-[11px] text-neutral-500">Un champ vidé efface la valeur. Un lien non reconnu est refusé, rien n&apos;est alors modifié.</span>
       </div>
     </form>
+  );
+}
+
+/** Lien personnel de la page « Vidéos tournées pour [marque] » : copié, à coller dans un message ou une relance */
+function BrandVideosLinkButton({ leadId }: { leadId: string }) {
+  const get = useMutation({
+    mutationFn: async () => (await api.get(`/admin/acquisition/leads/${leadId}/videos-link`)).data,
+    onSuccess: async (d) => { try { await navigator.clipboard.writeText(d.link); } catch { /* presse-papiers indisponible */ } toast.success(`Lien copié : ${d.link} (${d.count} vidéo${d.count > 1 ? 's' : ''} proposée${d.count > 1 ? 's' : ''}). Sans compte, la marque y voit toutes ses vidéos.`, { duration: 10000 }); },
+    onError: (e: any) => toast.error(getErrorMessage(e)),
+  });
+  return <button type="button" onClick={() => get.mutate()} className="text-xs text-primary-700 underline self-center" title="Page sans compte qui montre à la marque toutes les vidéos déjà proposées, chacune avec son devis" data-testid="brand-videos-link">{get.isPending ? '…' : 'Copier le lien « toutes ses vidéos »'}</button>;
+}
+
+/** « Texte pour le formulaire » : le message prêt à coller (concurrent ou audit, liens suivis, adresse de réponse), le formulaire ouvert, puis « Formulaire rempli » */
+function FormTextButton({ lead, onDone }: { lead: any; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const get = useMutation({
+    mutationFn: async () => (await api.get(`/admin/acquisition/leads/${lead._id}/form-text`)).data,
+    onSuccess: async (d) => {
+      try { await navigator.clipboard.writeText(d.text); toast.success(`Texte copié, formulaire ouvert. ${d.tip}`, { duration: 12000 }); } catch { toast.info(d.tip, { duration: 12000 }); }
+      if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer');
+      setOpen(true);
+    },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  const filled = useMutation({
+    mutationFn: async () => (await api.post(`/admin/acquisition/leads/${lead._id}/form-filled`)).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setOpen(false); onDone(); },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }),
+  });
+  return (
+    <>
+      <button type="button" onClick={() => get.mutate()} className="px-1.5 text-xs text-primary-700 hover:underline" title={`La marque renvoie vers un formulaire de contact${lead.formFilledAt ? ` (rempli le ${formatDate(lead.formFilledAt)})` : ''} : copie un message de quatre phrases avec le concurrent ou l'audit, et ouvre le formulaire`} data-testid="lead-form-text">{get.isPending ? '…' : lead.formFilledAt ? 'Formulaire rempli' : 'Texte pour le formulaire'}</button>
+      {open && <button type="button" onClick={() => filled.mutate()} className="px-1.5 text-xs text-green-700 underline" title="La fiche passe « Contactée » ; sans réponse, elle revient dans la file du jour dans sept jours" data-testid="lead-form-filled">{filled.isPending ? '…' : 'Formulaire rempli ✓'}</button>}
+    </>
   );
 }
 
@@ -317,6 +356,7 @@ function ShowcaseList() {
                   {s.brandLinkedin && <Button size="sm" variant="outline" onClick={() => send.mutate({ leadId: s.leadId, via: 'linkedin', url: s.brandLinkedin })} isLoading={send.isPending} disabled={!s.ready} title="Copie le message, ouvre la page LinkedIn de la marque et marque la vidéo comme proposée"><ExternalLink className="w-4 h-4 mr-1" /> Copier et ouvrir LinkedIn</Button>}
                   {s.message && <button type="button" className="text-xs text-primary-700 underline" onClick={async () => { try { await navigator.clipboard.writeText(s.message); toast.success('Message copié. La vidéo n\'est pas marquée proposée : utilisez un bouton « Copier et ouvrir » ou « Proposer par email » pour cela.', { duration: 8000 }); } catch { toast.error('Presse-papiers indisponible'); } }} title="Copie seulement le message avec le lien de la vidéo, sans rien marquer">Copier le message</button>}
                   {s.link && <a href={`${s.link}?apercu=1`} target="_blank" rel="noreferrer" className="text-xs text-primary-700 underline">Page vue par la marque</a>}
+                  {s.leadId && s.status !== 'ready' && <BrandVideosLinkButton leadId={s.leadId} />}
                   {s.status === 'ready' && <button type="button" className="text-xs text-red-700 underline" onClick={() => { const reason = prompt('Motif du refus, envoyé au créateur (qualité, son, logo ajouté, promesse de résultat…) :'); if (reason !== null) refuse.mutate({ id: s.id, reason }); }} title="La vidéo n'est pas proposée à la marque ; le créateur est prévenu avec le motif">Refuser cette vidéo</button>}
                 </div>
               )}
@@ -481,11 +521,12 @@ export default function AcquisitionTool() {
   const [kind, setKind] = useState<'creator' | 'brand'>('creator');
   const [status, setStatus] = useState('qualified');
   const [hasEmail, setHasEmail] = useState('');
+  const [niche, setNiche] = useState('');
   // File affichée (créateurs ou marques, statut, filtre email) conservée au rafraîchissement de la page
   useEffect(() => {
-    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); } } catch { /* stockage indisponible */ }
+    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); if (typeof v.niche === 'string') setNiche(v.niche); } } catch { /* stockage indisponible */ }
   }, []);
-  useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail]);
+  useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -516,7 +557,7 @@ export default function AcquisitionTool() {
   useEffect(() => { if (panel === null && shown) setPanel(shown); }, [panel, shown]);
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
-  const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, q: q || undefined, limit: 200 } })).data });
+  const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, niche, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, niche: niche || undefined, q: q || undefined, limit: 200 } })).data });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }; // une fiche modifiée (réseaux, email) met aussi à jour « Candidatures spontanées à proposer »
   const patch = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, body)).data, onSuccess: () => refresh(), onError: (e: any) => toast.error(getErrorMessage(e)) });
   const bulk = useMutation({ mutationFn: async (body: any) => (await api.patch('/admin/acquisition/leads/bulk', body)).data, onSuccess: (d) => { toast.success(d.message); setSelected([]); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -657,6 +698,7 @@ export default function AcquisitionTool() {
           <span className="text-neutral-300">|</span>
           {['qualified', 'to_contact', 'contacted', 'replied', 'registered', 'new', 'rejected', 'excluded'].map((st) => <button key={st} type="button" onClick={() => { setStatus(status === st ? '' : st); setSelected([]); }} className={`px-2.5 py-1 rounded-full text-xs ${status === st ? 'bg-neutral-900 text-white' : STATUS[st].cls}`}>{STATUS[st].label} {total(st)}</button>)}
           <select value={hasEmail} onChange={(e) => setHasEmail(e.target.value)} className="border border-neutral-300 rounded-lg px-2 py-1 text-xs"><option value="">Email : tous</option><option value="1">Avec email</option><option value="0">Sans email</option></select>
+          <select value={niche} onChange={(e) => { setNiche(e.target.value); setSelected([]); }} className={`border rounded-lg px-2 py-1 text-xs ${niche ? 'border-primary-500 bg-primary-50' : 'border-neutral-300'}`} title={kind === 'brand' ? 'Secteur de la marque, rapproché par mots (« cosmétiques », « soins » → Beauté)' : 'Niche du créateur'} data-testid="lead-niche-filter"><option value="">Niche : toutes</option>{Object.entries(NICHES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-40" />
           <span className="text-neutral-300">|</span>
           <button type="button" onClick={() => setPanel(shown === 'showcases' ? '' : 'showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
@@ -726,7 +768,7 @@ export default function AcquisitionTool() {
                       {l.showcaseRequest?.explicit && !l.showcaseRequest?.closedAt && <div className="text-xs text-green-700 mt-1">Vidéo demandée{l.showcaseRequest.product ? ` : ${l.showcaseRequest.product}` : ''} · suivi dans « Vidéos demandées »</div>}
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                       {l.kind === 'brand' && l.lastScanVisitAt && <div className="text-xs text-green-700 mt-1 font-medium" data-testid="lead-scan-visits" title="Liens de l'email marques (scan d'un concurrent, audit) : chaque visite est rattachée à la fiche">A ouvert l&apos;outil de scan depuis l&apos;email : {l.scanVisits?.length || 1} action{(l.scanVisits?.length || 1) > 1 ? 's' : ''}, dernière le {formatDate(l.lastScanVisitAt)}{l.scanVisits?.some((v: any) => v.pageName) ? ` (${[...new Set(l.scanVisits.map((v: any) => v.pageName).filter(Boolean))].slice(0, 3).join(', ')})` : ''} · à relancer</div>}
-                      {l.kind === 'brand' && l.competitor?.checkedAt && <div className="text-xs text-neutral-500 mt-1" title="Concurrent montré dans l'email 1 : cité par l'IA, vérifié dans la bibliothèque publicitaire Meta, scan préparé">{l.competitor.pageName ? <>Concurrent de l&apos;email : {l.competitor.slug ? <a href={`/publicites/${l.competitor.slug}`} target="_blank" rel="noopener noreferrer" className="underline">{l.competitor.pageName}</a> : l.competitor.pageName}</> : `Aucun concurrent trouvé chez Meta${l.competitors?.length ? ` (${l.competitors.join(', ')})` : ''} : phrase générique dans l'email`}</div>}
+                      {l.kind === 'brand' && l.competitor?.checkedAt && <div className="text-xs text-neutral-500 mt-1" title="Concurrent montré dans l'email 1 : cité par l'IA (ou saisi dans « Modifier »), vérifié dans la bibliothèque publicitaire Meta, scan préparé">{l.competitor.pageName ? <>Concurrent de l&apos;email{l.competitor.manual ? " (saisi)" : ""} : {l.competitor.slug ? <a href={`/publicites/${l.competitor.slug}`} target="_blank" rel="noopener noreferrer" className="underline">{l.competitor.pageName}</a> : l.competitor.pageName}</> : `Aucun concurrent trouvé chez Meta${l.competitors?.length ? ` (${l.competitors.join(', ')})` : ''} : phrase générique dans l'email · « Modifier » pour le saisir`}</div>}
                     </div>
                     <div className="flex gap-1 flex-wrap justify-end shrink-0">
                       {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 hover:text-primary-600" title="Ouvrir le profil"><ExternalLink className="w-4 h-4" /></a>}
@@ -738,6 +780,7 @@ export default function AcquisitionTool() {
                       <button type="button" onClick={() => { const t = prompt('Collez la réponse reçue en message privé'); if (t && t.trim()) pasteReplyList.mutate({ id: l._id, text: t, via: l.contactedVia && l.contactedVia !== 'manuel' ? l.contactedVia : 'instagram' }); }} className="px-1.5 text-xs text-neutral-500 hover:text-primary-600" title="Réponse reçue sur un réseau : classée par l'IA, email ou formulaire relevés et ajoutés à la fiche">Réponse</button>
                       <button type="button" onClick={() => setEditing(editing === l._id ? null : l._id)} className={`px-1.5 text-xs hover:text-primary-600 ${editing === l._id ? 'text-primary-700 font-medium' : 'text-neutral-500'}`} title="Corriger la fiche : nom, site, email, Instagram, TikTok, LinkedIn, secteur, note" data-testid="lead-edit">Modifier</button>
                       {!l.email && <FindEmailButton leadId={l._id} website={l.website} onFound={refresh} />}
+                      {l.kind === 'brand' && l.formUrl && <FormTextButton lead={l} onDone={refresh} />}
                       <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer définitivement ce prospect"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>

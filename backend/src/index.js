@@ -35,6 +35,7 @@ import productBriefRoutes from './routes/productBriefs.js';
 import adScanRoutes from './routes/adScans.js';
 import browserTaskRoutes from './routes/browserTasks.js';
 import showcaseRoutes from './routes/showcase.js';
+import brandVideosRoutes from './routes/brandVideos.js';
 import embedRoutes from './routes/embeds.js';
 import contactRoutes from './routes/contact.js';
 import academyRoutes from './routes/academy.js';
@@ -116,6 +117,7 @@ app.use('/api/embeds', embedRoutes); // aperçu intégré des publications (oEmb
 app.use('/api/product-briefs', productBriefRoutes); // brief depuis une URL produit (public)
 app.use('/api/ad-scans', adScanRoutes); // scan concurrentiel : publicités Meta d'une marque (public, lecture complète pour les inscrits)
 app.use('/api/browser-tasks', browserTaskRoutes);
+app.use('/api/brand-videos', brandVideosRoutes); // vidéos tournées pour une marque : lien personnel sans compte, espace marque
 app.use('/api/showcase', showcaseRoutes); // vidéos vitrine : un créateur tourne avant la demande, la marque achète par devis // file de tâches de l'extension Chrome de prospection (extension/)
 logger.info('✓ Portfolio routes mounted at /api/portfolio');
 

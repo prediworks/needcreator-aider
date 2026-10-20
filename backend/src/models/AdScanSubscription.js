@@ -13,6 +13,7 @@ const schema = new mongoose.Schema({
   pageName: String,
   firstName: String,         // prénom saisi (créateur sans compte) : « Bonjour Julie » dans les emails
   company: String,           // nom de la marque saisi (marque sans compte) : nom de sa fiche de prospection
+  lang: { type: String, enum: ['fr', 'en'], default: 'fr' }, // langue de la page au moment de l'abonnement : les emails suivent
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },   // compte inscrit (connecté, ou adresse déjà connue)
   leadId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lead' },   // fiche de prospection (marque sans compte)
   token: { type: String, required: true, unique: true },           // lien de désinscription

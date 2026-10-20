@@ -184,7 +184,16 @@ export async function buildProductBrief(url, { ip, manual } = {}) {
  * Analyse, brief, budget, enregistrement à partir d'un produit déjà lu ({ product, text }). Partagé par le brief depuis une URL et par le scan
  * concurrentiel (« commander l'équivalent » : le produit est la marque, le texte ses publicités). `extra` complète le document (scanId…).
  */
-export async function assembleBrief(extracted, { url, domain, ip, manual = false, goal, extra = {} } = {}) {
+export async function assembleBrief(extracted, opts = {}) {
+  // L'IA rend parfois un champ trop court ou mal formé : on retente une fois avant d'afficher une erreur
+  try { return await assembleBriefOnce(extracted, opts); } catch (err) {
+    if (err?.name !== 'ZodError' && !/JSON/i.test(err?.message || '')) throw err;
+    logger.warn(`Product brief: AI output rejected (${String(err.message).slice(0, 120)}), retrying once`);
+    return assembleBriefOnce(extracted, opts);
+  }
+}
+
+async function assembleBriefOnce(extracted, { url, domain, ip, manual = false, goal, extra = {} } = {}) {
   const analysis = await analyzeProduct(extracted);
   const { product } = extracted;
   const brief = await generateBrief({
