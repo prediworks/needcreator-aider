@@ -16,6 +16,7 @@ import {
   suspendUser,
   reactivateUser,
   markEmailVerified,
+  changeEmail,
   resetStripeConnect,
   purgeUserActivity,
   hardDeleteUser,
@@ -59,6 +60,7 @@ router.post('/users/:userId/portfolio/:videoId/reprocess', reprocessPortfolioVid
 router.post('/users/:userId/suspend', suspendUser);
 router.post('/users/:userId/reactivate', reactivateUser);
 router.post('/users/:userId/verify-email', markEmailVerified); // adresse confirmée sans passer par l'email
+router.post('/users/:userId/change-email', changeEmail); // adresse erronée à l'inscription : remplacée partout, à confirmer
 router.post('/users/:userId/stripe-connect/reset', resetStripeConnect);
 router.post('/users/:userId/purge', purgeUserActivity); // temporaire, voir ADMIN_PURGE_ENABLED
 router.delete('/users/:userId/hard', hardDeleteUser); // temporaire, voir ADMIN_PURGE_ENABLED

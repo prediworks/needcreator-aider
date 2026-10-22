@@ -2479,6 +2479,18 @@ await step('Admin : suppression du compte Stripe Connect d\'un créateur (reset 
     // 0. Admin : marquer une adresse comme confirmée (Firebase + base)
     const mv = await brandApi('POST', `/admin/users/${creatorUser.id}/verify-email`);
     expect(mv.status === 200 && mv.data.emailVerified === true, 'Marquage email confirmé échoué', mv);
+    // 0 ter. Admin : changer l'adresse d'un compte (erreur à l'inscription), puis la remettre
+    const newCreatorEmail = `e2e-creator-${RUN}-fixed@needcreator-test.com`;
+    const bad = await brandApi('POST', `/admin/users/${creatorUser.id}/change-email`, { email: 'pas-une-adresse' });
+    const dup = await brandApi('POST', `/admin/users/${creatorUser.id}/change-email`, { email: brandEmail });
+    expect(bad.status === 400 && dup.status === 409, 'Changement d\'email : adresse invalide (400) et adresse déjà prise (409) attendus', { bad: bad.status, dup: dup.status });
+    const ce = await brandApi('POST', `/admin/users/${creatorUser.id}/change-email`, { email: newCreatorEmail.toUpperCase() });
+    const ceRow = await mongoose.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(creatorUser.id) });
+    const ceMe = await creatorApi('GET', '/auth/profile');
+    expect(ce.status === 200 && ce.data.email === newCreatorEmail && ceRow.email === newCreatorEmail && ceRow.verification?.email === false && ceMe.status === 200, 'Changement d\'email : nouvelle adresse en base, à confirmer, session du créateur conservée', { status: ce.status, data: ce.data, row: ceRow?.email, me: ceMe.status });
+    const back = await brandApi('POST', `/admin/users/${creatorUser.id}/change-email`, { email: creatorEmail });
+    const mv2 = await brandApi('POST', `/admin/users/${creatorUser.id}/verify-email`);
+    expect(back.status === 200 && mv2.status === 200, 'Retour à l\'adresse d\'origine échoué', { back: back.data, mv2: mv2.status });
     // 0 bis. Liste des utilisateurs avec filtres (rôle, origine, email confirmé)
     const fl = await brandApi('GET', `/admin/users?role=creator&origin=real&verified=1&search=${encodeURIComponent(creatorUser.email)}`);
     expect(fl.status === 200 && fl.data.users.length === 1 && fl.data.users[0].email === creatorUser.email && fl.data.pagination.total === 1, 'Filtres utilisateurs : créateur réel confirmé attendu', fl);

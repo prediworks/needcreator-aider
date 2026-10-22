@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
   useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
-  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup, useRestoreBackup,
+  useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useChangeUserEmail, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup, useRestoreBackup,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
   useAdminSettings, useUpdateSetting,
@@ -78,6 +78,7 @@ export default function AdminPage() {
   const suspend = useSuspendUser();
   const reactivate = useReactivateUser();
   const markVerified = useMarkEmailVerified();
+  const changeEmail = useChangeUserEmail();
   const purge = usePurgeUser();
   const hardDelete = useHardDeleteUser();
   const runJobs = useRunJobs();
@@ -501,6 +502,9 @@ export default function AdminPage() {
                         ))}
                         {u.role !== 'admin' && (
                           <Button size="sm" variant="ghost" title="L'utilisateur ne reçoit pas l'email de confirmation : marquer son adresse comme confirmée" onClick={() => { if (confirm(`Marquer ${u.email} comme confirmée ?`)) markVerified.mutate({ userId: u._id }); }}>Confirmer l&apos;email</Button>
+                        )}
+                        {u.role !== 'admin' && (
+                          <Button size="sm" variant="ghost" title="Adresse erronée à l'inscription : la remplacer sans toucher au compte ni au mot de passe, un lien de confirmation part à la nouvelle adresse" data-testid="change-email" onClick={() => { const email = prompt(`Nouvelle adresse pour ${u.email} ?\n\nVérifiez d'abord que la demande vient bien de la personne (nom du profil, adresse erronée exacte). Le compte, le portfolio et le mot de passe ne changent pas ; un lien de confirmation est envoyé à la nouvelle adresse.`); if (email?.trim()) changeEmail.mutate({ userId: u._id, email: email.trim() }); }}>Changer l&apos;email</Button>
                         )}
                         {u.role !== 'admin' && (
                           <Button

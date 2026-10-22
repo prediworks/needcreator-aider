@@ -34,6 +34,7 @@ export async function getUserDetail(req, res) {
   }
 }
 import logger from '../utils/logger.js';
+import { changeUserEmail } from '../services/userEmail.js';
 
 /**
  * Ambassadeurs : vidéos en attente de validation
@@ -764,6 +765,17 @@ export async function markEmailVerified(req, res) {
   } catch (error) {
     logger.error('markEmailVerified failed:', error);
     res.status(500).json({ error: `Impossible : ${error.message}` });
+  }
+}
+
+/** Change l'adresse email d'un compte (erreur à l'inscription) : connexion et fiche, lien de confirmation envoyé à la nouvelle adresse */
+export async function changeEmail(req, res) {
+  try {
+    const out = await changeUserEmail(req.params.userId, req.body?.email, `admin ${req.user._id}`);
+    res.json({ message: `Adresse changée : ${out.old} → ${out.email}. ${out.linkSent ? 'Lien de confirmation envoyé à la nouvelle adresse.' : 'Lien de confirmation non envoyé : utilisez « Confirmer l\'email » si besoin.'}`, ...out });
+  } catch (error) {
+    if (!error.status) logger.error('changeEmail failed:', error);
+    res.status(error.status || 500).json({ error: error.status ? error.message : `Impossible : ${error.message}` });
   }
 }
 

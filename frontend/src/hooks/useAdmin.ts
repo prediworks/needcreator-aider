@@ -71,6 +71,14 @@ export function useHardDeleteUser() {
   });
 }
 export const useReactivateUser = () => useAdminAction((id) => `/admin/users/${id}/reactivate`, 'Utilisateur réactivé');
+export function useChangeUserEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, email }: { userId: string; email: string }) => (await api.post(`/admin/users/${userId}/change-email`, { email })).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin'] }); toast.success(d.message, { duration: 8000 }); },
+    onError: (error: any) => toast.error(getErrorMessage(error), { duration: 8000 }),
+  });
+}
 export const useMarkEmailVerified = () => useAdminAction((id) => `/admin/users/${id}/verify-email`, 'Adresse email marquée comme confirmée');
 
 export function usePendingAmbassadors(enabled = true) {
