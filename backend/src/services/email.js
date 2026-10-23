@@ -1172,7 +1172,7 @@ function scanAdRows(scan, ads, limit = 5) {
 }
 const scanFooter = (unsubscribeLink, pageName) => `<p style="color:#6b7280;font-size:12px">Vous recevez cet email parce que vous avez demandé le rapport des publicités de ${esc(pageName)} sur NeedCreator. Un email par semaine au plus, seulement s'il y a du nouveau. <a href="${unsubscribeLink}" style="color:#6b7280">Ne plus rien recevoir</a>.</p>`;
 
-export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName, lang = null }) {
+export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName, lang = null, offer = null, creatorsBase = '' }) {
   const subject = `Rapport : les publicités Meta de ${scan.pageName}`;
   const st = scan.stats || {}; const ins = scan.insights || {};
   const html = `
@@ -1183,7 +1183,8 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink, first
     ${(scan.ads || []).length ? `<p style="margin-bottom:4px"><strong>Celles qui tournent depuis le plus longtemps</strong></p><ul style="padding-left:18px;margin-top:4px">${scanAdRows(scan, scan.ads)}</ul>` : ''}
     ${(ins.angles || []).length ? `<p><strong>Angles utilisés</strong> : ${ins.angles.map(a => `${esc(a.name)} (${a.count})`).join(', ')}.</p>` : ''}
     ${(ins.missing || []).length ? `<p><strong>Angles laissés libres</strong> : ${ins.missing.map(m => esc(m)).join(', ')}.</p>` : ''}
-    ${button(link, 'Voir le rapport complet')}
+    ${offer ? `<p style="margin-bottom:4px"><strong>Ce qu'un créateur tournerait pour vous</strong></p><p style="margin-top:4px">La version créateur de la publicité qui tourne depuis le plus longtemps, avec un angle que ces publicités n'utilisent pas${offer.fromPrice ? `, à partir de <strong>${offer.fromPrice} € HT</strong> la vidéo` : ''}. Le brief est préparé gratuitement ; vous ne payez que la vidéo qui vous convient.</p>${(offer.videos || []).some(v => v.creator?.slug) ? `<p>Des vidéos de nos créateurs : ${offer.videos.filter(v => v.creator?.slug).map(v => `<a href="${creatorsBase}${esc(v.creator.slug)}" style="color:#0f766e">${esc(v.creator.name)}</a>`).join(', ')}.</p>` : ''}` : ''}
+    ${button(link, offer ? 'Voir les vidéos et le rapport complet' : 'Voir le rapport complet')}
     <p>Vous serez prévenu quand ${esc(scan.pageName)} lancera de nouvelles publicités, ou qu'une passera les 90 jours.</p>
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;

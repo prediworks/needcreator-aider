@@ -6,6 +6,7 @@ import { fetchAds, metaConfigured } from './acquisition/meta.js';
 import { generateJsonText, aiConfig } from './ai.js';
 import { assembleBrief } from './productBrief.js';
 import { GRID } from '../controllers/marketRates.js';
+import { NICHE_KEYS } from './acquisition/keywords.js';
 import { notifyAdmins } from './adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -107,6 +108,7 @@ const insightsSchema = z.object({
   hooks: z.array(z.string().max(160)).max(5).default([]),
   missing: z.array(z.string().max(160)).max(3).default([]),
   facts: z.array(z.string().max(220)).max(4).default([]),
+  niche: z.string().max(20).default(''),
 });
 // Mots de jugement bannis des constats : on compte et on décrit, on n'évalue pas le concurrent
 const JUDGMENT = /\b(médiocre|mauvais|mauvaise|nul|nulle|ringard|faible|pauvre|raté|ratée|ennuyeux|ennuyeuse|amateur|dépassé|dépassée|incohérent|incohérente|catastroph|lamentable|minable)\b/i;
@@ -131,6 +133,7 @@ Réponds avec :
 - "hooks" : jusqu'à 5 débuts de texte ou formules qui reviennent dans plusieurs publicités, recopiés.
 - "missing" : 3 angles courants en UGC que ces publicités n'utilisent pas (sans dire que c'est un défaut : « Aucune publicité ne montre… »).
 - "facts" : 3 à 4 constats chiffrés (« 12 publicités sur 15 citent le prix », « 9 publicités ciblent les 25-44 ans », « la publicité la plus ancienne, #3, tourne depuis 94 jours »).
+- "niche" : le secteur de la marque, une seule valeur parmi ${NICHE_KEYS.join(', ')}.
 Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), toute recommandation, toute supposition sur les résultats.`,
     schema: insightsSchema,
     // Chaque borne du schéma est appliquée ici : le modèle déborde volontiers (résumé long, dix angles), et un débordement ferait tout rejeter
@@ -140,6 +143,7 @@ Interdit : tout adjectif d'évaluation (bon, mauvais, efficace, faible…), tout
       hooks: (Array.isArray(raw?.hooks) ? raw.hooks : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.hook || '').slice(0, 160)).filter(Boolean).slice(0, 5),
       missing: (Array.isArray(raw?.missing) ? raw.missing : []).map(h => factual(typeof h === 'string' ? h : h?.text || h?.name || '').slice(0, 160)).filter(Boolean).slice(0, 3),
       facts: (Array.isArray(raw?.facts) ? raw.facts : []).map(h => factual(typeof h === 'string' ? h : h?.text || '').slice(0, 220)).filter(Boolean).slice(0, 4),
+      niche: NICHE_KEYS.includes(String(raw?.niche || '').toLowerCase()) ? String(raw.niche).toLowerCase() : '',
     }),
   });
   out.angles.sort((a, b) => b.count - a.count);
@@ -433,6 +437,58 @@ export async function requestAudit(scan) {
 }
 
 /** Lien public d'une publicité dans la bibliothèque Meta (sans jeton) */
+// Secteur d'une marque scannée avant que l'IA ne le donne (scans plus anciens) : mots du nom et des publicités, le secteur le plus cité l'emporte
+const NICHE_WORDS = {
+  beauty: /cosm[ée]ti|\bsoins?\b|\bpeau\b|s[ée]rum|\bcr[eè]mes?\b|maquill|cheveu|skincare|parfum|beaut[ée]|\bongles?\b/gi,
+  fashion: /v[eê]tement|\brobes?\b|\bmode\b|chaussure|\bjeans?\b|t-shirt|\bsacs?\b|bijou|lingerie|collection/gi,
+  food: /recette|\bcaf[ée]\b|\bth[ée]\b|chocolat|snack|go[uû]t|repas|boisson|gourmand|ap[ée]ritif/gi,
+  fitness: /\bsport|muscu|prot[ée]ine|fitness|running|\byoga\b|entra[iî]nement/gi,
+  health: /sant[ée]|compl[ée]ment|vitamine|sommeil|douleur|probiotique|digestion/gi,
+  pets: /\bchiens?\b|\bchats?\b|croquette|animaux|animal\b/gi,
+  parenting: /b[ée]b[ée]|enfants?\b|\bmaman|naissance|\bcouches?\b|grossesse/gi,
+  home: /maison|d[ée]co|linge|meuble|matelas|literie|m[ée]nage|jardin/gi,
+  tech: /\bappli|smartphone|\bcasques?\b|logiciel|\btech|connect[ée]|chargeur/gi,
+  travel: /voyage|vacances|h[ôo]tel|valise|s[ée]jour/gi,
+};
+export function scanNiche(scan) {
+  if (NICHE_KEYS.includes(scan?.insights?.niche)) return scan.insights.niche;
+  const text = [scan?.pageName, ...(scan?.ads || []).slice(0, 20).map(a => `${a.title || ''} ${a.body || ''}`)].join(' ');
+  let best = ''; let n = 0;
+  for (const [k, re] of Object.entries(NICHE_WORDS)) { const c = (text.match(re) || []).length; if (c > n) { best = k; n = c; } }
+  return n >= 2 ? best : '';
+}
+
+/**
+ * Vidéos d'exemple sous un scan : trois créateurs publics (fiche visible sur le site, portfolio validé), de la niche de la marque d'abord,
+ * complétés par les autres ; une vidéo par créateur, comme l'annuaire public (aperçu filigrané quand il existe). « À partir de » : le plus bas des tarifs de départ affichés.
+ */
+const examplesCache = new Map();
+export async function scanExamples(scan) {
+  const niche = scanNiche(scan);
+  const hit = examplesCache.get(niche);
+  if (hit && Date.now() - hit.at < 600000) return hit.data;
+  const { default: User } = await import('../models/User.js');
+  const { portfolioForViewer } = await import('./watermark.js');
+  const { resolveUrlsIn } = await import('./storage.js');
+  const base = { role: 'creator', status: 'active', 'verification.portfolio': true, 'profile.publicConsent.site': true, 'profile.portfolio.kind': { $in: ['video', null] } };
+  const fields = 'profile.name profile.slug profile.niches profile.portfolio profile.pricing.minPrice';
+  const sort = { 'profile.isAmbassador': -1, 'profile.stats.completedJobs': -1, 'profile.stats.rating': -1, createdAt: -1 };
+  const inNiche = niche ? await User.find({ ...base, 'profile.niches': niche }).select(fields).sort(sort).limit(6).lean() : [];
+  const others = inNiche.length < 3 ? await User.find({ ...base, _id: { $nin: inNiche.map(u => u._id) } }).select(fields).sort(sort).limit(6).lean() : [];
+  const videos = [];
+  for (const c of [...inNiche, ...others]) {
+    if (videos.length >= 3) break;
+    const v = (c.profile.portfolio || []).find(x => (!x.kind || x.kind === 'video') && x.videoUrl); // comme l'annuaire public : l'aperçu filigrané quand il existe
+    if (!v) continue;
+    const [shown] = await resolveUrlsIn(portfolioForViewer([v]));
+    videos.push({ url: shown.videoUrl, thumbnail: shown.thumbnail || '', title: v.title || '', creator: { name: c.profile.name, slug: c.profile.slug || '' }, sameNiche: !!niche && (c.profile.niches || []).includes(niche), minPrice: c.profile.pricing?.minPrice || null });
+  }
+  const prices = videos.map(v => v.minPrice).filter(p => p > 0);
+  const data = { niche, videos, fromPrice: prices.length ? Math.min(...prices) : null, rates: GRID }; // rates : fourchette HT par type de vidéo, prix des vidéos proposées par l'audit
+  examplesCache.set(niche, { at: Date.now(), data });
+  return data;
+}
+
 export const adLibraryUrl = (adId) => `https://www.facebook.com/ads/library/?id=${encodeURIComponent(adId)}`;
 
 /**
@@ -554,7 +610,7 @@ export async function adminScanStats() {
   const day = new Date(Date.now() - DAY); const week = new Date(Date.now() - 7 * DAY);
   const [byOrigin24h, originsBySlug, journal, newPages7d, totals, top] = await Promise.all([
     AdScanLog.aggregate([{ $match: { createdAt: { $gte: day } } }, { $group: { _id: '$origin', n: { $sum: 1 } } }]),
-    AdScanLog.aggregate([{ $group: { _id: { slug: '$slug', origin: '$origin' }, n: { $sum: 1 } } }]),
+    AdScanLog.aggregate([{ $group: { _id: { slug: '$slug', origin: '$origin' }, n: { $sum: 1 }, last: { $max: '$createdAt' } } }]),
     AdScanLog.find().sort({ createdAt: -1 }).limit(60).select('slug pageName origin fresh createdAt').lean(),
     AdScan.countDocuments({ createdAt: { $gte: week } }),
     AdScan.aggregate([{ $group: { _id: null, pages: { $sum: 1 }, scans: { $sum: '$scans' }, views: { $sum: '$views' }, briefs: { $sum: '$briefs' }, audits: { $sum: '$audits' }, proposals: { $sum: '$proposals' } } }]),
@@ -566,10 +622,19 @@ export async function adminScanStats() {
   const members24h = (o24.brand || 0) + (o24.creator || 0);
   const origins24h = { visitor: o24.visitor || 0, lead: (o24.lead || 0) + (o24.quote || 0), members: members24h, team: o24.team || 0, auto: (o24.auto_competitor || 0) + (o24.auto_alert || 0) };
   const originsOf = new Map();
-  for (const x of originsBySlug) { const m = originsOf.get(x._id.slug) || {}; m[x._id.origin] = x.n; originsOf.set(x._id.slug, m); }
+  // Dernier scan par marque, tous scans confondus et par un vrai visiteur : tri « du plus récent » dans l'admin
+  const lastOf = new Map(); const lastRealOf = new Map();
+  const later = (m, k, d) => { if (d && (!m.get(k) || d > m.get(k))) m.set(k, d); };
+  for (const x of originsBySlug) {
+    const m = originsOf.get(x._id.slug) || {}; m[x._id.origin] = x.n; originsOf.set(x._id.slug, m);
+    later(lastOf, x._id.slug, x.last); if (REAL.includes(x._id.origin)) later(lastRealOf, x._id.slug, x.last);
+  }
+  // Les 30 marques les plus scannées, plus les 30 scannées le plus récemment (une marque scannée hier une seule fois reste visible)
+  const recentSlugs = [...lastOf.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k]) => k).filter(k => !top.some(t => t.slug === k));
+  if (recentSlugs.length) top.push(...await AdScan.find({ slug: { $in: recentSlugs }, status: { $in: ['ready', 'empty'] } }).select('slug pageId pageName website totalActive stats.oldestDays scans memberScans views briefs audits proposals leadId status fetchedAt').lean());
   const rows = await Promise.all(top.map(async (s) => {
     const lead = s.leadId ? await Lead.findById(s.leadId).select('_id name status').lean() : await leadForScan(s);
-    return { origins: originsOf.get(s.slug) || {}, slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
+    return { origins: originsOf.get(s.slug) || {}, slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lastScanAt: lastOf.get(s.slug) || null, lastRealScanAt: lastRealOf.get(s.slug) || null, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
   }));
   const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
     .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));

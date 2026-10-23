@@ -2069,6 +2069,19 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   expect(subCreator.status === 200 && subCreatorRow && subCreatorRow.role === 'creator' && String(subCreatorRow.userId) === String((await db.collection('users').findOne({ email: creatorEmail }))._id) && !subCreatorRow.leadId, 'Un créateur connecté est abonné avec l\'adresse de son compte, comme créateur, sans fiche de prospection', { status: subCreator.status, row: subCreatorRow && { role: subCreatorRow.role, lead: subCreatorRow.leadId } });
   const subBad = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: 'pas-une-adresse', role: 'brand' });
   expect(subBad.status === 400, 'Adresse invalide refusée', subBad);
+  // Langue du visiteur gardée : les emails du rapport partent en anglais pour un visiteur anglophone
+  const enEmail = `e2e-rapport-en-${RUN}@needcreator-test.com`;
+  const subEn = await pubApi('POST', `/ad-scans/${slug}/subscribe`, { email: enEmail, role: 'brand', company: 'Marque E2E EN', lang: 'en' });
+  const subEnRow = await db.collection('adscansubscriptions').findOne({ email: enEmail });
+  expect(subEn.status === 200 && subEnRow?.lang === 'en', 'Rapport par email : la langue du visiteur (anglais) est gardée pour ses emails', { status: subEn.status, lang: subEnRow?.lang });
+  await db.collection('adscansubscriptions').deleteOne({ email: enEmail });
+  await db.collection('leads').deleteMany({ externalId: `scan-report:${enEmail}` });
+  // Vidéos d'exemple sous le scan : trois au plus, aperçus seulement, fourchette de prix par type de vidéo ; secteur deviné sans l'IA
+  const ex = await pubApi('GET', `/ad-scans/${slug}/examples`);
+  const { scanNiche } = await import('../src/services/adScan.js');
+  expect(ex.status === 200 && Array.isArray(ex.data.videos) && ex.data.videos.length <= 3 && ex.data.videos.every(v => v.url && v.creator?.name) && Array.isArray(ex.data.rates?.demo)
+    && scanNiche({ pageName: 'Sérum Lab', ads: [{ body: 'Notre crème visage pour une peau nette' }] }) === 'beauty' && scanNiche({ pageName: 'X', insights: { niche: 'pets' }, ads: [] }) === 'pets' && scanNiche({ pageName: 'X', ads: [{ body: 'bonjour' }] }) === '',
+    'Scan : vidéos d\'exemple de créateurs (aperçus), prix par type de vidéo, secteur de la marque deviné', { status: ex.status, n: ex.data?.videos?.length });
   // Alerte hebdomadaire : une nouvelle publicité apparaît, la vérification est due → un email, publicités connues mises à jour ; rien de nouveau → rien
   await db.collection('adscans').updateOne({ slug }, { $push: { ads: { id: `e2enew${RUN}`, body: 'Nouvelle publicité : livraison offerte dès 30 €', startedAt: new Date(), platforms: ['instagram'] } }, $set: { fetchedAt: new Date() } });
   await db.collection('adscansubscriptions').updateMany({ email: { $in: [repEmail, creatorEmail] } }, { $set: { lastCheckedAt: new Date(Date.now() - 8 * 86400000) } });
@@ -2110,6 +2123,7 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
   const adminStats = await brandApi('GET', '/admin/acquisition/ad-scans');
   const row = adminStats.data.top?.find(x => x.slug === slug);
+  expect(row && 'lastScanAt' in row && 'lastRealScanAt' in row, 'Admin : date du dernier scan de chaque marque (tri du plus récent)', row);
   // Journal des scans : l'origine est notée (équipe, prospect venu de l'email, visiteur), les vrais visiteurs comptés à part
   const scanDoc = await db.collection('adscans').findOne({ slug });
   {

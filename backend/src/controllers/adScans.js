@@ -1,5 +1,5 @@
 import AdScan from '../models/AdScan.js';
-import { runScan, scanOrigin, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights, requestAudit } from '../services/adScan.js';
+import { runScan, scanOrigin, serializeScan, briefFromScan, indexable, scanSettings, ensureInsights, requestAudit, scanExamples } from '../services/adScan.js';
 import { notifyAdmins } from '../services/adminAlerts.js';
 import logger from '../utils/logger.js';
 
@@ -33,6 +33,15 @@ export async function getScan(req, res) {
     await ensureInsights(scan); // publicités sans lecture IA : la lecture repart en arrière-plan, la page suit
     res.json({ scan: await serializeScan(scan, { user: req.user, settings: st }), indexable: indexable(scan) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'getScan'); }
+}
+
+/** Public : trois vidéos de créateurs de la niche de la marque scannée, leur tarif de départ et la fourchette par type de vidéo */
+export async function scanExamplesView(req, res) {
+  try {
+    const scan = await AdScan.findOne({ slug: String(req.params.slug || '').toLowerCase() }).select('pageName ads.title ads.body insights.niche status').lean();
+    if (!scan) return res.status(404).json({ error: 'Scan introuvable' });
+    res.json(await scanExamples(scan));
+  } catch (error) { fail(res, error, 'Exemples indisponibles', 'scanExamples'); }
 }
 
 /** Public : consultation par un navigateur (compteur ; première consultation = condition d'indexation) */

@@ -32,12 +32,12 @@ export default function ScanReportSignup({ slug, pageName, audit = false }: { sl
   // Audit : la personne lit en général ses propres publicités, on lui parle d'elle (nom de la marque à part : le reste se traduit)
   if (done) return <Card className="p-4 text-sm text-neutral-700" data-testid="scan-report-done">Rapport envoyé à <strong>{done}</strong>. {audit ? <span>Vous serez prévenu quand vous lancerez de nouvelles publicités.</span> : <><span>Vous serez prévenu quand</span> {pageName} <span>lancera de nouvelles publicités.</span></>}</Card>;
   return (
-    <Card className="p-5" data-testid="scan-report-signup">
+    <Card className="p-5 bg-neutral-50" data-testid="scan-report-signup">
       <div className="flex items-start gap-3">
         <Mail className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" />
         <div className="flex-1">
-          <div className="font-semibold text-neutral-900">{audit ? 'Recevoir le rapport de vos publicités par email' : 'Recevoir ce rapport par email'}</div>
-          <p className="text-sm text-neutral-600 mb-3">{audit ? <>Le rapport de vos publicités tout de suite, puis un email par semaine au plus, seulement quand vous lancez de nouvelles publicités ou qu&apos;une des vôtres passe les 90 jours. Désinscription en un clic.</> : <>Le rapport complet tout de suite, puis un email par semaine au plus, seulement quand {pageName} lance de nouvelles publicités ou qu&apos;une passe les 90 jours. Désinscription en un clic.</>}</p>
+          <div className="font-semibold text-neutral-900">Recevoir ces vidéos, leur prix et le rapport par email</div>
+          <p className="text-sm text-neutral-600 mb-3">{audit ? <>Tout de suite : des vidéos de nos créateurs, le prix d&apos;une vidéo et le rapport de vos publicités. Ensuite, un email par semaine au plus, seulement quand vous lancez de nouvelles publicités ou qu&apos;une des vôtres passe les 90 jours. Désinscription en un clic.</> : <>Tout de suite : des vidéos de nos créateurs, le prix d&apos;une vidéo et le rapport complet. Ensuite, un email par semaine au plus, seulement quand {pageName} lance de nouvelles publicités ou qu&apos;une passe les 90 jours. Désinscription en un clic.</>}</p>
           <form onSubmit={(e) => { e.preventDefault(); if (!user && !role) { toast.error('Dites-nous si vous êtes une marque ou un créateur'); return; } if (!user && role === 'creator' && !firstName.trim()) { toast.error('Indiquez votre prénom'); return; } if (!user && role === 'brand' && !company.trim()) { toast.error('Indiquez le nom de votre marque'); return; } subscribe.mutate(); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
             {user ? <div className="text-sm text-neutral-700 sm:flex-1">À <strong>{user.email}</strong></div> : (
               <>
@@ -50,7 +50,7 @@ export default function ScanReportSignup({ slug, pageName, audit = false }: { sl
                 {role === 'creator' && <div className="sm:w-40" data-testid="scan-report-firstname"><Input label="Votre prénom" required value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={60} /></div>}
               </>
             )}
-            <Button type="submit" size="sm" isLoading={subscribe.isPending}>Recevoir le rapport</Button>
+            <Button type="submit" size="sm" isLoading={subscribe.isPending}>Recevoir par email</Button>
           </form>
         </div>
       </div>

@@ -53,9 +53,13 @@ export default function AdScanAdmin() {
   const d = data || {};
   const [realOnly, setRealOnly] = useState(true);
   const [byBrand, setByBrand] = useState(false);
+  const [sortBy, setSortBy] = useState<'date' | 'scans'>('date');
   const [journalFilter, setJournalFilter] = useState<'all' | 'real' | 'team' | 'auto'>('all');
   const o24 = d.origins24h || {};
-  const top = (d.top || []).filter((s: any) => !realOnly || REAL.some(k => s.origins?.[k]));
+  // Du plus récent (dernier scan, d'un vrai visiteur si le filtre est coché) ou du plus scanné
+  const lastAt = (s: any) => new Date((realOnly ? s.lastRealScanAt : s.lastScanAt) || s.fetchedAt || 0).getTime();
+  const top = (d.top || []).filter((s: any) => !realOnly || REAL.some(k => s.origins?.[k]))
+    .sort((a: any, b: any) => sortBy === 'date' ? lastAt(b) - lastAt(a) : (b.scans - a.scans) || (b.views - a.views));
   const journal = (d.journal || []).filter((l: any) => journalFilter === 'all' || (journalFilter === 'real' ? REAL.includes(l.origin) : journalFilter === 'team' ? l.origin === 'team' : l.origin.startsWith('auto_')));
   const tiles = [
     { label: 'Scans de visiteurs sur 24 h', value: d.reads24h, hint: `${o24.visitor || 0} visiteurs, ${o24.lead || 0} prospects, ${o24.members || 0} inscrits · hors équipe (${o24.team || 0}) et automatiques (${o24.auto || 0})` },
@@ -142,16 +146,20 @@ export default function AdScanAdmin() {
               </ul>
             </div>
           )}
-          <label className="flex items-center gap-2 text-sm text-neutral-700 mb-2"><input type="checkbox" checked={realOnly} onChange={(e) => setRealOnly(e.target.checked)} data-testid="ad-scan-real-only" /> Vrais visiteurs seulement (sans l&apos;équipe ni les scans automatiques)</label>
+          <div className="flex items-center gap-2 flex-wrap mb-2"><label className="flex items-center gap-2 text-sm text-neutral-700"><input type="checkbox" checked={realOnly} onChange={(e) => setRealOnly(e.target.checked)} data-testid="ad-scan-real-only" /> Vrais visiteurs seulement (sans l&apos;équipe ni les scans automatiques)</label>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="ml-auto border border-neutral-300 rounded-lg px-2 py-1 text-xs" data-testid="ad-scan-sort">
+              <option value="date">Les plus récents d&apos;abord</option><option value="scans">Les plus scannés d&apos;abord</option>
+            </select></div>
           {!top.length ? <p className="text-sm text-neutral-500">{realOnly && d.top?.length ? 'Aucune marque scannée par un vrai visiteur parmi les plus récentes.' : 'Aucun scan pour l\'instant.'}</p> : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-neutral-500 border-b"><th className="py-2 pr-3">Marque</th><th className="pr-3" title="Lectures demandées (une par visiteur et par 24 h au plus) ; entre parenthèses, par des inscrits">Scans</th><th className="pr-3">Vues</th><th className="pr-3" title="Briefs « l'équivalent » et audits demandés">Briefs · audits</th><th className="pr-3">Publicités</th><th className="pr-3">Prospection</th></tr></thead>
+                <thead><tr className="text-left text-xs text-neutral-500 border-b"><th className="py-2 pr-3">Marque</th><th className="pr-3" title="Lectures demandées (une par visiteur et par 24 h au plus) ; entre parenthèses, par des inscrits">Scans</th><th className="pr-3" title="Date du dernier scan de cette marque (d'un vrai visiteur si le filtre est coché)">Dernier scan</th><th className="pr-3">Vues</th><th className="pr-3" title="Briefs « l'équivalent » et audits demandés">Briefs · audits</th><th className="pr-3">Publicités</th><th className="pr-3">Prospection</th></tr></thead>
                 <tbody>
                   {top.map((s: any) => (
                     <tr key={s.slug} className="border-b border-neutral-100" data-testid="ad-scan-admin-row">
                       <td className="py-2 pr-3"><Link href={`/publicites/${s.slug}`} className="font-medium text-neutral-900 underline">{s.pageName}</Link>{Object.keys(s.origins || {}).length > 0 && <div className="flex flex-wrap gap-1 mt-1" data-testid="ad-scan-origins">{Object.entries(s.origins).map(([o, n]: any) => <OriginChip key={o} o={o} n={n} />)}</div>}{s.website && <div className="text-xs text-neutral-500">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</div>}<div className="text-[11px] text-neutral-400">lu le {formatDate(s.fetchedAt)}</div></td>
                       <td className="pr-3">{s.scans} <span className="text-xs text-neutral-500">({s.memberScans})</span></td>
+                      <td className="pr-3 text-xs whitespace-nowrap">{(realOnly ? s.lastRealScanAt : s.lastScanAt) ? new Date(realOnly ? s.lastRealScanAt : s.lastScanAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                       <td className="pr-3">{s.views}</td>
                       <td className="pr-3">{s.briefs} · {s.audits}</td>
                       <td className="pr-3">{s.status === 'empty' ? <span className="text-neutral-400">aucune</span> : <>{s.totalActive}{s.oldestDays != null ? <span className="text-xs text-neutral-500"> · {s.oldestDays} j</span> : null}</>}</td>

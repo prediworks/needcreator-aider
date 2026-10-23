@@ -5,7 +5,7 @@ import Lead from '../models/Lead.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendScanReport, sendScanNewAds } from './email.js';
-import { ensureScanForPage } from './adScan.js';
+import { ensureScanForPage, scanExamples } from './adScan.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -71,7 +71,9 @@ export async function subscribeToScan({ slug, email, role, firstName, company, u
   }
   sub.lastSentAt = new Date(); sub.lastCheckedAt = new Date(); sub.sentCount += 1;
   await sub.save();
-  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName, lang: sub.lang }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
+  // Vidéos d'exemple de la niche de la marque et prix de départ : le rapport propose aussi la vidéo, pas seulement la lecture
+  const offer = sub.role === 'creator' ? null : await scanExamples(scan).catch(() => null);
+  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName, lang: sub.lang, offer, creatorsBase: `${config.cors.origin}/c/` }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
   return { message: `Rapport envoyé à ${addr}. Vous serez prévenu quand ${scan.pageName} lancera de nouvelles publicités.`, renewed: !fresh };
 }
 

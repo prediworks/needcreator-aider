@@ -40,6 +40,7 @@ const adScanSchema = new mongoose.Schema({
     hooks: [String],
     missing: [String],
     facts: [String],
+    niche: String,           // secteur de la marque (niches NeedCreator) : choisit les vidéos d'exemple montrées sous le scan
   },
   // Audit créatif : la même lecture vue par la marque elle-même (ce qui tient dans la durée, angles répétés, angles libres, accroches à tester, trois briefs)
   audit: {
