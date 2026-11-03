@@ -74,7 +74,7 @@ export default async function BrandsPage() {
             De l&apos;idée à la publicité : <span className="text-primary-500">savoir quoi tourner, le faire tourner, le diffuser en règle.</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Commencez par ce qui marche déjà : les publicités de vos concurrents, l&apos;audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés le tournent au prix de leur devis ou contre votre produit ; vous ne payez qu&apos;à la validation, contrat de droits inclus.
+            Commencez par ce qui marche déjà : les publicités de vos concurrents, l&apos;audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés vous répondent en vidéo : 45 secondes pour vous montrer leur idée, vous choisissez en 2 minutes. Vous ne payez qu&apos;à la validation, contrat de droits inclus.
           </p>
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>

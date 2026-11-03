@@ -5,6 +5,7 @@
  */
 export const EN: Record<string, string> = {
   // ---- Candidature vidéo ----
+  "Commencez par ce qui marche déjà : les publicités de vos concurrents, l'audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés vous répondent en vidéo : {n} secondes pour vous montrer leur idée, vous choisissez en {n} minutes. Vous ne payez qu'à la validation, contrat de droits inclus.": "Start with what already works: your competitors' ads, the audit of yours. Turn it into a brief in one click. Verified creators reply on video: {n} seconds to show you their idea, you choose in {n} minutes. You only pay on approval, rights contract included.",
   'Candidature vidéo': 'Video application', '🎬 Candidature vidéo': '🎬 Video application', '🎬 Candidature vidéo exigée': '🎬 Video application required',
   'Les créateurs vous montrent leur idée en vidéo : vous choisissez en {n} minutes. {n} secondes par candidat, en aperçu filigrané, à côté de son devis.': 'Creators show you their idea on video: you choose in {n} minutes. {n} seconds per candidate, as a watermarked preview, next to their quote.',
   'Les créateurs vous montrent leur idée en vidéo': 'Creators show you their idea on video',
