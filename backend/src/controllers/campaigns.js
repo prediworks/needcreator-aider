@@ -451,6 +451,7 @@ export async function getCampaign(req, res) {
       campaign.myApplication = (campaign.applications || []).find(
         app => idOf(app.creatorId) === user._id.toString()
       ) || null;
+      if (campaign.myApplication) { campaign.myApplication = { ...(campaign.myApplication.toObject?.() || campaign.myApplication) }; delete campaign.myApplication.shortlisted; } // courte liste de la marque : jamais montrée au créateur
       campaign.isSelected = isSelectedCreator;
       campaign.invited = isInvited;
       const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
@@ -889,6 +890,22 @@ export async function attachCampaignInvitation(user, token) {
  * Contre-proposition de la marque sur un devis (prix, délai, révisions).
  * Le devis du créateur reste inchangé tant qu'il n'accepte pas ; une nouvelle contre-proposition remplace la précédente.
  */
+/** « Garder pour plus tard » : la marque met une candidature de côté (ou l'en retire) pour se faire une courte liste */
+export async function shortlistApplication(req, res) {
+  try {
+    const campaign = await Campaign.findOne({ _id: req.params.campaignId, brandId: req.user._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    const application = campaign.applications.find(a => idOf(a.creatorId) === req.params.creatorId);
+    if (!application) return res.status(404).json({ error: 'Application not found' });
+    application.shortlisted = !!req.body?.value;
+    await campaign.save();
+    res.json({ shortlisted: application.shortlisted });
+  } catch (error) {
+    logger.error('shortlistApplication failed:', error);
+    res.status(500).json({ error: 'Modification impossible' });
+  }
+}
+
 export async function counterOffer(req, res) {
   try {
     const { campaignId, creatorId } = req.params;

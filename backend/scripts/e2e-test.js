@@ -672,6 +672,18 @@ await step('Messagerie : négociation du devis entre la marque et le créateur',
   return '2 messages échangés, compteurs non lus corrects';
 });
 
+await step('Candidatures : « Garder pour plus tard » (courte liste de la marque, cachée au créateur)', async () => {
+  const keep = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/shortlist`, { value: true });
+  const asBrand = await brandApi('GET', `/campaigns/${campaign._id}`);
+  const asCreator = await creatorApi('GET', `/campaigns/${campaign._id}`);
+  const byCreator = await creatorApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/shortlist`, { value: false });
+  const unkeep = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/shortlist`, { value: false });
+  const app = (asBrand.data.campaign.applications || []).find(x => String(x.creatorId?._id || x.creatorId) === String(creatorUser.id));
+  expect(keep.status === 200 && keep.data.shortlisted === true && app?.shortlisted === true && asCreator.data.campaign.myApplication && !('shortlisted' in asCreator.data.campaign.myApplication) && byCreator.status === 403 && unkeep.data.shortlisted === false,
+    'La marque garde une candidature pour plus tard (et l\'en retire) ; le créateur ne le voit pas et ne peut pas le changer', { keep: keep.data, app: app?.shortlisted, mine: asCreator.data.campaign.myApplication, byCreator: byCreator.status });
+  return 'gardée puis retirée, invisible côté créateur';
+});
+
 await step('Contre-proposition : marque → créateur (refus, puis acceptation = devis mis à jour)', async () => {
   const same = await brandApi('POST', `/campaigns/${campaign._id}/applications/${creatorUser.id}/counter`, { price: 260, estimatedDeliveryDays: 6, revisions: 2 });
   expect(same.status === 400, 'Une contre-proposition identique au devis doit être refusée', same);

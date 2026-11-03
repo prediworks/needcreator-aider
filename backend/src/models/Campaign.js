@@ -174,6 +174,8 @@ const campaignSchema = new mongoose.Schema({
     remindedAt: Date, // dernière relance de la marque
   }],
 
+  videoApplicationRequired: { type: Boolean, default: false }, // « Candidature vidéo exigée » : pas de devis sans vidéo
+
   // Candidatures suspendues par la marque : la campagne sort du fil et refuse les nouveaux devis ; candidatures reçues, échanges et livraisons continuent
   applicationsPausedAt: { type: Date, default: null },
 
@@ -207,6 +209,12 @@ const campaignSchema = new mongoose.Schema({
     proposal: String,
     lotKey: { type: String, default: 'main' }, // lot visé par la candidature
     reminderSentAt: Date, // relance « devis sans réponse » envoyée à la marque
+    shortlisted: { type: Boolean, default: false }, // « Garder pour plus tard » : courte liste de la marque, jamais montrée au créateur
+    // Candidature vidéo (45 s au plus) : l'idée du créateur pour ce produit. La marque ne voit que l'aperçu filigrané, coupé à 45 s
+    video: {
+      url: String, previewUrl: String, duration: Number, uploadedAt: Date,
+      watermarkedAt: Date, watermarkError: String, watermarkAttempts: { type: Number, default: 0 },
+    },
     price: {
       type: Number,
       required: true,

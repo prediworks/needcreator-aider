@@ -1,4 +1,5 @@
 import express from 'express';
+import Joi from 'joi';
 import { authenticate, authorize, requireVerifiedEmail } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import {
@@ -11,6 +12,7 @@ import {
   updateCampaign,
   cancelCampaign,
   setApplicationsPaused,
+  shortlistApplication,
   updateQuote,
   inviteCreator,
   createPaymentSetup,
@@ -59,6 +61,7 @@ router.patch('/:campaignId/quote', authenticate, authorize('creator'), validate(
 router.post('/:campaignId/invite/:creatorId', authenticate, authorize('brand'), inviteCreator);
 router.post('/:campaignId/invitations/remind', authenticate, authorize('brand'), remindInvitation); // relance d'un invité sans réponse
 router.post('/:campaignId/invite-external', authenticate, authorize('brand'), validate(schemas.externalInvite), inviteExternalCreator); // créateur non inscrit
+router.post('/:campaignId/applications/:creatorId/shortlist', authenticate, authorize('brand'), validate(Joi.object({ value: Joi.boolean().required() })), shortlistApplication); // « Garder pour plus tard »
 router.post('/:campaignId/applications/:creatorId/counter', authenticate, authorize('brand'), validate(schemas.counterOffer), counterOffer); // contre-proposition
 router.post('/:campaignId/counter/respond', authenticate, authorize('creator'), validate(schemas.counterOfferResponse), respondCounterOffer);
 router.post('/:campaignId/payment-setup', authenticate, authorize('brand'), createPaymentSetup);

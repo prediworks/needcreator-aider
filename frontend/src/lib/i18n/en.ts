@@ -389,6 +389,10 @@ export const EN: Record<string, string> = {
   'Le rapport complet tout de suite, puis un email par semaine au plus, seulement quand': 'The full report right away, then one email a week at most, only when',
   "lance de nouvelles publicités ou qu'une passe les 90 jours. Désinscription en un clic.": 'launches new ads or one of them passes 90 days. One-click unsubscribe.',
   "Le rapport de vos publicités tout de suite, puis un email par semaine au plus, seulement quand vous lancez de nouvelles publicités ou qu'une des vôtres passe les 90 jours. Désinscription en un clic.": 'The report on your ads right away, then one email a week at most, only when you launch new ads or one of yours passes 90 days. One-click unsubscribe.',
+  // Candidatures : invité, conseillé, courte liste
+  'Invité par vous': 'Invited by you', 'Conseillé': 'Recommended', 'Gardé': 'Kept', 'Garder pour plus tard': 'Keep for later', 'Retirer de ma liste': 'Remove from my list',
+  'Seulement ceux gardés pour plus tard ({n})': 'Only those kept for later ({n})',
+  'Parmi les trois meilleurs scores de matching (niches, budget, note, réactivité) : par où commencer': 'Among the three best matching scores (niches, budget, rating, responsiveness): where to start',
   // Campagne : suspendre ou rouvrir les candidatures
   'Candidatures suspendues': 'Applications paused', "depuis le": 'since',
   ": la campagne n'apparaît plus aux créateurs. Les candidatures reçues, les échanges et les livraisons continuent.": ': the campaign is no longer shown to creators. Applications received, messages and deliveries carry on.',

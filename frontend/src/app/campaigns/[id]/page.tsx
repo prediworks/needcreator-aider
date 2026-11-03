@@ -2,6 +2,9 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api, { getErrorMessage } from '@/lib/api';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, usePauseApplications, useSelectCreator, useUpdateQuote, useCounterOffer, useRespondCounterOffer } from '@/hooks/useCampaigns';
 import { CounterOfferForm, CounterOfferStatus, CounterOfferPrompt } from '@/components/CounterOfferForm';
@@ -62,6 +65,8 @@ export default function CampaignDetailPage() {
   const [openCounter, setOpenCounter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'match' | 'price' | 'days' | 'rating'>('match');
   const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [shortlistOnly, setShortlistOnly] = useState(false);
+  const queryClient = useQueryClient();
   // Depuis une notification ou un email : défile jusqu'à la candidature (#candidature-<créateur>) ou au devis (#mon-devis)
   useScrollToHash(ready && !isLoading && !!campaign);
 
@@ -116,13 +121,21 @@ export default function CampaignDetailPage() {
     setOpenCounter(null);
   };
 
-  // Candidatures triées selon le critère choisi (le serveur les envoie par score de matching)
-  const sortedApplications: any[] = [...(campaign.applications || [])].sort((a: any, b: any) => {
+  // Candidatures triées selon le critère choisi (le serveur les envoie par score de matching) ; les créateurs invités par la marque d'abord
+  const invitedIds = new Set((campaign.invitedCreators || []).filter((i: any) => i.creatorId).map((i: any) => String(i.creatorId)));
+  const appCid = (a: any) => String(a.creatorId?._id || a.creatorId);
+  // « Conseillé » : les trois meilleurs scores de matching parmi les devis en attente, dès quatre candidatures (par où commencer)
+  const recommendedIds = new Set((campaign.applications || []).length >= 4 ? [...(campaign.applications || [])].filter((a: any) => a.status === 'pending').sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0)).slice(0, 3).map(appCid) : []);
+  const shortlistCount = (campaign.applications || []).filter((a: any) => a.shortlisted).length;
+  const sortedApplications: any[] = [...(campaign.applications || [])].filter((a: any) => !shortlistOnly || a.shortlisted).sort((a: any, b: any) => {
+    const inv = Number(invitedIds.has(appCid(b))) - Number(invitedIds.has(appCid(a)));
+    if (inv) return inv;
     if (sortBy === 'price') return (a.price || 0) - (b.price || 0);
     if (sortBy === 'days') return (a.estimatedDeliveryDays || 0) - (b.estimatedDeliveryDays || 0);
     if (sortBy === 'rating') return (b.creatorId?.profile?.stats?.rating || 0) - (a.creatorId?.profile?.stats?.rating || 0);
     return (b.matchScore || 0) - (a.matchScore || 0);
   });
+  const toggleShortlist = (creatorId: string, value: boolean) => api.post(`/campaigns/${campaignId}/applications/${creatorId}/shortlist`, { value }).then(() => queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })).catch((e: any) => toast.error(getErrorMessage(e)));
   const toggleCompare = (id: string) => setCompareIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : ids.length >= 4 ? ids : [...ids, id]));
 
 
@@ -414,6 +427,9 @@ export default function CampaignDetailPage() {
                     </label>
                   )}
                 </div>
+                {shortlistCount > 0 && (
+                  <label className="text-sm text-neutral-700 flex items-center gap-2 mb-3" data-testid="shortlist-filter"><input type="checkbox" checked={shortlistOnly} onChange={(e) => setShortlistOnly(e.target.checked)} /> {`Seulement ceux gardés pour plus tard (${shortlistCount})`}</label>
+                )}
                 {campaign.applications?.length > 1 && (
                   <p className="text-xs text-neutral-500 mb-3 flex items-center gap-1"><GitCompare className="w-3.5 h-3.5" /> Cochez jusqu&apos;à 4 candidats pour les comparer côte à côte.{compareIds.length > 0 ? ` (${compareIds.length} sélectionné${compareIds.length > 1 ? 's' : ''})` : ''}</p>
                 )}
@@ -449,7 +465,11 @@ export default function CampaignDetailPage() {
                                 )}
                               </div>
                               <div>
-                                <div className="font-medium flex items-center gap-2 flex-wrap">{c.profile?.name || 'Créateur'} <LevelBadges badges={c.badges} size="xs" /></div>
+                                <div className="font-medium flex items-center gap-2 flex-wrap">{c.profile?.name || 'Créateur'} <LevelBadges badges={c.badges} size="xs" />
+                                  {invitedIds.has(String(cid)) && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-testid="app-invited">Invité par vous</span>}
+                                  {recommendedIds.has(String(cid)) && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" title="Parmi les trois meilleurs scores de matching (niches, budget, note, réactivité) : par où commencer" data-testid="app-recommended">Conseillé</span>}
+                                  {app.shortlisted && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Gardé</span>}
+                                </div>
                                 <div className="text-sm text-neutral-500 flex items-center gap-1">
                                   <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
                                   {reviews ? `${rating.toFixed(1)} (${reviews} avis)` : 'Nouveau créateur'}
@@ -493,6 +513,7 @@ export default function CampaignDetailPage() {
                             <Link href={`/profile/${cid}`}>
                               <Button size="sm" variant="outline">Voir le portfolio</Button>
                             </Link>
+                            {app.status === 'pending' && <Button size="sm" variant="ghost" onClick={() => toggleShortlist(String(cid), !app.shortlisted)} data-testid="app-shortlist">{app.shortlisted ? 'Retirer de ma liste' : 'Garder pour plus tard'}</Button>}
                             <Button size="sm" variant="ghost" onClick={() => setOpenChat(openChat === cid ? null : cid)}>
                               <MessageCircle className="w-4 h-4 mr-1" /> {openChat === cid ? 'Fermer' : 'Discuter'}
                             </Button>
