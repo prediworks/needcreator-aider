@@ -151,7 +151,7 @@ Ce que lit la marque : « Par exemple, la plus ancienne en premier : <u>voir les
 ```
 Bonjour,
 
-Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator. Nous aidons les marques à savoir quelles publicités vidéo faire, puis nous les faisons tourner par des créateurs vérifiés, payés seulement si la vidéo vous convient.
+Je m'appelle {{name_of_sender}}, je m'occupe de NeedCreator. Nous aidons les marques à savoir quelles publicités vidéo faire, puis nous les faisons tourner par des créateurs vérifiés, payés seulement si la vidéo vous convient. Vous publiez votre brief, les créateurs vous répondent avec une vidéo de 45 secondes où ils vous montrent leur idée : vous choisissez en 2 minutes.
 
 {{ paragraph }}
 
@@ -166,6 +166,46 @@ Vous recevez ce message sur l'adresse de contact publique de {{ company_name }},
 ```
 
 ### Email 3 · jour 9 · dernier message
+
+**Version du 03/11/2026** : la candidature vidéo passe en premier argument ; deux offres au lieu de trois (le brief sous 48 h est retiré,
+les créateurs montrent eux-mêmes leur idée). **À activer quand un ou deux exemples de candidature vidéo existent** : ajoutez alors la phrase
+facultative avec le lien vers l'exemple. D'ici là, gardez l'ancienne version (ci-dessous, repliée).
+
+**Objet** (tester les deux) :
+- `Choisissez votre créateur sur une vidéo, pas sur un profil`
+- `Dernier message : une vidéo pour {{ company_name }}, sans engagement`
+
+```
+Bonjour,
+
+Dernier message de ma part.
+
+Sur NeedCreator, vous ne choisissez pas un créateur sur sa photo de profil. Vous publiez votre brief, et chaque créateur vous répond avec une vidéo de 45 secondes : son accroche, sa façon de montrer votre produit. Vous regardez, vous choisissez en 2 minutes. Vous ne payez qu'à la validation de la vidéo finale.
+
+[Phrase facultative, dès qu'un exemple existe : Voici à quoi ressemble une candidature : [voir un exemple].]
+
+Deux façons d'essayer sans risque :
+
+- Répondez « oui vidéo » : un de nos créateurs tourne une vidéo pour l'un de vos produits avant toute commande. Vous la regardez, vous ne payez que si vous la gardez.
+- Pas de budget vidéo pour l'instant ? Vous pouvez rémunérer le créateur avec votre produit offert.
+
+Chaque vidéo vient avec son contrat de droits : durée, supports, territoire.
+
+Votre compte marque se crée ici, en deux minutes : [créer votre compte marque]
+
+Si le sujet n'est pas d'actualité, répondez « plus tard » et je reviens vers vous dans quelques mois ; « non merci » et je n'insiste pas.
+
+Bien cordialement,
+
+{{name_of_sender}}
+NeedCreator · https://needcreator.com
+
+Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
+```
+
+Liens à créer dans SalesBlink : « créer votre compte marque » → `{{ signup_link }}` ; « voir un exemple » → l'adresse de l'exemple, quand il existe.
+
+<details><summary>Ancienne version de l'email 3 (jusqu'au 03/11/2026), à garder tant qu'aucun exemple n'existe</summary>
 
 **Objet** : `Dernier message : une vidéo pour {{ company_name }}, sans engagement`
 
@@ -191,6 +231,8 @@ NeedCreator · https://needcreator.com
 
 Vous recevez ce message sur l'adresse de contact publique de {{ company_name }}, dans un cadre strictement professionnel. Un clic pour ne plus rien recevoir : Se désinscrire.
 ```
+
+</details>
 
 ---
 
