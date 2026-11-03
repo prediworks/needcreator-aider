@@ -2651,6 +2651,46 @@ await step('Envoi direct vers R2 : portfolio + livraison (lien signé, sans pass
   return 'portfolio et livraison déposés directement dans R2, contrôles OK';
 });
 
+await step('Candidature vidéo : exigée par la marque, 45 s au plus, la marque ne voit que l\'aperçu filigrané', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne candidature vidéo', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline, videoApplicationRequired: true });
+  expect(c.status === 201 && c.data.campaign.videoApplicationRequired === true, 'Option « Candidature vidéo exigée » non enregistrée', c);
+  const cid = c.data.campaign._id;
+  try {
+    await brandApi('POST', `/campaigns/${cid}/publish`);
+    const none = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+    expect(none.status === 400 && none.data.code === 'VIDEO_REQUIRED', 'Sans vidéo, le devis doit être refusé quand la marque l\'exige', none);
+    const other = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3, videoKey: 'videos/000000000000000000000000/x.mp4', videoDuration: 10 });
+    expect(other.status === 400, 'La vidéo d\'un autre créateur doit être refusée', other);
+    const { makeSampleVideo } = await import('../src/services/video.js');
+    const sample = await makeSampleVideo(2);
+    const pre = await creatorApi('POST', '/portfolio/upload-url', { filename: 'candidature.mp4', contentType: 'video/mp4', size: fs.statSync(sample).size });
+    const put = await fetch(pre.data.uploadUrl, { method: 'PUT', body: fs.readFileSync(sample), headers: { 'Content-Type': 'video/mp4' } });
+    expect(put.ok, `PUT vidéo de candidature refusé (HTTP ${put.status})`, { status: put.status });
+    const long = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3, videoKey: pre.data.key, videoDuration: 60 });
+    expect(long.status === 400 && long.data.code === 'VIDEO_TOO_LONG', 'Une vidéo de plus de 45 s doit être refusée', long);
+    const ok = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3, videoKey: pre.data.key, videoDuration: 2 });
+    expect(ok.status === 201 && ok.data.application.video && !ok.data.application.video.url, 'Candidature vidéo refusée, ou adresse de la vidéo renvoyée', ok);
+    let app = null;
+    for (let i = 0; i < 30; i++) {
+      const asBrand = await brandApi('GET', `/campaigns/${cid}`);
+      app = (asBrand.data.campaign.applications || []).find(x => String(x.creatorId?._id || x.creatorId) === String(creatorUser.id));
+      if (app?.video?.ready) break;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+    expect(app?.video?.ready && app.video.url && !app.video.url.includes(pre.data.key), 'La marque doit voir l\'aperçu filigrané, jamais l\'original', app?.video);
+    const list = await brandApi('GET', '/campaigns');
+    const inList = (list.data.campaigns || []).find(x => String(x._id) === String(cid));
+    const listed = (inList?.applications || [])[0];
+    expect(!listed?.video?.url && !listed?.video?.previewUrl, 'La liste des campagnes ne doit pas exposer la vidéo', listed?.video);
+    const mine = await creatorApi('GET', `/campaigns/${cid}`);
+    expect(mine.data.campaign.myApplication?.video && !mine.data.campaign.myApplication.video.url, 'Le créateur voit que sa vidéo est jointe, sans adresse', mine.data.campaign.myApplication?.video);
+    return 'devis sans vidéo refusé, vidéo trop longue refusée, aperçu filigrané prêt pour la marque';
+  } finally {
+    await mongoose.connection.db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(cid) });
+  }
+});
+
 await step('Email non confirmé : publication refusée ; emails de confirmation et de réinitialisation via notre SMTP', async () => {
   const email = `e2e-unverified-${RUN}@needcreator-test.com`;
   const fu = await firebaseUser(email, false);

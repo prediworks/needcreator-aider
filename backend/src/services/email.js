@@ -201,6 +201,7 @@ export async function sendBrandWelcome(email, companyName) {
       <li>Parcourir les profils de créateurs</li>
       <li>Configurer votre moyen de paiement</li>
     </ul>
+    <p>🎬 <strong>Nouveau : la candidature vidéo.</strong> Les créateurs vous montrent leur idée en vidéo, 45 secondes avec leur devis : vous choisissez en 2 minutes. Cochez « Candidature vidéo exigée » en créant la campagne pour la demander à tous.</p>
     <p>Besoin d'aide ? Notre équipe est là pour vous accompagner.</p>
   `;
   
@@ -288,6 +289,9 @@ export async function sendNewCampaignNotification(email, name, campaignTitle, ca
     <h2 style="margin:8px 0 4px">${esc(campaignTitle)}</h2>
     ${intro}
     ${rows.length ? summary(rows.map(([k, v]) => [k, v == null ? v : esc(v)])) : ''}
+    ${campaign?.videoApplicationRequired
+      ? '<p style="padding:10px 14px;background:#fff7ed;border-radius:8px;color:#9a3412">🎬 <strong>Candidature vidéo exigée</strong> : la marque veut voir votre idée en vidéo (45 s au plus) avec votre devis.</p>'
+      : '<p style="padding:10px 14px;background:#f3f7f6;border-radius:8px;color:#374151">🎬 <strong>Astuce</strong> : joignez une vidéo de 45 s où vous montrez votre idée. Les candidatures vidéo arrivent en tête de liste chez la marque.</p>'}
     ${button(`${config.cors.origin}/campaigns/${campaignId}`, 'Voir la campagne et envoyer mon devis')}
     <p style="color:#6b7280;font-size:13px">Les premiers devis sont vus en premier par la marque. Vous ne recevez ces emails que pour vos niches : modifiables dans votre profil, ainsi que la désactivation des notifications.</p>
   `;
@@ -315,13 +319,16 @@ export async function sendCampaignDigest(email, name, items) {
 /**
  * Application received notification for brand
  */
-export async function sendApplicationReceived(email, companyName, creatorName, campaignTitle, isAmbassador = false, link = null) {
-  const subject = `Nouveau devis pour "${campaignTitle}"${isAmbassador ? ' (créateur Ambassadeur)' : ''}`;
+export async function sendApplicationReceived(email, companyName, creatorName, campaignTitle, isAmbassador = false, link = null, withVideo = false) {
+  const subject = withVideo
+    ? `${creatorName} vous a envoyé sa candidature vidéo pour "${campaignTitle}"`
+    : `Nouveau devis pour "${campaignTitle}"${isAmbassador ? ' (créateur Ambassadeur)' : ''}`;
   const html = `
     <h1>Bonjour ${companyName} !</h1>
     <p>${creatorName}${isAmbassador ? ', <strong>créateur Ambassadeur NeedCreator</strong> 🌟,' : ''} a envoyé un devis pour votre campagne.</p>
+    ${withVideo ? '<p>🎬 <strong>Candidature vidéo</strong> : en 45 secondes, le créateur vous montre son idée pour votre produit. Regardez-la avant de choisir, elle se lit directement sur la page de la campagne.</p>' : ''}
     ${summary([['Campagne', campaignTitle], ['Créateur', creatorName + (isAmbassador ? ' · Ambassadeur' : '')]])}
-    ${button(link || `${config.cors.origin}/dashboard`, 'Voir le devis')}
+    ${button(link || `${config.cors.origin}/dashboard`, withVideo ? 'Voir la vidéo et le devis' : 'Voir le devis')}
   `;
   
   return sendEmail(email, subject, html);

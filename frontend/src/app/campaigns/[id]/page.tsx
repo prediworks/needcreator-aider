@@ -130,6 +130,8 @@ export default function CampaignDetailPage() {
   const sortedApplications: any[] = [...(campaign.applications || [])].filter((a: any) => !shortlistOnly || a.shortlisted).sort((a: any, b: any) => {
     const inv = Number(invitedIds.has(appCid(b))) - Number(invitedIds.has(appCid(a)));
     if (inv) return inv;
+    const vid = Number(!!b.video) - Number(!!a.video); // candidatures vidéo ensuite
+    if (vid) return vid;
     if (sortBy === 'price') return (a.price || 0) - (b.price || 0);
     if (sortBy === 'days') return (a.estimatedDeliveryDays || 0) - (b.estimatedDeliveryDays || 0);
     if (sortBy === 'rating') return (b.creatorId?.profile?.stats?.rating || 0) - (a.creatorId?.profile?.stats?.rating || 0);
@@ -378,6 +380,11 @@ export default function CampaignDetailPage() {
                   )}
                 </div>
 
+                {campaign.videoApplicationRequired && (
+                  <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 text-sm text-orange-900">
+                    🎬 Candidature vidéo exigée : chaque devis est accompagné d&apos;une vidéo de 45 s où le créateur montre son idée.
+                  </div>
+                )}
                 {campaign.brief.productShipping && (
                   <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-900">
                     📦 Un produit est envoyé au créateur sélectionné{campaign.brief.productDescription ? ` : ${campaign.brief.productDescription}` : ''}. Le délai de production démarre à sa réception.
@@ -469,6 +476,7 @@ export default function CampaignDetailPage() {
                                   {invitedIds.has(String(cid)) && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-testid="app-invited">Invité par vous</span>}
                                   {recommendedIds.has(String(cid)) && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" title="Parmi les trois meilleurs scores de matching (niches, budget, note, réactivité) : par où commencer" data-testid="app-recommended">Conseillé</span>}
                                   {app.shortlisted && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Gardé</span>}
+                                  {app.video && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800" data-testid="app-video">🎬 Candidature vidéo</span>}
                                 </div>
                                 <div className="text-sm text-neutral-500 flex items-center gap-1">
                                   <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
@@ -490,6 +498,17 @@ export default function CampaignDetailPage() {
                               </div>
                             </div>
                           </div>
+                          {app.video && (
+                            <div className="mb-3">
+                              {app.video.ready ? (
+                                <video src={app.video.url} controls playsInline preload="metadata" className="w-full max-w-xs max-h-96 rounded-lg bg-black" />
+                              ) : (
+                                <p className="text-sm text-neutral-600 bg-purple-50 rounded p-3">
+                                  {app.video.failed ? 'La vidéo de candidature n\'a pas pu être préparée.' : 'Vidéo en préparation : elle sera visible dans quelques minutes.'}
+                                </p>
+                              )}
+                            </div>
+                          )}
                           {app.proposal && (
                             <p className="text-sm text-neutral-600 mb-3 bg-neutral-50 rounded p-3 whitespace-pre-line">{app.proposal}</p>
                           )}
@@ -640,7 +659,7 @@ export default function CampaignDetailPage() {
                     <h3 className="font-semibold text-neutral-900 mb-3">Modifier mon devis</h3>
                     <QuoteForm
                       campaign={campaign}
-                      initial={{ ...campaign.myApplication?.quote, price: campaign.myApplication?.price, estimatedDeliveryDays: campaign.myApplication?.estimatedDeliveryDays, proposal: campaign.myApplication?.proposal }}
+                      initial={{ ...campaign.myApplication?.quote, video: campaign.myApplication?.video, price: campaign.myApplication?.price, estimatedDeliveryDays: campaign.myApplication?.estimatedDeliveryDays, proposal: campaign.myApplication?.proposal }}
                       submitLabel="Enregistrer le devis"
                       isLoading={updateQuoteMutation.isPending}
                       onSubmit={handleUpdateQuote}
@@ -655,6 +674,7 @@ export default function CampaignDetailPage() {
                       <Badge map={APPLICATION_STATUS} value={campaign.myApplication?.status} />
                     </div>
                     {campaign.myApplication && <QuoteSummary application={campaign.myApplication} compact />}
+                    {campaign.myApplication?.video && <p className="text-xs text-green-800 mt-1">{campaign.myApplication.video.duration ? `🎬 Vidéo de candidature jointe (${campaign.myApplication.video.duration} s)` : '🎬 Vidéo de candidature jointe'}</p>}
                     {campaign.myApplication?.counterOffer?.status === 'pending' && campaign.myApplication?.status === 'pending' && campaign.status === 'active' && (
                       <CounterOfferPrompt
                         offer={campaign.myApplication.counterOffer}
@@ -680,6 +700,10 @@ export default function CampaignDetailPage() {
               <Card className="p-6">
                 {campaign.canApply ? (
                   !showApplicationForm ? (
+                    <>
+                    {campaign.videoApplicationRequired
+                      ? <p className="text-sm text-orange-800 bg-orange-50 rounded p-2 mb-3">🎬 Candidature vidéo exigée : la marque veut voir votre idée en 45 s avec votre devis.</p>
+                      : <p className="text-sm text-neutral-700 bg-primary-50 rounded p-2 mb-3">🎬 Ajoutez une vidéo de 45 s à votre devis : en tête de liste chez la marque.</p>}
                     <Button
                       className="w-full"
                       size="lg"
@@ -687,6 +711,7 @@ export default function CampaignDetailPage() {
                     >
                       Envoyer un devis
                     </Button>
+                    </>
                   ) : (
                     <div>
                       <h3 className="font-semibold text-neutral-900 mb-3">Mon devis</h3>

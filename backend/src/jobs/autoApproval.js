@@ -22,6 +22,7 @@ import { runFollowUps } from './followUps.js';
 import { runScanReportAlerts } from '../services/adScanReports.js';
 import { publishExpiredReviews } from '../controllers/reviews.js';
 import { watermarkBacklog } from '../services/watermark.js';
+import { applicationVideoBacklog } from '../services/applicationVideo.js';
 import { showcaseBacklog } from '../services/showcase.js';
 import { runShowcaseRequestFollowUp } from '../services/showcaseRequests.js';
 import { notify } from '../services/notifications.js';
@@ -251,6 +252,7 @@ export async function runScheduledJobs() {
     const followUps = await runFollowUps();
     const reviewsPublished = await publishExpiredReviews().catch(err => { logger.error('publishExpiredReviews:', err); return 0; });
     const watermarked = await watermarkBacklog(3).catch(err => { logger.error('watermarkBacklog:', err); return 0; });
+    await applicationVideoBacklog(3).catch(err => logger.error('applicationVideoBacklog:', err)); // candidatures vidéo pas encore traitées
     const showcased = await showcaseBacklog(2).catch(err => { logger.error('showcaseBacklog:', err); return 0; });
     const showcaseRequests = await runShowcaseRequestFollowUp().catch(err => { logger.error('runShowcaseRequestFollowUp:', err); return { alerts: 0, fallbacks: 0 }; });
     const contentReminders = await sendContentExpiryReminders().catch(err => { logger.error('sendContentExpiryReminders:', err); return 0; });

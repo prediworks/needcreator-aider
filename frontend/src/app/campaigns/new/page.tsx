@@ -70,6 +70,7 @@ function NewCampaignForm() {
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [creatorsWanted, setCreatorsWanted] = useState('1');
   const [productShipping, setProductShipping] = useState(false);
+  const [videoApplicationRequired, setVideoApplicationRequired] = useState(false);
   const [productDescription, setProductDescription] = useState('');
   const [campaignType, setCampaignType] = useState<'paid' | 'gifting'>('paid');
   const [giftingValue, setGiftingValue] = useState('');
@@ -92,6 +93,7 @@ function NewCampaignForm() {
     setPlatforms(existing.brief?.platforms || []);
     setCreatorsWanted(String(existing.matching?.creatorsWanted || 1));
     setProductShipping(!!existing.brief?.productShipping);
+    setVideoApplicationRequired(!!existing.videoApplicationRequired);
     setProductDescription(existing.brief?.productDescription || '');
     setCampaignType(existing.type === 'gifting' ? 'gifting' : 'paid');
     setGiftingValue(existing.gifting?.productValue ? String(existing.gifting.productValue) : '');
@@ -157,6 +159,7 @@ function NewCampaignForm() {
     creatorsWanted: Math.max(1, parseInt(creatorsWanted) || 1),
     visibility,
     productShipping: campaignType === 'gifting' ? true : productShipping,
+    videoApplicationRequired,
     productDescription: (campaignType === 'gifting' || productShipping) ? productDescription : '',
     type: campaignType,
     giftingProductName: campaignType === 'gifting' ? productDescription : '',
@@ -445,6 +448,14 @@ function NewCampaignForm() {
                   Campagne privée : visible uniquement par les créateurs que vous invitez
                 </label>
                 <p className="text-xs text-neutral-500 mt-1">Pour un lancement confidentiel. Aucune notification aux créateurs à la publication ; invitez-les depuis l&apos;annuaire ou la page de la campagne.</p>
+              </div>
+
+              <div className="bg-neutral-50 rounded-lg p-4">
+                <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+                  <input type="checkbox" checked={videoApplicationRequired} onChange={(e) => setVideoApplicationRequired(e.target.checked)} data-testid="video-required" />
+                  🎬 Candidature vidéo exigée
+                </label>
+                <p className="text-xs text-neutral-500 mt-1">Chaque créateur joint une vidéo de 45 s où il vous montre son idée pour votre produit : vous choisissez en 2 minutes. Sans cette case, la vidéo reste possible mais facultative. Vous recevez un aperçu filigrané.</p>
               </div>
 
               <div className="bg-neutral-50 rounded-lg p-4">

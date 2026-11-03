@@ -140,6 +140,7 @@ export default async function HomePage() {
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {[
+              [Clapperboard, 'Candidature vidéo', 'Les créateurs vous montrent leur idée en vidéo : vous choisissez en 2 minutes. 45 secondes par candidat, en aperçu filigrané, à côté de son devis.'],
               [Zap, 'Matching intelligent', 'Chaque candidature affiche un score basé sur les niches, le budget, la note et la réactivité du créateur.'],
               [Shield, 'Paiement sécurisé', 'Le montant est bloqué via Stripe à la sélection et versé au créateur seulement après votre validation.'],
               [Clock, 'Validation automatique', `Sans réponse de la marque sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée. Personne ne reste bloqué.`],

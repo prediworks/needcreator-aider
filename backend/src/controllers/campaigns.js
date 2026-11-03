@@ -22,6 +22,8 @@ import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js
 import { updateBrandStats } from '../utils/brandStats.js';
 import { chargesFrenchVat } from '../utils/business.js';
 import logger from '../utils/logger.js';
+import { applicationVideoFromKey, processApplicationVideo, applicationVideoForBrand, MAX_APPLICATION_VIDEO_SECONDS } from '../services/applicationVideo.js';
+import { keyFromUrl } from '../services/storage.js';
 
 const idOf = (c) => (c && c._id ? c._id : c)?.toString();
 
@@ -93,6 +95,7 @@ export async function createCampaign(req, res) {
       giftingProductName,
       giftingProductValue,
       lots,
+      videoApplicationRequired,
     } = req.body;
 
     const gate = await checkCampaignRules(brand, { type, creatorsWanted, deliverables, giftingProductValue });
@@ -134,6 +137,7 @@ export async function createCampaign(req, res) {
         productDescription,
       },
       visibility: visibility || 'public',
+      videoApplicationRequired: !!videoApplicationRequired,
       budget: budget && type !== 'gifting'
         ? { total: budget, perVideo: Math.round(budget / deliverables) }
         : {},
@@ -350,6 +354,9 @@ export async function getCampaigns(req, res) {
       });
       // Invitations, puis campagnes de mes niches, puis les plus récentes
       campaigns.sort((a, b) => (Number(b.invited) - Number(a.invited)) || (Number(b.matchesMyNiches) - Number(a.matchesMyNiches)));
+    } else {
+      // Candidature vidéo : jamais l'original dans les listes (l'aperçu se lit sur la page de la campagne)
+      campaigns.forEach(c => (c.applications || []).forEach(x => { if (x.video) x.video = x.video.url ? { hasVideo: true, duration: x.video.duration } : undefined; }));
     }
 
     res.json({
@@ -451,7 +458,7 @@ export async function getCampaign(req, res) {
       campaign.myApplication = (campaign.applications || []).find(
         app => idOf(app.creatorId) === user._id.toString()
       ) || null;
-      if (campaign.myApplication) { campaign.myApplication = { ...(campaign.myApplication.toObject?.() || campaign.myApplication) }; delete campaign.myApplication.shortlisted; } // courte liste de la marque : jamais montrée au créateur
+      if (campaign.myApplication) { campaign.myApplication = { ...(campaign.myApplication.toObject?.() || campaign.myApplication) }; delete campaign.myApplication.shortlisted; if (campaign.myApplication.video?.url) campaign.myApplication.video = { duration: campaign.myApplication.video.duration, uploadedAt: campaign.myApplication.video.uploadedAt, ready: !!campaign.myApplication.video.previewUrl }; } // courte liste de la marque : jamais montrée au créateur
       campaign.isSelected = isSelectedCreator;
       campaign.invited = isInvited;
       const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
@@ -475,6 +482,8 @@ export async function getCampaign(req, res) {
         }
       });
       campaign.applications.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+      // Candidature vidéo : la marque ne reçoit que l'aperçu filigrané (jamais l'original)
+      await Promise.all(campaign.applications.map(async a => { a.video = a.video?.url ? await applicationVideoForBrand(a.video) : undefined; }));
       campaign.editable = isCampaignEditable(campaign);
       campaign.invitedCreators = await invitedList(campaign);
     }
@@ -525,7 +534,7 @@ function computeMatchScore(campaign, creator, price, { activeMissions = 0 } = {}
 export async function applyToCampaign(req, res) {
   try {
     const { campaignId } = req.params;
-    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms, lotKey = 'main' } = req.body;
+    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms, lotKey = 'main', videoKey, videoDuration } = req.body;
     const maxRevisions = await getMaxRevisions();
     if (revisions !== undefined && revisions > maxRevisions) {
       return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
@@ -559,6 +568,14 @@ export async function applyToCampaign(req, res) {
     if (!campaign.canApply(creator._id)) {
       return res.status(400).json({ error: 'Vous ne pouvez pas (ou plus) candidater à cette campagne' });
     }
+    if (campaign.videoApplicationRequired && !videoKey) {
+      return res.status(400).json({ error: `La marque demande une candidature vidéo : ajoutez une vidéo de ${MAX_APPLICATION_VIDEO_SECONDS} s au plus où vous montrez votre idée.`, code: 'VIDEO_REQUIRED' });
+    }
+    if (videoKey && Number(videoDuration) > MAX_APPLICATION_VIDEO_SECONDS + 2) {
+      return res.status(400).json({ error: `La vidéo de candidature dure ${MAX_APPLICATION_VIDEO_SECONDS} s au plus.`, code: 'VIDEO_TOO_LONG' });
+    }
+    let video = null;
+    try { video = await applicationVideoFromKey(creator._id.toString(), videoKey, videoDuration); } catch (e) { return res.status(e.status || 400).json({ error: e.message, code: 'VIDEO_INVALID' }); }
 
     let finalPrice = price;
     if (campaign.type === 'gifting') {
@@ -581,6 +598,7 @@ export async function applyToCampaign(req, res) {
       estimatedDeliveryDays,
       matchScore,
       status: 'pending',
+      ...(video ? { video } : {}),
       quote: {
         version: 1,
         updatedAt: new Date(),
@@ -607,15 +625,17 @@ export async function applyToCampaign(req, res) {
       creator.profile.name,
       campaign.title,
       creator.profile.ambassador?.status === 'approved',
-      `${config.cors.origin}/campaigns/${campaign._id}#candidature-${creator._id}`
+      `${config.cors.origin}/campaigns/${campaign._id}#candidature-${creator._id}`,
+      !!video
     ).catch(err => logger.error('Failed to send notification:', err.message));
-    notify(campaign.brandId._id, { type: 'application', title: `Nouveau devis de ${creator.profile.name}`, text: campaign.title, href: `/campaigns/${campaign._id}#candidature-${creator._id}` }).catch(() => {});
+    if (video) setImmediate(() => processApplicationVideo(campaign._id, creator._id).catch(() => {}));
+    notify(campaign.brandId._id, { type: 'application', title: video ? `Candidature vidéo de ${creator.profile.name}` : `Nouveau devis de ${creator.profile.name}`, text: campaign.title, href: `/campaigns/${campaign._id}#candidature-${creator._id}` }).catch(() => {});
 
     logger.info(`Creator ${creator._id} applied to campaign ${campaign._id} (match ${matchScore}%)`);
 
     res.status(201).json({
       message: 'Application submitted successfully',
-      application: campaign.applications[campaign.applications.length - 1],
+      application: (() => { const a = campaign.applications[campaign.applications.length - 1].toObject(); delete a.shortlisted; if (a.video) a.video = { duration: a.video.duration, uploadedAt: a.video.uploadedAt }; return a; })(),
     });
   } catch (error) {
     logger.error('Failed to apply to campaign:', error);
@@ -630,7 +650,7 @@ export async function updateQuote(req, res) {
   try {
     const { campaignId } = req.params;
     const creator = req.user;
-    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms } = req.body;
+    const { proposal, price, estimatedDeliveryDays, rights, deliveryTypes, platforms, revisions, terms, videoKey, videoDuration } = req.body;
     const maxRevisions = await getMaxRevisions();
     if (revisions !== undefined && revisions > maxRevisions) {
       return res.status(400).json({ error: `Le nombre de révisions incluses ne peut pas dépasser ${maxRevisions}`, code: 'REVISIONS_ABOVE_CAP', maxRevisions });
@@ -646,6 +666,15 @@ export async function updateQuote(req, res) {
     }
     if (campaign.status !== 'active') {
       return res.status(400).json({ error: 'La campagne n\'accepte plus de modifications' });
+    }
+    // Vidéo de candidature : ajoutée ou remplacée avec le devis ; sans nouvelle clé, la vidéo actuelle est gardée
+    let newVideo = null;
+    if (videoKey && keyFromUrl(application.video?.url || '') !== videoKey) {
+      if (Number(videoDuration) > MAX_APPLICATION_VIDEO_SECONDS + 2) return res.status(400).json({ error: `La vidéo de candidature dure ${MAX_APPLICATION_VIDEO_SECONDS} s au plus.`, code: 'VIDEO_TOO_LONG' });
+      try { newVideo = await applicationVideoFromKey(creator._id.toString(), videoKey, videoDuration); } catch (e) { return res.status(e.status || 400).json({ error: e.message, code: 'VIDEO_INVALID' }); }
+    }
+    if (campaign.videoApplicationRequired && !newVideo && !application.video?.url) {
+      return res.status(400).json({ error: `La marque demande une candidature vidéo : ajoutez une vidéo de ${MAX_APPLICATION_VIDEO_SECONDS} s au plus où vous montrez votre idée.`, code: 'VIDEO_REQUIRED' });
     }
 
     // Archive la version précédente
@@ -673,6 +702,7 @@ export async function updateQuote(req, res) {
     application.quote.revisions = revisions ?? maxRevisions;
     application.quote.vatRate = chargesFrenchVat(creator) ? config.vat.rate : 0;
     application.quote.terms = terms;
+    if (newVideo) application.video = newVideo;
     // Un nouveau devis remplace une contre-proposition en attente
     if (application.counterOffer?.status === 'pending') {
       application.counterOffer.status = 'superseded';
@@ -682,9 +712,12 @@ export async function updateQuote(req, res) {
 
     await campaign.save();
 
+    if (newVideo) setImmediate(() => processApplicationVideo(campaign._id, creator._id).catch(() => {}));
     logger.info(`Quote updated (v${application.quote.version}) by creator ${creator._id} on campaign ${campaign._id}`);
 
-    res.json({ message: 'Devis mis à jour', application });
+    const out = application.toObject(); delete out.shortlisted;
+    if (out.video) out.video = { duration: out.video.duration, uploadedAt: out.video.uploadedAt };
+    res.json({ message: 'Devis mis à jour', application: out });
   } catch (error) {
     logger.error('Failed to update quote:', error);
     res.status(500).json({ error: 'Failed to update quote' });
@@ -1198,6 +1231,7 @@ export async function updateCampaign(req, res) {
     if (u.deliveryTypes !== undefined) campaign.brief.deliveryTypes = u.deliveryTypes;
     if (u.platforms !== undefined) campaign.brief.platforms = u.platforms;
     if (u.productShipping !== undefined) campaign.brief.productShipping = u.productShipping;
+    if (u.videoApplicationRequired !== undefined) campaign.videoApplicationRequired = !!u.videoApplicationRequired;
     if (u.visibility !== undefined) campaign.visibility = u.visibility;
     if (u.productDescription !== undefined) campaign.brief.productDescription = u.productDescription;
     if (u.niches !== undefined) campaign.matching.niches = u.niches;

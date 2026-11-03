@@ -171,6 +171,7 @@ export const schemas = {
     creatorsWanted: Joi.number().integer().min(1).max(20).default(1),
     productShipping: Joi.boolean().default(false),
     visibility: Joi.string().valid('public', 'private').default('public'),
+    videoApplicationRequired: Joi.boolean().default(false),
     productDescription: Joi.string().max(300).allow(''),
     type: Joi.string().valid('paid', 'gifting').default('paid'),
     giftingProductName: Joi.string().max(200).allow(''),
@@ -237,6 +238,7 @@ export const schemas = {
     creatorsWanted: Joi.number().integer().min(1).max(20),
     productShipping: Joi.boolean(),
     visibility: Joi.string().valid('public', 'private'),
+    videoApplicationRequired: Joi.boolean(),
     productDescription: Joi.string().max(300).allow(''),
     type: Joi.string().valid('paid', 'gifting'),
     giftingProductName: Joi.string().max(200).allow(''),
@@ -260,6 +262,8 @@ export const schemas = {
     platforms: Joi.array().items(Joi.string().valid('tiktok', 'instagram', 'youtube', 'linkedin', 'facebook', 'x', 'website', 'other')).default([]),
     revisions: Joi.number().integer().min(0).max(10), // vide = réglage admin « Nombre maximum de révisions »
     terms: Joi.string().max(2000).allow(''),
+    videoKey: Joi.string().max(300).allow(''), // candidature vidéo : fichier envoyé par /portfolio/upload-url
+    videoDuration: Joi.number().min(0).max(600).allow(null),
     lotKey: Joi.string().max(30).default('main'),
   }),
 

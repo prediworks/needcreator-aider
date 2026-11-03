@@ -3,6 +3,8 @@
 import { usePublicConfig } from '@/hooks/usePublicConfig';
 import MissingHint from '@/components/ui/MissingHint';
 import { useState } from 'react';
+import { directUpload } from '@/lib/upload';
+import { getErrorMessage } from '@/lib/api';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { RIGHTS_DURATION, RIGHTS_SUPPORTS, PLATFORMS, PLATFORM_OPTIONS, DELIVERY_TYPES } from '@/lib/labels';
@@ -18,11 +20,29 @@ export interface QuoteValues {
   platforms: string[];
   revisions: number;
   terms: string;
+  videoKey?: string;
+  videoDuration?: number | null;
+}
+
+/** Candidature vidéo : 45 s au plus */
+export const MAX_APPLICATION_VIDEO_SECONDS = 45;
+
+/** Durée d'une vidéo choisie, lue dans le navigateur (null si illisible) */
+function readVideoDuration(file: File): Promise<number | null> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    const url = URL.createObjectURL(file);
+    const done = (d: number | null) => { URL.revokeObjectURL(url); resolve(d); };
+    v.onloadedmetadata = () => done(Number.isFinite(v.duration) ? v.duration : null);
+    v.onerror = () => done(null);
+    v.src = url;
+  });
 }
 
 interface QuoteFormProps {
   campaign: any;
-  initial?: Partial<QuoteValues> & { price?: number };
+  initial?: Partial<QuoteValues> & { price?: number; video?: { uploadedAt?: string; duration?: number | null } | null };
   submitLabel: string;
   isLoading?: boolean;
   onSubmit: (values: QuoteValues) => Promise<void> | void;
@@ -59,6 +79,29 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
   const [platforms, setPlatforms] = useState<string[]>(initial?.platforms?.length ? initial.platforms : (campaign?.brief?.platforms || []));
   const [revisions, setRevisions] = useState(String(initial?.revisions ?? cfg.maxRevisions));
   const [terms, setTerms] = useState(initial?.terms || '');
+  const hadVideo = !!initial?.video?.uploadedAt;
+  const videoRequired = !!campaign?.videoApplicationRequired;
+  const [video, setVideo] = useState<{ key: string; duration: number | null; name: string } | null>(null);
+  const [videoProgress, setVideoProgress] = useState<number | null>(null);
+  const [videoError, setVideoError] = useState('');
+
+  const pickVideo = async (file: File | undefined) => {
+    setVideoError('');
+    if (!file) return;
+    if (!file.type.startsWith('video/')) { setVideoError('Choisissez un fichier vidéo.'); return; }
+    const d = await readVideoDuration(file);
+    if (d != null && d > MAX_APPLICATION_VIDEO_SECONDS + 1) { setVideoError(`Votre vidéo dure ${Math.round(d)} s : ${MAX_APPLICATION_VIDEO_SECONDS} s au plus.`); return; }
+    try {
+      setVideoProgress(0);
+      const { key } = await directUpload('/portfolio/upload-url', file, setVideoProgress);
+      setVideo({ key, duration: d != null ? Math.round(d) : null, name: file.name });
+    } catch (err) {
+      setVideoError(getErrorMessage(err));
+    } finally {
+      setVideoProgress(null);
+    }
+  };
+  const videoMissing = videoRequired && !video && !hadVideo;
 
   const toggle = (list: string[], set: (v: string[]) => void, value: string) =>
     set(list.includes(value) ? list.filter(v => v !== value) : [...list, value]);
@@ -78,11 +121,37 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
       platforms,
       revisions: parseInt(revisions) || 0,
       terms,
+      ...(video ? { videoKey: video.key, videoDuration: video.duration } : {}),
     });
   };
 
   return (
     <form onSubmit={submit} className="space-y-5">
+      <div className={cn('rounded-lg border p-3', videoRequired ? 'border-orange-300 bg-orange-50' : 'border-primary-200 bg-primary-50')}>
+        <h4 className="font-semibold text-neutral-900">{videoRequired ? '🎬 Votre idée en vidéo (exigée par la marque)' : '🎬 Votre idée en vidéo (facultatif)'}</h4>
+        <p className="text-sm text-neutral-700 mt-1">
+          {videoRequired
+            ? `La marque demande une vidéo de ${MAX_APPLICATION_VIDEO_SECONDS} s au plus avec votre devis.`
+            : `Ajoutez une vidéo de ${MAX_APPLICATION_VIDEO_SECONDS} s : les candidatures vidéo arrivent en tête de liste.`}
+        </p>
+        <ul className="text-xs text-neutral-600 mt-1 list-disc pl-5">
+          <li>Votre accroche, comme dans la vraie vidéo.</li>
+          <li>Comment vous montreriez le produit.</li>
+          <li>Pas besoin de montage : filmé au téléphone, c&apos;est parfait.</li>
+        </ul>
+        <p className="text-xs text-neutral-500 mt-1">La marque voit un aperçu filigrané : elle ne peut pas utiliser cette vidéo sans vous commander la mission.</p>
+        <div className="mt-2 flex items-center gap-3 flex-wrap">
+          <label className="inline-flex items-center px-3 py-1.5 rounded-lg bg-white border border-neutral-300 text-sm font-medium cursor-pointer hover:bg-neutral-50">
+            {video || hadVideo ? 'Remplacer la vidéo' : 'Choisir une vidéo'}
+            <input type="file" accept="video/*" className="hidden" disabled={videoProgress !== null} onChange={(e) => { pickVideo(e.target.files?.[0]); e.target.value = ''; }} />
+          </label>
+          {videoProgress !== null && <span className="text-sm text-neutral-600">{`Envoi… ${videoProgress} %`}</span>}
+          {video && videoProgress === null && <span className="text-sm text-green-700">✓ {video.name}{video.duration ? ` (${video.duration} s)` : ''}</span>}
+          {!video && hadVideo && videoProgress === null && <span className="text-sm text-green-700">✓ Vidéo déjà jointe</span>}
+        </div>
+        {videoError && <p className="text-sm text-red-600 mt-1">{videoError}</p>}
+      </div>
+
       <div>
         <h4 className="font-semibold text-neutral-900 mb-2">1. {isGifting ? 'Délai' : 'Prix et délai'}</h4>
         {isGifting && <p className="text-sm text-pink-800 bg-pink-50 rounded p-2 mb-2">🎁 Campagne gifting : pas de rémunération, vous recevez {campaign.gifting?.productName || 'le produit'} (valeur {formatCurrency(campaign.gifting?.productValue || 0)}).</p>}
@@ -187,14 +256,14 @@ export default function QuoteForm({ campaign, initial, submitLabel, isLoading, o
       </div>
 
       <div className="flex gap-2">
-        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < cfg.minQuotePrice) || deliveryTypes.length === 0}>
+        <Button type="submit" className="flex-1" isLoading={isLoading} disabled={(!isGifting && priceNumber < cfg.minQuotePrice) || deliveryTypes.length === 0 || videoMissing || videoProgress !== null}>
           {submitLabel}
         </Button>
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel}>Annuler</Button>
         )}
       </div>
-      <MissingHint items={[!isGifting && priceNumber < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`, deliveryTypes.length === 0 && 'un mode de livraison (fichier ou lien)']} />
+      <MissingHint items={[!isGifting && priceNumber < cfg.minQuotePrice && `un prix d'au moins ${cfg.minQuotePrice} € HT`, deliveryTypes.length === 0 && 'un mode de livraison (fichier ou lien)', videoMissing && `une vidéo de ${MAX_APPLICATION_VIDEO_SECONDS} s (exigée par la marque)`]} />
     </form>
   );
 }

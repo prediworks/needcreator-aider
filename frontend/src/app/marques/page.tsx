@@ -20,6 +20,7 @@ export default async function BrandsPage() {
   const days = plural(cfg.autoApprovalDays, 'jour');
 
   const reasons: [any, string, string][] = [
+    [Clapperboard, 'Les créateurs vous montrent leur idée en vidéo', 'Avec son devis, chaque créateur peut joindre une vidéo de 45 secondes : son accroche, sa façon de montrer votre produit. Vous choisissez en 2 minutes, sur une idée concrète plutôt que sur un profil. Cochez « Candidature vidéo exigée » pour la demander à tous. Aperçu filigrané : rien n\'est utilisable sans commander la mission.'],
     [Clapperboard, 'Des vidéos déjà tournées pour vos produits', 'Nos créateurs peuvent vous envoyer une candidature spontanée : une vidéo finie, tournée avec votre produit, que vous regardez en filigrane. Vous ne payez que celles que vous gardez, droits inclus. Voir la page « Candidature spontanée en vidéo ».'],
     [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
     [Gift, 'Gifting : payez en produit', `Pas de budget vidéo ? Envoyez votre produit (${cfg.giftingMinProductValue} € de valeur minimum) à la place d'une rémunération. Le créateur qui accepte livre ses vidéos, contrôlées comme une mission payée, et vous gardez les droits prévus au brief. Gratuit en Pro, ${cfg.giftingFeePerVideo} € HT par vidéo livrée avec l'offre gratuite.`],
@@ -36,13 +37,14 @@ export default async function BrandsPage() {
 
   const steps: [string, string, string][] = [
     ['1', 'Publiez votre brief', 'Cinq minutes suffisent. Les créateurs de vos niches sont prévenus.'],
-    ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat.'],
+    ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat, et sa candidature vidéo de 45 s s\'il en joint une.'],
     ['3', 'Sélectionnez et bloquez le montant', 'Votre carte est autorisée, pas débitée. Le contrat est généré.'],
     ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Chaque vidéo entre dans votre registre Contenus & droits, avec ses droits et sa date de fin ; la facture arrive toute seule.'],
   ];
 
   const faq: [string, string][] = [
     ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix hors taxes, généralement à partir de 80 €. Vous payez exactement le devis accepté, plus la TVA si le créateur y est assujetti (indiqué sur le devis). La commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement. Vous recevez une facture pour chaque mission.`],
+    ['Comment choisir parmi beaucoup de devis ?', 'Les créateurs que vous avez invités arrivent en tête, puis les candidatures vidéo, où chacun vous montre son idée en 45 secondes. À partir de 4 devis, les 3 plus proches de votre brief sont marqués « Conseillé », et vous pouvez garder les meilleurs de côté pour comparer.'],
     ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
     ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. Si, révisions épuisées, les vidéos ne correspondent toujours pas au brief, vous ouvrez un litige : le créateur répond, notre équipe tranche, et le montant bloqué est réparti ou remboursé en conséquence.`],
     ['Puis-je payer en produit plutôt qu\'en argent ?', `Oui, c'est le gifting : vous créez une campagne « produit offert » (${cfg.giftingMinProductValue} € de valeur minimum), les créateurs intéressés candidatent, vous en sélectionnez un, vous lui envoyez le produit, il livre ses vidéos. Contrôle de conformité, contrat de droits et révisions fonctionnent comme pour une mission payée. Gratuit en Pro ; avec l'offre gratuite, ${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée.`],

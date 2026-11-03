@@ -18,7 +18,7 @@ const WATERMARK = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
  * Filigrane sur les aperçus de portfolio : les marques voient une version marquée « NeedCreator · aperçu portfolio »,
  * l'original reste intact pour le créateur (et pour les livraisons, qui sont payées). ffmpeg embarqué, aucun service externe.
  */
-export async function watermarkVideoBuffer(input, workDir) {
+export async function watermarkVideoBuffer(input, workDir, { maxSeconds = 0 } = {}) {
   const out = path.join(workDir, 'wm.mp4');
   // Largeur du logo ≈ 30 % de la vidéo (calculée depuis les dimensions réelles), en bas à droite avec un retrait de 3 %.
   // Audio : la première piste seulement, réencodée en AAC. Les iPhone récents ajoutent une piste « audio spatial » (apac) inconnue de ffmpeg :
@@ -27,7 +27,8 @@ export async function watermarkVideoBuffer(input, workDir) {
   const info = await probe(input);
   const wmWidth = Math.max(120, Math.round((info.width || 720) * 0.30));
   const filter = `[1:v]scale=${wmWidth}:-1[wm];[0:v][wm]overlay=x='W-w-(W*0.03)':y='H-h-(H*0.03)':format=auto,format=yuv420p[v]`;
-  await run(ffmpegPath, ['-y', '-i', input, '-i', WATERMARK, '-filter_complex', filter, '-map', '[v]', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
+  // maxSeconds : aperçu coupé (candidature vidéo, 45 s au plus)
+  await run(ffmpegPath, ['-y', '-i', input, '-i', WATERMARK, '-filter_complex', filter, '-map', '[v]', '-map', '0:a:0?', ...(maxSeconds > 0 ? ['-t', String(maxSeconds)] : []), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', out], { maxBuffer: 64 * 1024 * 1024 });
   return out;
 }
 
