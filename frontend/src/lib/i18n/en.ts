@@ -389,6 +389,14 @@ export const EN: Record<string, string> = {
   'Le rapport complet tout de suite, puis un email par semaine au plus, seulement quand': 'The full report right away, then one email a week at most, only when',
   "lance de nouvelles publicités ou qu'une passe les 90 jours. Désinscription en un clic.": 'launches new ads or one of them passes 90 days. One-click unsubscribe.',
   "Le rapport de vos publicités tout de suite, puis un email par semaine au plus, seulement quand vous lancez de nouvelles publicités ou qu'une des vôtres passe les 90 jours. Désinscription en un clic.": 'The report on your ads right away, then one email a week at most, only when you launch new ads or one of yours passes 90 days. One-click unsubscribe.',
+  // Campagne : suspendre ou rouvrir les candidatures
+  'Candidatures suspendues': 'Applications paused', "depuis le": 'since',
+  ": la campagne n'apparaît plus aux créateurs. Les candidatures reçues, les échanges et les livraisons continuent.": ': the campaign is no longer shown to creators. Applications received, messages and deliveries carry on.',
+  "Assez de candidatures ? Suspendez-les : la campagne n'apparaît plus aux créateurs, vous gardez celles déjà reçues et pouvez rouvrir quand vous voulez.": 'Enough applications? Pause them: the campaign is no longer shown to creators, you keep those already received and can reopen whenever you like.',
+  'Suspendre les candidatures': 'Pause applications', 'Rouvrir les candidatures': 'Reopen applications', 'Suspendue': 'Paused',
+  "Candidatures suspendues : la campagne n'apparaît plus aux créateurs.": 'Applications paused: the campaign is no longer shown to creators.',
+  'Candidatures rouvertes : la campagne est de nouveau visible des créateurs.': 'Applications reopened: the campaign is visible to creators again.',
+  'La marque a suspendu les candidatures pour le moment.': 'The brand has paused applications for now.',
   // Page de scan : verdict, offre, vidéos d'exemple, détail replié
   "Ce qu'un créateur tournerait pour vous": 'What a creator would shoot for you',
   'Le brief est préparé gratuitement. Les créateurs proposent leur devis ; vous ne payez que la vidéo qui vous convient.': 'The brief is prepared for free. Creators send their quotes; you only pay for the video you like.',

@@ -174,6 +174,9 @@ const campaignSchema = new mongoose.Schema({
     remindedAt: Date, // dernière relance de la marque
   }],
 
+  // Candidatures suspendues par la marque : la campagne sort du fil et refuse les nouveaux devis ; candidatures reçues, échanges et livraisons continuent
+  applicationsPausedAt: { type: Date, default: null },
+
   notifications: {
     ambassadorsNotifiedAt: Date,
     allNotifiedAt: Date,
@@ -327,6 +330,7 @@ campaignSchema.methods.canApply = function(creatorId) {
 
   return (
     this.status === 'active' &&
+    !this.applicationsPausedAt &&
     !hasApplied &&
     !isExcluded &&
     !isPastDeadline &&

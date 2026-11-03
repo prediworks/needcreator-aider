@@ -10,6 +10,7 @@ import {
   selectCreator,
   updateCampaign,
   cancelCampaign,
+  setApplicationsPaused,
   updateQuote,
   inviteCreator,
   createPaymentSetup,
@@ -48,6 +49,8 @@ router.get('/', authenticate, getCampaigns);
 router.get('/:campaignId', authenticate, getCampaign);
 router.patch('/:campaignId', authenticate, authorize('brand'), validate(schemas.updateCampaign), updateCampaign);
 router.delete('/:campaignId', authenticate, authorize('brand'), cancelCampaign);
+router.post('/:campaignId/pause', authenticate, authorize('brand'), setApplicationsPaused); // suspendre les candidatures
+router.post('/:campaignId/resume', authenticate, authorize('brand'), setApplicationsPaused); // les rouvrir
 
 // Campaign actions
 router.post('/:campaignId/publish', authenticate, authorize('brand'), requireVerifiedEmail, publishCampaign);

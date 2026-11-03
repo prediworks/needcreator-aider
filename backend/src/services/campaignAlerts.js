@@ -82,7 +82,7 @@ export async function hasAmbassadorFor(campaign) {
 export async function notifyAllCreatorsNow(campaign) {
   const fail = (status, message) => Object.assign(new Error(message), { status });
   if (campaign.visibility === 'private') throw fail(400, 'Campagne privée : seuls les créateurs invités sont prévenus');
-  if (campaign.status !== 'active') throw fail(400, 'La campagne n\'est pas ouverte aux candidatures');
+  if (campaign.status !== 'active' || campaign.applicationsPausedAt) throw fail(400, 'La campagne n\'est pas ouverte aux candidatures');
   if (campaign.notifications?.allNotifiedAt) throw fail(409, 'Les créateurs ont déjà été prévenus');
   campaign.set('notifications.allNotifiedAt', new Date()); // posé avant l'envoi : la tâche planifiée ne repasse pas derrière
   await campaign.save();
@@ -105,7 +105,7 @@ export async function flushCampaignAlerts({ userIds = null } = {}) {
   const byUser = new Map();
   for (const a of pending) { if (!byUser.has(String(a.userId))) byUser.set(String(a.userId), []); byUser.get(String(a.userId)).push(a); }
   const campaignIds = [...new Set(pending.map(a => String(a.campaignId)))];
-  const campaigns = await Campaign.find({ _id: { $in: campaignIds }, status: 'active' }).populate('brandId', 'profile.companyName profile.name').lean();
+  const campaigns = await Campaign.find({ _id: { $in: campaignIds }, status: 'active', applicationsPausedAt: null }).populate('brandId', 'profile.companyName profile.name').lean();
   const byCampaign = new Map(campaigns.map(c => [String(c._id), c]));
   const users = await User.find({ _id: { $in: [...byUser.keys()] } }).select('email profile.name').lean();
   let emails = 0, digests = 0;

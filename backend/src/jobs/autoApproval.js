@@ -131,7 +131,7 @@ export async function notifyAfterEarlyAccess() {
   let queued = 0;
   if (hours > 0) {
     const limit = new Date(Date.now() - hours * 3600 * 1000);
-    const campaigns = await Campaign.find({ status: 'active', 'timeline.publishedAt': { $lte: limit }, 'notifications.allNotifiedAt': { $exists: false } }).populate('brandId', 'profile.companyName profile.name');
+    const campaigns = await Campaign.find({ status: 'active', applicationsPausedAt: null, 'timeline.publishedAt': { $lte: limit }, 'notifications.allNotifiedAt': { $exists: false } }).populate('brandId', 'profile.companyName profile.name');
     for (const campaign of campaigns) {
       const brandName = campaign.brandId?.profile?.companyName || campaign.brandId?.profile?.name || '';
       const r = await queueCampaignAlerts(campaign, brandName, { wave: 'all' }).catch(err => { logger.error('queueCampaignAlerts:', err.message); return { queued: 0 }; });

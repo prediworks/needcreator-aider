@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
-import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, useSelectCreator, useUpdateQuote, useCounterOffer, useRespondCounterOffer } from '@/hooks/useCampaigns';
+import { useCampaign, useApplyToCampaign, usePublishCampaign, useCancelCampaign, usePauseApplications, useSelectCreator, useUpdateQuote, useCounterOffer, useRespondCounterOffer } from '@/hooks/useCampaigns';
 import { CounterOfferForm, CounterOfferStatus, CounterOfferPrompt } from '@/components/CounterOfferForm';
 import CandidatesCompare from '@/components/CandidatesCompare';
 import InvitedCreators from '@/components/InvitedCreators';
@@ -50,6 +50,7 @@ export default function CampaignDetailPage() {
   const applyMutation = useApplyToCampaign();
   const publishMutation = usePublishCampaign();
   const cancelMutation = useCancelCampaign();
+  const pauseMutation = usePauseApplications();
   const selectMutation = useSelectCreator();
   const updateQuoteMutation = useUpdateQuote();
   const counterMutation = useCounterOffer();
@@ -232,6 +233,18 @@ export default function CampaignDetailPage() {
               <Card className="p-4 mb-6 flex items-center justify-between gap-3 flex-wrap" data-testid="live-edit">
                 <p className="text-sm text-neutral-700">Aucun créateur n&apos;a encore répondu : vous pouvez corriger le brief. Dès la première candidature, il sera figé.</p>
                 <Link href={`/campaigns/new?edit=${campaignId}`}><Button variant="outline" size="sm">Modifier la campagne</Button></Link>
+              </Card>
+            )}
+
+            {/* Candidatures : suspendre (la campagne sort du fil des créateurs) ou rouvrir */}
+            {isOwnCampaign && campaign.status === 'active' && (
+              <Card className={`p-4 mb-6 flex items-center justify-between gap-3 flex-wrap ${campaign.applicationsPausedAt ? 'bg-orange-50 border-orange-200' : ''}`} data-testid="applications-pause">
+                <p className="text-sm text-neutral-700">{campaign.applicationsPausedAt
+                  ? <><span className="font-medium text-orange-800">Candidatures suspendues</span> depuis le {formatDate(campaign.applicationsPausedAt)} : la campagne n&apos;apparaît plus aux créateurs. Les candidatures reçues, les échanges et les livraisons continuent.</>
+                  : <>Assez de candidatures ? Suspendez-les : la campagne n&apos;apparaît plus aux créateurs, vous gardez celles déjà reçues et pouvez rouvrir quand vous voulez.</>}</p>
+                <Button variant="outline" size="sm" isLoading={pauseMutation.isPending} onClick={() => { if (campaign.applicationsPausedAt || confirm('Suspendre les candidatures ? La campagne n\'apparaîtra plus aux créateurs ; vous pourrez rouvrir à tout moment.')) pauseMutation.mutate({ campaignId, paused: !campaign.applicationsPausedAt }); }} data-testid="applications-pause-toggle">
+                  {campaign.applicationsPausedAt ? 'Rouvrir les candidatures' : 'Suspendre les candidatures'}
+                </Button>
               </Card>
             )}
 

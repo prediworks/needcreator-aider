@@ -111,7 +111,7 @@ export async function qualifyOne(lead, openNiches) {
 }
 
 async function openNicheKeys() {
-  const rows = await Campaign.aggregate([{ $match: { status: 'active', visibility: { $ne: 'private' } } }, { $unwind: '$matching.niches' }, { $group: { _id: '$matching.niches', n: { $sum: 1 } } }, { $sort: { n: -1 } }]);
+  const rows = await Campaign.aggregate([{ $match: { status: 'active', applicationsPausedAt: null, visibility: { $ne: 'private' } } }, { $unwind: '$matching.niches' }, { $group: { _id: '$matching.niches', n: { $sum: 1 } } }, { $sort: { n: -1 } }]);
   return rows.map(r => r._id);
 }
 

@@ -562,7 +562,7 @@ export default function AdminPage() {
                     <tr key={c._id} className="border-b border-neutral-100">
                       <td className="py-2 pr-4 font-medium">{c.title}</td>
                       <td className="py-2 pr-4 text-neutral-600">{c.brandId?.profile?.companyName}</td>
-                      <td className="py-2 pr-4"><Badge map={CAMPAIGN_STATUS} value={c.status} /></td>
+                      <td className="py-2 pr-4"><Badge map={CAMPAIGN_STATUS} value={c.status} />{c.status === 'active' && c.applicationsPausedAt && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-800" title={`Candidatures suspendues par la marque le ${formatDate(c.applicationsPausedAt)}`}>Suspendue</span>}</td>
                       <td className="py-2 pr-4">{formatCurrency(c.budget?.total)}</td>
                       <td className="py-2 pr-4">{c.analytics?.applications || 0}</td>
                       <td className="py-2 pr-4">{(c.invitations?.length || 0) + (c.externalInvitations || []).filter((e: any) => !e.acceptedAt).length || '—'}</td>

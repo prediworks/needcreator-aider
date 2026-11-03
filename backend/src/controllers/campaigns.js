@@ -274,12 +274,14 @@ export async function getCampaigns(req, res) {
         if (!user.acceptsGifting(levelFor(user.profile?.stats))) query.type = { $ne: 'gifting' };
         const hours = config.badges.earlyAccessHours;
         // Ouverte à tous : avant-première écoulée, ou tous les créateurs déjà prévenus (pas d'Ambassadeur concerné, envoi anticipé depuis l'admin)
+        query.applicationsPausedAt = null; // candidatures suspendues : hors du fil
         if (hours > 0 && !isAmbassador(user)) query.$or = [{ 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } }, { 'notifications.allNotifiedAt': { $ne: null } }, { 'invitations.creatorId': user._id }];
       } else {
         // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
         query['matching.excludedCreators'] = { $ne: user._id };
         if (!user.acceptsGifting(levelFor(user.profile?.stats))) query.type = { $ne: 'gifting' };
+        query.applicationsPausedAt = null; // candidatures suspendues : hors du fil
         // Accès anticipé : les non-ambassadeurs voient les campagnes après le délai d'avant-première
         const hours = config.badges.earlyAccessHours;
         if (hours > 0 && !isAmbassador(user)) {
@@ -453,7 +455,7 @@ export async function getCampaign(req, res) {
       campaign.invited = isInvited;
       const maxLate = await getSetting(SETTINGS.maxLateWithdrawals.key, SETTINGS.maxLateWithdrawals.default);
       campaign.canApply = Campaign.prototype.canApply.call(campaign, user._id) && user.canApplyToCampaign(maxLate);
-      campaign.applyBlockers = user.applyBlockers(maxLate);
+      campaign.applyBlockers = [...(campaign.applicationsPausedAt ? ['La marque a suspendu les candidatures pour le moment.'] : []), ...user.applyBlockers(maxLate)];
       if (campaign.renewal?.creatorId && idOf(campaign.renewal.creatorId) === user._id.toString()) campaign.renewalQuote = campaign.renewal.lastQuote || null;
       delete campaign.renewal;
       delete campaign.seed;
@@ -552,6 +554,7 @@ export async function applyToCampaign(req, res) {
     if (!creator.servicesOf().includes(lot.service)) {
       return res.status(403).json({ error: `Cette campagne demande le service « ${serviceByKey(lot.service).label} », que vous ne proposez pas. Ajoutez-le dans votre profil si vous le pratiquez.`, code: 'SERVICE_MISMATCH', service: lot.service });
     }
+    if (campaign.applicationsPausedAt) return res.status(400).json({ error: 'La marque a suspendu les candidatures pour le moment.', code: 'APPLICATIONS_PAUSED' });
     if (!campaign.canApply(creator._id)) {
       return res.status(400).json({ error: 'Vous ne pouvez pas (ou plus) candidater à cette campagne' });
     }
@@ -789,7 +792,7 @@ function publicCampaignView(c) {
 export async function listPublicCampaigns(req, res) {
   try {
     const now = new Date();
-    const query = { status: 'active', visibility: { $ne: 'private' }, $or: [{ 'timeline.applicationDeadline': null }, { 'timeline.applicationDeadline': { $gte: now } }] };
+    const query = { status: 'active', applicationsPausedAt: null, visibility: { $ne: 'private' }, $or: [{ 'timeline.applicationDeadline': null }, { 'timeline.applicationDeadline': { $gte: now } }] };
     const suspended = await suspendedBrandIds();
     if (suspended.length) query.brandId = { $nin: suspended };
     if (req.query.niche) query['matching.niches'] = req.query.niche;
@@ -1223,6 +1226,27 @@ export async function updateCampaign(req, res) {
   } catch (error) {
     logger.error('Failed to update campaign:', error);
     res.status(500).json({ error: 'Failed to update campaign' });
+  }
+}
+
+/**
+ * Suspendre ou rouvrir les candidatures (marque) : suspendue, la campagne sort du fil des créateurs et refuse les nouveaux devis ;
+ * les candidatures reçues, les échanges et les livraisons continuent. Rouvrir ne renvoie aucun email.
+ */
+export async function setApplicationsPaused(req, res) {
+  try {
+    const paused = req.path.endsWith('/pause');
+    const campaign = await Campaign.findOne({ _id: req.params.campaignId, brandId: req.user._id });
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+    if (campaign.status !== 'active') return res.status(400).json({ error: 'Seule une campagne ouverte aux candidatures peut être suspendue ou rouverte' });
+    if (!!campaign.applicationsPausedAt === paused) return res.json({ campaign, message: paused ? 'Les candidatures sont déjà suspendues' : 'Les candidatures sont déjà ouvertes' });
+    campaign.applicationsPausedAt = paused ? new Date() : null;
+    await campaign.save();
+    logger.info(`Campaign ${campaign._id}: applications ${paused ? 'paused' : 'reopened'} by brand ${req.user._id}`);
+    res.json({ campaign, message: paused ? 'Candidatures suspendues : la campagne n\'apparaît plus aux créateurs.' : 'Candidatures rouvertes : la campagne est de nouveau visible des créateurs.' });
+  } catch (error) {
+    logger.error('setApplicationsPaused failed:', error);
+    res.status(500).json({ error: 'Modification impossible' });
   }
 }
 

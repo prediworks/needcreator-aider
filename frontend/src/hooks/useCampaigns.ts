@@ -61,6 +61,20 @@ export function usePublishCampaign() {
   });
 }
 
+/** Suspendre (pause) ou rouvrir les candidatures d'une campagne publiée */
+export function usePauseApplications() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ campaignId, paused }: { campaignId: string; paused: boolean }) => (await api.post(`/campaigns/${campaignId}/${paused ? 'pause' : 'resume'}`)).data,
+    onSuccess: (data, { campaignId }) => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
+      toast.success(data.message);
+    },
+    onError: (error: any) => toast.error(getErrorMessage(error, 'Modification impossible')),
+  });
+}
+
 export function useCancelCampaign() {
   const queryClient = useQueryClient();
 

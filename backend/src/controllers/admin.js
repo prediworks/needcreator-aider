@@ -207,7 +207,7 @@ export async function getAdminCampaigns(req, res) {
       Campaign.find(query)
         .populate('brandId', 'profile.companyName email')
         .populate('selectedCreator', 'profile.name email')
-        .select('title status visibility budget timeline analytics notifications brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt')
+        .select('title status visibility applicationsPausedAt budget timeline analytics notifications brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))

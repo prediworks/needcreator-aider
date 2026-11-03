@@ -481,6 +481,15 @@ await step('Avant-première : envoi anticipé depuis l\'admin, et sautée sans A
     const creatorDoc = await db.collection('users').findOne({ email: creatorEmail });
     const alert = await db.collection('campaignalerts').findOne({ userId: creatorDoc._id, campaignId: new mongoose.Types.ObjectId(a) });
     expect(after.data.campaigns.some(x => x._id === a && !x.earlyAccess) && detail.status === 200 && (bell.data.notifications || []).some(n => n.href === `/campaigns/${a}`) && alert?.sentAt, 'Après l\'envoi anticipé : campagne ouverte, cloche et email envoyés au créateur', { feed: after.status, detail: detail.status, alert });
+    // Candidatures suspendues par la marque : hors du fil, devis impossible (raison affichée) ; rouvertes : de retour, sans nouvel email
+    const pause = await brandApi('POST', `/campaigns/${a}/pause`);
+    const feedPaused = await creatorApi('GET', '/campaigns');
+    const detailPaused = await creatorApi('GET', `/campaigns/${a}`);
+    const pauseOther = await creatorApi('POST', `/campaigns/${a}/pause`);
+    const resume = await brandApi('POST', `/campaigns/${a}/resume`);
+    const feedOpen = await creatorApi('GET', '/campaigns');
+    expect(pause.status === 200 && pause.data.campaign.applicationsPausedAt && !feedPaused.data.campaigns.some(x => x._id === a) && detailPaused.status === 200 && detailPaused.data.campaign.canApply === false && detailPaused.data.campaign.applyBlockers.some(b => /suspendu/.test(b)) && pauseOther.status === 403
+      && resume.status === 200 && !resume.data.campaign.applicationsPausedAt && feedOpen.data.campaigns.some(x => x._id === a), 'Marque : suspendre les candidatures retire la campagne du fil et bloque les devis ; rouvrir la remet', { pause: pause.status, detail: detailPaused.data?.campaign?.applyBlockers, other: pauseOther.status, resume: resume.status });
     // Plus aucun Ambassadeur concerné : pas d'avant-première, ouverte et prévenue dès la publication
     await db.collection('users').deleteOne({ email: `e2e-amb-${RUN}@needcreator-test.com` });
     const b = await make('Campagne sans ambassadeur test'); made.push(b);
