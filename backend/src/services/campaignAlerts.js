@@ -67,6 +67,32 @@ export async function queueCampaignAlerts(campaign, brandName, { wave = 'all' } 
   return { queued: userIds.length, userIds };
 }
 
+/** Un Ambassadeur au moins est concerné par la campagne (mêmes règles que l'alerte) : sinon l'avant-première ne sert à rien */
+export async function hasAmbassadorFor(campaign) {
+  const cursor = User.find({ role: 'creator', status: 'active', 'preferences.emailNotifications': { $ne: false }, 'profile.niches': { $in: campaign.matching?.niches || [] }, 'profile.ambassador.status': 'approved' })
+    .select('_id country profile.socials').lean().cursor({ batchSize: 200 });
+  for await (const creator of cursor) if (creatorMatchesCampaign(creator, campaign)) return true;
+  return false;
+}
+
+/**
+ * Prévient tout de suite les créateurs non Ambassadeurs (fin anticipée de l'avant-première, depuis l'admin) : cloche, puis email envoyé sans attendre.
+ * Une seule fois par campagne : refusé si cette vague est déjà partie, si la campagne n'est pas ouverte ou si elle est privée.
+ */
+export async function notifyAllCreatorsNow(campaign) {
+  const fail = (status, message) => Object.assign(new Error(message), { status });
+  if (campaign.visibility === 'private') throw fail(400, 'Campagne privée : seuls les créateurs invités sont prévenus');
+  if (campaign.status !== 'active') throw fail(400, 'La campagne n\'est pas ouverte aux candidatures');
+  if (campaign.notifications?.allNotifiedAt) throw fail(409, 'Les créateurs ont déjà été prévenus');
+  campaign.set('notifications.allNotifiedAt', new Date()); // posé avant l'envoi : la tâche planifiée ne repasse pas derrière
+  await campaign.save();
+  await campaign.populate('brandId', 'profile.companyName profile.name');
+  const brandName = campaign.brandId?.profile?.companyName || campaign.brandId?.profile?.name || '';
+  const { queued, userIds } = await queueCampaignAlerts(campaign, brandName, { wave: 'all' });
+  if (userIds.length) await flushCampaignAlerts({ userIds }).catch(err => logger.error('flushCampaignAlerts:', err.message));
+  return { queued };
+}
+
 /**
  * Envoie les emails en attente : un email par créateur, récapitulatif s'il a plusieurs campagnes.
  * userIds : restreindre à ces créateurs (vague immédiate) ; sinon tous les emails en attente.

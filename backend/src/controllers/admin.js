@@ -15,6 +15,7 @@ import CreatorContent from '../models/CreatorContent.js';
 import { memberMessagesOverview, broadcastMemberMessage } from '../services/memberMessages.js';
 import { sendWeeklyReport } from '../services/adminAlerts.js';
 import { config } from '../config/index.js';
+import { notifyAllCreatorsNow } from '../services/campaignAlerts.js';
 
 /**
  * Détail d'un utilisateur (portfolio lisible, même si le créateur est en attente)
@@ -206,7 +207,7 @@ export async function getAdminCampaigns(req, res) {
       Campaign.find(query)
         .populate('brandId', 'profile.companyName email')
         .populate('selectedCreator', 'profile.name email')
-        .select('title status budget timeline analytics brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt')
+        .select('title status visibility budget timeline analytics notifications brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
@@ -769,6 +770,20 @@ export async function markEmailVerified(req, res) {
 }
 
 /** Change l'adresse email d'un compte (erreur à l'inscription) : connexion et fiche, lien de confirmation envoyé à la nouvelle adresse */
+/** Prévenir tout de suite les créateurs non Ambassadeurs d'une campagne, sans attendre la fin de l'avant-première */
+export async function notifyCampaignCreators(req, res) {
+  try {
+    const campaign = await Campaign.findById(req.params.campaignId);
+    if (!campaign) return res.status(404).json({ error: 'Campagne introuvable' });
+    const { queued } = await notifyAllCreatorsNow(campaign);
+    res.json({ queued, message: queued ? `${queued} créateur${queued > 1 ? 's' : ''} prévenu${queued > 1 ? 's' : ''} (email et notification).` : 'Aucun autre créateur ne correspond à cette campagne (niches, réseaux, pays).' });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('notifyCampaignCreators failed:', error);
+    res.status(500).json({ error: 'Envoi impossible' });
+  }
+}
+
 export async function changeEmail(req, res) {
   try {
     const out = await changeUserEmail(req.params.userId, req.body?.email, `admin ${req.user._id}`);

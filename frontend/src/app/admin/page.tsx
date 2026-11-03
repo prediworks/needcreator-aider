@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import {
-  useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useAdminDeliveries,
+  useAdminStats, usePendingCreators, useAdminUsers, useAdminCampaigns, useNotifyCampaignCreators, useAdminDeliveries,
   useApproveCreator, useRejectCreator, useSuspendUser, useMarkEmailVerified, useChangeUserEmail, useReactivateUser, usePurgeUser, useHardDeleteUser, useRunJobs, useAdminBackups, useRunBackup, useRestoreBackup,
   usePendingAmbassadors, useApproveAmbassador, useRejectAmbassador,
   usePendingBusinesses, useApproveBusiness, useRejectBusiness, useReports, useResolveReport,
@@ -57,6 +57,7 @@ export default function AdminPage() {
   const { data: pending, isLoading: pendingLoading } = usePendingCreators(ready);
   const { data: users } = useAdminUsers({ ...userBaseParams, limit: 100, ...(userFilters.role === 'creator' ? creatorParams(creatorFilters) : {}) }, ready && tab === 'users');
   const { data: campaigns } = useAdminCampaigns(ready && tab === 'campaigns');
+  const notifyCreators = useNotifyCampaignCreators();
   const { data: deliveries } = useAdminDeliveries(ready && tab === 'deliveries');
 
   const { data: ambassadors } = usePendingAmbassadors(ready && tab === 'ambassadors');
@@ -552,6 +553,7 @@ export default function AdminPage() {
                     <th className="py-2 pr-4">Candidatures</th>
                     <th className="py-2 pr-4" title="Créateurs invités par la marque : inscrits, plus les invitations par email encore sans inscription">Invités</th>
                     <th className="py-2 pr-4">Créateur</th>
+                    <th className="py-2 pr-4" title="Email et notification aux créateurs des niches : Ambassadeurs à la publication (avant-première), les autres ensuite">Créateurs prévenus</th>
                     <th className="py-2">Créée le</th>
                   </tr>
                 </thead>
@@ -565,6 +567,11 @@ export default function AdminPage() {
                       <td className="py-2 pr-4">{c.analytics?.applications || 0}</td>
                       <td className="py-2 pr-4">{(c.invitations?.length || 0) + (c.externalInvitations || []).filter((e: any) => !e.acceptedAt).length || '—'}</td>
                       <td className="py-2 pr-4 text-neutral-600">{c.selectedCreator?.profile?.name || '—'}</td>
+                      <td className="py-2 pr-4 text-xs text-neutral-600" data-testid="campaign-notified">
+                        {c.visibility === 'private' ? 'invités seulement' : c.notifications?.allNotifiedAt ? `tous, le ${formatDate(c.notifications.allNotifiedAt)}` : c.status === 'active' && c.notifications?.ambassadorsNotifiedAt ? (
+                          <div className="flex flex-col items-start gap-1"><span>Ambassadeurs seulement</span><Button size="sm" variant="outline" isLoading={notifyCreators.isPending && notifyCreators.variables === c._id} onClick={() => { if (confirm(`Prévenir maintenant tous les créateurs concernés par « ${c.title} » (email et notification), sans attendre la fin de l'avant-première ?`)) notifyCreators.mutate(c._id); }} data-testid="notify-creators">Prévenir tous les créateurs</Button></div>
+                        ) : '—'}
+                      </td>
                       <td className="py-2 text-neutral-600">{formatDate(c.createdAt)}</td>
                     </tr>
                   ))}

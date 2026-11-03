@@ -24,7 +24,7 @@ import {
   listBackupsAdmin,
   runBackupAdmin,
   restoreBackupAdmin,
-  getAdminCampaigns,
+  getAdminCampaigns, notifyCampaignCreators,
   getAdminDeliveries,
   getUserDetail, reprocessPortfolioVideo,
   getPendingAmbassadors,
@@ -112,6 +112,7 @@ router.post('/reports/:reportId/resolve', resolveReport);
 
 // Supervision
 router.get('/campaigns', getAdminCampaigns);
+router.post('/campaigns/:campaignId/notify-creators', notifyCampaignCreators); // fin anticipée de l'avant-première : tous les créateurs concernés tout de suite
 router.get('/deliveries', getAdminDeliveries);
 
 // Lance manuellement les tâches planifiées (auto-approbation, rappels) — utile pour tester

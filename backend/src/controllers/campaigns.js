@@ -17,7 +17,7 @@ import { createDeliveryForCampaign } from './deliveries.js';
 import { config } from '../config/index.js';
 import { getMaxRevisions, getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { notify } from '../services/notifications.js';
-import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAlerts.js';
+import { queueCampaignAlerts, flushCampaignAlerts, hasAmbassadorFor } from '../services/campaignAlerts.js';
 import { levelFor, badgesFor, isAmbassador, isTrained } from '../utils/badges.js';
 import { updateBrandStats } from '../utils/brandStats.js';
 import { chargesFrenchVat } from '../utils/business.js';
@@ -205,8 +205,9 @@ export async function publishCampaign(req, res) {
     campaign.timeline.publishedAt = new Date();
     await campaign.save();
 
-    // Créateurs concernés : cloche tout de suite, email regroupé ; avec l'avant-première, seuls les Ambassadeurs maintenant, les autres par la tâche planifiée
-    const earlyAccess = config.badges.earlyAccessHours > 0;
+    // Créateurs concernés : cloche tout de suite, email regroupé ; avec l'avant-première, seuls les Ambassadeurs maintenant, les autres par la tâche planifiée.
+    // Aucun Ambassadeur concerné : pas d'avant-première, tout le monde est prévenu dès la publication
+    const earlyAccess = config.badges.earlyAccessHours > 0 && await hasAmbassadorFor(campaign).catch(() => true);
     campaign.set(earlyAccess ? 'notifications.ambassadorsNotifiedAt' : 'notifications.allNotifiedAt', new Date());
     await campaign.save();
     const publishedBrandName = brand.profile?.companyName || brand.profile?.name || '';
@@ -272,7 +273,8 @@ export async function getCampaigns(req, res) {
         query['matching.excludedCreators'] = { $ne: user._id };
         if (!user.acceptsGifting(levelFor(user.profile?.stats))) query.type = { $ne: 'gifting' };
         const hours = config.badges.earlyAccessHours;
-        if (hours > 0 && !isAmbassador(user)) query.$or = [{ 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } }, { 'invitations.creatorId': user._id }];
+        // Ouverte à tous : avant-première écoulée, ou tous les créateurs déjà prévenus (pas d'Ambassadeur concerné, envoi anticipé depuis l'admin)
+        if (hours > 0 && !isAmbassador(user)) query.$or = [{ 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } }, { 'notifications.allNotifiedAt': { $ne: null } }, { 'invitations.creatorId': user._id }];
       } else {
         // Toutes les campagnes ouvertes ; celles des niches du créateur sont remontées en premier (tri plus bas)
         query.status = 'active';
@@ -284,6 +286,7 @@ export async function getCampaigns(req, res) {
           // sauf si le créateur a été invité par la marque
           query.$or = [
             { 'timeline.publishedAt': { $lte: new Date(Date.now() - hours * 3600 * 1000) } },
+            { 'notifications.allNotifiedAt': { $ne: null } }, // tous déjà prévenus : ouverte
             { 'invitations.creatorId': user._id },
           ];
         }
@@ -338,7 +341,7 @@ export async function getCampaigns(req, res) {
         c.isSelected = (c.selectedCreators || []).some(id => idOf(id) === user._id.toString()) || idOf(c.selectedCreator) === user._id.toString();
         c.matchesMyNiches = (c.matching?.niches || []).some(n => myNiches.includes(n));
         const hours = config.badges.earlyAccessHours;
-        c.earlyAccess = hours > 0 && c.timeline?.publishedAt && (Date.now() - new Date(c.timeline.publishedAt).getTime()) < hours * 3600 * 1000;
+        c.earlyAccess = hours > 0 && !c.notifications?.allNotifiedAt && c.timeline?.publishedAt && (Date.now() - new Date(c.timeline.publishedAt).getTime()) < hours * 3600 * 1000;
         c.invited = (c.invitations || []).some(i => idOf(i.creatorId) === user._id.toString());
         delete c.applications; // ne pas exposer les autres candidatures
         delete c.invitations;
@@ -397,7 +400,7 @@ export async function getCampaign(req, res) {
     if (user.role === 'creator' && campaign.visibility === 'private' && !isInvited && !hasApplied && !isSelectedCreator) {
       return res.status(403).json({ error: 'Cette campagne est privée : elle est réservée aux créateurs invités par la marque.' });
     }
-    if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isInvited && !isAmbassador(user) && config.badges.earlyAccessHours > 0) {
+    if (user.role === 'creator' && campaign.status === 'active' && !hasApplied && !isInvited && !isAmbassador(user) && config.badges.earlyAccessHours > 0 && !campaign.notifications?.allNotifiedAt) {
       const openAt = new Date(campaign.timeline.publishedAt).getTime() + config.badges.earlyAccessHours * 3600 * 1000;
       if (Date.now() < openAt) {
         return res.status(403).json({ error: 'Cette campagne est en avant-première pour les Ambassadeurs. Elle sera ouverte à tous dans quelques heures.', earlyAccessUntil: new Date(openAt) });

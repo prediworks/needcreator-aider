@@ -79,7 +79,7 @@ function MessagesContent() {
               <>
                 <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                   <div>
-                    <h2 className="font-semibold text-neutral-900">{isBrand ? current?.creatorId?.profile?.name : current?.brandId?.profile?.companyName}</h2>
+                    <h2 className="font-semibold text-neutral-900">{isBrand && current?.creatorId?._id ? <Link href={`/profile/${current.creatorId._id}`} className="hover:text-primary-600 hover:underline" title="Voir la fiche du créateur" data-testid="conversation-creator-link">{current.creatorId.profile?.name}</Link> : isBrand ? current?.creatorId?.profile?.name : current?.brandId?.profile?.companyName}</h2>
                     <Link href={`/campaigns/${selected.campaignId}`} className="text-sm text-primary-600 hover:underline">{current?.campaignId?.title || 'Voir la campagne'}</Link>
                   </div>
                   {current?.campaignId?.status && <Badge map={CAMPAIGN_STATUS} value={current.campaignId.status} />}

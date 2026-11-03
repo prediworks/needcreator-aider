@@ -79,6 +79,15 @@ export function useChangeUserEmail() {
     onError: (error: any) => toast.error(getErrorMessage(error), { duration: 8000 }),
   });
 }
+/** Prévenir tout de suite les créateurs non Ambassadeurs d'une campagne (fin anticipée de l'avant-première) */
+export function useNotifyCampaignCreators() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (campaignId: string) => (await api.post(`/admin/campaigns/${campaignId}/notify-creators`)).data,
+    onSuccess: (d) => { queryClient.invalidateQueries({ queryKey: ['admin', 'campaigns'] }); toast.success(d.message, { duration: 8000 }); },
+    onError: (error: any) => toast.error(getErrorMessage(error), { duration: 8000 }),
+  });
+}
 export const useMarkEmailVerified = () => useAdminAction((id) => `/admin/users/${id}/verify-email`, 'Adresse email marquée comme confirmée');
 
 export function usePendingAmbassadors(enabled = true) {

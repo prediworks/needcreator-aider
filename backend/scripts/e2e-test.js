@@ -405,6 +405,8 @@ await step('Marque : invite le créateur (contourne l\'avant-première)', async 
 
 let earlyCampaign;
 await step('Avant-première : un créateur non ambassadeur ne voit pas encore une nouvelle campagne', async () => {
+  // Un Ambassadeur concerné (beauté) : sans lui, l'avant-première est sautée et tout le monde est prévenu dès la publication
+  await mongoose.connection.db.collection('users').insertOne({ email: `e2e-amb-${RUN}@needcreator-test.com`, role: 'creator', status: 'active', firebaseUid: `e2e-amb-${RUN}`, profile: { name: 'Ambassadeur E2E', niches: ['beauty'], ambassador: { status: 'approved' } }, preferences: { emailNotifications: true }, createdAt: new Date() });
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await brandApi('POST', '/campaigns', {
     title: 'Campagne avant-première test', description: 'Description suffisamment longue pour passer la validation de cinquante caractères.',
@@ -445,8 +447,58 @@ await step('Avant-première : un créateur non ambassadeur ne voit pas encore un
   const sum = campaignSummary(camp, 'Marque Test');
   expect(sum.rows.some(r => r[0] === 'Marque' && r[1] === 'Marque Test') && sum.rows.some(r => r[0] === 'Rémunération' && /Budget 100 €/.test(r[1])) && sum.rows.some(r => r[0] === 'Candidatures' && /jusqu'au/.test(r[1])), 'Le résumé de campagne pour l\'email doit donner marque, rémunération et délai', { status: 200, data: sum });
   // On remet la campagne en avant-première pour les étapes suivantes (l'Ambassadeur doit encore la voir en avance)
-  await db.collection('campaigns').updateOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) }, { $set: { 'timeline.publishedAt': new Date() } });
+  await db.collection('campaigns').updateOne({ _id: new mongoose.Types.ObjectId(earlyCampaign._id) }, { $set: { 'timeline.publishedAt': new Date() }, $unset: { 'notifications.allNotifiedAt': '' } }); // de nouveau en avant-première pour les étapes suivantes
   return 'campagne masquée, message explicatif ; après 24 h, notification enrichie dans la cloche';
+});
+
+await step('Avant-première : envoi anticipé depuis l\'admin, et sautée sans Ambassadeur concerné', async () => {
+  const db = mongoose.connection.db;
+  const brandDoc = await db.collection('users').findOne({ email: brandEmail });
+  // Plafond des campagnes ouvertes d'une nouvelle marque : les campagnes déjà ouvertes passent en brouillon le temps de l'étape
+  const open = await db.collection('campaigns').find({ brandId: brandDoc._id, status: { $in: ['active', 'in_progress'] } }).project({ status: 1 }).toArray();
+  await db.collection('campaigns').updateMany({ _id: { $in: open.map(c => c._id) } }, { $set: { status: 'draft' } });
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const make = async (title) => { const c = await brandApi('POST', '/campaigns', { title, description: 'Description suffisamment longue pour passer la validation de cinquante caractères.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline }); const pub = await brandApi('POST', `/campaigns/${c.data.campaign._id}/publish`); expect(pub.status === 200, 'Publication refusée', pub); return c.data.campaign._id; };
+  const made = [];
+  try {
+    // Ambassadeur concerné : avant-première ; « Prévenir tous les créateurs » ouvre la campagne et prévient tout de suite
+    const a = await make('Campagne envoi anticipé test'); made.push(a);
+    const before = await creatorApi('GET', '/campaigns');
+    expect(!before.data.campaigns.some(x => x._id === a), 'Avec un Ambassadeur concerné, la campagne est d\'abord en avant-première', before);
+    await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'admin' } });
+    let now, again, list;
+    try {
+      list = await brandApi('GET', '/admin/campaigns');
+      now = await brandApi('POST', `/admin/campaigns/${a}/notify-creators`);
+      again = await brandApi('POST', `/admin/campaigns/${a}/notify-creators`);
+    } finally { await db.collection('users').updateOne({ email: brandEmail }, { $set: { role: 'brand' } }); }
+    const row = list.data.campaigns.find(x => x._id === a);
+    expect(row?.notifications?.ambassadorsNotifiedAt && !row.notifications.allNotifiedAt, 'Admin : la campagne est marquée « Ambassadeurs seulement »', row);
+    expect(now.status === 200 && now.data.queued >= 1 && again.status === 409, 'Admin : « Prévenir tous les créateurs » prévient tout de suite, une seule fois', { now: now.data, again: again.status });
+    const after = await creatorApi('GET', '/campaigns');
+    const detail = await creatorApi('GET', `/campaigns/${a}`);
+    const bell = await creatorApi('GET', '/notifications');
+    const creatorDoc = await db.collection('users').findOne({ email: creatorEmail });
+    const alert = await db.collection('campaignalerts').findOne({ userId: creatorDoc._id, campaignId: new mongoose.Types.ObjectId(a) });
+    expect(after.data.campaigns.some(x => x._id === a && !x.earlyAccess) && detail.status === 200 && (bell.data.notifications || []).some(n => n.href === `/campaigns/${a}`) && alert?.sentAt, 'Après l\'envoi anticipé : campagne ouverte, cloche et email envoyés au créateur', { feed: after.status, detail: detail.status, alert });
+    // Plus aucun Ambassadeur concerné : pas d'avant-première, ouverte et prévenue dès la publication
+    await db.collection('users').deleteOne({ email: `e2e-amb-${RUN}@needcreator-test.com` });
+    const b = await make('Campagne sans ambassadeur test'); made.push(b);
+    const doc = await db.collection('campaigns').findOne({ _id: new mongoose.Types.ObjectId(b) });
+    const feed = await creatorApi('GET', '/campaigns');
+    // La base locale peut garder de vrais Ambassadeurs beauté : le résultat attendu suit leur présence
+    const { hasAmbassadorFor } = await import('../src/services/campaignAlerts.js');
+    const amb = await hasAmbassadorFor(doc);
+    expect(amb ? !!doc.notifications?.ambassadorsNotifiedAt : (doc.notifications?.allNotifiedAt && !doc.notifications?.ambassadorsNotifiedAt && feed.data.campaigns.some(x => x._id === b)), 'Sans Ambassadeur concerné : tous les créateurs prévenus et campagne ouverte dès la publication', { amb, notifications: doc.notifications });
+    expect(await hasAmbassadorFor({ matching: { niches: [] } }) === false, 'Aucune niche : aucun Ambassadeur concerné', {});
+  } finally {
+    const ids = made.map(id => new mongoose.Types.ObjectId(id));
+    await db.collection('campaigns').deleteMany({ _id: { $in: ids } });
+    await db.collection('campaignalerts').deleteMany({ campaignId: { $in: ids } });
+    await db.collection('users').deleteOne({ email: `e2e-amb-${RUN}@needcreator-test.com` });
+    for (const c of open) await db.collection('campaigns').updateOne({ _id: c._id }, { $set: { status: c.status } });
+  }
+  return 'envoi anticipé une seule fois, campagne ouverte ensuite ; sans Ambassadeur, pas d\'avant-première';
 });
 
 await step('Limites nouvelle marque : 2 campagnes ouvertes max, puis coordonnées masquées dans les messages', async () => {
@@ -2033,7 +2085,7 @@ await step('Scan concurrentiel : publicités Meta d\'une marque, paliers anonyme
   const slug = `e2e-scan-marque-${RUN}`.toLowerCase();
   await db.collection('adscans').deleteMany({ slug: /^e2e-scan-marque/ });
   await db.collection('leads').deleteMany({ externalId: /^e2escan-/ });
-  await db.collection('adscansubscriptions').deleteMany({ email: /^e2e-rapport/ });
+  await db.collection('adscansubscriptions').deleteMany({ email: { $in: [/^e2e-rapport/, /^e2e-creator.*@needcreator-test\.com$/, 'ignored@example.com'] } }); // restes des lancements précédents : la tâche hebdomadaire ne lit que 30 pages
   await db.collection('leads').deleteMany({ externalId: /^scan-report:e2e-rapport/ });
   const scanLead = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2escan-${RUN}`, name: `E2E Scan Marque ${RUN}`, website: 'https://www.e2escan-test.fr/', status: 'to_contact', score: 70, createdAt: new Date(), updatedAt: new Date() });
   try {
