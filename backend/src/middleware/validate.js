@@ -313,6 +313,14 @@ export const schemas = {
   requestRevision: Joi.object({
     feedback: Joi.string().min(20).max(1000).required(),
   }),
+  revisionOutside: Joi.object({
+    publishedUrl: Joi.string().uri({ scheme: ['http', 'https'] }).max(500).allow(''),
+    note: Joi.string().max(500).allow(''),
+  }),
+  approveDelivery: Joi.object({
+    withoutNewVersion: Joi.boolean(),
+    publishedUrl: Joi.string().uri({ scheme: ['http', 'https'] }).max(500).allow(''),
+  }),
   openDispute: Joi.object({
     reason: Joi.string().min(20).max(2000).required(),
   }),

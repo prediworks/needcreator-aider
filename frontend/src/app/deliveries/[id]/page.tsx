@@ -32,6 +32,7 @@ import ContractCard from '@/components/ContractCard';
 import ComplianceCard from '@/components/ComplianceCard';
 import ReplacementCard from '@/components/ReplacementCard';
 import RenewCard from '@/components/RenewCard';
+import RevisionOutsideCard from '@/components/RevisionOutsideCard';
 import MissionMessages from '@/components/MissionMessages';
 import ShopifyProductPicker from '@/components/ShopifyProductPicker';
 import { useMutation } from '@tanstack/react-query';
@@ -510,8 +511,13 @@ export default function DeliveryDetailPage() {
                       <p className="text-neutral-700 whitespace-pre-line">{revision.feedback}</p>
                       {revision.resolvedAt && (
                         <p className="text-sm text-green-600 mt-2">
-                          ✓ Nouvelle version envoyée le {formatDate(revision.resolvedAt)}
+                          {revision.resolvedOutside?.at
+                            ? (revision.resolvedOutside.by === 'brand' ? `✓ Faite hors NeedCreator, validée par la marque le ${formatDate(revision.resolvedAt)}` : `✓ Faite hors NeedCreator, signalée par le créateur le ${formatDate(revision.resolvedAt)}`)
+                            : `✓ Nouvelle version envoyée le ${formatDate(revision.resolvedAt)}`}
                         </p>
+                      )}
+                      {revision.resolvedOutside?.publishedUrl && (
+                        <a href={revision.resolvedOutside.publishedUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary-600 underline break-all">Voir la publication</a>
                       )}
                     </div>
                   ))}
@@ -658,10 +664,13 @@ export default function DeliveryDetailPage() {
             </Card>
 
             {/* Actions */}
-            {(canSubmit || canApprove || isDone) && (
+            {(canSubmit || canApprove || isDone || (delivery.status === 'revision_requested' && ((isBrand && !paymentPending) || (isCreator && previousItems.length > 0)))) && (
               <Card className="p-6">
                 <h3 className="font-semibold text-neutral-900 mb-4">Actions</h3>
                 <div className="space-y-3">
+                  {delivery.status === 'revision_requested' && isBrand && !paymentPending && <RevisionOutsideCard delivery={delivery} role="brand" />}
+                  {delivery.status === 'revision_requested' && isCreator && previousItems.length > 0 && <RevisionOutsideCard delivery={delivery} role="creator" />}
+
                   {canSubmit && (
                     <>
                       <div>

@@ -10,6 +10,7 @@ import {
   registerDeliverables,
   submitDelivery,
   approveDelivery,
+  resolveRevisionOutside,
   requestRevision,
   getDeliveries,
   getDelivery,
@@ -76,7 +77,8 @@ router.post('/:deliveryId/rights-extension/confirm', authenticate, authorize('br
 router.patch('/:deliveryId/performance', authenticate, validate(schemas.performanceUpdate), updatePerformance);
 router.patch('/:deliveryId/shipping', authenticate, validate(schemas.shippingUpdate), updateShipping);
 router.post('/:deliveryId/submit', authenticate, authorize('creator'), submitDelivery);
-router.post('/:deliveryId/approve', authenticate, authorize('brand'), approveDelivery);
+router.post('/:deliveryId/approve', authenticate, authorize('brand'), validate(schemas.approveDelivery), approveDelivery);
+router.post('/:deliveryId/revision/outside', authenticate, authorize('creator'), validate(schemas.revisionOutside), resolveRevisionOutside);
 router.get('/:deliveryId/payment-intent', authenticate, authorize('brand'), getPaymentIntent);
 router.post('/:deliveryId/confirm-payment', authenticate, authorize('brand'), confirmPayment);
 router.post('/:deliveryId/revision', authenticate, authorize('brand'), validate(schemas.requestRevision), requestRevision);

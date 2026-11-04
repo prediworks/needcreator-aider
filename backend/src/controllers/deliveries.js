@@ -1308,13 +1308,16 @@ export async function approveDelivery(req, res) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
 
-    if (delivery.status !== 'submitted') {
+    // Révision faite hors NeedCreator (ex. publication) : la marque valide la dernière version sans en attendre une nouvelle
+    const withoutNewVersion = !!req.body?.withoutNewVersion && delivery.status === 'revision_requested';
+    if (delivery.status !== 'submitted' && !withoutNewVersion) {
       return res.status(400).json({ error: 'La livraison n\'a pas encore été soumise' });
     }
 
     if (delivery.payment.stripePaymentIntentId && !['held', 'captured', 'released'].includes(delivery.payment.status)) {
       return res.status(400).json({ error: 'Le paiement n\'a pas été confirmé. Renseignez votre carte sur cette page avant d\'approuver.' });
     }
+    if (withoutNewVersion) delivery.resolveRevisionOutside('brand', { publishedUrl: req.body.publishedUrl });
 
     const { warning } = await finalizeApproval(delivery, { isAuto: false });
 
@@ -1337,6 +1340,38 @@ export async function approveDelivery(req, res) {
   } catch (error) {
     logger.error('Failed to approve delivery:', error);
     res.status(500).json({ error: `Échec de l'approbation : ${error?.raw?.message || error.message}` });
+  }
+}
+
+/**
+ * Révision faite hors NeedCreator (créateur) : ex. « publiez-la sur Instagram ». Pas de nouvelle version à envoyer :
+ * la dernière version redevient « à valider », la marque est prévenue et le délai de validation automatique repart.
+ */
+export async function resolveRevisionOutside(req, res) {
+  try {
+    const delivery = await Delivery.findOne({ _id: req.params.deliveryId, creatorId: req.user._id })
+      .populate('campaignId', 'title')
+      .populate('brandId', 'email profile.companyName profile.name');
+    if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
+    if (delivery.status !== 'revision_requested') return res.status(400).json({ error: 'Aucune révision en attente sur cette livraison' });
+    const { publishedUrl, note } = req.body || {};
+    delivery.resolveRevisionOutside('creator', { publishedUrl, note });
+    if (itemCount(delivery) === 0) return res.status(400).json({ error: 'Aucune version précédente à faire valider : envoyez la vidéo' });
+    delivery.submit();
+    await delivery.save();
+    sendDeliverySubmitted(
+      delivery.brandId.email,
+      delivery.brandId.profile.companyName || delivery.brandId.profile.name,
+      delivery.campaignId.title,
+      delivery._id
+    ).catch(err => logger.error('Failed to send notification:', err.message));
+    notify(idOf(delivery.brandId), { type: 'delivery', title: 'Révision faite hors NeedCreator, à valider', text: `${delivery.campaignId.title}${publishedUrl ? ` · ${publishedUrl}` : ''}`, href: `/deliveries/${delivery._id}` }).catch(() => {});
+    logger.info(`Revision resolved outside NeedCreator by creator on delivery ${delivery._id}`);
+    res.json({ message: 'Révision signalée comme faite, la marque est prévenue', delivery });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    logger.error('Failed to resolve revision outside:', error);
+    res.status(500).json({ error: 'Failed to resolve revision' });
   }
 }
 

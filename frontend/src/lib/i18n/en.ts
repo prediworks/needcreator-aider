@@ -4,6 +4,13 @@
  * Un texte absent reste en français : compléter ici, jamais dans les pages.
  */
 export const EN: Record<string, string> = {
+  // ---- Révision faite hors NeedCreator ----
+  'La révision a été faite en dehors de NeedCreator (par exemple une publication sur Instagram ou TikTok) ? Validez sans attendre de nouvelle version.': 'Was the revision done outside NeedCreator (for example a post on Instagram or TikTok)? Approve without waiting for a new version.',
+  'La révision ne demande pas de nouvelle vidéo (par exemple une publication sur Instagram ou TikTok) ? Signalez-la comme faite.': "The revision doesn't need a new video (for example a post on Instagram or TikTok)? Mark it as done.",
+  'Valider sans nouvelle version': 'Approve without a new version', 'Révision faite hors NeedCreator': 'Revision done outside NeedCreator', 'Lien de la publication (facultatif)': 'Link to the post (optional)',
+  'Collez une adresse complète, commençant par https://': 'Paste a full address, starting with https://', 'Valider et payer': 'Approve and pay', 'Signaler comme faite': 'Mark as done', 'Voir la publication': 'See the post',
+  "C'est noté : la marque est prévenue et peut valider.": 'Noted: the brand has been told and can approve.',
+  '✓ Faite hors NeedCreator, validée par la marque le {n}': '✓ Done outside NeedCreator, approved by the brand on {n}', '✓ Faite hors NeedCreator, signalée par le créateur le {n}': '✓ Done outside NeedCreator, reported by the creator on {n}',
   // ---- Photo de profil ----
   'Photo de profil': 'Profile photo', 'photo de profil': 'profile photo', 'Ajouter une photo': 'Add a photo', 'Changer la photo': 'Change photo', 'Ajouter un logo': 'Add a logo', 'Changer le logo': 'Change logo', 'Retirer': 'Remove', 'Envoi…': 'Uploading…',
   'Image JPG, PNG ou WebP uniquement': 'JPG, PNG or WebP image only', 'Image trop lourde : {n} Mo au plus': 'Image too large: {n} MB max', 'Logo mis à jour': 'Logo updated', 'Photo mise à jour': 'Photo updated',

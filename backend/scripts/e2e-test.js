@@ -2651,6 +2651,46 @@ await step('Envoi direct vers R2 : portfolio + livraison (lien signé, sans pass
   return 'portfolio et livraison déposés directement dans R2, contrôles OK';
 });
 
+await step('Révision faite hors NeedCreator (publication) : le créateur la signale, la marque valide sans nouvelle version', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne révision publication', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  const cid = c.data.campaign._id;
+  const db = mongoose.connection.db;
+  let d = null;
+  try {
+    await brandApi('POST', `/campaigns/${cid}/publish`);
+    const ap = await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+    expect(ap.status === 201, 'Candidature échouée', ap);
+    const sel = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+    expect(sel.status === 200, 'Sélection échouée', sel);
+    d = sel.data.delivery._id;
+    // Paiement hors sujet ici : livraison sans paiement Stripe à confirmer
+    await db.collection('deliveries').updateOne({ _id: new mongoose.Types.ObjectId(d) }, { $unset: { 'payment.stripePaymentIntentId': '' } });
+    await creatorApi('POST', `/deliveries/${d}/links`, { links: [{ url: 'https://www.tiktok.com/@test/video/42', title: 'Vidéo' }] });
+    const sub = await creatorApi('POST', `/deliveries/${d}/submit`, {});
+    expect(sub.status === 200, 'Soumission échouée', sub);
+    const early = await creatorApi('POST', `/deliveries/${d}/revision/outside`, {});
+    expect(early.status === 400, 'Sans révision en attente, le signalement doit être refusé', early);
+    await brandApi('POST', `/deliveries/${d}/revision`, { feedback: 'Merci de publier la vidéo sur votre compte Instagram en collaboration.' });
+    const notYet = await brandApi('POST', `/deliveries/${d}/approve`, {});
+    expect(notYet.status === 400, 'Sans « valider sans nouvelle version », la validation reste impossible en révision', notYet);
+    const done = await creatorApi('POST', `/deliveries/${d}/revision/outside`, { publishedUrl: 'https://www.instagram.com/p/abc123/' });
+    const back = done.data.delivery;
+    const rev = back?.revisions?.[0];
+    expect(done.status === 200 && back.status === 'submitted' && back.autoApprovalDate && (back.links || []).some(l => !l.superseded) && rev?.resolvedOutside?.by === 'creator' && rev.resolvedOutside.publishedUrl,
+      'Le créateur signale la révision faite : dernière version de nouveau à valider, délai de validation automatique relancé, lien gardé', back);
+    await brandApi('POST', `/deliveries/${d}/revision`, { feedback: 'Merci de la publier aussi sur TikTok avec le lien en bio.' });
+    const ok = await brandApi('POST', `/deliveries/${d}/approve`, { withoutNewVersion: true, publishedUrl: 'https://www.tiktok.com/@test/video/43' });
+    expect(ok.status === 200 && ok.data.delivery.status === 'approved' && ok.data.delivery.revisions[1]?.resolvedOutside?.by === 'brand' && (ok.data.delivery.links || []).some(l => !l.superseded),
+      'La marque valide sans nouvelle version : dernière version validée, révision marquée faite hors NeedCreator', ok);
+    return 'signalée par le créateur (à valider, délai relancé), puis validée par la marque sans nouvelle version';
+  } finally {
+    if (d) await db.collection('deliveries').deleteOne({ _id: new mongoose.Types.ObjectId(d) });
+    await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(cid) });
+    await db.collection('contents').deleteMany({ deliveryId: d ? new mongoose.Types.ObjectId(d) : null });
+  }
+});
+
 await step('Photo de profil : envoi recadré, refus des fichiers non image, retrait', async () => {
   const sharp = (await import('sharp')).default;
   const png = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#05ddb2' } }).png().toBuffer();

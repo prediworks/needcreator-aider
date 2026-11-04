@@ -18,7 +18,7 @@ const idOf = (x) => (x && x._id ? x._id : x)?.toString();
  */
 export async function syncFromDeliveries(brandId) {
   const deliveries = await Delivery.find({ brandId, status: { $in: ['approved', 'auto_approved'] } })
-    .select('campaignId creatorId files links contract payment approvedAt rightsExtension')
+    .select('campaignId creatorId files links contract payment approvedAt rightsExtension revisions.resolvedOutside')
     .populate('campaignId', 'title brief.videoType')
     .populate('creatorId', 'profile.name email profile.slug')
     .lean();
@@ -52,6 +52,8 @@ export async function syncFromDeliveries(brandId) {
         },
         price: items.length > 1 && price != null ? Math.round((price / items.length) * 100) / 100 : price,
         documents: docs,
+        // Publication faite lors d'une révision hors NeedCreator : rangée dans « Où c'est utilisé »
+        usages: (d.revisions || []).filter(r => r.resolvedOutside?.publishedUrl).map(r => ({ channel: 'social', url: r.resolvedOutside.publishedUrl, note: 'Publication demandée en révision', addedAt: r.resolvedOutside.at })),
       });
       created++;
     }

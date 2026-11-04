@@ -81,6 +81,9 @@ const deliverySchema = new mongoose.Schema({
       required: true,
     },
     resolvedAt: Date,
+    // Révision faite hors NeedCreator (ex. publication sur Instagram ou TikTok) : pas de nouvelle version
+    supersededIds: [String], // fichiers et liens mis de côté par cette demande (rétablis si la révision est faite hors NeedCreator)
+    resolvedOutside: { by: { type: String, enum: ['brand', 'creator'] }, at: Date, publishedUrl: String, note: String },
     newFiles: [{
       url: String,
       uploadedAt: Date,
@@ -348,6 +351,26 @@ deliverySchema.methods.submit = function() {
   this.autoApprovalDate = autoApprovalDate;
 };
 
+/**
+ * Révision faite hors NeedCreator : la dernière version livrée (mise de côté à la demande de révision) redevient la version actuelle,
+ * et la révision est marquée résolue (par la marque ou le créateur), avec le lien de la publication s'il y en a un.
+ */
+deliverySchema.methods.resolveRevisionOutside = function(by, { publishedUrl, note } = {}) {
+  if (this.status !== 'revision_requested') throw Object.assign(new Error('Aucune révision en attente sur cette livraison'), { status: 400 });
+  const revs = this.revisions || [];
+  const last = revs[revs.length - 1];
+  const prev = revs[revs.length - 2];
+  const from = prev ? new Date(prev.requestedAt) : new Date(0);
+  const to = new Date(last.requestedAt);
+  const ids = new Set(last.supersededIds || []);
+  // Révisions demandées avant cet enregistrement : la dernière version est celle envoyée entre les deux dernières demandes
+  const inLastVersion = (item, d) => ids.size ? ids.has(String(item._id)) : (d && new Date(d) >= from && new Date(d) <= to);
+  (this.files || []).forEach(f => { if (f.superseded && inLastVersion(f, f.uploadedAt)) f.superseded = false; });
+  (this.links || []).forEach(l => { if (l.superseded && inLastVersion(l, l.addedAt)) l.superseded = false; });
+  last.resolvedAt = new Date();
+  last.resolvedOutside = { by, at: new Date(), publishedUrl: publishedUrl || undefined, note: note || undefined };
+};
+
 /** Durée de droits → nombre de mois (null = illimité) */
 export function rightsDurationMonths(duration) {
   return { '6m': 6, '1y': 12, '2y': 24, '3y': 36 }[duration] ?? null;
@@ -385,6 +408,7 @@ deliverySchema.methods.requestRevision = function(feedback, maxRevisions = confi
   this.revisions.push({
     requestedAt: new Date(),
     feedback,
+    supersededIds: [...(this.files || []), ...(this.links || [])].filter(i => !i.superseded).map(i => String(i._id)),
   });
   // Les vidéos actuelles deviennent "version précédente" : le créateur en livre de nouvelles
   (this.files || []).forEach(f => { f.superseded = true; });
