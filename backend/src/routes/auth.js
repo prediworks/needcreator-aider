@@ -1,4 +1,6 @@
 import express from 'express';
+import multer from 'multer';
+import { uploadAvatar, removeAvatar } from '../controllers/avatar.js';
 import { authenticate, authenticateFirebase, authorize } from '../middleware/auth.js';
 import { validate, schemas } from '../middleware/validate.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
@@ -46,6 +48,15 @@ router.delete('/account', authenticate, ownerOnly, deleteAccount);
 router.get('/profile', authenticate, getProfile);
 router.get('/profile/:userId', getProfile); // Public profile endpoint
 router.patch('/profile', authenticate, updateProfile);
+
+// Photo de profil (créateur) / logo (marque) : 5 Mo au plus, recadrée côté serveur
+const avatarUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => cb(/^image\/(jpeg|png|webp)$/.test(file.mimetype) ? null : Object.assign(new Error('Image JPG, PNG ou WebP uniquement'), { status: 400 }), true) });
+const avatarUploadHandler = (req, res, next) => avatarUpload.single('avatar')(req, res, (err) => {
+  if (!err) return next();
+  res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Image trop lourde : 5 Mo au plus' : err.message });
+});
+router.post('/avatar', authenticate, ownerOnly, avatarUploadHandler, uploadAvatar);
+router.delete('/avatar', authenticate, ownerOnly, removeAvatar);
 
 // Vérification d'entreprise (marques)
 router.post('/business-verification', authenticate, authorize('brand'), ownerOnly, validate(schemas.businessVerification), verifyBusiness);

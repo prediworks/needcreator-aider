@@ -35,6 +35,7 @@ import MissingHint from '@/components/ui/MissingHint';
 import AvailabilityCard from '@/components/AvailabilityCard';
 import MediaKitCard from '@/components/MediaKitCard';
 import TeamCard from '@/components/TeamCard';
+import AvatarPicker from '@/components/AvatarPicker';
 
 function ProfileContent() {
   const { user, ready } = useRequireAuth();
@@ -177,11 +178,7 @@ function ProfileContent() {
           <Card id="edit" className="p-6 scroll-mt-24">
             <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
               <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center">
-                  <span className="text-3xl font-bold text-primary-600">
-                    {profile.profile.name?.[0] || profile.profile.companyName?.[0] || 'U'}
-                  </span>
-                </div>
+                <AvatarPicker avatar={profile.profile.avatar} initial={profile.profile.name?.[0] || profile.profile.companyName?.[0] || 'U'} isBrand={profile.role === 'brand'} />
                 <div>
                   <h1 className="text-2xl font-bold text-neutral-900">
                     {profile.profile.companyName || profile.profile.name}

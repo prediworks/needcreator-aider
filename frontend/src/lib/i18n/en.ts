@@ -4,6 +4,9 @@
  * Un texte absent reste en français : compléter ici, jamais dans les pages.
  */
 export const EN: Record<string, string> = {
+  // ---- Photo de profil ----
+  'Photo de profil': 'Profile photo', 'photo de profil': 'profile photo', 'Ajouter une photo': 'Add a photo', 'Changer la photo': 'Change photo', 'Ajouter un logo': 'Add a logo', 'Changer le logo': 'Change logo', 'Retirer': 'Remove', 'Envoi…': 'Uploading…',
+  'Image JPG, PNG ou WebP uniquement': 'JPG, PNG or WebP image only', 'Image trop lourde : {n} Mo au plus': 'Image too large: {n} MB max', 'Logo mis à jour': 'Logo updated', 'Photo mise à jour': 'Photo updated',
   // ---- Candidature vidéo ----
   "Commencez par ce qui marche déjà : les publicités de vos concurrents, l'audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés vous répondent en vidéo : {n} secondes pour vous montrer leur idée, vous choisissez en {n} minutes. Vous ne payez qu'à la validation, contrat de droits inclus.": "Start with what already works: your competitors' ads, the audit of yours. Turn it into a brief in one click. Verified creators reply on video: {n} seconds to show you their idea, you choose in {n} minutes. You only pay on approval, rights contract included.",
   'Candidature vidéo': 'Video application', '🎬 Candidature vidéo': '🎬 Video application', '🎬 Candidature vidéo exigée': '🎬 Video application required',

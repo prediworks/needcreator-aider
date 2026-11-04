@@ -380,6 +380,7 @@ userSchema.methods.profileChecklist = function() {
     return [
       { key: 'name', label: 'Nom ou pseudo', done: !!p.name },
       { key: 'bio', label: 'Bio (présentez-vous aux marques)', done: !!(p.bio && p.bio.trim()) },
+      { key: 'avatar', label: 'Photo de profil', done: !!p.avatar },
       { key: 'niches', label: 'Au moins une niche', done: (p.niches?.length || 0) > 0 },
       { key: 'price', label: 'Prix minimum par vidéo', done: !!p.pricing?.minPrice },
       { key: 'portfolio', label: this.portfolioRequirement().label, done: this.portfolioRequirement().done },

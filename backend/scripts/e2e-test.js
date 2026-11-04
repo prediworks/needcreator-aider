@@ -2651,6 +2651,28 @@ await step('Envoi direct vers R2 : portfolio + livraison (lien signé, sans pass
   return 'portfolio et livraison déposés directement dans R2, contrôles OK';
 });
 
+await step('Photo de profil : envoi recadré, refus des fichiers non image, retrait', async () => {
+  const sharp = (await import('sharp')).default;
+  const png = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#05ddb2' } }).png().toBuffer();
+  const send = async (buf, name, type) => { const form = new FormData(); form.append('avatar', new File([buf], name, { type })); return creatorApi('POST', '/auth/avatar', form, { form: true }); };
+  const bad = await send(Buffer.from('pas une image'), 'x.pdf', 'application/pdf');
+  expect(bad.status === 400, 'Un fichier non image doit être refusé', bad);
+  const ok = await send(png, 'photo.png', 'image/png');
+  expect(ok.status === 200 && ok.data.avatar && ok.data.avatar.includes(`avatars/${creatorUser.id}/`), 'Envoi de la photo échoué', ok);
+  const img = await fetch(ok.data.avatar).then(r => r.ok ? r.arrayBuffer() : null).catch(() => null);
+  if (img) { const meta = await sharp(Buffer.from(img)).metadata(); expect(meta.width === 400 && meta.height === 400 && meta.format === 'jpeg', 'La photo doit être recadrée en carré 400 × 400 (JPEG)', meta); }
+  const prof = await creatorApi('GET', '/auth/profile');
+  const item = (prof.data.user?.profileChecklist || prof.data.profileChecklist || []).find(i => i.key === 'avatar');
+  expect(prof.data.user?.profile?.avatar === ok.data.avatar && item?.done === true, 'La photo doit être enregistrée et cocher « Photo de profil »', { avatar: prof.data.user?.profile?.avatar, item });
+  const forged = await creatorApi('PATCH', '/auth/profile', { profile: { avatar: 'https://exemple.fr/x.jpg', name: prof.data.user.profile.name } });
+  const after = await creatorApi('GET', '/auth/profile');
+  expect(after.data.user.profile.avatar === ok.data.avatar, 'La photo ne doit pas pouvoir être remplacée par une adresse quelconque', { forged: forged.status, avatar: after.data.user.profile.avatar });
+  const del = await creatorApi('DELETE', '/auth/avatar');
+  const gone = await creatorApi('GET', '/auth/profile');
+  expect(del.status === 200 && !gone.data.user.profile.avatar, 'Retrait de la photo échoué', del);
+  return `photo recadrée ${img ? '400 × 400' : '(lecture directe indisponible)'}, fichier non image refusé, adresse forcée ignorée, retrait OK`;
+});
+
 await step('Candidature vidéo : exigée par la marque, 45 s au plus, la marque ne voit que l\'aperçu filigrané', async () => {
   const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const c = await brandApi('POST', '/campaigns', { title: 'Campagne candidature vidéo', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline, videoApplicationRequired: true });

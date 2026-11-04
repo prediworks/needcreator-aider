@@ -3,7 +3,7 @@
  * Les clés sont celles de `profileChecklist` (backend, User.js) ; 'edit' ouvre le formulaire d'édition.
  */
 export const PROFILE_ANCHORS: Record<string, string> = {
-  name: 'edit', bio: 'edit', niches: 'edit', price: 'edit', company: 'edit', website: 'edit', industry: 'edit',
+  name: 'edit', avatar: 'edit', bio: 'edit', niches: 'edit', price: 'edit', company: 'edit', website: 'edit', industry: 'edit',
   portfolio: 'portfolio', socials: 'socials', address: 'address', legal: 'legal',
   stripe: 'stripe', stripeDone: 'stripe', verified: 'business', ambassador: 'ambassador', subscription: 'subscription',
 };
