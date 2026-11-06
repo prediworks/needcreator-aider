@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
+import UserAvatar from '@/components/UserAvatar';
 import MissingHint from '@/components/ui/MissingHint';
 import { useState } from 'react';
 import { useRequireAuth } from '@/hooks/useAuth';
@@ -249,11 +250,7 @@ export default function DeliveryDetailPage() {
                 <div>
                   <p className="text-sm text-neutral-600 mb-1">Marque</p>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-semibold text-sm">
-                        {delivery.brandId?.profile?.companyName?.[0]}
-                      </span>
-                    </div>
+                    <UserAvatar src={delivery.brandId?.profile?.avatar} name={delivery.brandId?.profile?.companyName} brand className="w-8 h-8" />
                     <span className="font-medium">{delivery.brandId?.profile?.companyName}</span>
                   </div>
                 </div>

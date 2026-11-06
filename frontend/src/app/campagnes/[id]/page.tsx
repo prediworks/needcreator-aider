@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import UserAvatar from '@/components/UserAvatar';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Card from '@/components/ui/Card';
@@ -45,7 +46,7 @@ export default async function PublicCampaignPage({ params }: { params: { id: str
       <div className="container mx-auto px-4 max-w-4xl">
         <Link href="/campagnes" className="inline-flex items-center gap-1 text-sm text-neutral-600 hover:text-neutral-900 mb-6"><ArrowLeft className="w-4 h-4" /> Toutes les campagnes ouvertes</Link>
         <Card className="p-6 md:p-8 mb-6">
-          <div className="text-sm text-primary-700 font-medium mb-1">{c.brand.name}{c.brand.industry ? ` · ${c.brand.industry}` : ''}</div>
+          <div className="text-sm text-primary-700 font-medium mb-1 flex items-center gap-2">{c.brand.avatar && <UserAvatar src={c.brand.avatar} name={c.brand.name} brand className="w-8 h-8" />}<span>{`${c.brand.name}${c.brand.industry ? ` · ${c.brand.industry}` : ''}`}</span></div>
           <h1 className="text-3xl font-bold text-neutral-900 mb-3">{c.title}</h1>
           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-neutral-700 mb-5">
             <span className="flex items-center gap-1"><Video className="w-4 h-4 text-primary-500" /> {c.deliverables} vidéo{c.deliverables > 1 ? 's' : ''} · {VIDEO_TYPES[c.videoType] || c.videoType} · {c.duration} s</span>

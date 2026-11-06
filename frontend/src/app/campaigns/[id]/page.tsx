@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import UserAvatar from '@/components/UserAvatar';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -174,8 +175,9 @@ export default function CampaignDetailPage() {
                   <Building2 className="w-8 h-8 text-primary-600" />
                 </div>
                 <div className="flex-1">
-                  <h1 className="text-3xl font-bold text-neutral-900 mb-2">
-                    {campaign.title}
+                  <h1 className="text-3xl font-bold text-neutral-900 mb-2 flex items-center gap-3">
+                    {campaign.brandId?.profile?.avatar && <UserAvatar src={campaign.brandId.profile.avatar} name={campaign.brandId.profile.companyName} brand className="w-12 h-12" />}
+                    <span>{campaign.title}</span>
                   </h1>
                   <div className="flex items-center gap-3 text-sm text-neutral-600 flex-wrap">
                     <span className="font-medium">{campaign.brandId?.profile?.companyName}</span>

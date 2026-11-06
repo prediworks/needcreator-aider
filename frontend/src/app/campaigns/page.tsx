@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
+import UserAvatar from '@/components/UserAvatar';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useCampaigns } from '@/hooks/useCampaigns';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -160,11 +161,7 @@ function CampaignsContent() {
               >
                 {/* Brand Info */}
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
-                    <span className="text-primary-600 font-semibold">
-                      {campaign.brandId?.profile?.companyName?.[0] || 'M'}
-                    </span>
-                  </div>
+                  <UserAvatar src={campaign.brandId?.profile?.avatar} name={campaign.brandId?.profile?.companyName || 'M'} brand className="w-10 h-10" />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-neutral-900 truncate">
                       {campaign.brandId?.profile?.companyName || 'Marque'}

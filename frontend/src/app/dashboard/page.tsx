@@ -1,6 +1,7 @@
 'use client';
 
 import { useRequireAuth } from '@/hooks/useAuth';
+import UserAvatar from '@/components/UserAvatar';
 import { useCampaigns } from '@/hooks/useCampaigns';
 import { useDeliveries } from '@/hooks/useDeliveries';
 import { useRouter } from 'next/navigation';
@@ -155,9 +156,12 @@ function CreatorDashboard({ user, campaignsData, campaignsLoading, deliveriesDat
                       className="border border-neutral-200 rounded-lg p-4 hover:border-primary-500 transition cursor-pointer flex items-center justify-between"
                       onClick={() => router.push(`/deliveries/${d._id}`)}
                     >
-                      <div>
-                        <div className="font-medium text-neutral-900">{d.campaignId?.title}</div>
-                        <div className="text-sm text-neutral-500">{d.brandId?.profile?.companyName}</div>
+                      <div className="flex items-center gap-3 min-w-0">
+                        {d.brandId?.profile?.companyName && <UserAvatar src={d.brandId?.profile?.avatar} name={d.brandId?.profile?.companyName} brand className="w-10 h-10" />}
+                        <div className="min-w-0">
+                          <div className="font-medium text-neutral-900">{d.campaignId?.title}</div>
+                          <div className="text-sm text-neutral-500">{d.brandId?.profile?.companyName}</div>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <Badge map={DELIVERY_STATUS} value={d.status} />

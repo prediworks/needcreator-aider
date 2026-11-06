@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import UserAvatar from '@/components/UserAvatar';
 import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -36,7 +37,7 @@ export default async function PublicCampaignsPage() {
             {campaigns.map((c) => (
               <Link key={c.id} href={`/campagnes/${c.id}`} className="block">
                 <Card className="p-5 h-full hover:border-primary-300 transition">
-                  <div className="text-xs text-primary-700 font-medium mb-1">{c.brand.name}{c.brand.industry ? ` · ${c.brand.industry}` : ''}</div>
+                  <div className="text-xs text-primary-700 font-medium mb-1 flex items-center gap-2">{c.brand.avatar && <UserAvatar src={c.brand.avatar} name={c.brand.name} brand className="w-6 h-6" />}<span>{`${c.brand.name}${c.brand.industry ? ` · ${c.brand.industry}` : ''}`}</span></div>
                   <h2 className="text-lg font-semibold text-neutral-900 mb-2">{c.title}</h2>
                   <p className="text-sm text-neutral-600 line-clamp-3 mb-3">{c.description}</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">

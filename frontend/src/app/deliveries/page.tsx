@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useMemo } from 'react';
+import UserAvatar from '@/components/UserAvatar';
 import Link from 'next/link';
 import { useRequireAuth } from '@/hooks/useAuth';
 import { useDeliveries } from '@/hooks/useDeliveries';
@@ -150,8 +151,9 @@ function DeliveriesContent() {
                           {delivery.isLate && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">En retard</span>}
                         </div>
 
-                        <div className="text-sm text-neutral-600 mb-2">
-                          {isBrand ? `Créateur : ${delivery.creatorId?.profile?.name}` : `Marque : ${delivery.brandId?.profile?.companyName}`}
+                        <div className="text-sm text-neutral-600 mb-2 flex items-center gap-2">
+                          <UserAvatar src={isBrand ? delivery.creatorId?.profile?.avatar : delivery.brandId?.profile?.avatar} name={isBrand ? delivery.creatorId?.profile?.name : delivery.brandId?.profile?.companyName} brand={!isBrand} className="w-6 h-6" />
+                          <span>{isBrand ? `Créateur : ${delivery.creatorId?.profile?.name}` : `Marque : ${delivery.brandId?.profile?.companyName}`}</span>
                         </div>
 
                         <div className="flex items-center gap-x-4 gap-y-1 text-sm flex-wrap">
