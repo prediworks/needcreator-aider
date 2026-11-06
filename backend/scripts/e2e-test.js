@@ -2735,6 +2735,69 @@ await step('Paiement : débit immédiat à la sélection, blocage de carte expir
   }
 });
 
+await step('Fin de collaboration : invitation à se laisser un avis (marque et créateur), rappel seulement à celui qui ne l\'a pas fait', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne invitation avis', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  const cid = c.data.campaign._id;
+  const db = mongoose.connection.db;
+  const oid = (x) => new mongoose.Types.ObjectId(x);
+  const { sendReviewInvitations } = await import('../src/controllers/reviews.js');
+  let d = null;
+  try {
+    await brandApi('POST', `/campaigns/${cid}/publish`);
+    await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+    const sel = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+    d = sel.data.delivery._id;
+    await db.collection('deliveries').updateOne({ _id: oid(d) }, { $unset: { 'payment.stripePaymentIntentId': '' } });
+    await creatorApi('POST', `/deliveries/${d}/links`, { links: [{ url: 'https://www.tiktok.com/@test/video/45', title: 'Vidéo' }] });
+    await creatorApi('POST', `/deliveries/${d}/submit`, {});
+    const ok = await brandApi('POST', `/deliveries/${d}/approve`, {});
+    expect(ok.status === 200, 'Validation échouée', ok);
+    const since = new Date();
+    await sendReviewInvitations();
+    let row = await db.collection('deliveries').findOne({ _id: oid(d) });
+    expect(!row.reviewInvites?.sentAt, 'Pas d\'invitation dans les deux heures qui suivent la validation', row.reviewInvites);
+    await db.collection('deliveries').updateOne({ _id: oid(d) }, { $set: { approvedAt: new Date(Date.now() - 3 * 3600e3) } });
+    await sendReviewInvitations();
+    row = await db.collection('deliveries').findOne({ _id: oid(d) });
+    const invites = await db.collection('notifications').find({ createdAt: { $gte: since }, href: `/deliveries/${d}#avis`, title: /^Laissez un avis à/, userId: { $in: [oid(brandUser.id), oid(creatorUser.id)] } }).toArray();
+    expect(row.reviewInvites?.sentAt && invites.length === 2, 'Marque et créateur doivent être invités à laisser un avis', { invites: invites.length, row: row.reviewInvites });
+    const rev = await brandApi('POST', `/reviews/campaign/${cid}`, { rating: 5, comment: 'Très bon travail', communication: 5, quality: 5, timeliness: 5, professionalism: 5, creatorId: creatorUser.id });
+    expect(rev.status === 201 || rev.status === 200, 'Avis de la marque refusé', rev);
+    await db.collection('deliveries').updateOne({ _id: oid(d) }, { $set: { approvedAt: new Date(Date.now() - 6 * 864e5), 'reviewInvites.sentAt': new Date(Date.now() - 5 * 864e5) } });
+    await sendReviewInvitations();
+    const reminders = await db.collection('notifications').find({ createdAt: { $gte: since }, href: `/deliveries/${d}#avis`, title: /^Rappel : votre avis/, userId: { $in: [oid(brandUser.id), oid(creatorUser.id)] } }).toArray();
+    expect(reminders.length === 1 && String(reminders[0].userId) === String(creatorUser.id), 'Le rappel ne doit aller qu\'au créateur (la marque a déjà noté)', reminders.map(r => String(r.userId)));
+    await sendReviewInvitations();
+    const again = await db.collection('notifications').countDocuments({ createdAt: { $gte: since }, href: `/deliveries/${d}#avis`, title: /^Rappel : votre avis/, userId: oid(creatorUser.id) });
+    expect(again === 1, 'Un seul rappel', again);
+    return 'invitation aux deux après validation, rappel au seul créateur, une fois';
+  } finally {
+    if (d) await db.collection('deliveries').deleteOne({ _id: oid(d) });
+    await db.collection('reviews').deleteMany({ campaignId: oid(cid) });
+    await db.collection('campaigns').deleteOne({ _id: oid(cid) });
+    await db.collection('contents').deleteMany({ deliveryId: d ? oid(d) : null });
+  }
+});
+
+await step('Marque suggérée par un créateur puis contactée : le créateur est prévenu une fois', async () => {
+  const db = mongoose.connection.db;
+  const oid = (x) => new mongoose.Types.ObjectId(x);
+  const { notifySuggestersOfContact } = await import('../src/services/brandSuggestions.js');
+  const since = new Date();
+  const ins = await db.collection('leads').insertOne({ kind: 'brand', source: 'manual', externalId: `e2e-suggest-${Date.now()}`, name: 'Marque Suggérée E2E', status: 'contacted', contactedAt: new Date(), contactedVia: 'email', suggestedBy: oid(creatorUser.id), createdAt: new Date(), updatedAt: new Date() });
+  try {
+    await notifySuggestersOfContact();
+    await notifySuggestersOfContact();
+    const n = await db.collection('notifications').countDocuments({ createdAt: { $gte: since }, userId: oid(creatorUser.id), title: 'Marque Suggérée E2E a été contactée' });
+    const lead = await db.collection('leads').findOne({ _id: ins.insertedId });
+    expect(n === 1 && lead.suggesterNotifiedAt, 'Le créateur doit être prévenu une seule fois', { n, at: lead.suggesterNotifiedAt });
+    return 'prévenu une fois (notification et email)';
+  } finally {
+    await db.collection('leads').deleteOne({ _id: ins.insertedId });
+  }
+});
+
 await step('Photo de profil : envoi recadré, refus des fichiers non image, retrait', async () => {
   const sharp = (await import('sharp')).default;
   const png = await sharp({ create: { width: 900, height: 600, channels: 3, background: '#05ddb2' } }).png().toBuffer();

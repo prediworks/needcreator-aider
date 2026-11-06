@@ -1149,6 +1149,30 @@ export async function sendReviewNudge(email, name, otherName, campaignTitle, dea
   return sendEmail(email, subject, html);
 }
 
+/** Marque suggérée ou cherchée par le créateur : elle vient d'être contactée */
+export async function sendSuggestedBrandContacted(email, name, brandName, link) {
+  const subject = `Nous avons contacté ${brandName}`;
+  const html = `
+    <h1>Bonjour ${esc(name || '')},</h1>
+    <p>Merci pour votre suggestion : nous venons de contacter <strong>${esc(brandName)}</strong> pour lui présenter NeedCreator et ses créateurs.</p>
+    <p>Une marque se décide plus vite quand elle voit une vidéo tournée avec son produit. Si ce n'est pas déjà fait, tournez 15 à 30 secondes et proposez-la à votre prix depuis la candidature spontanée.</p>
+    ${button(link, 'Proposer ma vidéo')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
+/** Fin de collaboration : invitation (puis rappel) à laisser un avis, en double aveugle */
+export async function sendReviewInvitation(email, name, otherName, campaignTitle, deliveryId, { reminder = false, otherReviewed = false } = {}) {
+  const subject = reminder ? `Rappel : votre avis sur ${otherName} (« ${campaignTitle} »)` : `Comment s'est passée votre collaboration avec ${otherName} ?`;
+  const html = `
+    <h1>Bonjour ${esc(name || '')},</h1>
+    <p>La mission « ${esc(campaignTitle)} » avec <strong>${esc(otherName || '')}</strong> est terminée. Laissez-lui un avis : une note et quelques mots suffisent, en moins d'une minute.</p>
+    ${otherReviewed ? `<p>${esc(otherName || '')} a déjà laissé le sien : il vous sera dévoilé dès que vous aurez laissé le vôtre.</p>` : '<p>Les avis sont publiés en même temps des deux côtés, pour que chacun s\'exprime librement.</p>'}
+    ${button(`${config.cors.origin}/deliveries/${deliveryId}#avis`, 'Laisser mon avis')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
 export async function sendReviewsPublished(email, name, otherName, campaignTitle) {
   const subject = `Votre avis et celui de ${otherName} sont publiés`;
   const html = `

@@ -307,6 +307,7 @@ export const schemas = {
     quality: Joi.number().min(1).max(5).required(),
     timeliness: Joi.number().min(1).max(5).required(),
     professionalism: Joi.number().min(1).max(5).required(),
+    creatorId: Joi.string().hex().length(24), // marque : créateur noté (campagne à plusieurs créateurs)
   }),
   
   // Revision request

@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import Delivery from '../models/Delivery.js';
 import logger from '../utils/logger.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
-import { sendReviewNudge, sendReviewsPublished, sendReviewResponse } from '../services/email.js';
+import { sendReviewNudge, sendReviewsPublished, sendReviewResponse, sendReviewInvitation } from '../services/email.js';
 import { notify } from '../services/notifications.js';
 
 const idOf = (v) => (v && v._id ? v._id : v)?.toString();
@@ -49,10 +49,6 @@ export async function createReview(req, res) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
     
-    if (campaign.status !== 'completed') {
-      return res.status(400).json({ error: 'Campaign not completed yet' });
-    }
-    
     // Determine reviewee (multi-créateurs : la marque note un créateur précis via ?creatorId=)
     let revieweeId;
     if (reviewer.role === 'brand') {
@@ -67,6 +63,12 @@ export async function createReview(req, res) {
       return res.status(403).json({ error: 'Invalid role' });
     }
     if (!revieweeId) return res.status(400).json({ error: 'Aucun destinataire pour cet avis' });
+    // Avis possible dès que la mission entre ces deux parties est validée (sans attendre les autres créateurs de la campagne)
+    if (campaign.status !== 'completed') {
+      const creatorOfMission = reviewer.role === 'brand' ? revieweeId : reviewer._id;
+      const done = await Delivery.exists({ campaignId, creatorId: creatorOfMission, status: { $in: ['approved', 'auto_approved'] } });
+      if (!done) return res.status(400).json({ error: 'La mission n\'est pas encore validée' });
+    }
 
     // Check if already reviewed
     const existingReview = await Review.findOne({
@@ -211,4 +213,50 @@ export async function respondToReview(req, res) {
     logger.error('Failed to respond to review:', error);
     res.status(500).json({ error: 'Failed to respond to review' });
   }
+}
+
+/**
+ * Fin de collaboration : invite la marque et le créateur à se laisser un avis (une invitation peu après la validation,
+ * un rappel 5 jours plus tard), seulement à ceux qui ne l'ont pas encore fait. Missions validées depuis moins de 30 jours.
+ */
+export async function sendReviewInvitations() {
+  const now = Date.now();
+  const due = await Delivery.find({
+    status: { $in: ['approved', 'auto_approved'] },
+    approvedAt: { $gte: new Date(now - 30 * 864e5), $lte: new Date(now - 2 * 3600e3) },
+    $or: [
+      { 'reviewInvites.sentAt': null },
+      { 'reviewInvites.reminderAt': null, 'reviewInvites.sentAt': { $lte: new Date(now - 4 * 864e5) }, approvedAt: { $gte: new Date(now - 30 * 864e5), $lte: new Date(now - 5 * 864e5) } },
+    ],
+  }).populate('campaignId', 'title seed').populate('brandId', 'email status profile.name profile.companyName').populate('creatorId', 'email status profile.name').limit(100);
+  let sent = 0;
+  for (const d of due) {
+    try {
+      const reminder = !!d.reviewInvites?.sentAt;
+      const brand = d.brandId, creator = d.creatorId;
+      if (d.campaignId?.seed?.batch || !brand || !creator) {
+        d.reviewInvites = { sentAt: d.reviewInvites?.sentAt || new Date(), reminderAt: new Date() };
+        await d.save();
+        continue;
+      }
+      const reviews = await Review.find({ campaignId: d.campaignId._id, $or: [{ reviewerId: brand._id, revieweeId: creator._id }, { reviewerId: creator._id, revieweeId: brand._id }] }).select('reviewerId').lean();
+      const brandName = brand.profile?.companyName || brand.profile?.name;
+      const creatorName = creator.profile?.name;
+      const title = d.campaignId?.title || 'votre mission';
+      for (const [who, other, otherName, name] of [[brand, creator, creatorName, brandName], [creator, brand, brandName, creatorName]]) {
+        if (who.status && who.status !== 'active') continue;
+        if (reviews.some(r => idOf(r.reviewerId) === idOf(who._id))) continue;
+        const otherReviewed = reviews.some(r => idOf(r.reviewerId) === idOf(other._id));
+        if (who.email) await sendReviewInvitation(who.email, name, otherName, title, d._id, { reminder, otherReviewed }).catch(err => logger.error('sendReviewInvitation:', err.message));
+        notify(who._id, { type: 'system', title: reminder ? `Rappel : votre avis sur ${otherName}` : `Laissez un avis à ${otherName}`, text: title, href: `/deliveries/${d._id}#avis` }).catch(() => {});
+        sent++;
+      }
+      d.reviewInvites = reminder ? { sentAt: d.reviewInvites.sentAt, reminderAt: new Date() } : { sentAt: new Date(), reminderAt: null };
+      await d.save();
+    } catch (err) {
+      logger.error(`Review invitation failed for ${d._id}:`, err.message);
+    }
+  }
+  if (sent) logger.info(`Review invitations sent: ${sent}`);
+  return sent;
 }

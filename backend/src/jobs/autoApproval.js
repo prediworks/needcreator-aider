@@ -20,7 +20,7 @@ import { transferToCreator } from '../services/stripe.js';
 import { sendAdminDigest, sendWeeklyReport } from '../services/adminAlerts.js';
 import { runFollowUps } from './followUps.js';
 import { runScanReportAlerts } from '../services/adScanReports.js';
-import { publishExpiredReviews } from '../controllers/reviews.js';
+import { publishExpiredReviews, sendReviewInvitations } from '../controllers/reviews.js';
 import { watermarkBacklog } from '../services/watermark.js';
 import { applicationVideoBacklog } from '../services/applicationVideo.js';
 import { showcaseBacklog } from '../services/showcase.js';
@@ -263,6 +263,9 @@ export async function runScheduledJobs() {
     ]);
     const followUps = await runFollowUps();
     const reviewsPublished = await publishExpiredReviews().catch(err => { logger.error('publishExpiredReviews:', err); return 0; });
+    const { notifySuggestersOfContact } = await import('../services/brandSuggestions.js');
+    const suggestersTold = await notifySuggestersOfContact().catch(err => { logger.error('notifySuggestersOfContact:', err); return 0; });
+    const reviewInvites = await sendReviewInvitations().catch(err => { logger.error('sendReviewInvitations:', err); return 0; });
     const watermarked = await watermarkBacklog(3).catch(err => { logger.error('watermarkBacklog:', err); return 0; });
     await applicationVideoBacklog(3).catch(err => logger.error('applicationVideoBacklog:', err)); // candidatures vidéo pas encore traitées
     const showcased = await showcaseBacklog(2).catch(err => { logger.error('showcaseBacklog:', err); return 0; });
@@ -284,7 +287,7 @@ export async function runScheduledJobs() {
     const scanAlerts = await runScanReportAlerts().catch(err => { logger.error('runScanReportAlerts:', err); return { pages: 0, sent: 0 }; });
 
     logger.info(`Scheduled jobs completed: ${autoApprovals} auto-approvals, ${reminders} reminders sent, ${notified} creators notified after early access, ${rightsReminders} rights expiry reminders, ${lateFlags} late-delivery flags, ${transfers} deferred transfers, follow-ups ${JSON.stringify(followUps)}`);
-    return { memberTopics, broadcastBatch, scanAlerts, autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, showcaseRequests, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport, brandMessages, showcased };
+    return { suggestersTold, reviewInvites, memberTopics, broadcastBatch, scanAlerts, autoApprovals, reminders, notified, rightsReminders, lateFlags, transfers, followUps, reviewsPublished, watermarked, showcaseRequests, contentReminders, adminDigest, backup, seedClosed, creatorRightsReminders, prospectReminders, acquisition, outreach, memberMessages, verifyReminders, weeklyReport, brandMessages, showcased };
   } catch (error) {
     logger.error('Scheduled jobs failed:', error);
     return { autoApprovals: 0, reminders: 0, error: error.message };

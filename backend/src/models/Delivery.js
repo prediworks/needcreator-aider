@@ -277,6 +277,7 @@ const deliverySchema = new mongoose.Schema({
   
   submittedAt: Date,
   approvedAt: Date,
+  reviewInvites: { sentAt: Date, reminderAt: Date }, // invitation à se laisser un avis (marque et créateur), puis rappel
   
   notes: {
     creator: String,

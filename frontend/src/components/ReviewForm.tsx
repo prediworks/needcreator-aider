@@ -37,10 +37,11 @@ export { Stars };
 interface ReviewFormProps {
   campaignId: string;
   revieweeName: string;
+  creatorId?: string; // marque : le créateur noté (campagne à plusieurs créateurs)
   onDone?: () => void;
 }
 
-export default function ReviewForm({ campaignId, revieweeName, onDone }: ReviewFormProps) {
+export default function ReviewForm({ campaignId, revieweeName, creatorId, onDone }: ReviewFormProps) {
   const [rating, setRating] = useState(5);
   const [criteria, setCriteria] = useState({ communication: 5, quality: 5, timeliness: 5, professionalism: 5 });
   const [comment, setComment] = useState('');
@@ -48,7 +49,7 @@ export default function ReviewForm({ campaignId, revieweeName, onDone }: ReviewF
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await mutation.mutateAsync({ campaignId, data: { rating, comment, ...criteria } });
+    await mutation.mutateAsync({ campaignId, data: { rating, comment, ...criteria, ...(creatorId ? { creatorId } : {}) } });
     onDone?.();
   };
 

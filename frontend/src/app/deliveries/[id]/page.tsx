@@ -594,7 +594,7 @@ export default function DeliveryDetailPage() {
                 ) : (
                   <>
                     {delivery.otherHasReviewed && <p className="text-sm text-primary-700 bg-primary-50 rounded-lg p-3 mb-3">{otherPartyName} a déjà laissé un avis sur cette mission. Laissez le vôtre pour le découvrir : les deux sont publiés en même temps.</p>}
-                    <ReviewForm campaignId={campaign._id} revieweeName={otherPartyName || ''} />
+                    <ReviewForm campaignId={campaign._id} revieweeName={otherPartyName || ''} creatorId={isBrand ? (delivery.creatorId?._id || delivery.creatorId) : undefined} />
                   </>
                 )}
                 {delivery.receivedReview && (

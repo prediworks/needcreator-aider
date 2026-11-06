@@ -13,6 +13,7 @@ import { CAMPAIGN_STATUS } from '@/lib/labels';
 import { formatRelativeTime, cn } from '@/lib/utils';
 import { MessageCircle } from 'lucide-react';
 import Link from 'next/link';
+import UserAvatar from '@/components/UserAvatar';
 
 function MessagesContent() {
   const { user, ready } = useRequireAuth({ roles: ['brand', 'creator'] });
@@ -55,19 +56,25 @@ function MessagesContent() {
               conversations.map((c) => {
                 const active = selected && String(c.campaignId?._id) === selected.campaignId && (!isBrand || String(c.creatorId?._id) === selected.creatorId);
                 const other = isBrand ? c.creatorId?.profile?.name : c.brandId?.profile?.companyName;
+                const otherAvatar = isBrand ? c.creatorId?.profile?.avatar : c.brandId?.profile?.avatar;
                 return (
                   <button
                     key={c._id}
                     onClick={() => setSelected({ campaignId: String(c.campaignId?._id), creatorId: String(c.creatorId?._id) })}
                     className={cn('w-full text-left px-3 py-3 rounded-lg hover:bg-neutral-50 transition border-b border-neutral-100 last:border-0', active && 'bg-primary-50')}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-neutral-900 truncate">{other || '—'}</span>
-                      {c.unreadCount > 0 && <span className="text-xs bg-primary-500 text-white rounded-full px-2 py-0.5">{c.unreadCount}</span>}
+                    <div className="flex gap-3">
+                      <UserAvatar src={otherAvatar} name={other} brand={!isBrand} className="w-10 h-10" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-neutral-900 truncate">{other || '—'}</span>
+                          {c.unreadCount > 0 && <span className="text-xs bg-primary-500 text-white rounded-full px-2 py-0.5">{c.unreadCount}</span>}
+                        </div>
+                        <div className="text-xs text-neutral-500 truncate">{c.campaignId?.title}</div>
+                        <div className="text-xs text-neutral-600 truncate mt-1">{c.lastMessagePreview || 'Nouvelle discussion'}</div>
+                        <div className="text-[10px] text-neutral-400">{c.lastMessageAt ? formatRelativeTime(c.lastMessageAt) : ''}</div>
+                      </div>
                     </div>
-                    <div className="text-xs text-neutral-500 truncate">{c.campaignId?.title}</div>
-                    <div className="text-xs text-neutral-600 truncate mt-1">{c.lastMessagePreview || 'Nouvelle discussion'}</div>
-                    <div className="text-[10px] text-neutral-400">{c.lastMessageAt ? formatRelativeTime(c.lastMessageAt) : ''}</div>
                   </button>
                 );
               })
@@ -78,9 +85,12 @@ function MessagesContent() {
             {selected ? (
               <>
                 <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <div className="flex items-center gap-3">
+                  <UserAvatar src={isBrand ? current?.creatorId?.profile?.avatar : current?.brandId?.profile?.avatar} name={isBrand ? current?.creatorId?.profile?.name : current?.brandId?.profile?.companyName} brand={!isBrand} className="w-11 h-11" />
                   <div>
                     <h2 className="font-semibold text-neutral-900">{isBrand && current?.creatorId?._id ? <Link href={`/profile/${current.creatorId._id}`} className="hover:text-primary-600 hover:underline" title="Voir la fiche du créateur" data-testid="conversation-creator-link">{current.creatorId.profile?.name}</Link> : isBrand ? current?.creatorId?.profile?.name : current?.brandId?.profile?.companyName}</h2>
                     <Link href={`/campaigns/${selected.campaignId}`} className="text-sm text-primary-600 hover:underline">{current?.campaignId?.title || 'Voir la campagne'}</Link>
+                  </div>
                   </div>
                   {current?.campaignId?.status && <Badge map={CAMPAIGN_STATUS} value={current.campaignId.status} />}
                 </div>

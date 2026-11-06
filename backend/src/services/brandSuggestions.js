@@ -268,3 +268,35 @@ export async function refuseSuggestion(id, reason = '') {
   await notify(s.creatorId, { type: 'application', title: `${s.name} n'a pas été retenue`, text: `${s.reason} Vous pouvez suggérer une autre marque.`, href: '/vitrine' });
   return { suggestion: serialize(s) };
 }
+
+/**
+ * Marque suggérée (ou cherchée) par un créateur, puis contactée par l'équipe ou l'outil de prospection :
+ * le créateur est prévenu une fois (notification et email). Sauf s'il a déjà été prévenu que sa vidéo vitrine lui a été proposée.
+ */
+export async function notifySuggestersOfContact({ limit = 50 } = {}) {
+  const { default: ShowcaseVideo } = await import('../models/ShowcaseVideo.js');
+  const { sendSuggestedBrandContacted } = await import('./email.js');
+  const leads = await Lead.find({ kind: 'brand', contactedAt: { $gte: new Date(Date.now() - 14 * 864e5) }, suggesterNotifiedAt: null,
+    $or: [{ suggestedBy: { $ne: null } }, { _id: { $in: await BrandSuggestion.distinct('leadId', { status: 'approved', leadId: { $ne: null } }) } }] })
+    .select('name suggestedBy contactedAt').limit(limit);
+  let sent = 0;
+  for (const lead of leads) {
+    try {
+      const fromSuggestions = await BrandSuggestion.distinct('creatorId', { leadId: lead._id, status: 'approved' });
+      const ids = [...new Set([lead.suggestedBy, ...fromSuggestions].filter(Boolean).map(String))];
+      const alreadyTold = new Set((await ShowcaseVideo.distinct('creatorId', { leadId: lead._id, status: { $in: ['sent', 'accepted'] } })).map(String));
+      const creators = await User.find({ _id: { $in: ids.filter(id => !alreadyTold.has(id)) }, status: 'active' }).select('email profile.name preferences.language');
+      for (const c of creators) {
+        notify(c._id, { type: 'application', title: `${lead.name} a été contactée`, text: 'La marque que vous nous avez suggérée vient d\'être contactée par NeedCreator.', href: '/vitrine' }).catch(() => {});
+        if (c.email) await sendSuggestedBrandContacted(c.email, c.profile?.name || '', lead.name, `${config.cors.origin}/vitrine`).catch(err => logger.warn(`Suggested brand contacted email ${c._id}: ${err.message}`));
+        sent++;
+      }
+      lead.suggesterNotifiedAt = new Date();
+      await lead.save();
+    } catch (err) {
+      logger.error(`notifySuggestersOfContact ${lead._id}:`, err.message);
+    }
+  }
+  if (sent) logger.info(`Creators told their suggested brand was contacted: ${sent}`);
+  return sent;
+}

@@ -10,6 +10,7 @@ import Spinner from '@/components/ui/Spinner';
 import { Send, MessageCircle } from 'lucide-react';
 import ReportButton from '@/components/ReportButton';
 import { formatRelativeTime, cn } from '@/lib/utils';
+import UserAvatar from '@/components/UserAvatar';
 
 interface ConversationProps {
   campaignId: string;
@@ -55,13 +56,15 @@ export default function Conversation({ campaignId, creatorId, title, compact = f
 
   const myId = user?.id || user?._id;
   const other = user?.role === 'brand' ? data?.creatorId?.profile?.name : data?.brandId?.profile?.companyName;
+  const otherAvatar = user?.role === 'brand' ? data?.creatorId?.profile?.avatar : data?.brandId?.profile?.avatar;
+  const otherIsBrand = user?.role !== 'brand';
 
   return (
     <div className="flex flex-col">
       {title !== undefined && (
         <div className="flex items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-primary-500" />
+            {otherAvatar ? <UserAvatar src={otherAvatar} name={other} brand={otherIsBrand} className="w-8 h-8" /> : <MessageCircle className="w-5 h-5 text-primary-500" />}
             <h3 className="font-semibold text-neutral-900">{title || `Discussion avec ${other || ''}`}</h3>
           </div>
           {(user?.role === 'brand' ? data?.creatorId?._id : data?.brandId?._id) && (
@@ -78,7 +81,8 @@ export default function Conversation({ campaignId, creatorId, title, compact = f
           messages.map((m: any) => {
             const mine = String(m.senderId) === String(myId);
             return (
-              <div key={m._id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
+              <div key={m._id} className={cn('flex items-end gap-2', mine ? 'justify-end' : 'justify-start')}>
+                {!mine && <UserAvatar src={otherAvatar} name={other} brand={otherIsBrand} className="w-7 h-7" />}
                 <div className={cn('max-w-[80%] rounded-2xl px-3 py-2 text-sm whitespace-pre-line', mine ? 'bg-primary-500 text-white rounded-br-sm' : 'bg-white border border-neutral-200 text-neutral-800 rounded-bl-sm')}>
                   {m.text}
                   <div className={cn('text-[10px] mt-1', mine ? 'text-primary-100' : 'text-neutral-400')}>{formatRelativeTime(m.createdAt)}</div>

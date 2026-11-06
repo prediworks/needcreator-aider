@@ -61,6 +61,7 @@ const leadSchema = new mongoose.Schema({
   // Marque suggérée par un créateur : elle lui est réservée quelques jours pour sa candidature spontanée
   suggestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   reservedUntil: Date,
+  suggesterNotifiedAt: Date, // créateurs qui ont suggéré ou cherché la marque prévenus qu'elle a été contactée
   offeredBriefId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProductBrief' }, // brief offert préparé quand une marque répond positivement
   draftCampaignId: { type: mongoose.Schema.Types.ObjectId, ref: 'Campaign' },
   // Marques : concurrents cités par l'IA à la qualification, puis le premier trouvé chez Meta (page vérifiée, scan préparé) : l'email 1 montre ses publicités
