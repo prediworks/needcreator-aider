@@ -137,7 +137,8 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
         delivery.payment.amount,
         delivery.payment.currency,
         brand.stripeCustomerId,
-        { campaignId: campaign._id.toString(), deliveryId: delivery._id.toString() }
+        { campaignId: campaign._id.toString(), deliveryId: delivery._id.toString() },
+        { captureMethod: 'automatic' } // débit immédiat, conservé par NeedCreator jusqu'à la validation (un blocage de carte expire après 7 jours)
       );
       delivery.payment.stripePaymentIntentId = paymentIntent.id;
       clientSecret = paymentIntent.client_secret;
@@ -145,7 +146,7 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
       if (config.business.autoConfirmTestPayments) {
         // Mode test : on confirme avec une carte de test pour bloquer le montant
         const confirmed = await confirmWithTestCard(paymentIntent.id);
-        if (confirmed.status === 'requires_capture') {
+        if (['requires_capture', 'succeeded'].includes(confirmed.status)) {
           delivery.payment.status = 'held';
           delivery.payment.heldAt = new Date();
         } else {
@@ -184,6 +185,33 @@ export async function createDeliveryForCampaign(campaign, brand, price, forCreat
 }
 
 /**
+ * Blocage de carte expiré : Stripe libère une autorisation non capturée au bout de 7 jours (statut « canceled »).
+ * On prépare un nouveau paiement (débit immédiat) que la marque confirme sur la page de livraison.
+ * Renvoie true si le paiement a été renouvelé.
+ */
+export async function renewExpiredPayment(delivery) {
+  if (delivery.payment?.status !== 'held' || !delivery.payment.stripePaymentIntentId) return false;
+  const pi = await retrievePaymentIntent(delivery.payment.stripePaymentIntentId);
+  if (pi.status !== 'canceled') return false;
+  const fresh = await createPaymentIntent(
+    delivery.payment.amount,
+    delivery.payment.currency || 'EUR',
+    pi.customer,
+    { ...(pi.metadata || {}), renewedFrom: pi.id },
+    { captureMethod: 'automatic' }
+  );
+  delivery.payment.expiredPaymentIntentIds = [...(delivery.payment.expiredPaymentIntentIds || []), pi.id];
+  delivery.payment.stripePaymentIntentId = fresh.id;
+  delivery.payment.status = 'pending';
+  delivery.payment.heldAt = undefined;
+  await delivery.save();
+  logger.warn(`Payment authorization expired for delivery ${delivery._id} (${pi.id}) — new payment ${fresh.id} to confirm`);
+  return true;
+}
+
+export const PAYMENT_EXPIRED_MESSAGE = 'Le blocage de votre paiement a expiré (Stripe le libère au bout de 7 jours). Confirmez à nouveau votre carte sur cette page, puis validez.';
+
+/**
  * Client secret du paiement (marque) — pour afficher l'écran de saisie de carte
  */
 export async function getPaymentIntent(req, res) {
@@ -220,7 +248,7 @@ export async function confirmPayment(req, res) {
     const pi = await retrievePaymentIntent(delivery.payment.stripePaymentIntentId);
     if (pi.status === 'requires_capture' || pi.status === 'succeeded') {
       if (delivery.payment.status === 'pending' || delivery.payment.status === 'failed') {
-        delivery.payment.status = pi.status === 'succeeded' ? 'captured' : 'held';
+        delivery.payment.status = 'held'; // sécurisé (encaissé ou bloqué), pas encore versé au créateur
         delivery.payment.heldAt = new Date();
         await delivery.save();
       }
@@ -1317,6 +1345,9 @@ export async function approveDelivery(req, res) {
     if (delivery.payment.stripePaymentIntentId && !['held', 'captured', 'released'].includes(delivery.payment.status)) {
       return res.status(400).json({ error: 'Le paiement n\'a pas été confirmé. Renseignez votre carte sur cette page avant d\'approuver.' });
     }
+    if (await renewExpiredPayment(delivery)) {
+      return res.status(409).json({ error: PAYMENT_EXPIRED_MESSAGE, code: 'PAYMENT_EXPIRED' });
+    }
     if (withoutNewVersion) delivery.resolveRevisionOutside('brand', { publishedUrl: req.body.publishedUrl });
 
     const { warning } = await finalizeApproval(delivery, { isAuto: false });
@@ -1497,7 +1528,15 @@ export async function getDelivery(req, res) {
     if (!deliveryDoc) {
       return res.status(404).json({ error: 'Delivery not found' });
     }
+    // Blocage de carte de plus de 6 jours (anciens paiements) : s'il a expiré, la marque voit directement l'écran de paiement
+    let paymentExpired = false;
+    const heldAt = deliveryDoc.payment?.heldAt;
+    if (idOf(deliveryDoc.brandId) === user._id.toString() && deliveryDoc.payment?.status === 'held' && heldAt && Date.now() - new Date(heldAt).getTime() > 6 * 864e5
+      && !['approved', 'auto_approved', 'rejected'].includes(deliveryDoc.status)) {
+      try { paymentExpired = await renewExpiredPayment(deliveryDoc); } catch (err) { logger.warn(`Payment expiry check failed for ${deliveryDoc._id}: ${err.message}`); }
+    }
     const delivery = deliveryDoc.toObject({ virtuals: true });
+    if (paymentExpired) delivery.paymentExpired = true;
 
     // Check access rights
     const hasAccess =

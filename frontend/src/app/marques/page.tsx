@@ -22,12 +22,12 @@ export default async function BrandsPage() {
   const reasons: [any, string, string][] = [
     [Clapperboard, 'Les créateurs vous montrent leur idée en vidéo', 'Avec son devis, chaque créateur peut joindre une vidéo de 45 secondes : son accroche, sa façon de montrer votre produit. Vous choisissez en 2 minutes, sur une idée concrète plutôt que sur un profil. Cochez « Candidature vidéo exigée » pour la demander à tous. Aperçu filigrané : rien n\'est utilisable sans commander la mission.'],
     [Clapperboard, 'Des vidéos déjà tournées pour vos produits', 'Nos créateurs peuvent vous envoyer une candidature spontanée : une vidéo finie, tournée avec votre produit, que vous regardez en filigrane. Vous ne payez que celles que vous gardez, droits inclus. Voir la page « Candidature spontanée en vidéo ».'],
-    [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Le montant est bloqué sur votre carte à la sélection et débité uniquement quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
+    [Shield, 'Vous payez le prix du devis, rien de plus', `Le créateur fixe son prix, vous l'acceptez ou non. Vous réglez à la sélection, NeedCreator conserve le montant et ne le verse au créateur que quand vous validez les vidéos. Sans réponse de votre part sous ${days}, la validation est automatique.`],
     [Gift, 'Gifting : payez en produit', `Pas de budget vidéo ? Envoyez votre produit (${cfg.giftingMinProductValue} € de valeur minimum) à la place d'une rémunération. Le créateur qui accepte livre ses vidéos, contrôlées comme une mission payée, et vous gardez les droits prévus au brief. Gratuit en Pro, ${cfg.giftingFeePerVideo} € HT par vidéo livrée avec l'offre gratuite.`],
     [FolderOpen, 'Contenus & droits : le CRM de votre contenu créatif', 'Tous vos contenus et leurs contrats au même endroit, y compris ceux achetés ailleurs (agence, autre plateforme, direct) : créateur, type de contrat, supports, territoire, date de fin, facture, où c\'est utilisé. Rappels 30 et 7 jours avant expiration, renouvellement en un clic, import Excel, export.'],
     [FileSignature, 'Un contrat de cession de droits à chaque mission', 'Généré automatiquement à l\'acceptation du devis, en PDF : durée, supports, territoire, exclusivité. Vous êtes prévenu 30 jours avant l\'expiration et pouvez prolonger les droits.'],
     [ShieldCheck, 'Chaque vidéo est contrôlée avant votre validation', 'Nombre de vidéos, durée, format, résolution, son, et présence du produit dans la bande-son : un score de conformité au brief vous est présenté avant de valider.'],
-    [UserX, 'Garantie de remplacement, sans frais', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à l'un des autres devis reçus, en un clic. Le montant bloqué est libéré.`],
+    [UserX, 'Garantie de remplacement, sans frais', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à l'un des autres devis reçus, en un clic. Le premier paiement vous est remboursé.`],
     [Clapperboard, 'Des vidéos prêtes à diffuser', 'En option, recevez chaque vidéo déclinée aux formats de chaque réseau (vertical, carré, horizontal), avec vignette et sous-titres automatiques. Publication Shopify en un clic.'],
     [Sparkles, 'Un brief guidé, rédigé avec vous', `Formulaire pas à pas, budget suggéré d'après les devis acceptés, rédaction assistée par l'IA (${cfg.aiBriefFreeQuota} briefs par mois offerts). Le nombre de révisions est écrit dans le devis que vous acceptez : pas de surprise après la livraison.`],
     [LayoutTemplate, 'Partez d\'un modèle, ou d\'une campagne passée', 'Six modèles de brief par secteur (beauté, e-commerce, food, tech, mode, services) pré-remplissent votre campagne. Dupliquez une campagne réussie en un clic. Campagnes privées, sur invitation, pour retravailler avec vos créateurs habituels.'],
@@ -38,14 +38,14 @@ export default async function BrandsPage() {
   const steps: [string, string, string][] = [
     ['1', 'Publiez votre brief', 'Cinq minutes suffisent. Les créateurs de vos niches sont prévenus.'],
     ['2', 'Recevez des devis', 'Portfolio vidéo, prix, délai, droits cédés et score de matching pour chaque candidat, et sa candidature vidéo de 45 s s\'il en joint une.'],
-    ['3', 'Sélectionnez et bloquez le montant', 'Votre carte est autorisée, pas débitée. Le contrat est généré.'],
+    ['3', 'Sélectionnez et payez en sécurité', 'NeedCreator conserve le montant jusqu\'à votre validation. Le contrat est généré.'],
     ['4', 'Validez, diffusez', 'Vidéos contrôlées, révisions prévues au devis, paiement à la validation. Chaque vidéo entre dans votre registre Contenus & droits, avec ses droits et sa date de fin ; la facture arrive toute seule.'],
   ];
 
   const faq: [string, string][] = [
     ['Combien coûte une vidéo UGC ?', `Les créateurs fixent leur prix hors taxes, généralement à partir de 80 €. Vous payez exactement le devis accepté, plus la TVA si le créateur y est assujetti (indiqué sur le devis). La commission de NeedCreator (${cfg.platformFeePercent} %) est retenue sur la part du créateur, jamais ajoutée à votre paiement. Vous recevez une facture pour chaque mission.`],
     ['Comment choisir parmi beaucoup de devis ?', 'Les créateurs que vous avez invités arrivent en tête, puis les candidatures vidéo, où chacun vous montre son idée en 45 secondes. À partir de 4 devis, les 3 plus proches de votre brief sont marqués « Conseillé », et vous pouvez garder les meilleurs de côté pour comparer.'],
-    ['Quand suis-je débité ?', `Jamais avant d'avoir vu les vidéos. Le montant est bloqué à la sélection et prélevé à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas.`],
+    ['Quand le créateur est-il payé ?', `Jamais avant que vous ayez vu les vidéos. Vous réglez à la sélection, NeedCreator conserve le montant et le verse au créateur à votre validation, ou automatiquement ${days} après la livraison si vous ne répondez pas. S'il ne livre pas, vous êtes remboursé.`],
     ['Et si les vidéos ne conviennent pas ?', `Vous demandez des modifications, dans la limite prévue par le devis. Si le créateur ne livre pas, la garantie de remplacement s'applique. Si, révisions épuisées, les vidéos ne correspondent toujours pas au brief, vous ouvrez un litige : le créateur répond, notre équipe tranche, et le montant bloqué est réparti ou remboursé en conséquence.`],
     ['Puis-je payer en produit plutôt qu\'en argent ?', `Oui, c'est le gifting : vous créez une campagne « produit offert » (${cfg.giftingMinProductValue} € de valeur minimum), les créateurs intéressés candidatent, vous en sélectionnez un, vous lui envoyez le produit, il livre ses vidéos. Contrôle de conformité, contrat de droits et révisions fonctionnent comme pour une mission payée. Gratuit en Pro ; avec l'offre gratuite, ${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée.`],
     ['Puis-je choisir mes créateurs à l\'avance ?', 'Oui. Invitez directement des créateurs depuis l\'annuaire, ou publiez une campagne privée : elle n\'est visible que des créateurs que vous invitez, sans annonce aux autres. Chaque créateur affiche sa disponibilité et, s\'il a suivi notre académie, un badge Formé.'],
@@ -74,7 +74,7 @@ export default async function BrandsPage() {
             De l&apos;idée à la publicité : <span className="text-primary-500">savoir quoi tourner, le faire tourner, le diffuser en règle.</span>
           </h1>
           <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-            Commencez par ce qui marche déjà : les publicités de vos concurrents, l&apos;audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés vous répondent en vidéo : 45 secondes pour vous montrer leur idée, vous choisissez en 2 minutes. Vous ne payez qu&apos;à la validation, contrat de droits inclus.
+            Commencez par ce qui marche déjà : les publicités de vos concurrents, l&apos;audit des vôtres. Transformez-le en brief en un clic. Des créateurs vérifiés vous répondent en vidéo : 45 secondes pour vous montrer leur idée, vous choisissez en 2 minutes. Le créateur n&apos;est payé qu&apos;à votre validation, contrat de droits inclus.
           </p>
           <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4 justify-center">
             <Link href="/register?role=brand"><Button size="lg" className="w-full sm:w-auto">Publier ma première campagne <ArrowRight className="w-4 h-4 ml-2" /></Button></Link>
@@ -182,7 +182,7 @@ export default async function BrandsPage() {
       <section className="py-20 bg-primary-500">
         <div className="container mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Votre première campagne en cinq minutes</h2>
-          <p className="text-xl text-primary-50 mb-8">Gratuit, sans engagement. Vous ne payez qu&apos;un devis accepté, à la validation des vidéos.</p>
+          <p className="text-xl text-primary-50 mb-8">Gratuit, sans engagement. Vous ne payez qu&apos;un devis accepté, versé au créateur à la validation des vidéos.</p>
           <Link href="/register?role=brand"><Button size="lg" variant="outline" className="bg-white text-primary-600 hover:bg-primary-50 border-white">Créer mon compte marque</Button></Link>
         </div>
       </section>

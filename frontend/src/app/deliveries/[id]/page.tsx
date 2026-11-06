@@ -261,7 +261,13 @@ export default function DeliveryDetailPage() {
             </Card>
 
             {/* Paiement à confirmer (marque) */}
-            {isBrand && paymentPending && <PaymentCard deliveryId={deliveryId} />}
+            {isBrand && paymentPending && (delivery.payment?.expiredPaymentIntentIds?.length && ['submitted', 'revision_requested'].includes(delivery.status) ? (
+              <PaymentCard
+                deliveryId={deliveryId}
+                title="Paiement à confirmer à nouveau"
+                subtitle="Le blocage précédent sur votre carte a expiré (une banque le garde 7 jours maximum). Confirmez votre carte pour pouvoir valider la livraison."
+              />
+            ) : <PaymentCard deliveryId={deliveryId} />)}
 
             {isCreator && paymentPending && (
               <Card className="p-4 bg-yellow-50 border-yellow-200">

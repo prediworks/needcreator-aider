@@ -103,7 +103,7 @@ export default function CampaignDetailPage() {
   };
 
   const handleSelect = async (creatorId: string, name: string, amount: number) => {
-    if (!confirm(`Sélectionner ${name} pour ${formatCurrency(amount)} ?\n\nVous saisirez ensuite votre carte : le montant est bloqué (pas débité) et versé au créateur uniquement après votre validation de la livraison.`)) return;
+    if (!confirm(`Sélectionner ${name} pour ${formatCurrency(amount)} ?\n\nVous saisirez ensuite votre carte : le montant est conservé par NeedCreator et versé au créateur uniquement après votre validation de la livraison.`)) return;
     const result = await selectMutation.mutateAsync({ campaignId, creatorId });
     // Un seul créateur recherché : on va directement payer sur la livraison ; sinon on reste ici (paiement groupé)
     if (result.delivery?._id && (campaign.matching?.creatorsWanted || 1) === 1) {

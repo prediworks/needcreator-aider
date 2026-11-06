@@ -126,7 +126,7 @@ export default function ProductBriefTool() {
               <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-2"><Wallet className="w-5 h-5 text-primary-600" /> Budget estimé</h3>
               <div className="text-3xl font-bold text-neutral-900" data-testid="product-budget">{formatCurrency(b.budget.mid)} <span className="text-base font-normal text-neutral-600">HT</span></div>
               <p className="text-sm text-neutral-700">entre {formatCurrency(b.budget.low)} et {formatCurrency(b.budget.high)} pour {b.analysis.deliverables} vidéo{b.analysis.deliverables > 1 ? 's' : ''}, droits 1 an, réseaux et publicité en ligne. Soit {formatCurrency(b.budget.perVideoMid)} par vidéo.</p>
-              <p className="text-xs text-neutral-600 mt-2">Sur NeedCreator, le créateur propose son prix dans son devis ; vous ne payez qu&apos;à la validation des vidéos, ou en produit offert.</p>
+              <p className="text-xs text-neutral-600 mt-2">Sur NeedCreator, le créateur propose son prix dans son devis ; le créateur n&apos;est payé qu&apos;à la validation des vidéos, ou en produit offert.</p>
             </Card>
           </div>
 

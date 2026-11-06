@@ -240,7 +240,7 @@ function RegisterForm() {
 
             {quoteToken && role === 'brand' && (
               <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg p-3 text-sm text-primary-900">
-                📄 Vous acceptez le devis d&apos;un créateur. Créez votre compte marque : la mission sera créée et vous réglerez ensuite par carte, montant bloqué puis versé après votre validation des vidéos.
+                📄 Vous acceptez le devis d&apos;un créateur. Créez votre compte marque : la mission sera créée et vous réglerez ensuite par carte, montant conservé par NeedCreator puis versé au créateur après votre validation des vidéos.
               </div>
             )}
             {campaignInvite && (

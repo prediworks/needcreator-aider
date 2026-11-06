@@ -81,7 +81,7 @@ export const DELIVERY_STATUS: Record<string, { label: string; className: string 
 
 export const PAYMENT_STATUS: Record<string, string> = {
   pending: 'En attente de la carte de la marque',
-  held: 'Montant bloqué (sera versé après validation)',
+  held: 'Paiement sécurisé (versé au créateur après validation)',
   captured: 'Encaissé, virement au créateur en attente de son compte Stripe',
   released: 'Versé au créateur',
   refunded: 'Remboursé',

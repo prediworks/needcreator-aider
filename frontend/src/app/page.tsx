@@ -43,9 +43,9 @@ const jsonLd = (cfg: { autoApprovalDays: number; replacementGraceHours: number }
       mainEntity: [
         { '@type': 'Question', name: 'Qu\'est-ce qu\'une vidéo UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Une vidéo UGC (user generated content) est un contenu authentique tourné par un créateur indépendant pour présenter un produit ou un service, dans le style des réseaux sociaux.' } },
         { '@type': 'Question', name: 'Combien coûte une vidéo UGC sur NeedCreator ?', acceptedAnswer: { '@type': 'Answer', text: 'Les créateurs fixent leur prix dans leur devis, généralement à partir de 80 €. La marque paie exactement ce prix hors taxes, plus la TVA si le créateur y est assujetti, sans frais ajoutés. NeedCreator retient une commission de 10 % sur le versement au créateur.' } },
-        { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est bloqué à la sélection du créateur et versé uniquement après validation de la livraison par la marque, ou automatiquement après ' + plural(cfg.autoApprovalDays, 'jour') + ' sans réponse.' } },
+        { '@type': 'Question', name: 'Quand le créateur est-il payé ?', acceptedAnswer: { '@type': 'Answer', text: 'Le montant est réglé à la sélection du créateur, conservé par NeedCreator et versé uniquement après validation de la livraison par la marque, ou automatiquement après ' + plural(cfg.autoApprovalDays, 'jour') + ' sans réponse.' } },
         { '@type': 'Question', name: 'Qui détient les droits sur les vidéos UGC ?', acceptedAnswer: { '@type': 'Answer', text: 'Les droits cédés (durée, supports, territoire, exclusivité) sont définis dans le devis du créateur et repris dans un contrat PDF généré à l\'acceptation. La marque est prévenue 30 jours avant l\'expiration et peut prolonger les droits.' } },
-        { '@type': 'Question', name: 'Que se passe-t-il si le créateur ne livre pas ?', acceptedAnswer: { '@type': 'Answer', text: 'Après ' + cfg.replacementGraceHours + ' heures de retard, la marque peut confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic. Le montant bloqué est libéré et la nouvelle mission démarre immédiatement.' } },
+        { '@type': 'Question', name: 'Que se passe-t-il si le créateur ne livre pas ?', acceptedAnswer: { '@type': 'Answer', text: 'Après ' + cfg.replacementGraceHours + ' heures de retard, la marque peut confier la mission à l\'un des autres créateurs ayant envoyé un devis, en un clic. Le premier paiement est remboursé et la nouvelle mission démarre immédiatement.' } },
       ],
     },
   ],
@@ -97,7 +97,7 @@ export default async function HomePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
-                <span>Vous ne payez qu&apos;à la validation</span>
+                <span>Versé au créateur à la validation</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle className="w-5 h-5 text-primary-500" />
@@ -142,7 +142,7 @@ export default async function HomePage() {
             {[
               [Clapperboard, 'Candidature vidéo', 'Les créateurs vous montrent leur idée en vidéo : vous choisissez en 2 minutes. 45 secondes par candidat, en aperçu filigrané, à côté de son devis.'],
               [Zap, 'Matching intelligent', 'Chaque candidature affiche un score basé sur les niches, le budget, la note et la réactivité du créateur.'],
-              [Shield, 'Paiement sécurisé', 'Le montant est bloqué via Stripe à la sélection et versé au créateur seulement après votre validation.'],
+              [Shield, 'Paiement sécurisé', 'Vous réglez via Stripe à la sélection, NeedCreator conserve le montant et le verse au créateur seulement après votre validation.'],
               [Clock, 'Validation automatique', `Sans réponse de la marque sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est approuvée. Personne ne reste bloqué.`],
               [FileSignature, 'Contrat et droits clairs', 'Chaque devis accepté génère un contrat de cession de droits en PDF. Durée, supports et territoire sont écrits, avec rappel avant expiration.'],
               [UserX, 'Garantie de remplacement', `Un créateur qui ne livre pas ? Après ${cfg.replacementGraceHours} h de retard, confiez la mission à un autre devis en un clic, sans frais.`],

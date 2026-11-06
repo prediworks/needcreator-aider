@@ -22,7 +22,7 @@ const brandPhases = (cfg: { autoApprovalDays: number; replacementGraceHours: num
   ] },
   { n: '3', phase: 'Produire', lead: 'Des créateurs vérifiés, payés seulement à la validation.', steps: [
     { title: 'Recevez des devis, ou une vidéo déjà tournée', text: 'Les créateurs de vos niches sont notifiés ; chaque devis affiche un score de correspondance, le prix et le portfolio vidéo, et souvent une vidéo de 45 s où le créateur vous montre son idée : vous choisissez en 2 minutes. Ou un créateur qui possède votre produit vous envoie une vidéo finie : vous la regardez en filigrane, vous ne payez que si vous la gardez.', href: '/candidature-spontanee', cta: 'La candidature spontanée' },
-    { title: 'Sélectionnez : le paiement est bloqué', text: 'Le montant du devis est réservé via Stripe : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation.' },
+    { title: 'Sélectionnez : le paiement est sécurisé', text: 'Le montant du devis est réglé via Stripe et conservé par NeedCreator : c\'est exactement ce que vous payez, sans frais ajoutés. Il n\'est versé au créateur qu\'après votre validation.' },
     { title: 'Validez les vidéos', text: `Regardez-les en ligne, avec un score de conformité au brief (durée, format, son, mention du produit). Approuvez, ou demandez des modifications dans la limite prévue par le devis. Sans réponse sous ${plural(cfg.autoApprovalDays, 'jour')}, la livraison est validée automatiquement. Créateur en retard de plus de ${cfg.replacementGraceHours} h : confiez la mission à un autre devis en un clic. Révisions épuisées et vidéo toujours hors brief : notre équipe tranche.` },
   ] },
   { n: '4', phase: 'Protéger', lead: 'Diffuser en règle, aussi longtemps que vous en avez le droit.', steps: [
@@ -130,7 +130,7 @@ export default async function HowItWorksPage() {
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Garantie de remplacement</div>
-              <p className="text-neutral-600">Un créateur en retard de plus de {cfg.replacementGraceHours} h ? La marque confie la mission à un autre devis, le montant bloqué est libéré, sans frais.</p>
+              <p className="text-neutral-600">Un créateur en retard de plus de {cfg.replacementGraceHours} h ? La marque confie la mission à un autre devis, le premier paiement est remboursé, sans frais.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Score de conformité</div>
@@ -150,7 +150,7 @@ export default async function HowItWorksPage() {
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Paiement sécurisé Stripe</div>
-              <p className="text-neutral-600">Montant bloqué à la sélection, versé à la validation. Ni séquestre, ni facture à relancer.</p>
+              <p className="text-neutral-600">Paiement sécurisé à la sélection, versé à la validation. Aucune facture à relancer.</p>
             </div>
             <div>
               <div className="font-semibold text-neutral-900 mb-1">Factures, avoirs et relevés automatiques</div>

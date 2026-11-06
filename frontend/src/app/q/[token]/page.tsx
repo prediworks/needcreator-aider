@@ -96,7 +96,7 @@ export default function PublicQuotePage() {
         {open ? (
           <Card className="p-6 border-primary-200 bg-primary-50/40">
             <h2 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><Shield className="w-5 h-5 text-primary-600" /> Accepter et payer en toute sécurité via NeedCreator</h2>
-            <p className="text-sm text-neutral-700 mb-4">Le montant est bloqué sur votre carte, pas débité, et versé à {q.creator.name} seulement après votre validation des vidéos. Le contrat de cession de droits est généré automatiquement, vous recevez une facture, et les révisions prévues au devis sont garanties. Sans frais ajoutés au devis.</p>
+            <p className="text-sm text-neutral-700 mb-4">Le montant est conservé par NeedCreator et versé à {q.creator.name} seulement après votre validation des vidéos. Le contrat de cession de droits est généré automatiquement, vous recevez une facture, et les révisions prévues au devis sont garanties. Sans frais ajoutés au devis.</p>
             {user?.role === 'brand' ? (
               <Button size="lg" onClick={() => accept.mutate()} isLoading={accept.isPending}><CheckCircle className="w-4 h-4 mr-2" /> Accepter et payer {formatCurrency(q.quote.price + vat)}</Button>
             ) : user ? (

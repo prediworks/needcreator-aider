@@ -341,7 +341,7 @@ function NewCampaignForm() {
                 <label className="block text-sm font-medium text-neutral-700 mb-2">Type de campagne</label>
                 <div className="grid sm:grid-cols-2 gap-3">
                   {[
-                    { v: 'paid', t: 'Rémunérée', d: 'Vous payez le créateur (devis). Paiement bloqué à la sélection, versé à la validation.' },
+                    { v: 'paid', t: 'Rémunérée', d: 'Vous payez le créateur (devis). Paiement sécurisé à la sélection, versé à la validation.' },
                     { v: 'gifting', t: '🎁 Gifting (produit offert)', d: `Vous envoyez un produit (valeur ≥ ${cfg.giftingMinProductValue} €) à la place d'une rémunération. ${cfg.giftingMaxDeliverables} vidéos max, ${cfg.giftingMaxPerMonth} campagnes par mois. ${isPro ? 'Sans frais de service avec votre abonnement Pro.' : `${cfg.giftingFeePerVideo} € HT de frais de service par vidéo livrée (aucun frais en Pro).`}` },
                   ].map((o) => (
                     <button

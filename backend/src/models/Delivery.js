@@ -111,6 +111,7 @@ const deliverySchema = new mongoose.Schema({
     platformFeePercent: Number,
     creatorAmount: Number,
     stripePaymentIntentId: String,
+    expiredPaymentIntentIds: [String], // blocages de carte expirés (Stripe les libère après 7 jours), remplacés par un nouveau paiement
     stripeTransferId: String,
     status: {
       type: String,

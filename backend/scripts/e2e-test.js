@@ -1751,8 +1751,9 @@ await step('Garantie de remplacement : créateur en retard → mission confiée 
   expect(rep.status === 200 && rep.data.delivery && String(rep.data.delivery.creatorId) === c2Id && rep.data.delivery.payment.amount === 110 && rep.data.paymentRequired === true, 'Nouvelle mission pour le remplaçant attendue', rep);
   const old = await brandApi('GET', `/deliveries/${d}`);
   expect(old.data.delivery.status === 'rejected' && old.data.delivery.replacement.status === 'replaced' && old.data.delivery.payment.status === 'refunded', 'L\'ancienne mission devrait être close et son paiement libéré', old);
-  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId);
-  expect(pi.status === 'canceled', `L'autorisation Stripe devrait être annulée (statut ${pi.status})`, { status: 200, data: { status: pi.status } });
+  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId, { expand: ['latest_charge'] });
+  const back = pi.status === 'canceled' || (pi.status === 'succeeded' && pi.latest_charge?.refunded);
+  expect(back, `Le paiement Stripe devrait être annulé ou remboursé (statut ${pi.status})`, { status: 200, data: { status: pi.status, refunded: pi.latest_charge?.refunded } });
   const camp = await brandApi('GET', `/campaigns/${c.data.campaign._id}`);
   const selectedIds = (camp.data.campaign.selectedCreators || []).map(x => String(x._id || x));
   expect(selectedIds.includes(c2Id) && !selectedIds.includes(creatorUser.id), 'La campagne devrait avoir le remplaçant comme sélectionné', camp);
@@ -1786,8 +1787,9 @@ await step('Garantie de remplacement sans autre devis : retrait de la mission, c
   expect(wd.status === 200 && String(wd.data.campaignId) === c.data.campaign._id, 'Retrait échoué', wd);
   const old = await brandApi('GET', `/deliveries/${d}`);
   expect(old.data.delivery.status === 'rejected' && old.data.delivery.payment.status === 'refunded', 'La mission devrait être close et le paiement libéré', old);
-  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId);
-  expect(pi.status === 'canceled', `L'autorisation Stripe devrait être annulée (statut ${pi.status})`, { status: 200, data: { status: pi.status } });
+  const pi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId, { expand: ['latest_charge'] });
+  const back = pi.status === 'canceled' || (pi.status === 'succeeded' && pi.latest_charge?.refunded);
+  expect(back, `Le paiement Stripe devrait être annulé ou remboursé (statut ${pi.status})`, { status: 200, data: { status: pi.status, refunded: pi.latest_charge?.refunded } });
   const camp = await brandApi('GET', `/campaigns/${c.data.campaign._id}`);
   expect(camp.data.campaign.status === 'active' && !(camp.data.campaign.selectedCreators || []).length, 'La campagne devrait être rouverte sans créateur sélectionné', camp);
   // Blocage : avec un plafond de 1 retrait, le créateur (2 retraits) ne peut plus candidater ; remis à 3 ensuite
@@ -2684,6 +2686,48 @@ await step('Révision faite hors NeedCreator (publication) : le créateur la sig
     expect(ok.status === 200 && ok.data.delivery.status === 'approved' && ok.data.delivery.revisions[1]?.resolvedOutside?.by === 'brand' && (ok.data.delivery.links || []).some(l => !l.superseded),
       'La marque valide sans nouvelle version : dernière version validée, révision marquée faite hors NeedCreator', ok);
     return 'signalée par le créateur (à valider, délai relancé), puis validée par la marque sans nouvelle version';
+  } finally {
+    if (d) await db.collection('deliveries').deleteOne({ _id: new mongoose.Types.ObjectId(d) });
+    await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(cid) });
+    await db.collection('contents').deleteMany({ deliveryId: d ? new mongoose.Types.ObjectId(d) : null });
+  }
+});
+
+await step('Paiement : débit immédiat à la sélection, blocage de carte expiré (7 jours) à confirmer de nouveau avant validation', async () => {
+  const deadline = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+  const c = await brandApi('POST', '/campaigns', { title: 'Campagne paiement expiré', description: 'Description suffisamment longue pour passer la validation de cinquante caractères minimum.', videoType: 'demo', duration: 30, deliverables: 1, budget: 100, niches: ['beauty'], applicationDeadline: deadline });
+  const cid = c.data.campaign._id;
+  const db = mongoose.connection.db;
+  const { default: Stripe } = await import('stripe');
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  let d = null;
+  try {
+    await brandApi('POST', `/campaigns/${cid}/publish`);
+    await creatorApi('POST', `/campaigns/${cid}/apply`, { price: 100, estimatedDeliveryDays: 3 });
+    const sel = await brandApi('POST', `/campaigns/${cid}/select/${creatorUser.id}`);
+    expect(sel.status === 200, 'Sélection échouée', sel);
+    d = sel.data.delivery._id;
+    const firstPi = await stripe.paymentIntents.retrieve(sel.data.delivery.payment.stripePaymentIntentId);
+    expect(firstPi.capture_method !== 'manual', 'Le paiement d\'une mission doit être débité tout de suite (pas un blocage de 7 jours)', firstPi.capture_method);
+    // Ancienne mission : blocage de carte manuel, libéré par la banque (statut canceled)
+    const old = await stripe.paymentIntents.create({ amount: 10000, currency: 'eur', customer: brandUser.stripeCustomerId, capture_method: 'manual', payment_method_types: ['card'], metadata: { deliveryId: String(d) } });
+    await stripe.paymentIntents.confirm(old.id, { payment_method: 'pm_card_visa' });
+    await stripe.paymentIntents.cancel(old.id);
+    await db.collection('deliveries').updateOne({ _id: new mongoose.Types.ObjectId(d) }, { $set: { 'payment.stripePaymentIntentId': old.id, 'payment.status': 'held', 'payment.heldAt': new Date(Date.now() - 8 * 86400000) } });
+    await creatorApi('POST', `/deliveries/${d}/links`, { links: [{ url: 'https://www.tiktok.com/@test/video/44', title: 'Vidéo' }] });
+    const sub = await creatorApi('POST', `/deliveries/${d}/submit`, {});
+    expect(sub.status === 200, 'Soumission échouée', sub);
+    const refused = await brandApi('POST', `/deliveries/${d}/approve`, {});
+    expect(refused.status === 409 && refused.data.code === 'PAYMENT_EXPIRED', 'Blocage expiré : la validation doit demander de confirmer à nouveau le paiement', refused);
+    const after = await brandApi('GET', `/deliveries/${d}`);
+    const pay = after.data.delivery?.payment || after.data.payment;
+    expect(pay.status === 'pending' && pay.stripePaymentIntentId !== old.id && (pay.expiredPaymentIntentIds || []).includes(old.id), 'Un nouveau paiement doit être prêt à confirmer', pay);
+    await stripe.paymentIntents.confirm(pay.stripePaymentIntentId, { payment_method: 'pm_card_visa' });
+    const conf = await brandApi('POST', `/deliveries/${d}/confirm-payment`);
+    expect(conf.status === 200 && conf.data.paymentStatus === 'held', 'Le nouveau paiement doit être sécurisé', conf);
+    const ok = await brandApi('POST', `/deliveries/${d}/approve`, {});
+    expect(ok.status === 200 && ok.data.delivery.status === 'approved', 'Validation après nouveau paiement échouée', ok);
+    return 'débit immédiat à la sélection ; blocage expiré → nouveau paiement confirmé → validée';
   } finally {
     if (d) await db.collection('deliveries').deleteOne({ _id: new mongoose.Types.ObjectId(d) });
     await db.collection('campaigns').deleteOne({ _id: new mongoose.Types.ObjectId(cid) });

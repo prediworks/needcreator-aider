@@ -235,6 +235,18 @@ export async function sendAccountReactivated(email, name) {
   return sendEmail(email, subject, html);
 }
 
+/** Blocage de carte expiré (7 jours chez Stripe) : la marque confirme à nouveau son paiement pour valider la livraison */
+export async function sendPaymentExpired(email, companyName, creatorName, campaignTitle, deliveryId) {
+  const subject = `Confirmez à nouveau votre paiement pour "${campaignTitle}"`;
+  const html = `
+    <h1>Bonjour ${esc(companyName || '')},</h1>
+    <p>Le montant bloqué sur votre carte pour la mission de <strong>${esc(creatorName || 'votre créateur')}</strong> (« ${esc(campaignTitle)} ») a été libéré par votre banque : un blocage de carte ne dure que 7 jours.</p>
+    <p>Pour valider la livraison et payer le créateur, confirmez à nouveau votre carte sur la page de la livraison. La validation automatique est suspendue en attendant.</p>
+    ${button(`${config.cors.origin}/deliveries/${deliveryId}`, 'Confirmer mon paiement')}
+  `;
+  return sendEmail(email, subject, html);
+}
+
 export async function sendCreatorApproved(email, name) {
   const subject = 'Votre profil a été approuvé ! ✅';
   const html = `
@@ -380,7 +392,7 @@ export async function sendQuoteRequestReceived(email, name, creatorName) {
   const html = `
     <h1>Bonjour${name ? ` ${esc(name)}` : ''},</h1>
     <p>Votre demande est transmise à <strong>${esc(creatorName)}</strong>. Vous recevrez son devis par email, avec le projet de contrat de cession des droits.</p>
-    <p>Si vous l'acceptez, vous pourrez payer via NeedCreator : le montant est bloqué, pas débité, et versé au créateur seulement quand vous validez la vidéo.</p>
+    <p>Si vous l'acceptez, vous pourrez payer via NeedCreator : le montant est conservé par NeedCreator et versé au créateur seulement quand vous validez la vidéo.</p>
     <p style="color:#6b7280;font-size:13px">Vous n'avez pas fait cette demande ? Ignorez cet email, rien d'autre ne vous sera envoyé.</p>
   `;
   return sendEmail(email, subject, html);
@@ -964,7 +976,7 @@ export async function sendReplacementAvailable(email, companyName, creatorName, 
   const html = `
     <h1>Bonjour ${companyName},</h1>
     <p>${creatorName} n'a pas livré la mission "${campaignTitle}" dans le délai prévu, malgré nos rappels.</p>
-    <p>Vous pouvez la confier en un clic à l'un des autres créateurs ayant envoyé un devis : le montant bloqué est libéré et la nouvelle mission démarre immédiatement.</p>
+    <p>Vous pouvez la confier en un clic à l'un des autres créateurs ayant envoyé un devis : le premier paiement vous est remboursé et la nouvelle mission démarre immédiatement.</p>
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Choisir un remplaçant</a></p>
   `;
   return sendEmail(email, subject, html);
@@ -1054,7 +1066,7 @@ export async function sendRevisionPendingReminder(email, name, campaignTitle, de
   const html = `
     <h1>Bonjour ${name},</h1>
     <p>La marque a demandé une révision sur la mission "${campaignTitle}" et attend une nouvelle version.</p>
-    ${autoRejectAt ? `<p><strong>Sans nouvelle version avant le ${new Date(autoRejectAt).toLocaleDateString('fr-FR')}, la mission sera refusée définitivement</strong> et le montant bloqué sera rendu à la marque.</p>` : ''}
+    ${autoRejectAt ? `<p><strong>Sans nouvelle version avant le ${new Date(autoRejectAt).toLocaleDateString('fr-FR')}, la mission sera refusée définitivement</strong> et la marque sera remboursée.</p>` : ''}
     <p><a href="${config.cors.origin}/deliveries/${deliveryId}">Envoyer la nouvelle version</a></p>
   `;
   return sendEmail(email, subject, html);

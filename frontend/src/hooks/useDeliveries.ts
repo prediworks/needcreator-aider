@@ -95,8 +95,13 @@ export function useApproveDelivery() {
         toast.success('Livraison approuvée, paiement versé au créateur.');
       }
     },
-    onError: (error: any) => {
-      toast.error(getErrorMessage(error, 'Erreur lors de l\'approbation'));
+    onError: (error: any, deliveryId) => {
+      // Blocage de carte expiré : la page affiche l'écran de paiement à confirmer
+      if (error?.response?.data?.code === 'PAYMENT_EXPIRED') {
+        queryClient.invalidateQueries({ queryKey: ['delivery', deliveryId] });
+        queryClient.invalidateQueries({ queryKey: ['payment-intent'] });
+      }
+      toast.error(getErrorMessage(error, 'Erreur lors de l\'approbation'), { duration: 10000 });
     },
   });
 }

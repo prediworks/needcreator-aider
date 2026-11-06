@@ -6,7 +6,7 @@ import { queueCampaignAlerts, flushCampaignAlerts } from '../services/campaignAl
 import { runMemberOnboarding, runPendingBroadcasts } from '../services/memberMessages.js';
 import { runMemberTopics } from '../services/memberTopics.js';
 import { runEmailVerificationReminders } from '../controllers/authEmails.js';
-import { finalizeApproval } from '../controllers/deliveries.js';
+import { finalizeApproval, renewExpiredPayment } from '../controllers/deliveries.js';
 import { sendContentExpiryReminders } from '../controllers/contents.js';
 import { runScheduledBackup } from '../services/backup.js';
 import { closeSeededCampaigns } from '../controllers/seed.js';
@@ -14,7 +14,7 @@ import { sendCreatorRightsReminders } from '../controllers/creatorContents.js';
 import { sendProspectFollowUpReminders } from '../controllers/prospects.js';
 import { runScheduledAcquisition, refreshBrandMessages } from '../services/acquisition/index.js';
 import { runScheduledOutreach } from '../services/acquisition/outreach.js';
-import { sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
+import { sendPaymentExpired, sendAutoApprovalNotification, sendAutoApprovalReminder, sendRightsExpiring, sendDeliveryLate, sendReplacementAvailable } from '../services/email.js';
 import logger from '../utils/logger.js';
 import { transferToCreator } from '../services/stripe.js';
 import { sendAdminDigest, sendWeeklyReport } from '../services/adminAlerts.js';
@@ -40,6 +40,18 @@ export async function processAutoApprovals() {
 
     for (const delivery of pendingAutoApprovals) {
       try {
+        // Blocage de carte expiré : nouveau paiement à confirmer par la marque, validation automatique suspendue
+        if (await renewExpiredPayment(delivery)) {
+          sendPaymentExpired(delivery.brandId.email, delivery.brandId.profile?.companyName || delivery.brandId.profile?.name, delivery.creatorId?.profile?.name, delivery.campaignId.title, delivery._id)
+            .catch(err => logger.error('Failed to send payment expired email:', err.message));
+          notify(delivery.brandId._id, { type: 'payment', title: 'Paiement à confirmer à nouveau', text: delivery.campaignId.title, href: `/deliveries/${delivery._id}` }).catch(() => {});
+          continue;
+        }
+        // Paiement jamais confirmé par la marque : pas de validation automatique sans argent sécurisé
+        if (delivery.payment?.stripePaymentIntentId && !['held', 'captured', 'released'].includes(delivery.payment.status)) {
+          logger.warn(`Auto-approval skipped for ${delivery._id}: payment ${delivery.payment.status}`);
+          continue;
+        }
         await finalizeApproval(delivery, { isAuto: true });
 
         // Send notifications

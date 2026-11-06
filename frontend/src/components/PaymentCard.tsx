@@ -58,7 +58,7 @@ function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLab
         await confirmOnServer.mutateAsync();
         queryClient.invalidateQueries({ queryKey: ['delivery', deliveryId] });
         queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-        toast.success(immediate ? 'Paiement confirmé.' : 'Paiement confirmé. Le montant est bloqué et sera versé au créateur après votre validation.');
+        toast.success(immediate ? 'Paiement confirmé.' : 'Paiement confirmé. NeedCreator le conserve et ne le verse au créateur qu\'après votre validation.');
       } else {
         toast.warning(`Paiement en attente (statut : ${paymentIntent?.status})`);
       }
@@ -78,11 +78,11 @@ function CheckoutForm({ deliveryId, amount, clientSecret, confirmPath, buttonLab
       <MissingHint items={[(!stripe || !elements) && 'le chargement du module de paiement', stripe && elements && !cardComplete && 'les informations de carte complètes']} />
       <Button type="submit" className="w-full" isLoading={submitting} disabled={!stripe || !elements || !cardComplete}>
         <Lock className="w-4 h-4 mr-2" />
-        {buttonLabel || `Bloquer ${formatCurrency(amount)}`}
+        {buttonLabel || `Payer ${formatCurrency(amount)}`}
       </Button>
       {!immediate && (
         <p className="text-xs text-neutral-500 text-center">
-          Votre carte est autorisée, pas débitée. Le montant n&apos;est prélevé qu&apos;à la validation de la livraison (ou après {plural(cfg.autoApprovalDays, 'jour')} sans réponse).
+          {`Le montant est conservé par NeedCreator et versé au créateur seulement après votre validation (ou après ${plural(cfg.autoApprovalDays, 'jour')} sans réponse). Remboursé si le créateur ne livre pas.`}
         </p>
       )}
     </form>
@@ -126,7 +126,7 @@ export default function PaymentCard({ deliveryId, intentPath, confirmPath, title
         </div>
         <div>
           <h3 className="font-semibold text-neutral-900">{title || 'Paiement à confirmer'}</h3>
-          <p className="text-sm text-neutral-600">{subtitle || 'Le créateur commencera dès que le montant est bloqué.'}</p>
+          <p className="text-sm text-neutral-600">{subtitle || 'Le créateur commencera dès que votre paiement est sécurisé.'}</p>
         </div>
       </div>
 

@@ -47,14 +47,14 @@ export default function ReplacementCard({ delivery }: { delivery: any }) {
       <h2 className="text-xl font-semibold text-neutral-900 flex items-center gap-2 mb-1"><UserX className="w-5 h-5 text-orange-600" /> Livraison en retard</h2>
       <p className="text-sm text-neutral-700 mb-4">
         La date de livraison prévue ({formatDate(delivery.productionDeadline)}) est dépassée et rien n&apos;a été livré. Le créateur a été relancé.
-        {!delivery.replacementAvailable && ` Passé ${data?.graceHours || 48} h de retard, vous pourrez confier la mission à un autre créateur, sans frais : le montant bloqué sera libéré.`}
+        {!delivery.replacementAvailable && ` Passé ${data?.graceHours || 48} h de retard, vous pourrez confier la mission à un autre créateur, sans frais : le premier paiement vous sera remboursé.`}
       </p>
       {delivery.replacementAvailable && (
         <>
-          <p className="text-sm font-medium text-neutral-900 mb-3">Garantie de remplacement : choisissez un autre créateur parmi les meilleurs devis reçus. Le montant bloqué est libéré, la nouvelle mission démarre tout de suite.</p>
+          <p className="text-sm font-medium text-neutral-900 mb-3">Garantie de remplacement : choisissez un autre créateur parmi les meilleurs devis reçus. Le premier paiement vous est remboursé, la nouvelle mission démarre tout de suite.</p>
           {isLoading ? <p className="text-sm text-neutral-500">Chargement des candidats…</p> : !data?.candidates?.length ? (
             <div className="text-sm text-neutral-600 space-y-3">
-              <p>Aucun autre devis disponible sur cette campagne. Vous pouvez retirer la mission au créateur en retard : le montant bloqué est libéré et votre campagne est rouverte aux candidatures, sans rien ressaisir.</p>
+              <p>Aucun autre devis disponible sur cette campagne. Vous pouvez retirer la mission au créateur en retard : votre paiement vous est remboursé et votre campagne est rouverte aux candidatures, sans rien ressaisir.</p>
               {confirming === 'withdraw' ? (
                 <div className="flex gap-2">
                   <Button size="sm" onClick={() => withdraw.mutate()} isLoading={withdraw.isPending}><RefreshCw className="w-4 h-4 mr-1" /> Confirmer le retrait</Button>

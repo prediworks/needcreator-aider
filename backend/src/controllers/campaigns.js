@@ -1429,7 +1429,7 @@ export async function payAllPending(req, res) {
       try {
         const pi = await confirmWithPaymentMethod(d.payment.stripePaymentIntentId, paymentMethodId);
         if (['requires_capture', 'succeeded'].includes(pi.status)) {
-          d.payment.status = pi.status === 'succeeded' ? 'captured' : 'held';
+          d.payment.status = 'held'; // sécurisé, pas encore versé au créateur
           d.payment.heldAt = new Date();
           await d.save();
           results.push({ deliveryId: d._id, ok: true });

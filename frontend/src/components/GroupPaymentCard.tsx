@@ -46,7 +46,7 @@ function GroupCheckout({ campaignId, clientSecret, total, count }: { campaignId:
       const result = await payAll.mutateAsync(pm);
       queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
       queryClient.invalidateQueries({ queryKey: ['deliveries'] });
-      if (result.paid === count) toast.success(`${result.paid} paiement(s) bloqué(s). Les créateurs peuvent commencer.`);
+      if (result.paid === count) toast.success(`${result.paid} paiement(s) confirmé(s). Les créateurs peuvent commencer.`);
       else toast.warning(result.message, { duration: 8000 });
     } catch (err: any) {
       toast.error(getErrorMessage(err, 'Erreur lors du paiement'));
@@ -62,7 +62,7 @@ function GroupCheckout({ campaignId, clientSecret, total, count }: { campaignId:
       </div>
       <MissingHint items={[!stripe && 'le chargement du module de paiement', stripe && !complete && 'les informations de carte complètes']} />
       <Button type="submit" className="w-full" isLoading={submitting} disabled={!stripe || !complete}>
-        <Lock className="w-4 h-4 mr-2" /> Bloquer {formatCurrency(total)} pour {count} créateur(s)
+        <Lock className="w-4 h-4 mr-2" /> {`Payer ${formatCurrency(total)} pour ${count} créateur(s)`}
       </Button>
       <p className="text-xs text-neutral-500 text-center">Une seule saisie de carte : chaque mission est autorisée séparément et prélevée uniquement à sa validation.</p>
     </form>

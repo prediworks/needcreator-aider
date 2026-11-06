@@ -32,7 +32,14 @@ export default function RevisionOutsideCard({ delivery, role }: { delivery: any;
       setOpen(false);
       setUrl('');
     },
-    onError: (e: any) => toast.error(getErrorMessage(e)),
+    onError: (e: any) => {
+      if (e?.response?.data?.code === 'PAYMENT_EXPIRED') {
+        queryClient.invalidateQueries({ queryKey: ['delivery', id] });
+        queryClient.invalidateQueries({ queryKey: ['payment-intent'] });
+        setOpen(false);
+      }
+      toast.error(getErrorMessage(e), { duration: 10000 });
+    },
   });
 
   const go = () => {
