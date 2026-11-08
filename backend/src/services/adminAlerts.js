@@ -9,6 +9,7 @@ import BrowserTask from '../models/BrowserTask.js';
 import { config } from '../config/index.js';
 import { getSetting, setSetting } from '../models/Setting.js';
 import logger from '../utils/logger.js';
+import { DELETION_REASONS } from '../config/deletionReasons.js';
 
 const DIGEST_KEY = 'adminDigestLastAt';
 
@@ -30,6 +31,20 @@ export async function notifyAdmins(subject, html) {
     logger.error(`Alerte admin non envoyée (${subject}) : ${err?.message || err}`);
     return false;
   }
+}
+
+/**
+ * Un utilisateur a supprimé son compte : l'équipe reçoit la raison qu'il a donnée.
+ */
+export async function notifyAccountDeleted({ role, name, email, ageDays, reason, details }) {
+  const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const roleLabel = role === 'brand' ? 'Marque' : 'Créateur';
+  const label = DELETION_REASONS[reason] || 'sans raison donnée';
+  return notifyAdmins(`${roleLabel} parti(e) : ${label}`, `
+    <p><strong>${esc(name)}</strong> (${roleLabel.toLowerCase()}, ${esc(email)}) a supprimé son compte après ${ageDays} jour${ageDays > 1 ? 's' : ''} d'inscription.</p>
+    <p>Raison : <strong>${esc(label)}</strong>${details ? `<br/>Précision : « ${esc(details)} »` : ''}</p>
+    <p>Les données personnelles sont anonymisées ; la fiche reste visible dans Admin → Utilisateurs → Statut : Supprimés.</p>
+  `);
 }
 
 /**

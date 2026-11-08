@@ -10,14 +10,17 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Download, Trash2 } from 'lucide-react';
+import { DELETION_REASONS, DELETION_REASONS_BY_ROLE } from '@/lib/labels';
 import { toast } from 'sonner';
 
 /**
  * RGPD : export des données et suppression du compte
  */
-export default function AccountDataCard() {
+export default function AccountDataCard({ role = 'creator' }: { role?: 'creator' | 'brand' | 'admin' }) {
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
+  const [reason, setReason] = useState('');
+  const [details, setDetails] = useState('');
   const [exporting, setExporting] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -41,10 +44,10 @@ export default function AccountDataCard() {
   };
 
   const deleteAccount = async () => {
-    if (confirm !== 'SUPPRIMER') return;
+    if (confirm !== 'SUPPRIMER' || !reason) return;
     setDeleting(true);
     try {
-      await api.delete('/auth/account');
+      await api.delete('/auth/account', { data: { reason, details: details.trim() || undefined } });
       toast.success('Votre compte a été supprimé.');
       await signOut(auth).catch(() => {});
       logout();
@@ -77,10 +80,28 @@ export default function AccountDataCard() {
             Cette action est définitive. Vos données personnelles seront supprimées ou anonymisées. Les missions en cours
             doivent être terminées avant la suppression. Tapez <strong>SUPPRIMER</strong> pour confirmer.
           </p>
+          <fieldset className="space-y-1.5">
+            <legend className="text-sm font-medium text-red-900 mb-1">Pourquoi partez-vous ? Votre réponse nous aide à améliorer NeedCreator.</legend>
+            {DELETION_REASONS_BY_ROLE[role === 'brand' ? 'brand' : 'creator'].map((key) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-neutral-800 cursor-pointer">
+                <input type="radio" name="deletion-reason" value={key} checked={reason === key} onChange={() => setReason(key)} className="accent-red-600" />
+                <span>{DELETION_REASONS[key]}</span>
+              </label>
+            ))}
+          </fieldset>
+          {reason && reason !== 'no_answer' && (
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value.slice(0, 1000))}
+              rows={2}
+              placeholder="Une précision ? (facultatif)"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white"
+            />
+          )}
           <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="SUPPRIMER" />
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => { setShowDelete(false); setConfirm(''); }}>Annuler</Button>
-            <Button className="bg-red-600 hover:bg-red-700" disabled={confirm !== 'SUPPRIMER'} isLoading={deleting} onClick={deleteAccount}>
+            <Button variant="ghost" onClick={() => { setShowDelete(false); setConfirm(''); setReason(''); setDetails(''); }}>Annuler</Button>
+            <Button className="bg-red-600 hover:bg-red-700" disabled={confirm !== 'SUPPRIMER' || !reason} isLoading={deleting} onClick={deleteAccount} title={!reason ? 'Choisissez une raison ci-dessus' : undefined}>
               Supprimer définitivement
             </Button>
           </div>

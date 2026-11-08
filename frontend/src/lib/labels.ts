@@ -95,6 +95,24 @@ export const APPLICATION_STATUS: Record<string, { label: string; className: stri
   withdrawn: { label: 'Retirée', className: 'bg-neutral-100 text-neutral-600' },
 };
 
+/** Raisons proposées à la suppression du compte (mêmes clés que DELETION_REASONS côté serveur) */
+export const DELETION_REASONS: Record<string, string> = {
+  no_missions: 'Pas assez de missions ou de campagnes pour moi',
+  no_creators: 'Pas trouvé les créateurs que je cherchais',
+  too_complex: 'Inscription ou vérification trop compliquée',
+  payment: 'Problème de paiement ou de compte Stripe',
+  not_for_me: 'La plateforme ne correspond pas à ce que je fais',
+  price: 'Tarifs ou commission trop élevés',
+  other_platform: 'Je préfère une autre solution',
+  testing: 'Je voulais juste voir à quoi ça ressemble',
+  other: 'Autre raison',
+  no_answer: 'Je préfère ne pas répondre',
+};
+export const DELETION_REASONS_BY_ROLE: Record<'creator' | 'brand', string[]> = {
+  creator: ['no_missions', 'too_complex', 'payment', 'not_for_me', 'other_platform', 'testing', 'other', 'no_answer'],
+  brand: ['no_creators', 'too_complex', 'price', 'not_for_me', 'other_platform', 'testing', 'other', 'no_answer'],
+};
+
 export const USER_STATUS: Record<string, { label: string; className: string }> = {
   pending: { label: 'En attente de validation', className: 'bg-yellow-100 text-yellow-700' },
   active: { label: 'Actif', className: 'bg-green-100 text-green-700' },

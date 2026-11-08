@@ -12,7 +12,7 @@ import Badge from '@/components/ui/Badge';
 import Spinner from '@/components/ui/Spinner';
 import VideoPlayer from '@/components/ui/VideoPlayer';
 import { ArrowLeft, CheckCircle, XCircle, CreditCard, Trash2, RefreshCw } from 'lucide-react';
-import { NICHES, VIDEO_TYPES, USER_STATUS } from '@/lib/labels';
+import { NICHES, VIDEO_TYPES, USER_STATUS, DELETION_REASONS } from '@/lib/labels';
 import { formatDate } from '@/lib/utils';
 import { SocialLinks } from '@/components/admin/CreatorFilters';
 
@@ -52,6 +52,7 @@ export default function AdminCreatorPage() {
               <p className="text-neutral-600">{data.email} · inscrit le {formatDate(data.createdAt)}</p>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <Badge map={USER_STATUS} value={data.status} />
+                {data.status === 'deleted' && <span className="text-sm text-neutral-700">{data.deletedAt ? `compte supprimé le ${formatDate(data.deletedAt)} · ` : ''}raison : {data.deletion?.reason ? DELETION_REASONS[data.deletion.reason] || data.deletion.reason : 'non indiquée'}{data.deletion?.details ? ` — « ${data.deletion.details} »` : ''}</span>}
                 {(p.niches || []).map((n: string) => (
                   <span key={n} className="px-2 py-1 bg-primary-50 text-primary-700 rounded-full text-xs">{NICHES[n] || n}</span>
                 ))}

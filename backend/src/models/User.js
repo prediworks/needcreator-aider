@@ -280,6 +280,7 @@ const userSchema = new mongoose.Schema({
     acceptedAt: Date,
   },
   deletedAt: Date,
+  deletion: { reason: String, details: String }, // raison donnée par l'utilisateur à la suppression de son compte (clé de DELETION_REASONS côté site + texte libre)
 
   subscription: {
     plan: { type: String, enum: ['free', 'pro'], default: 'free' },

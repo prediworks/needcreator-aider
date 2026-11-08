@@ -712,7 +712,7 @@ function ProfileContent() {
             </Card>
           )}
 
-          <AccountDataCard />
+          <AccountDataCard role={profile.role} />
         </div>
       </div>
     </div>

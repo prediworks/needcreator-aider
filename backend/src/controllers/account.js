@@ -12,8 +12,11 @@ import { deleteFile } from '../services/storage.js';
 import logger from '../utils/logger.js';
 import { isValidSiret, isValidVat, lookupRegistry, isValidBce, formatBce } from '../utils/business.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
+import { notifyAccountDeleted } from '../services/adminAlerts.js';
+import { DELETION_REASONS } from '../config/deletionReasons.js';
 
 const ACTIVE_DELIVERY = ['pending', 'submitted', 'revision_requested'];
+
 
 /**
  * Acceptation des CGU / politique de confidentialité (version courante)
@@ -175,6 +178,11 @@ export async function deleteAccount(req, res) {
 
     const uid = user.firebaseUid;
     const id = user._id.toString();
+    const reasonKey = DELETION_REASONS[req.body?.reason] ? req.body.reason : undefined;
+    const details = String(req.body?.details || '').trim().slice(0, 1000) || undefined;
+    const deletedEmail = user.email;
+    const deletedName = user.profile?.companyName || user.profile?.name || '';
+    const ageDays = Math.round((Date.now() - new Date(user.createdAt).getTime()) / 86400000);
 
     // Abonnement Pro : résiliation immédiate
     if (user.subscription?.stripeSubscriptionId) {
@@ -196,6 +204,7 @@ export async function deleteAccount(req, res) {
     user.firebaseUid = `deleted-${id}`;
     user.status = 'deleted';
     user.deletedAt = new Date();
+    if (reasonKey || details) user.deletion = { reason: reasonKey, details };
     user.profile.name = 'Compte supprimé';
     user.profile.companyName = user.role === 'brand' ? 'Compte supprimé' : undefined;
     user.profile.bio = undefined;
@@ -225,8 +234,11 @@ export async function deleteAccount(req, res) {
       await admin.auth().deleteUser(uid).catch(err => logger.warn('Suppression Firebase impossible', { error: err.message }));
     }
 
-    logger.info(`Compte supprimé (anonymisé) : ${id}`);
+    logger.info(`Compte supprimé (anonymisé) : ${id}${reasonKey ? ` (${reasonKey})` : ''}`);
     res.json({ message: 'Votre compte a été supprimé.' });
+
+    // L'équipe est prévenue avec la raison : un départ le jour de l'inscription signale un blocage à corriger
+    notifyAccountDeleted({ role: user.role, name: deletedName, email: deletedEmail, ageDays, reason: reasonKey, details }).catch(() => {});
   } catch (error) {
     logger.error('deleteAccount failed:', error);
     res.status(500).json({ error: 'Suppression impossible pour le moment' });

@@ -25,7 +25,7 @@ import QuotesAdmin from '@/components/admin/QuotesAdmin';
 import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, SocialLinks, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES } from '@/lib/labels';
+import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES, DELETION_REASONS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
 type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'acquisition' | 'messages' | 'settings';
@@ -490,7 +490,7 @@ export default function AdminPage() {
                       <td className="py-2 pr-4 text-neutral-600">{u.email}</td>
                       {userFilters.role === 'creator' && <td className="py-2 pr-4 text-xs text-neutral-700"><SocialLinks socials={u.profile?.socials} />{u.followers != null && creatorFilters.networks.length > 0 && <div className="text-neutral-500">{formatFollowers(u.followers)} sur la sélection</div>}{(u.profile?.niches || []).length > 0 && <div className="text-neutral-500">{u.profile.niches.map((n: string) => NICHES[n] || n).join(', ')}</div>}</td>}
                       <td className="py-2 pr-4">{u.role === 'creator' ? 'Créateur' : u.role === 'brand' ? 'Marque' : 'Admin'}</td>
-                      <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} />{u.role === 'creator' && u.status === 'pending' && <div className="text-[11px] text-orange-700 mt-0.5" title="Ce qui manque pour que le profil soit complet et validable">{u.missing?.length ? `manque : ${u.missing.join(', ')}` : 'profil complet, à valider'}</div>}</td>
+                      <td className="py-2 pr-4"><Badge map={USER_STATUS} value={u.status} />{u.role === 'creator' && u.status === 'pending' && <div className="text-[11px] text-orange-700 mt-0.5" title="Ce qui manque pour que le profil soit complet et validable">{u.missing?.length ? `manque : ${u.missing.join(', ')}` : 'profil complet, à valider'}</div>}{u.status === 'deleted' && <div className="text-[11px] text-neutral-600 mt-0.5 max-w-xs" title={u.deletion?.details || undefined}>{u.deletedAt ? `le ${formatDate(u.deletedAt)}, ` : ''}{u.deletion?.reason ? (DELETION_REASONS[u.deletion.reason] || u.deletion.reason).toLowerCase() : 'sans raison donnée'}{u.deletion?.details ? ` — « ${u.deletion.details} »` : ''}</div>}</td>
                       <td className="py-2 pr-4 text-neutral-600">{formatDate(u.createdAt)}</td>
                       <td className="py-2 text-right whitespace-nowrap">
                         {u.role === 'creator' && (

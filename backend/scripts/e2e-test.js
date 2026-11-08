@@ -2988,13 +2988,14 @@ await step('RGPD : export des données + suppression de compte (anonymisation)',
   extraCleanup.push({ userId: reg.data.user.id, uid: fu.uid });
   const acc = await rApi('POST', '/auth/accept-terms');
   expect(acc.status === 200 && acc.data.legalUpToDate === true, 'Acceptation des CGU échouée', acc);
-  const del = await rApi('DELETE', '/auth/account');
+  const del = await rApi('DELETE', '/auth/account', { reason: 'too_complex', details: 'Trop de pièces à fournir' });
   expect(del.status === 200, 'Suppression du compte échouée', del);
   const after = await rApi('GET', '/auth/profile');
   expect([401, 403, 404].includes(after.status), 'Le compte supprimé ne devrait plus être accessible', after);
   const doc = await mongoose.connection.db.collection('users').findOne({ _id: new mongoose.Types.ObjectId(reg.data.user.id) });
   expect(doc && doc.status === 'deleted' && doc.email.startsWith('supprime-') && doc.profile.name === 'Compte supprimé' && (doc.profile.portfolio || []).length === 0, 'Anonymisation incomplète', { status: 200, data: doc });
-  return 'export OK, refus si activité en cours, CGU obligatoires, compte anonymisé';
+  expect(doc.deletion?.reason === 'too_complex' && doc.deletion?.details === 'Trop de pièces à fournir', 'La raison du départ devrait être conservée sur le compte', { status: 200, data: doc.deletion });
+  return 'export OK, refus si activité en cours, CGU obligatoires, compte anonymisé avec la raison du départ';
 });
 
 await step('Monitoring : récapitulatif admin dans les tâches planifiées, alertes immédiates branchées', async () => {
