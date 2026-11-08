@@ -14,7 +14,7 @@ export default function BrandAdScanCard() {
   return (
     <Card className="p-4 mb-6" data-testid="brand-ad-scan-card">
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="text-sm text-neutral-700 max-w-xl"><strong>Les publicités de vos concurrents :</strong> celles qui tournent depuis des mois, les angles qu&apos;ils utilisent et ceux qu&apos;ils laissent libres. Ou l&apos;audit de vos propres publicités, avec trois vidéos créateur à commander.</div>
+        <div className="text-sm text-neutral-700 max-w-xl"><strong>Les publicités de vos concurrents :</strong> celles qui marchent (financées depuis des mois), les angles qu&apos;ils utilisent et ceux qu&apos;ils laissent libres. Ou l&apos;audit de vos propres publicités, avec trois vidéos créateur à commander.</div>
         <div className="flex gap-2 flex-wrap">
           <Link href="/publicites-concurrents"><Button size="sm" variant="outline"><Search className="w-4 h-4 mr-1" /> Scanner un concurrent</Button></Link>
           <Link href="/audit-publicites"><Button size="sm" variant="outline"><ClipboardCheck className="w-4 h-4 mr-1" /> Auditer mes publicités</Button></Link>

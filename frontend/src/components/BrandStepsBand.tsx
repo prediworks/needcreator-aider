@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Search, FileText, Clapperboard, ShieldCheck, ArrowRight } from 'lucide-react';
 
 const STEPS = [
-  { n: 1, title: 'Comprendre', text: 'Les publicités de vos concurrents qui durent, l\'audit des vôtres.', href: '/publicites-concurrents', cta: 'Scanner un concurrent', Icon: Search },
+  { n: 1, title: 'Comprendre', text: 'Les publicités de vos concurrents qui marchent, l\'audit des vôtres.', href: '/publicites-concurrents', cta: 'Scanner un concurrent', Icon: Search },
   { n: 2, title: 'Préparer', text: 'Un brief prêt à publier depuis un simple lien produit.', href: '/brief-depuis-url', cta: 'Mon brief depuis un lien', Icon: FileText },
   { n: 3, title: 'Produire', text: 'Des créateurs vérifiés, ou une vidéo déjà tournée à regarder avant de payer.', href: '/nos-createurs', cta: 'Voir des créateurs', Icon: Clapperboard },
   { n: 4, title: 'Protéger', text: 'Un contrat de droits par vidéo, un registre de tous vos contenus.', href: '/contenus-et-droits', cta: 'Le registre des droits', Icon: ShieldCheck },

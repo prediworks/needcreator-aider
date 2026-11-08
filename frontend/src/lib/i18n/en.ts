@@ -3575,4 +3575,32 @@ export const EN: Record<string, string> = {
   "votre produit": "your product",
   // ---- Traduction complète (site, espace créateur, messages du serveur) ----
   "Encore {x} mission(s) avec une note ≥ {x} pour devenir {x}.": "{x} more mission(s) with a rating ≥ {x} to become {x}.",
+  // ---- Suppression du compte : raison du départ ----
+  "Pourquoi partez-vous ? Votre réponse nous aide à améliorer NeedCreator.": "Why are you leaving? Your answer helps us improve NeedCreator.",
+  "Une précision ? (facultatif)": "Anything to add? (optional)",
+  "Choisissez une raison ci-dessus": "Choose a reason above",
+  "Pas assez de missions ou de campagnes pour moi": "Not enough missions or campaigns for me",
+  "Pas trouvé les créateurs que je cherchais": "I didn't find the creators I was looking for",
+  "Inscription ou vérification trop compliquée": "Sign-up or verification too complicated",
+  "Problème de paiement ou de compte Stripe": "Payment or Stripe account problem",
+  "La plateforme ne correspond pas à ce que je fais": "The platform doesn't match what I do",
+  "Tarifs ou commission trop élevés": "Prices or commission too high",
+  "Je préfère une autre solution": "I prefer another solution",
+  "Je voulais juste voir à quoi ça ressemble": "I just wanted to see what it looks like",
+  "Autre raison": "Other reason",
+  "Je préfère ne pas répondre": "I'd rather not say",
+  // ---- Traduction complète (site, espace créateur, messages du serveur) ----
+  "Audit créatif de vos publicités Meta : ce qui marche, ce qui se répète, ce qui manque": "Creative audit of your Meta ads: what works, what repeats, what's missing",
+  "Un diagnostic en trois phrases, ce qui distingue vos publicités qui marchent, les angles répétés et les angles libres, des accroches pour les trois premières secondes, trois vidéos créateur avec leur format et leur durée.": "A three-sentence diagnosis, what sets your winning ads apart, repeated angles and open angles, hooks for the first three seconds, three creator videos with their format and length.",
+  "Côté marque : savoir quelles publicités marchent, préparer le brief, faire tourner les vidéos par des créateurs vérifiés, les diffuser en règle. Côté créateur : vendre ses vidéos au prix qu'on fixe.": "For brands: know which ads work, prepare the brief, have verified creators shoot the videos, run them by the rules. For creators: sell your videos at the price you set.",
+  "Vous avez chez vous un produit d'une marque ? Scannez ses publicités pour voir celle qui marche (elle tourne depuis des mois), tournez votre version, fixez votre prix : la marque la reçoit finie et l'achète en un clic. C'est la candidature spontanée.": "Have a brand's product at home? Scan its ads to see the one that works (it has been running for months), shoot your version, set your price: the brand receives it finished and buys it in one click. That's the unsolicited video pitch.",
+  "Pour les marques : savoir quelles publicités marchent, les faire tourner par des créateurs, les diffuser en règle. Pour les créateurs : vendre leurs vidéos, au prix qu'ils fixent.": "For brands: know which ads work, have creators shoot them, run them by the rules. For creators: sell their videos at the price they set.",
+  "Repérez les publicités de vos concurrents qui marchent : celles qu'ils financent depuis des mois. Recevez un brief prêt à publier, puis des vidéos de créateurs vérifiés.": "Spot your competitors' ads that work: the ones they've been paying for over months. Get a brief ready to publish, then videos from verified creators.",
+  "Sachez quelles publicités marchent.": "Know which ads work.",
+  "Les publicités de vos concurrents : lesquelles marchent ?": "Your competitors' ads: which ones work?",
+  "Les publicités qui marchent, pour proposer la vôtre": "The ads that work, so you can pitch yours",
+  "Vos concurrents font de la pub. Lesquelles marchent ?": "Your competitors run ads. Which ones work?",
+  "celles qui marchent (financées depuis des mois), les angles qu'ils utilisent et ceux qu'ils laissent libres. Ou l'audit de vos propres publicités, avec trois vidéos créateur à commander.": "the ones that work (paid for over months), the angles they use and the ones they leave open. Or the audit of your own ads, with three creator videos to order.",
+  "Les publicités de vos concurrents qui marchent, l'audit des vôtres.": "Your competitors' ads that work, the audit of yours.",
 };
+

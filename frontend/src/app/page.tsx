@@ -10,7 +10,7 @@ import { fetchPublicConfig, plural, externalFeeWording } from '@/lib/publicConfi
 
 export const metadata: Metadata = {
   title: 'NeedCreator : des publicités vidéo qui marchent, tournées par des créateurs',
-  description: 'Voyez les publicités de vos concurrents qui tournent depuis des mois, préparez votre brief, faites tourner vos vidéos par des créateurs vérifiés. Vous ne payez que les vidéos qui vous conviennent.',
+  description: 'Repérez les publicités de vos concurrents qui marchent : celles qu\'ils financent depuis des mois. Recevez un brief prêt à publier, puis des vidéos de créateurs vérifiés.',
   alternates: { canonical: '/' },
 };
 
@@ -69,12 +69,12 @@ export default async function HomePage() {
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold text-neutral-900 mb-6">
-              Sachez quelles publicités durent.
+              Sachez quelles publicités marchent.
               <span className="text-primary-500"> Faites-les tourner par des créateurs.</span>
             </h1>
 
             <p className="text-xl text-neutral-600 mb-8 max-w-2xl mx-auto">
-              Voyez les publicités de vos concurrents qui tournent depuis des mois, recevez un brief prêt à publier, et des vidéos de créateurs vérifiés : vous ne payez que celles qui vous conviennent.
+              Repérez les publicités de vos concurrents qui marchent : celles qu&apos;ils financent depuis des mois. Recevez un brief prêt à publier, puis des vidéos de créateurs vérifiés.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

@@ -24,7 +24,7 @@ Aujourd'hui, on dit : « on vous livre des vidéos UGC ». Demain : **« on vous
 > **Sachez quelles publicités marchent. Faites-les tourner par des créateurs.**
 
 **Sous-titre** :
-> Voyez les publicités de vos concurrents qui tournent depuis des mois, recevez un brief prêt à publier, et des vidéos de créateurs vérifiés : vous ne payez que celles qui vous conviennent.
+> Repérez les publicités de vos concurrents qui marchent : celles qu'ils financent depuis des mois. Recevez un brief prêt à publier, puis des vidéos de créateurs vérifiés.
 
 **Boutons** : inchangés (« Je suis une marque », « Je suis créateur »).
 
@@ -35,12 +35,12 @@ Aujourd'hui, on dit : « on vous livre des vidéos UGC ». Demain : **« on vous
 
 | **1. Comprendre** | **2. Préparer** | **3. Produire** | **4. Protéger** |
 |---|---|---|---|
-| Les publicités de vos concurrents qui durent, l'audit des vôtres. | Un brief prêt à publier depuis un simple lien produit. | Des créateurs vérifiés, ou une vidéo déjà tournée à regarder avant de payer. | Un contrat de droits par vidéo, un registre de tous vos contenus. |
+| Les publicités de vos concurrents qui marchent, l'audit des vôtres. | Un brief prêt à publier depuis un simple lien produit. | Des créateurs vérifiés, ou une vidéo déjà tournée à regarder avant de payer. | Un contrat de droits par vidéo, un registre de tous vos contenus. |
 | → Scanner un concurrent | → Mon brief depuis un lien | → Voir des créateurs | → Le registre des droits |
 
 **Description Google** (titre de l'onglet et texte sous le lien dans les résultats) :
 > Titre : `NeedCreator : des publicités vidéo qui marchent, tournées par des créateurs`
-> Description : `Voyez les publicités de vos concurrents qui tournent depuis des mois, préparez votre brief, faites tourner vos vidéos par des créateurs vérifiés. Vous ne payez que les vidéos qui vous conviennent.`
+> Description : `Repérez les publicités de vos concurrents qui marchent : celles qu'ils financent depuis des mois. Recevez un brief prêt à publier, puis des vidéos de créateurs vérifiés.`
 
 ---
 

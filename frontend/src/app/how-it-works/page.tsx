@@ -5,7 +5,7 @@ import Card from '@/components/ui/Card';
 
 export const metadata = {
   title: 'Comment ça marche',
-  description: 'Côté marque : savoir quelles publicités durent, préparer le brief, faire tourner les vidéos par des créateurs vérifiés, les diffuser en règle. Côté créateur : vendre ses vidéos au prix qu\'on fixe.',
+  description: 'Côté marque : savoir quelles publicités marchent, préparer le brief, faire tourner les vidéos par des créateurs vérifiés, les diffuser en règle. Côté créateur : vendre ses vidéos au prix qu\'on fixe.',
   alternates: { canonical: '/how-it-works' },
 };
 
@@ -34,7 +34,7 @@ const brandPhases = (cfg: { autoApprovalDays: number; replacementGraceHours: num
 const creatorSteps = (cfg: { autoApprovalDays: number; externalQuoteFeePercent: number; platformFeePercent: number }) => [
   ['1', 'Créez votre profil', 'Bio, niches, tarif minimum et 3 vidéos de portfolio, protégées par un filigrane. Validation par notre équipe sous 24h. Vous obtenez une page publique avec QR code : votre kit média.'],
   ['2', 'Envoyez vos devis', 'Un feed personnalisé selon vos niches. Vous fixez votre prix, votre délai et les droits que vous cédez (durée, supports, territoire). Joignez une vidéo de 45 s où vous montrez votre idée : votre devis passe en tête de liste.'],
-  ['3', 'Ou proposez une vidéo déjà tournée', 'Vous avez chez vous un produit d\'une marque ? Scannez ses publicités pour voir celle qui tourne depuis des mois, tournez votre version, fixez votre prix : la marque la reçoit finie et l\'achète en un clic. C\'est la candidature spontanée.'],
+  ['3', 'Ou proposez une vidéo déjà tournée', 'Vous avez chez vous un produit d\'une marque ? Scannez ses publicités pour voir celle qui marche (elle tourne depuis des mois), tournez votre version, fixez votre prix : la marque la reçoit finie et l\'achète en un clic. C\'est la candidature spontanée.'],
   ['4', 'Produisez', 'Une fois sélectionné, le paiement est déjà bloqué : vous savez que vous serez payé. Vous recevez le montant de votre devis HT moins la commission de 10 %, et vos factures sont émises en votre nom. Votre page « Mes missions » suit chaque échéance.'],
   ['5', 'Livrez et soyez payé', 'Envoyez vos vidéos, la marque valide (ou ' + plural(cfg.autoApprovalDays, 'jour') + ' max), le virement part sur votre compte Stripe, à une date affichée dans votre calendrier de paiements. Quand les droits arrivent à expiration, la marque peut vous acheter une prolongation.'],
   ['6', 'Notez la marque', 'Avis en double aveugle : chacun note sans voir l\'avis de l\'autre, les deux sont publiés ensemble. La réactivité des marques est visible par tous les créateurs, et chacun peut répondre publiquement à un avis.'],
@@ -50,7 +50,7 @@ export default async function HowItWorksPage() {
       <div className="container mx-auto px-4 max-w-5xl">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-neutral-900 mb-3">Comment ça marche</h1>
-          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Pour les marques : savoir quelles publicités durent, les faire tourner par des créateurs, les diffuser en règle. Pour les créateurs : vendre leurs vidéos, au prix qu&apos;ils fixent.</p>
+          <p className="text-lg text-neutral-600 max-w-3xl mx-auto">Pour les marques : savoir quelles publicités marchent, les faire tourner par des créateurs, les diffuser en règle. Pour les créateurs : vendre leurs vidéos, au prix qu&apos;ils fixent.</p>
         </div>
 
         <div className="grid gap-8">
