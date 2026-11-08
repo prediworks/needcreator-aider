@@ -30,3 +30,4 @@
 .legal table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem; }
 .legal th, .legal td { border: 1px solid #e5e5e5; padding: 0.5rem 0.75rem; text-align: left; vertical-align: top; }
 .legal th { background: #fafafa; }
+html.nc-en-pending body { visibility: hidden; }

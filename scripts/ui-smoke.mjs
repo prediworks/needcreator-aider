@@ -46,7 +46,7 @@ async function step(name, fn) {
 }
 const errors = [];
 async function makeContext() {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' }) // en français : un navigateur anglais passe le site en anglais;
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/favicon|401|404|Failed to load resource/.test(m.text())) errors.push('console: ' + m.text().slice(0, 200)); });
@@ -127,7 +127,7 @@ await step('Marque : création + publication d\'une campagne', async () => {
 
 await step('Site public : la campagne publiée est visible sans connexion (page indexable)', async () => {
   const id = campaignUrl.split('/').pop();
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' }) // en français : un navigateur anglais passe le site en anglais;
   const p = await ctx.newPage();
   // La liste publique est mise en cache 5 minutes (ISR) : on vérifie la page, puis la fiche de la campagne (adresse neuve, donc fraîche)
   await p.goto(`${FRONT}/campagnes`, { waitUntil: 'commit' });
@@ -152,7 +152,7 @@ await step('Marque : registre « Contenus & droits » (page vide, tuiles) et pag
   await bp.getByText('Contenu ajouté au registre').waitFor({ timeout: 20000 });
   await bp.getByText('Expire sous 30 j').first().waitFor({ timeout: 20000 });
   await bp.screenshot({ path: `${SHOTS}/03d-contents.png`, fullPage: true });
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' }) // en français : un navigateur anglais passe le site en anglais;
   const p = await ctx.newPage();
   await p.goto(`${FRONT}/contenus-et-droits`, { waitUntil: 'commit' });
   await p.getByRole('heading', { name: /au même endroit/ }).waitFor({ timeout: 60000 });
@@ -302,7 +302,7 @@ await step('Créateur : suivi de prospection (ajout, relance) et devis pré-remp
 });
 
 await step('Page publique : calculateur de tarif UGC', async () => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' }) // en français : un navigateur anglais passe le site en anglais;
   const p = await ctx.newPage();
   await p.goto(`${FRONT}/calculateur-tarif-ugc`, { waitUntil: 'commit' });
   await p.getByRole('heading', { name: /Combien facturer une vidéo UGC/ }).waitFor({ timeout: 60000 });
@@ -320,7 +320,7 @@ await step('Page publique : brief depuis une URL produit (page factice locale, r
   const html = `<!doctype html><html><head><title>Gourde isotherme Nomade 750 ml</title><script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'Product', name: 'Gourde isotherme Nomade 750 ml', brand: { '@type': 'Brand', name: 'Boutique Test' }, description: 'Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe.', offers: { '@type': 'Offer', price: '29.90', priceCurrency: 'EUR' } })}</script></head><body><h1>Gourde isotherme Nomade 750 ml</h1><p>Gourde inox double paroi, garde 24 h au froid et 12 h au chaud. Sans BPA, bouchon sport, fabriquée en Europe.</p></body></html>`;
   const srv = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(html); });
   await new Promise(r => srv.listen(0, '127.0.0.1', r));
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'fr-FR' }) // en français : un navigateur anglais passe le site en anglais;
   const p = await ctx.newPage();
   try {
     await p.goto(`${FRONT}/brief-depuis-url`, { waitUntil: 'commit' });

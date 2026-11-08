@@ -60,7 +60,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr">
+    <html lang="fr" suppressHydrationWarning>
+      <head>
+        {/* Anglais : la page reste masquée le temps de la traduction (au plus 3 s), pour ne pas voir le français d'abord */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var c=document.cookie,ch=/(?:^|; )nc_lang_set=1/.test(c),l=ch?((c.match(/(?:^|; )nc_lang=(fr|en)/)||[])[1]):null,q=new URLSearchParams(location.search).get('lang');if(!l)l=q==='en'||q==='fr'?q:((navigator.language||'').toLowerCase().indexOf('fr')===0||!navigator.language?'fr':'en');if(l==='en'&&location.pathname.indexOf('/admin')!==0){document.documentElement.classList.add('nc-en-pending');setTimeout(function(){document.documentElement.classList.remove('nc-en-pending')},3000)}}catch(e){}` }} />
+      </head>
       <body className={`${inter.className} min-h-screen flex flex-col`}>
         <Providers>
           <LangTranslator />

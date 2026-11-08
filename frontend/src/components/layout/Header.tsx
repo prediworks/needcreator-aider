@@ -99,7 +99,7 @@ export default function Header() {
 
           {/* Actions */}
           <div className="hidden xl:flex items-center gap-x-2 xl:gap-x-3 shrink-0 ml-4">
-            {(!connected || user?.role === 'brand') && <LangToggle />}{/* le côté créateur et l'admin restent en français : pas de sélecteur pour eux */}
+            {user?.role !== 'admin' && <LangToggle />}{/* l'admin reste en français : pas de sélecteur */}
             {loading && knownUser ? null : connected ? (
               <>
                 <NotificationBell enabled={isAuthenticated} />
@@ -137,7 +137,7 @@ export default function Header() {
 
         {open && (
           <div className="xl:hidden pb-4 flex flex-col space-y-3 border-t border-neutral-100 pt-3">
-            {(!connected || user?.role === 'brand') && <LangToggle className="self-start" />}
+            {user?.role !== 'admin' && <LangToggle className="self-start" />}
             {links.map(navLink)}
             {isAuthenticated ? (
               <>
