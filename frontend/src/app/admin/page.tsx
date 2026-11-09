@@ -550,6 +550,7 @@ export default function AdminPage() {
                     <th className="py-2 pr-4">Marque</th>
                     <th className="py-2 pr-4">Statut</th>
                     <th className="py-2 pr-4">Budget</th>
+                    <th className="py-2 pr-4" title="Total hors taxes des devis acceptés par la marque">Devis accepté (HT)</th>
                     <th className="py-2 pr-4">Candidatures</th>
                     <th className="py-2 pr-4" title="Créateurs invités par la marque : inscrits, plus les invitations par email encore sans inscription">Invités</th>
                     <th className="py-2 pr-4">Créateur</th>
@@ -560,13 +561,14 @@ export default function AdminPage() {
                 <tbody>
                   {(campaigns?.campaigns || []).map((c: any) => (
                     <tr key={c._id} className="border-b border-neutral-100">
-                      <td className="py-2 pr-4 font-medium">{c.title}</td>
-                      <td className="py-2 pr-4 text-neutral-600">{c.brandId?.profile?.companyName}</td>
+                      <td className="py-2 pr-4 font-medium"><Link href={`/campaigns/${c._id}`} className="hover:text-primary-700 hover:underline">{c.title}</Link></td>
+                      <td className="py-2 pr-4 text-neutral-600">{c.brandId?._id ? <Link href={`/admin/creators/${c.brandId._id}`} className="hover:text-primary-700 hover:underline">{c.brandId.profile?.companyName || c.brandId.email}</Link> : '—'}</td>
                       <td className="py-2 pr-4"><Badge map={CAMPAIGN_STATUS} value={c.status} />{c.status === 'active' && c.applicationsPausedAt && <span className="ml-1 px-2 py-0.5 rounded-full text-xs bg-orange-100 text-orange-800" title={`Candidatures suspendues par la marque le ${formatDate(c.applicationsPausedAt)}`}>Suspendue</span>}</td>
                       <td className="py-2 pr-4">{formatCurrency(c.budget?.total)}</td>
+                      <td className="py-2 pr-4" data-testid="campaign-quote">{c.acceptedQuotes?.count ? <>{formatCurrency(c.acceptedQuotes.totalHT)}{c.acceptedQuotes.count > 1 && <span className="text-xs text-neutral-500">{` (${c.acceptedQuotes.count} devis)`}</span>}</> : '—'}</td>
                       <td className="py-2 pr-4">{c.analytics?.applications || 0}</td>
                       <td className="py-2 pr-4">{(c.invitations?.length || 0) + (c.externalInvitations || []).filter((e: any) => !e.acceptedAt).length || '—'}</td>
-                      <td className="py-2 pr-4 text-neutral-600">{c.selectedCreator?.profile?.name || '—'}</td>
+                      <td className="py-2 pr-4 text-neutral-600">{c.selectedCreator?._id ? <Link href={`/admin/creators/${c.selectedCreator._id}`} className="hover:text-primary-700 hover:underline">{c.selectedCreator.profile?.name || c.selectedCreator.email}</Link> : '—'}</td>
                       <td className="py-2 pr-4 text-xs text-neutral-600" data-testid="campaign-notified">
                         {c.visibility === 'private' ? 'invités seulement' : c.notifications?.allNotifiedAt ? `tous, le ${formatDate(c.notifications.allNotifiedAt)}` : c.status === 'active' && c.notifications?.ambassadorsNotifiedAt ? (
                           <div className="flex flex-col items-start gap-1"><span>Ambassadeurs seulement</span><Button size="sm" variant="outline" isLoading={notifyCreators.isPending && notifyCreators.variables === c._id} onClick={() => { if (confirm(`Prévenir maintenant tous les créateurs concernés par « ${c.title} » (email et notification), sans attendre la fin de l'avant-première ?`)) notifyCreators.mutate(c._id); }} data-testid="notify-creators">Prévenir tous les créateurs</Button></div>

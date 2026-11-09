@@ -207,13 +207,19 @@ export async function getAdminCampaigns(req, res) {
       Campaign.find(query)
         .populate('brandId', 'profile.companyName email')
         .populate('selectedCreator', 'profile.name email')
-        .select('title status visibility applicationsPausedAt budget timeline analytics notifications brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt')
+        .select('title status visibility applicationsPausedAt budget timeline analytics notifications brandId selectedCreator createdAt invitations.creatorId externalInvitations.acceptedAt applications.status applications.price')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))
         .lean(),
       Campaign.countDocuments(query),
     ]);
+    // Montant HT des devis acceptés (plusieurs créateurs possibles), sans renvoyer les candidatures
+    for (const c of campaigns) {
+      const accepted = (c.applications || []).filter(a => a.status === 'accepted');
+      c.acceptedQuotes = { count: accepted.length, totalHT: accepted.reduce((t, a) => t + (a.price || 0), 0) };
+      delete c.applications;
+    }
     res.json({ campaigns, pagination: { page: parseInt(page), limit: parseInt(limit), total } });
   } catch (error) {
     logger.error('Failed to get admin campaigns:', error);
