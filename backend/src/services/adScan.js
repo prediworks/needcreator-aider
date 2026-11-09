@@ -563,7 +563,7 @@ async function leadForScan(scan) {
   return Lead.findOne({ $or: or }).select('_id name status').lean();
 }
 
-const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights']; // rights : registre des droits ouvert depuis un devis
+const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights', 'locked', 'register', 'email', 'signup']; // locked : clic sur une partie verrouillée ; register : formulaire d'inscription ouvert ; email : rapport demandé ; signup : compte créé // rights : registre des droits ouvert depuis un devis
 /**
  * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
  * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.
@@ -573,6 +573,7 @@ export async function trackScanRef(ref, { action, slug, source = 'lead', userId 
   if (source === 'quote') return trackQuoteToolVisit(ref, { action, slug, userId });
   const lead = await Lead.findOne({ _id: ref, kind: 'brand' }).select('_id name status email scanVisits').lean();
   if (!lead) return null;
+  if (action === 'signup' && !(lead.scanVisits || []).length) return null; // inscrite sans être passée par l'outil : hors entonnoir
   const s = slug ? await AdScan.findOne({ slug: String(slug).toLowerCase() }).select('slug pageName').lean() : null;
   const hourAgo = new Date(Date.now() - 3600000);
   if ((lead.scanVisits || []).some(v => v.action === action && (v.slug || '') === (s?.slug || '') && v.at >= hourAgo)) return { tracked: false };
@@ -638,13 +639,26 @@ export async function adminScanStats() {
   }));
   const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
     .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
+  // Entonnoir des marques venues de l'email : combien atteignent chaque étape (toutes les fiches, pas seulement les 30 dernières)
+  const allFromEmail = await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).select('status scanVisits.action registeredUserId').lean();
+  const reached = (l, acts) => (l.scanVisits || []).some(v => acts.includes(v.action));
+  const isSignup = (l) => l.status === 'registered' || !!l.registeredUserId || reached(l, ['signup']);
+  const funnel = {
+    clicked: allFromEmail.length,
+    sawResult: allFromEmail.filter(l => reached(l, ['scan', 'audit', 'brief', 'locked', 'register', 'email']) || isSignup(l)).length,
+    locked: allFromEmail.filter(l => reached(l, ['locked', 'register']) || isSignup(l)).length,
+    register: allFromEmail.filter(l => reached(l, ['register']) || isSignup(l)).length,
+    signup: allFromEmail.filter(isSignup).length,
+    email: allFromEmail.filter(l => reached(l, ['email'])).length,
+    brief: allFromEmail.filter(l => reached(l, ['brief'])).length,
+  };
   const { default: ExternalQuote } = await import('../models/ExternalQuote.js');
   const fromQuotes = (await ExternalQuote.find({ lastToolVisitAt: { $ne: null } }).sort({ lastToolVisitAt: -1 }).limit(30).select('client creatorId status toolVisits lastToolVisitAt').populate('creatorId', 'profile.name').lean())
     .map(q => ({ id: q._id, company: q.client?.companyName || '', email: q.client?.email || '', creator: q.creatorId?.profile?.name || '', status: q.status, last: q.lastToolVisitAt, visits: (q.toolVisits || []).length, actions: [...new Set((q.toolVisits || []).map(v => v.action))], pages: [...new Set((q.toolVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
   const { scanSubscribersStats } = await import('./adScanReports.js');
   const subscribers = await scanSubscribersStats();
   const t = totals[0] || {};
-  return { journal: journal.map(l => ({ slug: l.slug, pageName: l.pageName, origin: l.origin, fresh: !!l.fresh, at: l.createdAt })), origins24h, subscribers, fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
+  return { funnel, journal: journal.map(l => ({ slug: l.slug, pageName: l.pageName, origin: l.origin, fresh: !!l.fresh, at: l.createdAt })), origins24h, subscribers, fromEmail, fromQuotes, reads24h, members24h, newPages7d, pages: t.pages || 0, scans: t.scans || 0, views: t.views || 0, briefs: t.briefs || 0, audits: t.audits || 0, proposals: t.proposals || 0, top: rows };
 }
 
 /**

@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ScanReportSignup from '@/components/ScanReportSignup';
+import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
 import { formatDate } from '@/lib/utils';
 import { NICHES } from '@/lib/labels';
 import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown } from 'lucide-react';
@@ -22,19 +23,6 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
  * durent), des constats factuels par l'IA, et « Tester cette publicité avec un créateur » (brief gratuit). Sans compte : un aperçu ; inscrit : tout.
  */
-/**
- * Référence gardée pour la session, chaque action y est rattachée : fiche prospect (lien de l'email marques, ?ref=) ou devis de créateur
- * (outils offerts avec le devis, ?devis=, gardé sous la forme « devis:<id> »)
- */
-const REF_KEY = 'nc_scan_ref';
-function readRef(): string { try { return sessionStorage.getItem(REF_KEY) || ''; } catch { return ''; } }
-function trackRef(action: 'visit' | 'scan' | 'audit' | 'brief', slug = '', isAdmin = false) {
-  const stored = readRef();
-  if (!stored || isAdmin) return; // l'équipe qui teste un lien d'email ne compte pas comme une visite de la marque
-  const quote = stored.startsWith('devis:');
-  api.post('/ad-scans/ref', { ref: quote ? stored.slice(6) : stored, action, slug, source: quote ? 'quote' : 'lead' }).catch(() => null);
-}
-
 const VIDEO_TYPE: Record<string, string> = { testimonial: 'Témoignage', unboxing: 'Unboxing', demo: 'Démonstration', tutorial: 'Tutoriel', review: 'Avis', comparison: 'Comparatif', lifestyle: 'Lifestyle', 'behind-the-scenes': 'Coulisses' };
 
 export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initialSlug?: string; mode?: 'scan' | 'audit' }) {
@@ -129,8 +117,10 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   const firstAd = String(s?.ads?.[0]?.title || s?.ads?.[0]?.body || '').replace(/\s+/g, ' ').slice(0, 180);
   const proposeHref = s ? (s.leadId ? `/vitrine?marque=${s.leadId}` : `/vitrine?suggerer=${encodeURIComponent(s.pageName || '')}${s.website ? `&site=${encodeURIComponent(s.website)}` : ''}`) : '/vitrine';
 
+  // Clic sur une partie verrouillée ou « Créer mon compte » : étape de l'entonnoir des marques venues de l'email
+  const onSignupClick = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest?.('a[href^="/register"]')) trackRef('locked', slug, isAdmin); };
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" onClickCapture={onSignupClick}>
       <Card className="p-6">
         <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) scan.mutate({ q: q.trim() }); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="flex-1"><Input label={auditView ? 'Nom de votre marque (tel que sur votre page Facebook)' : 'Nom d\'une marque (un concurrent, ou la vôtre)'} placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>

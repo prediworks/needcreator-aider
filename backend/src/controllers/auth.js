@@ -238,6 +238,7 @@ export async function registerBrand(req, res) {
       const lead = await Lead.findOne({ _id: leadId, kind: 'brand' });
       if (lead) {
         lead.status = 'registered'; lead.registeredUserId = user._id; await lead.save();
+        import('../services/adScan.js').then(m => m.trackScanRef(String(lead._id), { action: 'signup' })).catch(() => {}); // dernière étape de l'entonnoir des marques venues de l'email
         // Avec un brief offert (lien d'inscription portant aussi « brief= »), la campagne brouillon vient du brief : pas de second brouillon générique
         if (!(briefId && /^[a-f0-9]{24}$/i.test(String(briefId)))) {
           const { createDraftCampaignFromLead } = await import('../services/acquisition/replies.js');

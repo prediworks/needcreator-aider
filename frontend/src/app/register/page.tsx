@@ -18,6 +18,7 @@ import { detectLang } from '@/lib/i18n';
 import { isFreeEmail } from '@/lib/email';
 import MissingHint from '@/components/ui/MissingHint';
 import { canReceivePayouts, PAYOUT_COUNTRY_NOTE } from '@/lib/countries';
+import { trackRef } from '@/lib/scanRef';
 
 function RegisterForm() {
   const router = useRouter();
@@ -100,6 +101,8 @@ function RegisterForm() {
   useEffect(() => { if (targetCampaign) { setRole('creator'); setStep(2); } }, [targetCampaign]);
   useEffect(() => { if (briefId) { setRole('brand'); setStep(2); } }, [briefId]);
   // Marque venue de la prospection : compte pré-rempli, première campagne préparée après l'inscription
+  // Marque venue de l'email (lien ?lead= ou référence gardée depuis l'outil de scan) : formulaire d'inscription ouvert, étape de l'entonnoir
+  useEffect(() => { trackRef('register', '', false, leadId); }, [leadId]);
   useEffect(() => { if (!leadId) return; setRole('brand'); setStep(2); const e = searchParams.get('email'); const c = searchParams.get('company'); if (e) setEmail(e); if (c) setCompanyName(c); }, [leadId, searchParams]);
   // Client d'un créateur (devis extérieur) : compte marque pré-rempli, la mission démarre à l'inscription
   useEffect(() => {

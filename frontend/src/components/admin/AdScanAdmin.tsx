@@ -9,7 +9,15 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 
-const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief', rights: 'registre des droits' };
+const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief', rights: 'registre des droits', locked: 'clic sur une partie verrouillée', register: 'formulaire d\'inscription ouvert', email: 'rapport demandé par email', signup: 'compte créé' };
+// Entonnoir des marques venues de l'email : étapes successives, puis deux actions à part
+const FUNNEL: [string, string, string][] = [
+  ['clicked', 'Ont cliqué dans l\'email', 'ouvert un lien de l\'email'],
+  ['sawResult', 'Ont vu un résultat', 'scan, audit ou plus loin'],
+  ['locked', 'Ont voulu la suite', 'clic sur une partie verrouillée ou « Créer mon compte »'],
+  ['register', 'Ont ouvert l\'inscription', 'formulaire d\'inscription affiché'],
+  ['signup', 'Ont créé un compte', 'inscription terminée'],
+];
 const STATUS: Record<string, string> = { new: 'Nouveau', qualified: 'Qualifié', to_contact: 'À contacter', contacted: 'Contacté', replied: 'A répondu', registered: 'Inscrit', rejected: 'Hors cible', excluded: 'Exclu' };
 
 // Origine d'un scan (journal de 90 jours) : vrais visiteurs, équipe, automatique
@@ -84,6 +92,19 @@ export default function AdScanAdmin() {
           <div className="grid grid-cols-2 md:grid-cols-8 gap-2 mb-4">
             {tiles.map((t) => <div key={t.label} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100"><div className="text-xs text-neutral-600">{t.label}</div><div className="text-xl font-bold text-neutral-900">{t.value ?? 0}</div>{t.hint && <div className="text-[11px] text-neutral-500">{t.hint}</div>}</div>)}
           </div>
+          {d.funnel?.clicked > 0 && (
+            <div className="mb-5" data-testid="ad-scan-funnel">
+              <h3 className="text-sm font-semibold text-neutral-900 mb-1">Entonnoir des marques venues de l&apos;email</h3>
+              <p className="text-xs text-neutral-600 mb-2">Combien de marques prospectées atteignent chaque étape, et le pourcentage par rapport à l&apos;étape précédente : la plus forte baisse montre où elles décrochent. Suivi des nouvelles étapes depuis le 09/11/2026.</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {FUNNEL.map(([k, label, hint], i) => {
+                  const n = d.funnel[k] || 0; const prev = i ? d.funnel[FUNNEL[i - 1][0]] || 0 : 0;
+                  return <div key={k} className="p-3 rounded-lg bg-neutral-50 border border-neutral-100" title={hint}><div className="text-xs text-neutral-600">{label}</div><div className="text-xl font-bold text-neutral-900">{n}</div>{i > 0 && <div className="text-[11px] text-neutral-500">{prev ? `${Math.round((n / prev) * 100)} % de l'étape précédente` : '—'}</div>}</div>;
+                })}
+              </div>
+              <p className="text-xs text-neutral-600 mt-2">À part : {d.funnel.email || 0} ont demandé le rapport par email, {d.funnel.brief || 0} ont préparé un brief.</p>
+            </div>
+          )}
           {d.fromEmail?.length > 0 && (
             <div className="mb-5" data-testid="ad-scan-from-email">
               <h3 className="text-sm font-semibold text-neutral-900 mb-1">Marques venues de l&apos;email</h3>

@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Mail } from 'lucide-react';
 import { detectLang } from '@/lib/i18n';
+import { trackRef } from '@/lib/scanRef';
 
 /**
  * Rapport du scan par email : une adresse, le rapport tout de suite, puis un email par semaine au plus quand la marque lance de nouvelles
@@ -26,7 +27,7 @@ export default function ScanReportSignup({ slug, pageName, audit = false }: { sl
   const [done, setDone] = useState('');
   const subscribe = useMutation({
     mutationFn: async () => (await api.post(`/ad-scans/${slug}/subscribe`, { email: user?.email || email, role: user ? '' : role, firstName: !user && role === 'creator' ? firstName.trim() : '', company: !user && role === 'brand' ? company.trim() : '', lang: detectLang() })).data,
-    onSuccess: () => { toast.success('Rapport envoyé', { duration: 6000 }); setDone(user?.email || email); }, // le détail est dans le cadre, traduisible
+    onSuccess: () => { toast.success('Rapport envoyé', { duration: 6000 }); setDone(user?.email || email); trackRef('email', slug, user?.role === 'admin'); }, // le détail est dans le cadre, traduisible
     onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
   });
   // Audit : la personne lit en général ses propres publicités, on lui parle d'elle (nom de la marque à part : le reste se traduit)
