@@ -28,7 +28,9 @@ const adScanSchema = new mongoose.Schema({
   pageName: String,
   website: String,           // domaine le plus cité dans les publicités
   ads: [adSchema],           // les plus anciennes d'abord, 50 au plus
-  totalActive: Number,       // nombre total de publicités actives vues chez Meta (peut dépasser ads.length)
+  totalActive: Number,       // nombre total de publicités actives vues chez Meta (peut dépasser ads.length) : chaque variante compte (visuels, formats, tests)
+  distinctActive: Number,    // publicités différentes (textes distincts, variantes regroupées) : le chiffre montré en grand
+  capped: Boolean,           // lecture arrêtée à la limite (500) : il y en a davantage
   stats: {
     oldestDays: Number, medianDays: Number, over90Days: Number,
     platforms: mongoose.Schema.Types.Mixed, // { instagram: 12, facebook: 15 }

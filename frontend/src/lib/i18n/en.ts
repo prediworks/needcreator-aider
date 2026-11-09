@@ -3610,5 +3610,11 @@ export const EN: Record<string, string> = {
   "Une lecture offerte par NeedCreator": "An analysis offered by NeedCreator",
   "Vos publicités qui marchent, lues par l'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.": "Your ads that work, read by AI. Verified creators shoot the video version: the brief is prepared for free, then creators send you their quotes.",
   "Les publicités qui marchent, lues par l'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.": "The ads that work, read by AI. Verified creators shoot the video version for your brand: the brief is prepared for free, then creators send you their quotes.",
+  "Publicités différentes": "Different ads",
+  "Meta compte chaque variante (visuel, format, test) comme une publicité. Ici, les variantes d'un même texte sont regroupées.": "Meta counts each variant (visual, format, test) as an ad. Here, variants of the same text are grouped.",
+  "{x} versions chez Meta": "{x} versions on Meta",
+  "({x} versions chez Meta)": "({x} versions on Meta)",
+  "{x} publicité{x}{x}": "{x} ad{x}{x}",
+  "{x} diffuse {x} publicité{x} Meta différente{x} en France{x}. Angles utilisés, accroches, angles libres : lecture factuelle, puis l'équivalent en vidéo créateur sur NeedCreator.": "{x} runs {x} different Meta ad{x}{-} in France{x}. Angles used, hooks, open angles: a factual reading, then the creator video equivalent on NeedCreator.",
 };
 

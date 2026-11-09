@@ -30,6 +30,8 @@ export async function getScan(req, res) {
     const st = await scanSettings();
     const { isBlockedPage } = await import('../services/adScan.js');
     if (scan.status === 'blocked' || isBlockedPage(st.scanBlockedPages, scan)) return res.status(410).json({ error: 'Cette marque a demandé à ne pas apparaître dans l\'outil.', code: 'BLOCKED' });
+    const { refreshIfStale } = await import('../services/adScan.js');
+    refreshIfStale(scan); // lecture de plus de 7 jours : relue en arrière-plan, le visiteur voit l'ancienne tout de suite
     await ensureInsights(scan); // publicités sans lecture IA : la lecture repart en arrière-plan, la page suit
     res.json({ scan: await serializeScan(scan, { user: req.user, settings: st }), indexable: indexable(scan) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'getScan'); }
@@ -82,13 +84,13 @@ export async function recentScans(req, res) {
     const st = await scanSettings();
     const { isBlockedPage, slugify } = await import('../services/adScan.js');
     const pinned = String(st.scanPinned || '').split(/[,;\n]+/).map(x => slugify(x.trim().replace(/^.*\/publicites\//, ''))).filter(x => x && x !== 'marque');
-    const fields = 'slug pageName totalActive stats.oldestDays views fetchedAt pageId';
+    const fields = 'slug pageName totalActive distinctActive capped stats.oldestDays views fetchedAt pageId';
     const [pins, popular] = await Promise.all([
       pinned.length ? AdScan.find({ slug: { $in: pinned }, status: 'ready' }).select(fields).lean() : [],
       AdScan.find({ status: 'ready', humanViewedAt: { $ne: null } }).sort({ views: -1, fetchedAt: -1 }).limit(24).select(fields).lean(),
     ]);
     const ordered = [...pinned.map(p => pins.find(x => x.slug === p)).filter(Boolean).map(x => ({ ...x, pinned: true })), ...popular.filter(x => !pinned.includes(x.slug))];
-    res.json({ scans: ordered.filter(s => !isBlockedPage(st.scanBlockedPages, s)).slice(0, 12).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, views: s.views || 0, fetchedAt: s.fetchedAt, pinned: !!s.pinned })) });
+    res.json({ scans: ordered.filter(s => !isBlockedPage(st.scanBlockedPages, s)).slice(0, 12).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, distinctActive: s.distinctActive ?? null, capped: !!s.capped, oldestDays: s.stats?.oldestDays ?? null, views: s.views || 0, fetchedAt: s.fetchedAt, pinned: !!s.pinned })) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'recentScans'); }
 }
 
@@ -98,8 +100,8 @@ export async function myScans(req, res) {
     const { AdScanRequest } = await import('../models/AdScan.js');
     const reqs = await AdScanRequest.find({ userId: req.user._id }).sort({ createdAt: -1 }).limit(30).select('slug createdAt').lean();
     const slugs = [...new Set(reqs.map(r => r.slug).filter(Boolean))].slice(0, 6);
-    const scans = slugs.length ? await AdScan.find({ slug: { $in: slugs }, status: { $in: ['ready', 'pending'] } }).select('slug pageName totalActive stats.oldestDays status fetchedAt').lean() : [];
-    res.json({ scans: slugs.map(sl => scans.find(x => x.slug === sl)).filter(Boolean).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, status: s.status, fetchedAt: s.fetchedAt })) });
+    const scans = slugs.length ? await AdScan.find({ slug: { $in: slugs }, status: { $in: ['ready', 'pending'] } }).select('slug pageName totalActive distinctActive capped stats.oldestDays status fetchedAt').lean() : [];
+    res.json({ scans: slugs.map(sl => scans.find(x => x.slug === sl)).filter(Boolean).map(s => ({ slug: s.slug, pageName: s.pageName, totalActive: s.totalActive || 0, distinctActive: s.distinctActive ?? null, capped: !!s.capped, oldestDays: s.stats?.oldestDays ?? null, status: s.status, fetchedAt: s.fetchedAt })) });
   } catch (error) { fail(res, error, 'Lecture impossible', 'myScans'); }
 }
 

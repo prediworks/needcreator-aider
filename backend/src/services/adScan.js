@@ -1,3 +1,4 @@
+import { countPhrase } from '../utils/adCount.js';
 import { z } from 'zod';
 import AdScan, { AdScanRequest, AdScanLog } from '../models/AdScan.js';
 import Lead from '../models/Lead.js';
@@ -67,6 +68,7 @@ export function pickAd(ad) {
  * Une même création diffusée dans plusieurs ensembles de publicités apparaît autant de fois : on garde une entrée par texte (titre + corps),
  * avec la date de début la plus ancienne, les supports réunis, la portée additionnée et le nombre de variantes ; les plus anciennes d'abord.
  */
+const FETCH_MAX = 500; // Meta rend les plus récentes d'abord ; au-delà, la lecture s'arrête (chiffre affiché « 500+ »)
 export function dedupeAds(ads) {
   const byText = new Map();
   for (const a of ads) {
@@ -117,13 +119,13 @@ const factual = (s) => (JUDGMENT.test(String(s || '')) ? '' : String(s || '').tr
 const cutAtSentence = (s, max) => { if (s.length <= max) return s; const head = s.slice(0, max); const end = Math.max(head.lastIndexOf('. '), head.lastIndexOf('.')); return (end > max / 2 ? head.slice(0, end + 1) : head.replace(/\s+\S*$/, '') + '…').trim(); };
 
 /** Lecture IA des publicités : angles comptés avec exemple cité, accroches récurrentes, angles absents, constats chiffrés */
-export async function analyzeAds({ pageName, ads, stats, totalActive = 0 }) {
+export async function analyzeAds({ pageName, ads, stats, totalActive = 0, distinctActive = 0 }) {
   if (!aiConfig().configured || !ads.length) return null;
   const detailed = Math.min(30, ads.length);
   const list = ads.slice(0, 30).map((a, i) => `#${i + 1} (tourne depuis ${ageDays(a.startedAt) ?? '?'} j${a.platforms?.length ? `, ${a.platforms.join('/')}` : ''}) ${[a.title, a.body, a.description].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 350)}`).join('\n');
   const out = await generateJsonText({
     system: 'Tu analyses les publicités actives d\'une marque pour une plateforme française de vidéos UGC. Tu es strictement factuel : tu comptes et tu décris ce qui est écrit, tu ne juges jamais la marque ni la qualité de ses publicités. Tu réponds en JSON strict, en français.',
-    prompt: `Marque : « ${pageName} ». ${totalActive || ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne tourne depuis ${stats.oldestDays} jours` : ''}${stats.over90Days ? `, ${stats.over90Days} depuis plus de 90 jours` : ''}. Les ${detailed} plus anciennes sont détaillées ci-dessous (une même création diffusée plusieurs fois compte une fois) ; tes comptes portent sur ces ${detailed} publicités, sans commenter leur nombre.
+    prompt: `Marque : « ${pageName} ». ${countPhrase({ totalActive: totalActive || ads.length, distinctActive })} en France${stats.oldestDays != null ? `, la plus ancienne tourne depuis ${stats.oldestDays} jours` : ''}${stats.over90Days ? `, ${stats.over90Days} depuis plus de 90 jours` : ''}. Les ${detailed} plus anciennes sont détaillées ci-dessous (une même création diffusée plusieurs fois compte une fois) ; tes comptes portent sur ces ${detailed} publicités, sans commenter leur nombre.
 Publicités (texte seulement, Meta ne donne pas la vidéo) :
 ${list}
 
@@ -307,19 +309,21 @@ export async function processScan(scanId, { page, name = '', tier = 'anon', ip =
   const fail = async (message) => { await AdScan.updateOne({ _id: scanId }, { $set: { status: 'failed', error: String(message || '').slice(0, 300), fetchedAt: new Date() } }); };
   // Meta rend les publicités les plus récentes d'abord : il faut aller loin dans la liste pour trouver les plus anciennes (jusqu'à 500)
   let raw;
-  try { raw = await fetchAds({ pageIds: [page.pageId], max: 500 }); }
+  try { raw = await fetchAds({ pageIds: [page.pageId], max: FETCH_MAX }); }
   catch (err) { logger.warn(`Ad scan ${page.pageId}: Meta en échec (${err.message})`); return fail(err.code === 10 || err.code === 190 ? 'Accès Meta à renouveler (identité ou jeton) : l\'équipe est prévenue' : `Lecture Meta impossible : ${err.message}`); }
-  const ads = dedupeAds(raw.map(pickAd).filter(a => a.body || a.title)).slice(0, st.scanMaxAds);
+  const distinct = dedupeAds(raw.map(pickAd).filter(a => a.body || a.title));
+  const ads = distinct.slice(0, st.scanMaxAds);
+  const counts = { totalActive: raw.length, distinctActive: distinct.length, capped: raw.length >= FETCH_MAX };
   const pageName = raw[0]?.page_name || page.pageName || name;
   if (isBlockedPage(st.scanBlockedPages, { pageId: page.pageId, pageName })) return AdScan.updateOne({ _id: scanId }, { $set: { pageName, status: 'blocked', fetchedAt: new Date() } });
   const stats = adStats(ads);
   const domains = {}; for (const a of ads) { const d = domainOf(a.caption); if (d) domains[d] = (domains[d] || 0) + 1; }
   const website = Object.entries(domains).sort((x, y) => y[1] - x[1])[0]?.[0] || null;
   // Les publicités sont publiées tout de suite (le scan est « prêt »), la lecture IA suit et la page l'affiche quand elle arrive
-  await AdScan.updateOne({ _id: scanId }, { $set: { pageName, website: website ? `https://${website}` : null, ads, totalActive: raw.length, stats, status: ads.length ? 'ready' : 'empty', error: null, insights: null, insightsPending: ads.length > 0, fetchedAt: new Date() } });
+  await AdScan.updateOne({ _id: scanId }, { $set: { pageName, website: website ? `https://${website}` : null, ads, ...counts, stats, status: ads.length ? 'ready' : 'empty', error: null, insights: null, insightsPending: ads.length > 0, audit: null, auditPending: false, fetchedAt: new Date() } });
   let insights = null;
   if (ads.length) {
-    try { insights = await Promise.race([analyzeAds({ pageName, ads, stats, totalActive: raw.length }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
+    try { insights = await Promise.race([analyzeAds({ pageName, ads, stats, totalActive: raw.length, distinctActive: distinct.length }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
     catch (err) { logger.warn(`Ad scan ${pageName}: IA en échec (${err.message})`); }
   }
   await AdScan.updateOne({ _id: scanId }, { $set: { insights, insightsPending: false } });
@@ -346,6 +350,21 @@ export async function ensureScanForPage(page, { maxAgeDays = 14, origin = 'auto_
   return scan;
 }
 
+/**
+ * Page d'un scan ouverte avec des données de plus de 7 jours : nouvelle lecture en arrière-plan (file d'attente des scans préparés).
+ * Le visiteur voit tout de suite l'ancienne lecture ; la suivante est à jour. Une seule relecture à la fois par page.
+ */
+const STALE_DAYS = 7;
+const refreshing = new Set();
+export function refreshIfStale(scan) {
+  if (!scan || !['ready', 'empty'].includes(scan.status) || String(scan.pageId || '').startsWith('none:')) return false;
+  if (!scan.fetchedAt || scan.fetchedAt >= new Date(Date.now() - STALE_DAYS * DAY) || refreshing.has(String(scan._id))) return false;
+  refreshing.add(String(scan._id));
+  prepQueue = prepQueue.then(() => processScan(scan._id, { page: { pageId: scan.pageId, pageName: scan.pageName }, name: scan.pageName, tier: 'relecture' }))
+    .catch(err => logger.error(`Ad scan refresh ${scan.slug} failed: ${err.message}`)).finally(() => refreshing.delete(String(scan._id)));
+  return true;
+}
+
 const hasInsights = (scan) => !!(scan?.insights && (scan.insights.summary || scan.insights.facts?.length || scan.insights.angles?.length));
 
 /**
@@ -360,7 +379,7 @@ export async function ensureInsights(scan) {
   scan.insightsPending = true;
   setImmediate(async () => {
     let insights = null;
-    try { insights = await Promise.race([analyzeAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
+    try { insights = await Promise.race([analyzeAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive, distinctActive: scan.distinctActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
     catch (err) { logger.warn(`Ad scan ${scan.slug}: relecture IA en échec (${err.message})`); }
     await AdScan.updateOne({ _id: scan._id }, { $set: { insights, insightsPending: false } });
     if (insights) logger.info(`Ad scan ${scan.slug}: insights added on a later reading`);
@@ -384,14 +403,14 @@ const hasAudit = (scan) => !!(scan?.audit && (scan.audit.diagnosis || scan.audit
  * plus récentes), angles répétés, angles libres, accroches orales à tester, trois briefs de vidéo créateur. Conseils permis, jugements non :
  * on décrit et on propose, on ne qualifie jamais une publicité de bonne ou de mauvaise. Meta ne donne que le texte : l'audit le dit.
  */
-export async function auditAds({ pageName, ads, stats, totalActive = 0 }) {
+export async function auditAds({ pageName, ads, stats, totalActive = 0, distinctActive = 0 }) {
   if (!aiConfig().configured || !ads.length) return null;
   const now = Date.now();
   const line = (a, i) => `#${i + 1} (${ageDays(a.startedAt, now) ?? '?'} j${a.variants > 1 ? `, ${a.variants} variantes` : ''}) ${[a.title, a.body].filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 300)}`;
   const old = ads.slice(0, 15); const recent = ads.slice(-15).filter(a => !old.includes(a));
   return generateJsonText({
     system: 'Tu es directeur de création UGC. Tu fais l\'audit des publicités Meta d\'une marque, pour elle. Tu décris ce qui est écrit et tu proposes ; tu ne qualifies jamais une publicité de bonne, mauvaise, faible ou efficace. Meta ne fournit que le texte et la durée de diffusion : tu ne parles ni d\'images ni de vidéos. JSON strict, en français.',
-    prompt: `Marque : « ${pageName} ». ${totalActive || ads.length} publicités actives en France${stats.oldestDays != null ? `, la plus ancienne depuis ${stats.oldestDays} jours` : ''}. Une publicité maintenue longtemps est un indice de rentabilité.
+    prompt: `Marque : « ${pageName} ». ${countPhrase({ totalActive: totalActive || ads.length, distinctActive })} en France${stats.oldestDays != null ? `, la plus ancienne depuis ${stats.oldestDays} jours` : ''}. Une publicité maintenue longtemps est un indice de rentabilité.
 Les plus anciennes :
 ${old.map(line).join('\n')}
 ${recent.length ? `Les plus récentes :\n${recent.map((a, i) => line(a, ads.indexOf(a))).join('\n')}` : ''}
@@ -428,7 +447,7 @@ export async function requestAudit(scan) {
   scan.auditPending = true;
   setImmediate(async () => {
     let audit = null;
-    try { audit = await Promise.race([auditAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
+    try { audit = await Promise.race([auditAds({ pageName: scan.pageName, ads: scan.ads, stats: scan.stats || adStats(scan.ads), totalActive: scan.totalActive, distinctActive: scan.distinctActive }), new Promise((_, rej) => setTimeout(() => rej(new Error('délai IA dépassé')), 150000))]); }
     catch (err) { logger.warn(`Ad audit ${scan.slug}: IA en échec (${err.message})`); }
     await AdScan.updateOne({ _id: scan._id }, { $set: { ...(audit ? { audit } : {}), auditPending: false } });
     if (audit) logger.info(`Ad audit ${scan.slug}: ready`);
@@ -519,7 +538,7 @@ export async function serializeScan(scan, { user, settings } = {}) {
   return {
     audit, auditPending: !!scan.auditPending,
     slug: scan.slug, pageId: scan.pageId, pageName: scan.pageName, website: scan.website, pageUrl: `https://www.facebook.com/${scan.pageId}`, libraryUrl: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=FR&view_all_page_id=${encodeURIComponent(scan.pageId)}`,
-    status: scan.status, error: scan.error || null, insightsPending: !!scan.insightsPending, totalActive: scan.totalActive || 0, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
+    status: scan.status, error: scan.error || null, insightsPending: !!scan.insightsPending, totalActive: scan.totalActive || 0, distinctActive: scan.distinctActive ?? null, capped: !!scan.capped, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
     stats: scan.stats || {}, insights, ads, tier, fetchedAt: scan.fetchedAt, views: scan.views || 0, leadId,
     limits: { anonAds: st.scanAnonAds, memberPerDay: st.scanMemberPerDay },
   };

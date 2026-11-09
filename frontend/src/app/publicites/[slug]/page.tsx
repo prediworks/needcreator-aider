@@ -1,3 +1,4 @@
+import { adCount } from '@/lib/adCount';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import AdScanTool from '@/components/AdScanTool';
@@ -23,8 +24,8 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   if (!s) return { title: 'Publicités d\'une marque', robots: { index: false, follow: false } };
   const oldest = s.stats?.oldestDays != null ? `, la plus ancienne tourne depuis ${s.stats.oldestDays} jours` : '';
   return {
-    title: `Les publicités de ${s.pageName} : ${s.totalActive} active${s.totalActive > 1 ? 's' : ''} en France`,
-    description: `${s.pageName} diffuse ${s.totalActive} publicité${s.totalActive > 1 ? 's' : ''} Meta en France${oldest}. Angles utilisés, accroches, angles libres : lecture factuelle, puis l'équivalent en vidéo créateur sur NeedCreator.`.slice(0, 300),
+    title: `Les publicités de ${s.pageName} : ${adCount(s).main} active${adCount(s).n > 1 ? 's' : ''} en France`,
+    description: `${s.pageName} diffuse ${adCount(s).main} publicité${adCount(s).n > 1 ? 's' : ''} Meta différente${adCount(s).n > 1 ? 's' : ''} en France${oldest}. Angles utilisés, accroches, angles libres : lecture factuelle, puis l'équivalent en vidéo créateur sur NeedCreator.`.slice(0, 300),
     alternates: { canonical: `/publicites/${params.slug}` },
     robots: d.indexable ? { index: true, follow: true } : { index: false, follow: true },
   };

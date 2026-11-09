@@ -12,6 +12,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ScanReportSignup from '@/components/ScanReportSignup';
 import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
+import { adCount } from '@/lib/adCount';
 import { formatDate } from '@/lib/utils';
 import { NICHES } from '@/lib/labels';
 import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown, ShieldCheck } from 'lucide-react';
@@ -192,7 +193,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             ) : (
               <>
                 <div className="grid grid-cols-3 gap-3 mt-4 text-sm" data-testid="ad-scan-stats">
-                  <Stat label="Publicités actives" value={String(s.totalActive)} />
+                  <Stat label={adCount(s).versions ? 'Publicités différentes' : 'Publicités actives'} value={adCount(s).main} hint={adCount(s).versions ? 'Meta compte chaque variante (visuel, format, test) comme une publicité. Ici, les variantes d\'un même texte sont regroupées.' : undefined} sub={adCount(s).versions ? `${adCount(s).versions} versions chez Meta` : undefined} />
                   <Stat label="La plus ancienne" value={s.stats?.oldestDays != null ? `${s.stats.oldestDays} j` : '—'} hint="Une publicité maintenue longtemps est une publicité qui rapporte" />
                   <Stat label="Depuis plus de 90 jours" value={String(s.stats?.over90Days ?? 0)} strong={(s.stats?.over90Days ?? 0) > 0} />
                 </div>
@@ -324,7 +325,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 {s.ads?.length > 0 && (
                   <div data-testid="ad-scan-ads">
                     <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>
-                    <p className="text-xs text-neutral-500 mb-4">{/* une phrase par nœud de texte : traduisible par gabarit (en.ts) */}<span>{`Affichées : ${s.shown} sur ${s.kept}${s.totalActive > s.kept ? ` (${s.totalActive} actives chez Meta)` : ''}.`}</span> <span>Meta ne fournit que le texte : la vidéo ou l&apos;image s&apos;ouvre avec « Voir la pub ».</span></p>
+                    <p className="text-xs text-neutral-500 mb-4">{/* une phrase par nœud de texte : traduisible par gabarit (en.ts) */}<span>{`Affichées : ${s.shown} sur ${s.kept}${s.totalActive > s.kept ? ` (${adCount(s).versions || s.totalActive} versions chez Meta)` : ''}.`}</span> <span>Meta ne fournit que le texte : la vidéo ou l&apos;image s&apos;ouvre avec « Voir la pub ».</span></p>
                     <div className="space-y-3">
                       {s.ads.map((a: any) => (
                         <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
@@ -377,7 +378,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             {recent.map((r: any) => (
               <Link key={r.slug} href={`/publicites/${r.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white">
                 <div className="font-medium text-neutral-900">{r.pageName}{r.pinned ? <span className="ml-2 text-[10px] uppercase tracking-wide text-primary-600">exemple</span> : null}</div>
-                <div className="text-xs text-neutral-600">{`${r.totalActive} publicité${r.totalActive > 1 ? 's' : ''} active${r.totalActive > 1 ? 's' : ''}${r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}`}</div>
+                <div className="text-xs text-neutral-600">{`${adCount(r).main} publicité${adCount(r).n > 1 ? 's' : ''}${r.oldestDays != null ? ` · la plus ancienne : ${r.oldestDays} j` : ''}`}</div>
               </Link>
             ))}
           </div>
@@ -387,8 +388,8 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   );
 }
 
-function Stat({ label, value, hint, strong = false }: { label: string; value: string; hint?: string; strong?: boolean }) {
-  return <div className={`p-3 rounded-lg border ${strong ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-100'}`} title={hint}><div className="text-xs text-neutral-600">{label}</div><div className={`text-2xl font-bold ${strong ? 'text-green-700' : 'text-neutral-900'}`}>{value}</div></div>;
+function Stat({ label, value, hint, sub, strong = false }: { label: string; value: string; hint?: string; sub?: string; strong?: boolean }) {
+  return <div className={`p-3 rounded-lg border ${strong ? 'bg-green-50 border-green-200' : 'bg-neutral-50 border-neutral-100'}`} title={hint}><div className="text-xs text-neutral-600">{label}</div><div className={`text-2xl font-bold ${strong ? 'text-green-700' : 'text-neutral-900'}`}>{value}</div>{sub && <div className="text-[11px] text-neutral-500">{sub}</div>}</div>;
 }
 function SignupBox({ title, text, signupHref, loginHref, testid }: { title: string; text: string; signupHref: string; loginHref: string; testid: string }) {
   return (

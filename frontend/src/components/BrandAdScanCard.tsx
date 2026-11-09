@@ -1,5 +1,6 @@
 'use client';
 
+import { adCount } from '@/lib/adCount';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -24,7 +25,7 @@ export default function BrandAdScanCard() {
         <div className="mt-3 flex gap-2 flex-wrap text-xs">
           <span className="text-neutral-500 self-center">Vos derniers scans :</span>
           {mine.map((s: any) => (
-            <Link key={s.slug} href={`/publicites/${s.slug}`} className="px-2 py-1 rounded-full border border-neutral-200 hover:border-primary-400 bg-white text-neutral-700">{s.pageName}{s.status === 'pending' ? ' (en cours)' : s.oldestDays != null ? ` · ${s.totalActive} pubs, ${s.oldestDays} j` : ''}</Link>
+            <Link key={s.slug} href={`/publicites/${s.slug}`} className="px-2 py-1 rounded-full border border-neutral-200 hover:border-primary-400 bg-white text-neutral-700">{s.pageName}{s.status === 'pending' ? ' (en cours)' : s.oldestDays != null ? ` · ${adCount(s).main} pubs, ${s.oldestDays} j` : ''}</Link>
           ))}
         </div>
       )}

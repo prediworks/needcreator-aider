@@ -1,3 +1,4 @@
+import { countPhrase } from '../utils/adCount.js';
 import nodemailer from 'nodemailer';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
@@ -1221,7 +1222,7 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink, first
   const html = `
     <h1>Les publicités de ${esc(scan.pageName)}</h1>
     ${firstName ? `<p>Bonjour ${esc(firstName)},</p>` : ''}
-    <p><strong>${scan.totalActive || 0}</strong> publicité(s) Meta active(s) en France${st.oldestDays != null ? `, la plus ancienne tourne depuis <strong>${st.oldestDays} jours</strong>` : ''}${st.over90Days ? `, <strong>${st.over90Days}</strong> depuis plus de 90 jours` : ''}. Une publicité maintenue depuis trois mois est une publicité qui rapporte.</p>
+    <p><strong>${countPhrase(scan)}</strong> sur Meta en France${st.oldestDays != null ? `, la plus ancienne tourne depuis <strong>${st.oldestDays} jours</strong>` : ''}${st.over90Days ? `, <strong>${st.over90Days}</strong> depuis plus de 90 jours` : ''}. Une publicité maintenue depuis trois mois est une publicité qui rapporte.</p>
     ${ins.summary ? `<p>${esc(ins.summary)}</p>` : ''}
     ${(scan.ads || []).length ? `<p style="margin-bottom:4px"><strong>Celles qui tournent depuis le plus longtemps</strong></p><ul style="padding-left:18px;margin-top:4px">${scanAdRows(scan, scan.ads)}</ul>` : ''}
     ${(ins.angles || []).length ? `<p><strong>Angles utilisés</strong> : ${ins.angles.map(a => `${esc(a.name)} (${a.count})`).join(', ')}.</p>` : ''}
@@ -1231,7 +1232,7 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink, first
     <p>Vous serez prévenu quand ${esc(scan.pageName)} lancera de nouvelles publicités, ou qu'une passera les 90 jours.</p>
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;
-  return sendEmail(email, subject, html, null, { preheader: `${scan.totalActive || 0} publicités actives${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.`, lang: lang === 'en' ? 'en' : null });
+  return sendEmail(email, subject, html, null, { preheader: `${countPhrase(scan)}${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.`, lang: lang === 'en' ? 'en' : null });
 }
 
 /** Alerte hebdomadaire : nouvelles publicités depuis le dernier email, et celles qui viennent de passer les 90 jours */
@@ -1242,7 +1243,7 @@ export async function sendScanNewAds(email, scan, { newAds = [], crossing = [], 
     ${firstName ? `<p>Bonjour ${esc(firstName)},</p>` : ''}
     ${newAds.length ? `<p><strong>${newAds.length} nouvelle${newAds.length > 1 ? 's' : ''} publicité${newAds.length > 1 ? 's' : ''}</strong> depuis notre dernier email :</p><ul style="padding-left:18px">${scanAdRows(scan, newAds, 6)}</ul>` : ''}
     ${crossing.length ? `<p><strong>${crossing.length === 1 ? 'Une publicité passe' : `${crossing.length} publicités passent`} les 90 jours</strong> : ${crossing.length === 1 ? 'elle' : 'elles'} rapporte${crossing.length > 1 ? 'nt' : ''}, sinon la marque l'aurait arrêtée.</p><ul style="padding-left:18px">${scanAdRows(scan, crossing, 4)}</ul>` : ''}
-    <p>${scan.totalActive || 0} publicité(s) active(s) au total.</p>
+    <p>Au total : ${countPhrase(scan)}.</p>
     ${button(link, 'Voir toutes les publicités')}
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;
