@@ -3622,5 +3622,8 @@ export const EN: Record<string, string> = {
   "PDF indisponible pour le moment": "PDF unavailable for now",
   "Pas encore de publicités lues pour cette marque": "No ads read for this brand yet",
   "L'audit est en préparation (une à deux minutes) : réessayez ensuite.": "The audit is being prepared (one to two minutes): try again afterwards.",
+  "Comparaison indisponible": "Comparison unavailable",
+  "Comparer avec d'autres marques": "Compare with other brands",
+  "Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu'elles laissent libres.": "Their ads, read the same way: what has been running for a long time, the angles they leave open.",
 };
 

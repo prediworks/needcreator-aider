@@ -22,7 +22,7 @@ export async function outreachSettings() {
 
 /** Champs poussés dans l'outil de mailing (snake_case) : utilisables comme variables dans les modèles d'emails */
 /** Prénom utilisable dans « Bonjour … » : celui relevé par l'IA, sinon le premier mot du nom seulement s'il ressemble à un prénom (pas un pseudo du type « ugcbymarie ») */
-function safeFirstName(lead) {
+export function safeFirstName(lead) {
   if (lead.firstName) return String(lead.firstName).trim();
   if (lead.kind === 'brand') return '';
   const w = String(lead.name || '').replace(/^@/, '').split(/[\s|·–-]/)[0];

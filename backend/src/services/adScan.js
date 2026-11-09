@@ -587,10 +587,23 @@ const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights', 'locked', 'reg
  * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
  * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.
  */
+/** Brouillon de relance prêt à copier, dans l'alerte du premier clic (rien si la page n'est pas encore lue) */
+async function followUpBlock(lead, slim, esc) {
+  try {
+    if (!slim?.slug) return '';
+    const scan = await AdScan.findOne({ slug: slim.slug, status: 'ready' }).select('slug pageName ads.title ads.body ads.startedAt audit.briefs insights.niche').lean();
+    if (!scan) return '';
+    const { buildFollowUpDraft } = await import('./acquisition/followUpDraft.js');
+    const ex = await scanExamples(scan).catch(() => null);
+    const draft = buildFollowUpDraft(lead, scan, { rates: ex?.rates || {}, fromPrice: ex?.fromPrice || null });
+    return draft ? `<p style="margin-bottom:4px"><strong>Brouillon de relance</strong> (à relire, puis à envoyer depuis votre boîte, sans dire que vous avez vu son clic) :</p><pre style="white-space:pre-wrap;font-family:inherit;background:#f6f7f8;border-radius:6px;padding:12px;margin-top:4px">${esc(draft)}</pre>` : '';
+  } catch (err) { logger.warn(`followUpBlock ${lead?._id}: ${err.message}`); return ''; }
+}
+
 export async function trackScanRef(ref, { action, slug, source = 'lead', userId = null } = {}) {
   if (!/^[a-f0-9]{24}$/i.test(String(ref || '')) || !REF_ACTIONS.includes(action)) return null;
   if (source === 'quote') return trackQuoteToolVisit(ref, { action, slug, userId });
-  const lead = await Lead.findOne({ _id: ref, kind: 'brand' }).select('_id name status email scanVisits').lean();
+  const lead = await Lead.findOne({ _id: ref, kind: 'brand' }).select('_id name status email scanVisits firstName kind competitor').lean();
   if (!lead) return null;
   if (action === 'signup' && !(lead.scanVisits || []).length) return null; // inscrite sans être passée par l'outil : hors entonnoir
   const s = slug ? await AdScan.findOne({ slug: String(slug).toLowerCase() }).select('slug pageName').lean() : null;
@@ -601,7 +614,7 @@ export async function trackScanRef(ref, { action, slug, source = 'lead', userId 
   if (first && action !== 'signup') import('./acquisition/outreach.js').then(m => m.moveClickersToWarmList({ ids: [lead._id] })).catch(() => {}); // sortie des séquences tout de suite
   if (first) {
     const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    notifyAdmins(`Prospection : ${lead.name} a ouvert l'outil de scan depuis l'email`, `<p><strong>${esc(lead.name)}</strong>${lead.email ? ` (${esc(lead.email)})` : ''} a cliqué sur un lien de l'email${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}. C'est le moment de lui écrire.</p><p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email ».</p>`).catch(() => {});
+    notifyAdmins(`Prospection : ${lead.name} a ouvert l'outil de scan depuis l'email`, `<p><strong>${esc(lead.name)}</strong>${lead.email ? ` (${esc(lead.email)})` : ''} a cliqué sur un lien de l'email${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}. C'est le moment de lui écrire.</p>${await followUpBlock(lead, s, esc)}<p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email » : le PDF de la page est à joindre à votre message.</p>`).catch(() => {});
   }
   return { tracked: true, first };
 }

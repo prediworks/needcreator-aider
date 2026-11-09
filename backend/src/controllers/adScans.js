@@ -46,6 +46,36 @@ export async function scanExamplesView(req, res) {
   } catch (error) { fail(res, error, 'Exemples indisponibles', 'scanExamples'); }
 }
 
+/**
+ * Public : 3 autres marques du même secteur déjà lues, à comparer en un clic (« Comparer avec… » sous l'audit ou le scan). Le concurrent
+ * repéré pour la fiche prospect de cette marque passe en premier. Aucune lecture Meta ni IA : seulement des scans existants.
+ */
+export async function similarScans(req, res) {
+  try {
+    const scan = await AdScan.findOne({ slug: String(req.params.slug || '').toLowerCase() }).select('_id slug pageName website leadId insights.niche').lean();
+    if (!scan) return res.status(404).json({ error: 'Scan introuvable' });
+    const st = await scanSettings();
+    const { isBlockedPage } = await import('../services/adScan.js');
+    const fields = 'slug pageName totalActive distinctActive capped stats.oldestDays pageId';
+    const out = [];
+    const Lead = (await import('../models/Lead.js')).default;
+    const lead = scan.leadId ? await Lead.findById(scan.leadId).select('competitor').lean() : null;
+    if (lead?.competitor?.slug && lead.competitor.slug !== scan.slug) {
+      const c = await AdScan.findOne({ slug: lead.competitor.slug, status: 'ready' }).select(fields).lean();
+      if (c) out.push(c);
+    }
+    const niche = scan.insights?.niche;
+    if (niche) {
+      const more = await AdScan.find({ status: 'ready', 'insights.niche': niche, _id: { $ne: scan._id }, slug: { $nin: out.map(x => x.slug) }, pageId: { $not: /^none:/ } })
+        .sort({ views: -1, distinctActive: -1, fetchedAt: -1 }).limit(8).select(fields).lean();
+      out.push(...more);
+    }
+    const rows = out.filter(x => !isBlockedPage(st.scanBlockedPages, x)).slice(0, 3)
+      .map(x => ({ slug: x.slug, pageName: x.pageName, totalActive: x.totalActive || 0, distinctActive: x.distinctActive ?? null, capped: !!x.capped, oldestDays: x.stats?.oldestDays ?? null }));
+    res.json({ niche: niche || null, scans: rows });
+  } catch (error) { fail(res, error, 'Comparaison indisponible', 'similarScans'); }
+}
+
 /** Public : consultation par un navigateur (compteur ; première consultation = condition d'indexation) */
 export async function viewScan(req, res) {
   try {

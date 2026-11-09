@@ -113,6 +113,8 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   const loginHref = `/login?next=${back}`;
   const errStatus = (error as any)?.response?.status;
   // Vidéos d'exemple de la niche de la marque, tarif de départ et fourchette par type de vidéo (prix des vidéos de l'audit)
+  // Autres marques du même secteur déjà lues : comparer en un clic
+  const { data: similar } = useQuery({ queryKey: ['ad-scan-similar', s?.slug], queryFn: async () => (await api.get(`/ad-scans/${s!.slug}/similar`)).data, enabled: !!s?.slug && s?.status === 'ready', staleTime: 600000 });
   const { data: examples } = useQuery({ queryKey: ['ad-scan-examples', s?.slug], queryFn: async () => (await api.get(`/ad-scans/${s!.slug}/examples`)).data, enabled: !!s?.slug && s?.status === 'ready' && user?.role !== 'creator', staleTime: 600000 });
   const rangeOf = (type: string) => { const r = examples?.rates?.[type]; return r ? `${r[0]} à ${r[1]} € HT` : ''; };
   // Verdict en une phrase, factuel : ce qui dure est ce qui rapporte
@@ -267,6 +269,22 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 </div>
               )}
               {!isAdmin && <div className="mt-6"><ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} /></div>}
+            </Card>
+          )}
+
+          {/* 2 bis. Comparer avec d'autres marques du même secteur (concurrent repéré en premier) */}
+          {s.status === 'ready' && similar?.scans?.length > 0 && (
+            <Card className="p-5" data-testid="ad-scan-similar">
+              <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary-600" /> <span>Comparer avec d&apos;autres marques</span>{similar.niche && NICHES[similar.niche] ? <span className="text-neutral-500 font-normal text-sm">· {NICHES[similar.niche]}</span> : null}</h3>
+              <p className="text-sm text-neutral-600 mb-3">Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu&apos;elles laissent libres.</p>
+              <div className="grid sm:grid-cols-3 gap-2">
+                {similar.scans.map((c: any) => (
+                  <Link key={c.slug} href={`/publicites/${c.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white" data-testid="ad-scan-similar-item">
+                    <div className="font-medium text-neutral-900 truncate">{c.pageName}</div>
+                    <div className="text-xs text-neutral-600">{`${adCount(c).main} publicité${adCount(c).n > 1 ? 's' : ''}${c.oldestDays != null ? ` · la plus ancienne : ${c.oldestDays} j` : ''}`}</div>
+                  </Link>
+                ))}
+              </div>
             </Card>
           )}
 
