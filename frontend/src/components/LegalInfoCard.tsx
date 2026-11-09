@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { COUNTRIES, countryName, companyIdLabel } from '@/lib/countries';
+import { COUNTRIES, countryName, companyIdLabel, canReceivePayouts, PAYOUT_COUNTRY_NOTE } from '@/lib/countries';
 import api, { getErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import Card from '@/components/ui/Card';
@@ -127,8 +127,9 @@ export default function LegalInfoCard({ profile }: { profile: any }) {
           <div>
             <label className="block text-sm font-medium text-neutral-700 mb-1">Pays de votre {form.status === 'individual' ? 'résidence' : 'entreprise'}</label>
             <select value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value, address: { ...form.address, country: countryName(e.target.value) } })} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500" data-testid="legal-country">
-              {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              {COUNTRIES.filter(c => isBrand || canReceivePayouts(c.code) || c.code === profile.legalInfo?.country).map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
             </select>
+            {!isBrand && <p className={`text-xs mt-1 ${canReceivePayouts(form.country) ? 'text-neutral-500' : 'text-red-600'}`}>{PAYOUT_COUNTRY_NOTE}</p>}
           </div>
           {form.status === 'company' && <Input label="Raison sociale" value={form.companyName} onChange={(e) => set('companyName', e.target.value)} />}
           {form.status !== 'individual' ? (

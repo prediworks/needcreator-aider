@@ -10,7 +10,7 @@ import { config } from '../config/index.js';
 import { stripe } from '../services/stripe.js';
 import { deleteFile } from '../services/storage.js';
 import logger from '../utils/logger.js';
-import { isValidSiret, isValidVat, lookupRegistry, isValidBce, formatBce } from '../utils/business.js';
+import { isValidSiret, isValidVat, lookupRegistry, isValidBce, formatBce, canReceivePayouts, PAYOUT_COUNTRY_ERROR } from '../utils/business.js';
 import { getSetting, SETTINGS } from '../models/Setting.js';
 import { notifyAccountDeleted } from '../services/adminAlerts.js';
 import { DELETION_REASONS } from '../config/deletionReasons.js';
@@ -49,6 +49,7 @@ export async function updateLegalInfo(req, res) {
     }
 
     const country = String(body.country || 'FR').toUpperCase();
+    if (!canReceivePayouts(country)) return res.status(400).json({ error: PAYOUT_COUNTRY_ERROR });
     let siret = country === 'FR' ? (body.siret || '').replace(/\s/g, '') : String(body.siret || '').trim();
     let siretResolved = false;
     if (body.status !== 'individual' && country === 'BE') {

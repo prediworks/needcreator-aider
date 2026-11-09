@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { detectLang } from '@/lib/i18n';
 import { isFreeEmail } from '@/lib/email';
 import MissingHint from '@/components/ui/MissingHint';
+import { canReceivePayouts, PAYOUT_COUNTRY_NOTE } from '@/lib/countries';
 
 function RegisterForm() {
   const router = useRouter();
@@ -39,6 +40,9 @@ function RegisterForm() {
   // Brand fields
   const [companyName, setCompanyName] = useState('');
   const [country, setCountry] = useState('FR');
+  // Créateur : uniquement les pays où Stripe peut verser les gains
+  const countryOptions = Object.entries(COUNTRIES).filter(([v]) => role !== 'creator' || canReceivePayouts(v));
+  useEffect(() => { if (role === 'creator' && !canReceivePayouts(country)) setCountry('FR'); }, [role, country]);
   const [language, setLanguage] = useState('fr');
   useEffect(() => { try { setLanguage(detectLang()); } catch { /* langue illisible : français */ } }, []);
   const referralCode = searchParams.get('ref') || '';
@@ -290,8 +294,9 @@ function RegisterForm() {
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Pays</label>
                   <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-                    {Object.entries(COUNTRIES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    {countryOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
+                  {role === 'creator' && <p className="text-xs text-neutral-500 mt-1">{PAYOUT_COUNTRY_NOTE}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Langue</label>

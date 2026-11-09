@@ -165,3 +165,8 @@ export const REVERSE_CHARGE_NOTE = 'Autoliquidation : TVA due par le preneur (ar
 export const isForeign = (country) => String(country || 'FR').toUpperCase() !== 'FR';
 /** Le créateur facture-t-il la TVA française ? Assujetti et établi en France ; hors de France, autoliquidation par la marque */
 export const chargesFrenchVat = (user) => !!user?.legalInfo?.vatRegistered && !isForeign(user?.legalInfo?.country);
+
+// Pays où Stripe peut verser les gains d'un créateur depuis une plateforme française (country_specs FR, supported_transfer_countries, 09/11/2026)
+export const PAYOUT_COUNTRIES = ['AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GI', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MC', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SM', 'SI', 'SK', 'US', 'CA'];
+export const canReceivePayouts = (country) => PAYOUT_COUNTRIES.includes(String(country || 'FR').toUpperCase());
+export const PAYOUT_COUNTRY_ERROR = 'Les versements aux créateurs ne sont pas encore possibles dans ce pays : notre prestataire de paiement (Stripe) ne le couvre pas. Écrivez-nous depuis la page Contact, nous vous préviendrons dès qu\'il sera ouvert.';

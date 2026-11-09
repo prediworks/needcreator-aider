@@ -9,7 +9,7 @@ import {
 import { resolveUrlsIn } from '../services/storage.js';
 import { levelFor, badgesFor, nextLevelHint } from '../utils/badges.js';
 import Delivery from '../models/Delivery.js';
-import { resolveSiretFromSiren, evaluateBusiness, isFreeEmail, lookupRegistry, isValidBce, formatBce } from '../utils/business.js';
+import { resolveSiretFromSiren, evaluateBusiness, isFreeEmail, lookupRegistry, isValidBce, formatBce, canReceivePayouts, PAYOUT_COUNTRY_ERROR } from '../utils/business.js';
 import { getSetting, SETTINGS, getFeePercents } from '../models/Setting.js';
 import { SERVICE_KEYS } from '../../config/services.js';
 import { planInfo } from './billing.js';
@@ -94,6 +94,7 @@ export async function registerCreator(req, res) {
   try {
     const { email, name, bio, niches, referralCode, campaignInviteToken, country = 'FR', language = 'fr' } = req.body;
     const minPrice = req.body.minPrice || Math.max(100, config.business.minQuotePrice);
+    if (!canReceivePayouts(country)) return res.status(400).json({ error: PAYOUT_COUNTRY_ERROR });
     const { uid } = req.firebaseUser;
 
     // Check if user already exists
@@ -367,6 +368,7 @@ export async function updateProfile(req, res) {
           'preferences.language',
         ];
     if (user.role === 'creator') allowedFields.push('preferences.acceptGifting');
+    if (user.role === 'creator' && updates['profile.country'] !== undefined && updates['profile.country'] !== user.profile?.country && !canReceivePayouts(updates['profile.country'])) return res.status(400).json({ error: PAYOUT_COUNTRY_ERROR });
     if (updates['profile.services'] !== undefined) {
       const list = Array.isArray(updates['profile.services']) ? updates['profile.services'].filter(k => SERVICE_KEYS.includes(k)) : [];
       if (!list.length) return res.status(400).json({ error: 'Choisissez au moins un service proposé' });
@@ -438,6 +440,7 @@ export async function startStripeConnect(req, res) {
     let accountId = user.profile.stripeConnect?.accountId || user.stripeAccountId;
 
     if (!accountId) {
+      if (!canReceivePayouts(user.legalInfo?.country || user.profile?.country || 'FR')) return res.status(400).json({ error: PAYOUT_COUNTRY_ERROR });
       const account = await createConnectAccount(user.email, user.legalInfo?.country || user.profile?.country || 'FR');
       accountId = account.id;
       user.set('profile.stripeConnect.accountId', accountId);

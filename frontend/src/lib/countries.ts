@@ -24,3 +24,8 @@ export const companyIdLabel = (code?: string, id = '') => {
   if (c === 'BE') return 'BCE';
   return 'N° d\'entreprise';
 };
+
+// Pays où Stripe peut verser les gains d'un créateur (même liste que backend/src/utils/business.js)
+export const PAYOUT_COUNTRIES = ['AT', 'BE', 'BG', 'CH', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GI', 'GR', 'HR', 'HU', 'IE', 'IS', 'IT', 'LI', 'LT', 'LU', 'LV', 'MC', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'SE', 'SM', 'SI', 'SK', 'US', 'CA'];
+export const canReceivePayouts = (code?: string) => PAYOUT_COUNTRIES.includes((code || 'FR').toUpperCase());
+export const PAYOUT_COUNTRY_NOTE = "Seuls les pays où Stripe peut vous verser vos gains sont proposés. Votre pays n'y est pas ? Écrivez-nous depuis la page Contact : nous vous préviendrons dès qu'il sera ouvert.";

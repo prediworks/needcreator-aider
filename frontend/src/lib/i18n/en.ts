@@ -3602,5 +3602,7 @@ export const EN: Record<string, string> = {
   "Vos concurrents font de la pub. Lesquelles marchent ?": "Your competitors run ads. Which ones work?",
   "celles qui marchent (financées depuis des mois), les angles qu'ils utilisent et ceux qu'ils laissent libres. Ou l'audit de vos propres publicités, avec trois vidéos créateur à commander.": "the ones that work (paid for over months), the angles they use and the ones they leave open. Or the audit of your own ads, with three creator videos to order.",
   "Les publicités de vos concurrents qui marchent, l'audit des vôtres.": "Your competitors' ads that work, the audit of yours.",
+  "Seuls les pays où Stripe peut vous verser vos gains sont proposés. Votre pays n'y est pas ? Écrivez-nous depuis la page Contact : nous vous préviendrons dès qu'il sera ouvert.": "Only countries where Stripe can pay out your earnings are listed. Your country isn't there? Write to us from the Contact page: we'll let you know as soon as it opens.",
+  "Les versements aux créateurs ne sont pas encore possibles dans ce pays : notre prestataire de paiement (Stripe) ne le couvre pas. Écrivez-nous depuis la page Contact, nous vous préviendrons dès qu'il sera ouvert.": "Payouts to creators are not yet possible in this country: our payment provider (Stripe) does not cover it. Write to us from the Contact page, we'll let you know as soon as it opens.",
 };
 

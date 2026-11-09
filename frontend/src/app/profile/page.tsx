@@ -27,6 +27,7 @@ import { Stars } from '@/components/ReviewForm';
 import { ArrowLeft, Upload, Trash2, Save, Video, Plus, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { NICHES, NICHE_OPTIONS, VIDEO_TYPES, VIDEO_TYPE_OPTIONS, INDUSTRIES, USER_STATUS, COUNTRIES, SERVICES, SERVICE_OPTIONS } from '@/lib/labels';
+import { canReceivePayouts, PAYOUT_COUNTRY_NOTE } from '@/lib/countries';
 import PortfolioMedia from '@/components/PortfolioMedia';
 import { formatDate } from '@/lib/utils';
 import { profileHref, blockerHref } from '@/lib/profileAnchors';
@@ -305,8 +306,9 @@ function ProfileContent() {
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">Pays</label>
                       <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-                        {Object.entries(COUNTRIES).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                        {Object.entries(COUNTRIES).filter(([v]) => canReceivePayouts(v) || v === profile.profile?.country).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
+                      <p className={`text-xs mt-1 ${canReceivePayouts(country) ? 'text-neutral-500' : 'text-red-600'}`}>{PAYOUT_COUNTRY_NOTE}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-neutral-700 mb-1">
