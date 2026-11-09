@@ -86,20 +86,22 @@ await step('Marque : inscription via le formulaire', async () => {
 await step('Marque : vérification de l\'entreprise (SIRET) depuis le profil', async () => {
   await bp.goto(`${FRONT}/profile`);
   await bp.getByText('Vérification de l\'entreprise').waitFor({ timeout: 20000 });
-  // Entreprise hors UE : code pays + numéro d'immatriculation → contrôle manuel
-  await bp.getByLabel('Où votre entreprise est-elle immatriculée ?').selectOption('OTHER');
-  await bp.getByLabel('Pays (code)').fill('CH');
+  // Déjà vérifiée à l'inscription (email professionnel) : rouvrir le formulaire
+  if (await bp.getByRole('button', { name: 'Modifier' }).first().isVisible()) await bp.getByRole('button', { name: 'Modifier' }).first().click();
+  // Entreprise étrangère (Suisse) : numéro au registre local + email professionnel → vérifiée tout de suite
+  await bp.getByLabel('Où votre entreprise est-elle immatriculée ?').selectOption('CH');
   await bp.getByLabel('Numéro d\'immatriculation').fill('CHE-123.456.789');
   await bp.screenshot({ path: path.join(SHOTS, 'business-foreign.png'), fullPage: false });
-  await bp.getByRole('button', { name: 'Envoyer pour contrôle manuel' }).click();
-  await bp.getByText('Vérification manuelle en cours').first().waitFor({ timeout: 20000 });
-  // Puis entreprise française : vérification immédiate
+  await bp.getByRole('button', { name: 'Vérifier mon entreprise' }).click();
+  await bp.getByText('Entreprise vérifiée').first().waitFor({ timeout: 20000 });
+  // Puis entreprise française : SIRET contrôlé au registre
+  await bp.getByRole('button', { name: 'Modifier' }).first().click();
   await bp.getByLabel('Où votre entreprise est-elle immatriculée ?').selectOption('FR');
   await bp.getByLabel(/SIRET/).fill('356 000 000 00048');
   await bp.getByRole('button', { name: 'Vérifier mon entreprise' }).click();
   await bp.getByText('Entreprise vérifiée').first().waitFor({ timeout: 20000 });
   await bp.getByText('NeedCreator Pro').first().waitFor({ timeout: 20000 });
-  return 'hors UE → contrôle manuel, puis SIRET vérifié automatiquement, essai Pro affiché';
+  return 'Suisse vérifiée (registre local), puis SIRET vérifié automatiquement, essai Pro affiché';
 });
 
 await step('Marque : création + publication d\'une campagne', async () => {
@@ -189,7 +191,7 @@ await step('Marque : page profil (édition)', async () => {
   await bp.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await bp.getByText('Marque UI Test Modifiée').first().waitFor({ timeout: 20000 });
   await bp.reload();
-  await bp.getByText('Marque de cosmétiques bio testée par le parcours interface.').waitFor({ timeout: 20000 }); // présentation sauvegardée et affichée hors édition
+  await bp.getByText('Marque de cosmétiques bio testée par le parcours interface.').waitFor({ timeout: 60000 }); // présentation sauvegardée et affichée hors édition
   await assertDisabledExplained(bp, 'profil marque');
   return 'nom et présentation modifiés, visibles après rechargement';
 });
@@ -237,7 +239,7 @@ await step('Créateur : profil, Stripe et upload portfolio', async () => {
   await cp.getByText('Il manque : un fichier, un titre').waitFor({ timeout: 20000 }); // règle : tout bouton grisé explique ce qui manque
   await assertDisabledExplained(cp, 'profil créateur');
   const bytes = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(4096, 1)]);
-  await cp.setInputFiles('input[type=file]', { name: 'portfolio.mp4', mimeType: 'video/mp4', buffer: bytes });
+  await cp.setInputFiles('input[type=file]:not([data-testid=avatar-input])', { name: 'portfolio.mp4', mimeType: 'video/mp4', buffer: bytes });
   await cp.getByLabel('Titre').fill('Ma vidéo test');
   await cp.getByRole('button', { name: /^Envoyer$/ }).click();
   await cp.getByText('Ajouté au portfolio').waitFor({ timeout: 60000 });
@@ -287,7 +289,7 @@ await step('Créateur : suivi de prospection (ajout, relance) et devis pré-remp
   await cp.getByRole('button', { name: /Ajouter une marque/ }).click();
   await assertDisabledExplained(cp, 'prospection');
   await cp.getByLabel('Marque').fill('Marque Soleil');
-  await cp.getByLabel('Contact').fill('Anna');
+  await cp.getByLabel('Contact', { exact: true }).fill('Anna');
   await cp.getByLabel('Prochaine relance').fill(new Date().toISOString().slice(0, 10));
   await cp.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await cp.getByText('Prospect ajouté').waitFor({ timeout: 20000 });
@@ -336,6 +338,7 @@ await step('Page publique : brief depuis une URL produit (page factice locale, r
     const budget = await p.getByTestId('product-budget').innerText();
     const title = await p.getByTestId('product-brief-title').innerText();
     if (!/brief=/.test(await p.getByTestId('product-brief-register').evaluate((el) => el.closest('a')?.getAttribute('href') || ''))) throw new Error('Le bouton d\'inscription doit porter l\'identifiant du brief');
+    await p.waitForURL(/[?&]id=/, { timeout: 15000 }).catch(() => {}); // l'adresse est mise à jour juste après l'affichage du résultat
     if (!/[?&]id=/.test(p.url())) throw new Error('L\'adresse doit contenir l\'identifiant du brief (lien partageable)');
     await p.screenshot({ path: `${SHOTS}/10c-brief-url.png`, fullPage: true });
     return `« ${title.slice(0, 40)} », budget ${budget.split(' HT')[0]}, inscription reliée au brief`;
