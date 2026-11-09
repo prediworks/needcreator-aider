@@ -3625,5 +3625,18 @@ export const EN: Record<string, string> = {
   "Comparaison indisponible": "Comparison unavailable",
   "Comparer avec d'autres marques": "Compare with other brands",
   "Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu'elles laissent libres.": "Their ads, read the same way: what has been running for a long time, the angles they leave open.",
+  "Inscription avec Google impossible pour le moment": "Google sign-up unavailable for now",
+  "Continuer avec Google": "Continue with Google",
+  "Sans mot de passe à créer.": "No password to create.",
+  "ou avec votre email": "or with your email",
+  "votre email": "your email",
+  "un message de 20 caractères": "a 20-character message",
+  "Message envoyé. Nous vous répondons par email.": "Message sent. We will reply by email.",
+  "Une question ?": "A question?",
+  "Sur cette lecture, sur le prix d'une vidéo ou sur la façon de travailler avec un créateur : posez-la, une personne de l'équipe vous répond par email.": "About this analysis, the price of a video or how to work with a creator: ask it, a person from the team replies by email.",
+  "Poser ma question": "Ask my question",
+  "Votre question": "Your question",
+  "Par exemple : combien coûterait une vidéo témoignage pour notre sérum ?": "For example: how much would a testimonial video for our serum cost?",
+  "Il manque : {x}.": "Missing: {x}.",
 };
 

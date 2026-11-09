@@ -501,5 +501,10 @@
  "slug pageName ads.title ads.body ads.startedAt audit.briefs insights.niche",
  "<p style=\"margin-bottom:4px\"><strong>Brouillon de relance</strong> (à relire, puis à envoyer depuis votre boîte, sans dire que vous avez vu son clic) :</p><pre style=\"white-space:pre-wrap;font-family:inherit;background:#f6f7f8;border-radius:6px;padding:12px;margin-top:4px\">{x}</pre>",
  "_id name status email scanVisits firstName kind competitor",
- "<p><strong>{x}</strong>{x} a cliqué sur un lien de l'email{x}. C'est le moment de lui écrire.</p>{x}<p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email » : le PDF de la page est à joindre à votre message.</p>"
+ "<p><strong>{x}</strong>{x} a cliqué sur un lien de l'email{x}. C'est le moment de lui écrire.</p>{x}<p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email » : le PDF de la page est à joindre à votre message.</p>",
+ "Page : {x}/publicites/{x}{x}",
+ "Marque venue de l'email de prospection (fiche {x})",
+ "Visiteur",
+ "Question sur {x} de {x}",
+ "les publicités"
 ]

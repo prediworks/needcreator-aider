@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ScanReportSignup from '@/components/ScanReportSignup';
+import ScanQuestion from '@/components/ScanQuestion';
 import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
 import { adCount } from '@/lib/adCount';
 import { downloadScanPdf } from '@/lib/scanPdf';
@@ -271,6 +272,9 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               {!isAdmin && <div className="mt-6"><ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} /></div>}
             </Card>
           )}
+
+          {/* Une question : un humain répond par email, aucune adresse affichée */}
+          {s.status === 'ready' && user?.role !== 'creator' && !isAdmin && <ScanQuestion slug={s.slug} pageName={s.pageName} audit={auditView} />}
 
           {/* 2 bis. Comparer avec d'autres marques du même secteur (concurrent repéré en premier) */}
           {s.status === 'ready' && similar?.scans?.length > 0 && (
