@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Mail } from 'lucide-react';
 import { detectLang } from '@/lib/i18n';
-import { trackRef } from '@/lib/scanRef';
+import { trackRef, readRef } from '@/lib/scanRef';
 
 /**
  * Rapport du scan par email : une adresse, le rapport tout de suite, puis un email par semaine au plus quand la marque lance de nouvelles
@@ -22,6 +22,9 @@ export default function ScanReportSignup({ slug, pageName, audit = false }: { sl
   const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'brand' | 'creator' | ''>('');
+  // Marque venue de l'email de prospection (référence de sa fiche) : on sait déjà que c'est une marque, pas de question
+  const [fromLead, setFromLead] = useState(false);
+  useEffect(() => { const r = readRef(); if (/^[a-f0-9]{24}$/i.test(r)) { setFromLead(true); setRole('brand'); } }, []);
   const [firstName, setFirstName] = useState('');
   const [company, setCompany] = useState(pageName);
   const [done, setDone] = useState('');
@@ -43,10 +46,10 @@ export default function ScanReportSignup({ slug, pageName, audit = false }: { sl
             {user ? <div className="text-sm text-neutral-700 sm:flex-1">À <strong>{user.email}</strong></div> : (
               <>
                 <div className="sm:flex-1"><Input label="Votre email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@votre-marque.fr" /></div>
-                <div className="flex gap-3 text-sm text-neutral-700 pb-2" data-testid="scan-report-role">
+                {!fromLead && <div className="flex gap-3 text-sm text-neutral-700 pb-2" data-testid="scan-report-role">
                   <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="scan-role" checked={role === 'brand'} onChange={() => setRole('brand')} /> Je suis une marque</label>
                   <label className="inline-flex items-center gap-1 cursor-pointer"><input type="radio" name="scan-role" checked={role === 'creator'} onChange={() => setRole('creator')} /> Je suis créateur</label>
-                </div>
+                </div>}
                 {role === 'brand' && <div className="sm:w-48" data-testid="scan-report-company"><Input label="Nom de votre marque" required value={company} onChange={(e) => setCompany(e.target.value)} maxLength={120} /></div>}
                 {role === 'creator' && <div className="sm:w-40" data-testid="scan-report-firstname"><Input label="Votre prénom" required value={firstName} onChange={(e) => setFirstName(e.target.value)} maxLength={60} /></div>}
               </>

@@ -3604,5 +3604,11 @@ export const EN: Record<string, string> = {
   "Les publicités de vos concurrents qui marchent, l'audit des vôtres.": "Your competitors' ads that work, the audit of yours.",
   "Seuls les pays où Stripe peut vous verser vos gains sont proposés. Votre pays n'y est pas ? Écrivez-nous depuis la page Contact : nous vous préviendrons dès qu'il sera ouvert.": "Only countries where Stripe can pay out your earnings are listed. Your country isn't there? Write to us from the Contact page: we'll let you know as soon as it opens.",
   "Les versements aux créateurs ne sont pas encore possibles dans ce pays : notre prestataire de paiement (Stripe) ne le couvre pas. Écrivez-nous depuis la page Contact, nous vous préviendrons dès qu'il sera ouvert.": "Payouts to creators are not yet possible in this country: our payment provider (Stripe) does not cover it. Write to us from the Contact page, we'll let you know as soon as it opens.",
+  "Paiement bloqué jusqu'à votre validation de la vidéo : révisions incluses, remboursé si le créateur ne livre pas.": "Payment held until you approve the video: revisions included, refunded if the creator does not deliver.",
+  "Payé au créateur seulement après votre validation.": "Paid to the creator only after your approval.",
+  "Votre audit publicitaire, offert par NeedCreator": "Your ad audit, offered by NeedCreator",
+  "Une lecture offerte par NeedCreator": "An analysis offered by NeedCreator",
+  "Vos publicités qui marchent, lues par l'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.": "Your ads that work, read by AI. Verified creators shoot the video version: the brief is prepared for free, then creators send you their quotes.",
+  "Les publicités qui marchent, lues par l'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.": "The ads that work, read by AI. Verified creators shoot the video version for your brand: the brief is prepared for free, then creators send you their quotes.",
 };
 

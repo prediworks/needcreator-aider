@@ -14,7 +14,7 @@ import ScanReportSignup from '@/components/ScanReportSignup';
 import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
 import { formatDate } from '@/lib/utils';
 import { NICHES } from '@/lib/labels';
-import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown } from 'lucide-react';
+import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown, ShieldCheck } from 'lucide-react';
 
 const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger', audience_network: 'Audience Network', threads: 'Threads' };
 const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hommes' };
@@ -23,6 +23,9 @@ const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hom
  * Scan concurrentiel : le nom d'une marque → ses publicités Meta actives (les plus anciennes d'abord : celles qui tournent sont celles qui
  * durent), des constats factuels par l'IA, et « Tester cette publicité avec un créateur » (brief gratuit). Sans compte : un aperçu ; inscrit : tout.
  */
+// Garantie, dite à côté du prix : le paiement est bloqué à la commande et versé au créateur à la validation
+const GUARANTEE = 'Paiement bloqué jusqu\'à votre validation de la vidéo : révisions incluses, remboursé si le créateur ne livre pas.';
+const GUARANTEE_SHORT = 'Payé au créateur seulement après votre validation.';
 const VIDEO_TYPE: Record<string, string> = { testimonial: 'Témoignage', unboxing: 'Unboxing', demo: 'Démonstration', tutorial: 'Tutoriel', review: 'Avis', comparison: 'Comparatif', lifestyle: 'Lifestyle', 'behind-the-scenes': 'Coulisses' };
 
 export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initialSlug?: string; mode?: 'scan' | 'audit' }) {
@@ -121,7 +124,8 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   const onSignupClick = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest?.('a[href^="/register"]')) trackRef('locked', slug, isAdmin); };
   return (
     <div className="space-y-6" onClickCapture={onSignupClick}>
-      <Card className="p-6">
+      {/* Page d'un scan déjà calculé (lien de l'email, lien partagé) : le résultat d'abord ; « Scanner une autre marque » est en haut de page */}
+      {!initialSlug && <Card className="p-6">
         <form onSubmit={(e) => { e.preventDefault(); if (q.trim()) scan.mutate({ q: q.trim() }); }} className="flex flex-col sm:flex-row gap-3 sm:items-end">
           <div className="flex-1"><Input label={auditView ? 'Nom de votre marque (tel que sur votre page Facebook)' : 'Nom d\'une marque (un concurrent, ou la vôtre)'} placeholder="Ex. : Respire, Cabaïa, Typology…" value={q} onChange={(e) => setQ(e.target.value)} required data-testid="ad-scan-q" /></div>
           <Button type="submit" isLoading={scan.isPending} data-testid="ad-scan-go"><Search className="w-4 h-4 mr-2" /> {auditView ? 'Auditer ces publicités' : 'Voir ses publicités'}</Button>
@@ -148,7 +152,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
           </div>
         )}
         {!slug && !candidates && !user && <p className="text-xs text-neutral-500 mt-3">Sans compte : 3 marques par jour, les 10 publicités les plus anciennes et les premiers constats. Avec un compte gratuit (marque ou créateur) : 10 marques par jour, toutes les publicités, la lecture complète.</p>}
-      </Card>
+      </Card>}
 
       {slug && isFetching && !s && <Card className="p-6 text-sm text-neutral-600">Chargement du scan…</Card>}
       {slug && errStatus === 410 && <Card className="p-6 text-sm text-neutral-700">Cette marque a demandé à ne pas apparaître dans l&apos;outil.</Card>}
@@ -156,6 +160,14 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
       {s && (
         <div className="space-y-6" data-testid="ad-scan-result">
+          {/* 0. Qui nous sommes, en une phrase : la marque arrive souvent d'un email sans nous connaître */}
+          {s.status === 'ready' && user?.role !== 'creator' && !isAdmin && (
+            <div className="rounded-xl bg-primary-50 border border-primary-100 p-4 text-sm text-neutral-800" data-testid="ad-scan-intro">
+              <div className="font-semibold text-neutral-900">{auditView ? 'Votre audit publicitaire, offert par NeedCreator' : 'Une lecture offerte par NeedCreator'}</div>
+              <p className="mt-1">{auditView ? 'Vos publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.' : 'Les publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.'}</p>
+              <p className="mt-1 text-xs text-neutral-600 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary-600 shrink-0" />{GUARANTEE}</p>
+            </div>
+          )}
           {/* 1. Le verdict : la marque, trois chiffres, une phrase */}
           <Card className="p-6">
             <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -208,6 +220,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                         <p className="text-sm text-neutral-700 italic mt-2">« {b.hook} »</p>
                         {b.why && <p className="text-xs text-neutral-500 mt-1">{b.why}</p>}
                         {rangeOf(b.videoType) && <div className="text-sm font-semibold text-neutral-900 mt-3">{rangeOf(b.videoType)}</div>}
+                        {rangeOf(b.videoType) && <div className="text-[11px] text-neutral-500 mt-0.5">{GUARANTEE_SHORT}</div>}
                         <div className="mt-auto pt-3"><Button size="sm" className="w-full" onClick={() => brief.mutate({ proposal: i })} isLoading={brief.isPending && brief.variables?.proposal === i} disabled={brief.isPending} title="Prépare le brief complet de cette vidéo (consignes, à faire, à éviter, budget estimé), prêt à publier">Créer ce brief <ArrowRight className="w-4 h-4 ml-1" /></Button></div>
                       </div>
                     ))}
@@ -221,7 +234,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                     {s.stats?.oldestDays != null && <div className="text-xs text-neutral-600 mt-0.5">{`Elle tourne depuis ${s.stats.oldestDays} jours`}</div>}
                     {firstAd && <p className="text-sm text-neutral-700 italic mt-2 line-clamp-3">« {firstAd} »</p>}
                     <p className="text-xs text-neutral-500 mt-1">Même produit, même promesse, filmé par un créateur, avec un angle que ces publicités n&apos;utilisent pas.</p>
-                    {examples?.fromPrice ? <div className="text-sm font-semibold text-neutral-900 mt-3">{`À partir de ${examples.fromPrice} € HT la vidéo`}</div> : null}
+                    {examples?.fromPrice ? <><div className="text-sm font-semibold text-neutral-900 mt-3">{`À partir de ${examples.fromPrice} € HT la vidéo`}</div><div className="text-[11px] text-neutral-500 mt-0.5">{GUARANTEE_SHORT}</div></> : null}
                     <div className="mt-auto pt-3"><Button className="w-full" onClick={() => brief.mutate({})} isLoading={brief.isPending && !brief.variables?.adId} disabled={brief.isPending} title="Prépare un brief NeedCreator : l'équivalent de la publicité qui tourne depuis le plus longtemps, en vidéo créateur, avec un angle que ces publicités n'utilisent pas" data-testid="ad-scan-brief">Tester cette publicité avec un créateur <ArrowRight className="w-4 h-4 ml-1" /></Button><div className="text-[11px] text-neutral-500 mt-1 text-center" data-testid="ad-scan-brief-free">Gratuit, vous ne payez que la vidéo qui vous convient.</div></div>
                   </div>
                   <div className="p-4 rounded-lg border border-neutral-200 bg-white flex flex-col">
@@ -235,10 +248,11 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               {examples?.videos?.length > 0 && (
                 <div className="mt-6" data-testid="ad-scan-examples">
                   <div className="font-medium text-neutral-900 mb-2"><span>Des vidéos de nos créateurs</span>{examples.niche && NICHES[examples.niche] && examples.videos.some((v: any) => v.sameNiche) ? <span className="text-neutral-500 font-normal"> · <span>{NICHES[examples.niche]}</span></span> : null}</div>
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* Téléphone : vidéos en grand, à faire défiler du doigt ; ordinateur : trois colonnes. Sans miniature, la première image sert d'aperçu (#t) */}
+                  <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-6 px-6 pb-2 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 sm:overflow-visible">
                     {examples.videos.map((v: any, i: number) => (
-                      <div key={i} className="min-w-0">
-                        <video src={v.url} poster={v.thumbnail || undefined} controls playsInline preload="metadata" className="w-full aspect-[9/16] object-cover rounded-lg bg-neutral-900" />
+                      <div key={i} className="min-w-0 w-[72%] shrink-0 snap-start sm:w-auto">
+                        <video src={v.thumbnail ? v.url : `${v.url}#t=0.5`} poster={v.thumbnail || undefined} controls playsInline preload="metadata" className="w-full aspect-[9/16] object-cover rounded-lg bg-neutral-900" />
                         <div className="text-xs text-neutral-700 mt-1 truncate">{v.creator.slug ? <Link href={`/c/${v.creator.slug}`} className="underline">{v.creator.name}</Link> : v.creator.name}</div>
                         {v.minPrice ? <div className="text-[11px] text-neutral-500">{`à partir de ${v.minPrice} € HT`}</div> : null}
                       </div>
