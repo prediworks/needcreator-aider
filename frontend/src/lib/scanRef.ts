@@ -5,7 +5,7 @@ import api from '@/lib/api';
  * (outils offerts avec le devis, ?devis=, gardé sous la forme « devis:<id> »). Sert à l'entonnoir des marques venues de l'email (admin).
  */
 export const REF_KEY = 'nc_scan_ref';
-export type RefAction = 'visit' | 'scan' | 'audit' | 'brief' | 'locked' | 'register' | 'email';
+export type RefAction = 'visit' | 'scan' | 'audit' | 'brief' | 'locked' | 'register' | 'email' | 'pdf';
 export function readRef(): string { try { return sessionStorage.getItem(REF_KEY) || ''; } catch { return ''; } }
 export function trackRef(action: RefAction, slug = '', isAdmin = false, ref = '') {
   const stored = ref || readRef();

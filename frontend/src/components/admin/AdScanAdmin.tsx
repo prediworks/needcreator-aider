@@ -8,8 +8,12 @@ import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
+import { downloadScanPdf } from '@/lib/scanPdf';
 
-const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief', rights: 'registre des droits', locked: 'clic sur une partie verrouillée', register: 'formulaire d\'inscription ouvert', email: 'rapport demandé par email', signup: 'compte créé' };
+/** PDF d'un scan ou de son audit, pour une relance personnelle (le lien du PDF garde la fiche prospect quand on la connaît) */
+async function pdfFor(slug: string, audit: boolean, ref = '') { const id = toast.loading('Préparation du PDF…'); const err = await downloadScanPdf(slug, { audit, ref }); if (err) toast.error(err, { id, duration: 8000 }); else toast.success('PDF téléchargé', { id }); }
+
+const ACTION: Record<string, string> = { visit: 'visite', scan: 'scan', audit: 'audit', brief: 'brief', rights: 'registre des droits', locked: 'clic sur une partie verrouillée', register: 'formulaire d\'inscription ouvert', email: 'rapport demandé par email', signup: 'compte créé', pdf: 'PDF téléchargé' };
 // Entonnoir des marques venues de l'email : étapes successives, puis deux actions à part
 const FUNNEL: [string, string, string][] = [
   ['clicked', 'Ont cliqué dans l\'email', 'ouvert un lien de l\'email'],
@@ -117,6 +121,7 @@ export default function AdScanAdmin() {
                     {l.replied && <span className="text-xs text-green-700">a répondu</span>}
                     <span className="text-xs text-neutral-600">{l.visits} action{l.visits > 1 ? 's' : ''} ({l.actions.map((a: string) => ACTION[a] || a).join(', ')}){l.pages.length ? ` · ${l.pages.join(', ')}` : ''} · dernière le {formatDate(l.last)}</span>
                     {l.email && <span className="text-xs text-neutral-500">{l.email}</span>}
+                    {(l.scans || []).map((sc: any) => <button key={sc.slug} type="button" className="text-xs text-primary-700 underline" title={`PDF ${sc.audit ? 'de l\'audit' : 'des publicités'} de ${sc.pageName}, à joindre à votre relance (le lien du PDF suit le clic de la marque)`} onClick={() => pdfFor(sc.slug, sc.audit, l.id)} data-testid="ad-scan-from-email-pdf">PDF {sc.audit ? 'audit' : 'scan'} · {sc.pageName}</button>)}
                   </li>
                 ))}
               </ul>
@@ -178,7 +183,7 @@ export default function AdScanAdmin() {
                 <tbody>
                   {top.map((s: any) => (
                     <tr key={s.slug} className="border-b border-neutral-100" data-testid="ad-scan-admin-row">
-                      <td className="py-2 pr-3"><Link href={`/publicites/${s.slug}`} className="font-medium text-neutral-900 underline">{s.pageName}</Link>{Object.keys(s.origins || {}).length > 0 && <div className="flex flex-wrap gap-1 mt-1" data-testid="ad-scan-origins">{Object.entries(s.origins).map(([o, n]: any) => <OriginChip key={o} o={o} n={n} />)}</div>}{s.website && <div className="text-xs text-neutral-500">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</div>}<div className="text-[11px] text-neutral-400">lu le {formatDate(s.fetchedAt)}</div></td>
+                      <td className="py-2 pr-3"><Link href={`/publicites/${s.slug}`} className="font-medium text-neutral-900 underline">{s.pageName}</Link>{s.status === 'ready' && <span className="ml-2 text-xs whitespace-nowrap"><button type="button" className="text-primary-700 underline" onClick={() => pdfFor(s.slug, false, s.lead?.id || '')} title="PDF des publicités">PDF</button> · <button type="button" className="text-primary-700 underline" onClick={() => pdfFor(s.slug, true, s.lead?.id || '')} title="PDF de l'audit (lancé s'il n'existe pas encore : réessayez deux minutes après)">PDF audit</button></span>}{Object.keys(s.origins || {}).length > 0 && <div className="flex flex-wrap gap-1 mt-1" data-testid="ad-scan-origins">{Object.entries(s.origins).map(([o, n]: any) => <OriginChip key={o} o={o} n={n} />)}</div>}{s.website && <div className="text-xs text-neutral-500">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</div>}<div className="text-[11px] text-neutral-400">lu le {formatDate(s.fetchedAt)}</div></td>
                       <td className="pr-3">{s.scans} <span className="text-xs text-neutral-500">({s.memberScans})</span></td>
                       <td className="pr-3 text-xs whitespace-nowrap">{(realOnly ? s.lastRealScanAt : s.lastScanAt) ? new Date(realOnly ? s.lastRealScanAt : s.lastScanAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                       <td className="pr-3">{s.views}</td>

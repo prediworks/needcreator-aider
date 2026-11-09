@@ -582,7 +582,7 @@ async function leadForScan(scan) {
   return Lead.findOne({ $or: or }).select('_id name status').lean();
 }
 
-const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights', 'locked', 'register', 'email', 'signup']; // locked : clic sur une partie verrouillée ; register : formulaire d'inscription ouvert ; email : rapport demandé ; signup : compte créé // rights : registre des droits ouvert depuis un devis
+const REF_ACTIONS = ['visit', 'scan', 'audit', 'brief', 'rights', 'locked', 'register', 'email', 'signup', 'pdf']; // locked : clic sur une partie verrouillée ; register : formulaire d'inscription ouvert ; email : rapport demandé ; signup : compte créé // rights : registre des droits ouvert depuis un devis
 /**
  * Visite venue d'un lien de l'email marques (paramètre ref = identifiant de la fiche) : enregistrée sur la fiche, une fois par action et par
  * page sur l'heure. La première visite d'une marque prévient l'équipe : elle a cliqué, c'est le moment de la relancer.
@@ -658,7 +658,7 @@ export async function adminScanStats() {
     return { origins: originsOf.get(s.slug) || {}, slug: s.slug, pageName: s.pageName, website: s.website, totalActive: s.totalActive || 0, oldestDays: s.stats?.oldestDays ?? null, scans: s.scans || 0, memberScans: s.memberScans || 0, views: s.views || 0, briefs: s.briefs || 0, audits: s.audits || 0, proposals: s.proposals || 0, status: s.status, fetchedAt: s.fetchedAt, lastScanAt: lastOf.get(s.slug) || null, lastRealScanAt: lastRealOf.get(s.slug) || null, lead: lead ? { id: lead._id, name: lead.name, status: lead.status } : null };
   }));
   const fromEmail = (await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).sort({ lastScanVisitAt: -1 }).limit(30).select('_id name status email scanVisits lastScanVisitAt mailing.replyAt').lean())
-    .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4) }));
+    .map(l => ({ id: l._id, name: l.name, status: l.status, email: l.email || '', replied: !!l.mailing?.replyAt, last: l.lastScanVisitAt, visits: (l.scanVisits || []).length, actions: [...new Set((l.scanVisits || []).map(v => v.action))], pages: [...new Set((l.scanVisits || []).map(v => v.pageName).filter(Boolean))].slice(0, 4), scans: [...new Map((l.scanVisits || []).filter(v => v.slug).map(v => [v.slug, { slug: v.slug, pageName: v.pageName || v.slug, audit: (l.scanVisits || []).some(x => x.slug === v.slug && x.action === 'audit') }])).values()].slice(0, 3) }));
   // Entonnoir des marques venues de l'email : combien atteignent chaque étape (toutes les fiches, pas seulement les 30 dernières)
   const allFromEmail = await Lead.find({ kind: 'brand', lastScanVisitAt: { $ne: null } }).select('status scanVisits.action registeredUserId').lean();
   const reached = (l, acts) => (l.scanVisits || []).some(v => acts.includes(v.action));

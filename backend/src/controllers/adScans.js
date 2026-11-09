@@ -105,6 +105,36 @@ export async function myScans(req, res) {
   } catch (error) { fail(res, error, 'Lecture impossible', 'myScans'); }
 }
 
+/**
+ * Public (compte facultatif) : PDF du scan ou de son audit (?vue=audit), fabriqué à la volée depuis la lecture enregistrée. Même filtre que la
+ * page : sans compte, ce que le visiteur voit ; compte ou équipe, tout. Audit jamais calculé : il est lancé, réponse 409 « réessayez ».
+ * ?ref=<fiche prospect> (équipe) : le lien du PDF garde la référence, le clic de la marque est suivi comme celui de l'email.
+ */
+export async function scanPdf(req, res) {
+  try {
+    const scan = await AdScan.findOne({ slug: String(req.params.slug || '').toLowerCase() });
+    if (!scan) return res.status(404).json({ error: 'Scan introuvable' });
+    const st = await scanSettings();
+    const { isBlockedPage, serializeScan: ser, requestAudit, scanExamples } = await import('../services/adScan.js');
+    if (scan.status === 'blocked' || isBlockedPage(st.scanBlockedPages, scan)) return res.status(410).json({ error: 'Cette marque a demandé à ne pas apparaître dans l\'outil.' });
+    if (scan.status !== 'ready') return res.status(400).json({ error: 'Pas encore de publicités lues pour cette marque' });
+    const audit = req.query.vue === 'audit';
+    const hasAuditNow = !!(scan.audit && (scan.audit.diagnosis || scan.audit.briefs?.length));
+    if (audit && !hasAuditNow) {
+      await requestAudit(scan).catch(() => null);
+      return res.status(409).json({ error: 'L\'audit est en préparation (une à deux minutes) : réessayez ensuite.' });
+    }
+    const view = await ser(scan, { user: req.user, settings: st });
+    const examples = await scanExamples(scan).catch(() => null);
+    const ref = req.user?.role === 'admin' && /^[a-f0-9]{24}$/i.test(String(req.query.ref || '')) ? String(req.query.ref) : '';
+    const { renderScanPdf, scanPageLink } = await import('../services/adScanPdf.js');
+    const pdf = await renderScanPdf({ scan, view, examples, audit, link: scanPageLink(scan.slug, { audit, ref }) });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${audit ? 'audit' : 'publicites'}-${scan.slug}.pdf"`);
+    res.send(pdf);
+  } catch (error) { fail(res, error, 'PDF indisponible pour le moment', 'scanPdf'); }
+}
+
 /** Public (compte facultatif) : audit créatif d'une page déjà scannée, lancé en arrière-plan ; la page suit avec `auditPending` */
 export async function auditScan(req, res) {
   try {

@@ -3616,5 +3616,11 @@ export const EN: Record<string, string> = {
   "({x} versions chez Meta)": "({x} versions on Meta)",
   "{x} publicité{x}{x}": "{x} ad{x}{x}",
   "{x} diffuse {x} publicité{x} Meta différente{x} en France{x}. Angles utilisés, accroches, angles libres : lecture factuelle, puis l'équivalent en vidéo créateur sur NeedCreator.": "{x} runs {x} different Meta ad{x}{-} in France{x}. Angles used, hooks, open angles: a factual reading, then the creator video equivalent on NeedCreator.",
+  "Le rapport en PDF, à transférer à votre équipe ou à votre responsable": "The report as a PDF, to forward to your team or your manager",
+  "Préparation du PDF…": "Preparing the PDF…",
+  "Télécharger en PDF": "Download as PDF",
+  "PDF indisponible pour le moment": "PDF unavailable for now",
+  "Pas encore de publicités lues pour cette marque": "No ads read for this brand yet",
+  "L'audit est en préparation (une à deux minutes) : réessayez ensuite.": "The audit is being prepared (one to two minutes): try again afterwards.",
 };
 

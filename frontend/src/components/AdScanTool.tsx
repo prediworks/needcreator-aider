@@ -13,9 +13,10 @@ import Input from '@/components/ui/Input';
 import ScanReportSignup from '@/components/ScanReportSignup';
 import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
 import { adCount } from '@/lib/adCount';
+import { downloadScanPdf } from '@/lib/scanPdf';
 import { formatDate } from '@/lib/utils';
 import { NICHES } from '@/lib/labels';
-import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown, ShieldCheck } from 'lucide-react';
+import { Search, ExternalLink, Lock, ArrowRight, Clapperboard, Share2, BarChart3, ClipboardCheck, ChevronDown, ShieldCheck, FileDown } from 'lucide-react';
 
 const PLATFORM: Record<string, string> = { facebook: 'Facebook', instagram: 'Instagram', messenger: 'Messenger', audience_network: 'Audience Network', threads: 'Threads' };
 const GENDER: Record<string, string> = { All: 'tous', Women: 'femmes', Men: 'hommes' };
@@ -121,6 +122,9 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
   const firstAd = String(s?.ads?.[0]?.title || s?.ads?.[0]?.body || '').replace(/\s+/g, ' ').slice(0, 180);
   const proposeHref = s ? (s.leadId ? `/vitrine?marque=${s.leadId}` : `/vitrine?suggerer=${encodeURIComponent(s.pageName || '')}${s.website ? `&site=${encodeURIComponent(s.website)}` : ''}`) : '/vitrine';
 
+  // PDF du scan ou de l'audit, à transférer à un responsable
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const downloadPdf = async () => { setPdfLoading(true); const err = await downloadScanPdf(slug, { audit: auditView }); setPdfLoading(false); if (err) toast.error(err, { duration: 8000 }); else trackRef('pdf', slug, isAdmin); };
   // Clic sur une partie verrouillée ou « Créer mon compte » : étape de l'entonnoir des marques venues de l'email
   const onSignupClick = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest?.('a[href^="/register"]')) trackRef('locked', slug, isAdmin); };
   return (
@@ -179,6 +183,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                   {s.website && <a href={s.website} target="_blank" rel="noreferrer" className="underline">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</a>}
                   <a href={s.libraryUrl} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Voir dans la bibliothèque Meta <ExternalLink className="w-3 h-3" /></a>
                   <button type="button" onClick={share} className="underline inline-flex items-center gap-1" title="Copie le lien de cette page : elle est publique"><Share2 className="w-3 h-3" /> Partager</button>
+                  {s.status === 'ready' && <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="underline inline-flex items-center gap-1" title="Le rapport en PDF, à transférer à votre équipe ou à votre responsable" data-testid="ad-scan-pdf"><FileDown className="w-3 h-3" /> {pdfLoading ? 'Préparation du PDF…' : 'Télécharger en PDF'}</button>}
                   {user?.role !== 'creator' && !auditView && s.status === 'ready' && <button type="button" onClick={openAudit} className="underline inline-flex items-center gap-1 text-primary-700" title="C'est votre marque ? Ce qui tient dans la durée, les angles répétés, les angles libres, des accroches à tester et trois vidéos créateur à commander" data-testid="ad-scan-open-audit"><ClipboardCheck className="w-3 h-3" /> Audit de ces publicités</button>}
                 </div>
               </div>
