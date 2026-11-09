@@ -598,6 +598,7 @@ export async function trackScanRef(ref, { action, slug, source = 'lead', userId 
   if ((lead.scanVisits || []).some(v => v.action === action && (v.slug || '') === (s?.slug || '') && v.at >= hourAgo)) return { tracked: false };
   const first = !(lead.scanVisits || []).length;
   await Lead.updateOne({ _id: lead._id }, { $push: { scanVisits: { $each: [{ at: new Date(), action, slug: s?.slug, pageName: s?.pageName }], $slice: -30 } }, $set: { lastScanVisitAt: new Date() } });
+  if (first && action !== 'signup') import('./acquisition/outreach.js').then(m => m.moveClickersToWarmList({ ids: [lead._id] })).catch(() => {}); // sortie des séquences tout de suite
   if (first) {
     const esc = (v) => String(v || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     notifyAdmins(`Prospection : ${lead.name} a ouvert l'outil de scan depuis l'email`, `<p><strong>${esc(lead.name)}</strong>${lead.email ? ` (${esc(lead.email)})` : ''} a cliqué sur un lien de l'email${s ? ` et regarde les publicités de <strong>${esc(s.pageName)}</strong>` : ''}. C'est le moment de lui écrire.</p><p>Admin → Prospection → Scan concurrentiel, liste « Marques venues de l'email ».</p>`).catch(() => {});

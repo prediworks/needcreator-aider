@@ -9,7 +9,7 @@ import { isVideoRequest, registerShowcaseRequest, videoRequestReply, notifyCreat
 import logger from '../../utils/logger.js';
 
 // Marques : nouvelle liste depuis la séquence du 08/10/2026 (variables competitor_line, audit_link) ; les contacts déjà poussés finissent l'ancienne sur l'ancienne liste
-export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques 2' };
+export const LIST_NAMES = { creator: 'NeedCreator · Prospection créateurs', brand: 'NeedCreator · Prospection marques 2', warm: 'NeedCreator · Marques intéressées' };
 export const isGeneric = (email) => /^(contact|hello|bonjour|info|admin|support|sales|commercial|marketing|presse|press|team|equipe)@/.test(email || '');
 
 export async function outreachSettings() {
@@ -171,6 +171,32 @@ export async function sendLeadReply(lead, text, { subject = 'Suite à votre mess
  * Synchronisation depuis l'outil de mailing : réponses → « A répondu », désabonnés et rebonds → « Hors cible »,
  * inscrits → retirés des séquences. Pause automatique si le taux de rebond des 7 derniers jours dépasse le seuil.
  */
+/**
+ * Marques qui ont cliqué dans l'email (outil de scan ou audit) sans s'inscrire : retirées des séquences, pour que le message automatique suivant
+ * ne tombe pas par-dessus une relance personnelle, et ajoutées à la liste « Marques intéressées » (relance à part). Les inscrites sont déjà
+ * retirées par la synchronisation ; les désabonnées et rebonds ne bougent pas. `ids` : seulement ces fiches (clic qui vient d'arriver).
+ */
+export async function moveClickersToWarmList({ ids = null, provider = mailingProvider() } = {}) {
+  if (!provider) return { moved: 0, reason: 'mailing non configuré' };
+  const q = { kind: 'brand', lastScanVisitAt: { $ne: null }, 'mailing.pushedAt': { $ne: null }, 'mailing.removedAt': null, 'mailing.warmAt': null, 'mailing.unsubscribedAt': null, 'mailing.bounced': { $ne: true }, status: { $nin: ['rejected', 'registered', 'excluded'] } };
+  if (ids) q._id = { $in: ids };
+  const leads = await Lead.find(q).lean(); // fiche entière : mêmes champs de contact que l'envoi d'origine
+  if (!leads.length) return { moved: 0 };
+  const list = await provider.ensureList(LIST_NAMES.warm);
+  let moved = 0;
+  for (const l of leads) {
+    try {
+      const emails = [l.email, ...(l.extraEmails || [])].filter((e, i, a) => e && a.indexOf(e) === i);
+      for (const e of emails) await provider.removeFromSequences(l.mailing.listId, e).catch(() => 0);
+      await provider.pushContacts(list.id, emails.map(e => ({ ...contactOf(l), email: e })));
+      await Lead.updateOne({ _id: l._id }, { $set: { 'mailing.removedAt': new Date(), 'mailing.warmAt': new Date(), 'mailing.warmListId': list.id } });
+      moved++;
+    } catch (err) { logger.warn(`moveClickersToWarmList ${l._id}: ${err.message}`); }
+  }
+  if (moved) logger.info(`Outreach: ${moved} marque(s) qui ont cliqué → liste « ${LIST_NAMES.warm} », retirées des séquences`);
+  return { moved, listName: LIST_NAMES.warm };
+}
+
 export async function syncFromMailing() {
   const provider = mailingProvider();
   if (!provider) return { synced: false, reason: 'mailing non configuré' };
@@ -213,6 +239,8 @@ export async function syncFromMailing() {
     await Lead.updateOne({ _id: l._id }, { $set: { status: 'registered', registeredUserId: u._id, 'mailing.removedAt': new Date() } });
     out.removed += removed ? 1 : 0;
   }
+  // Ont cliqué dans l'email sans s'inscrire : hors séquences, liste « Marques intéressées »
+  out.warm = (await moveClickersToWarmList({ provider }).catch(err => { logger.warn(`moveClickersToWarmList: ${err.message}`); return { moved: 0 }; })).moved;
   // Garde-fou : taux de rebond
   if (sent >= 20) {
     out.bounceRate = Math.round((bounces / sent) * 1000) / 10;
