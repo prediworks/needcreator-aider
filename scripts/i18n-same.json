@@ -511,6 +511,7 @@
  "w-2 h-2 rounded-full mt-1.5 flex-shrink-0 {x}",
  "w-20 h-20 {x} bg-primary-100 flex items-center justify-center overflow-hidden ring-offset-2 hover:ring-2 hover:ring-primary-400 transition {x}",
  "w-4 h-4 mt-0.5 flex-shrink-0 {x}",
+ "w-4 h-4 transition-transform {x}",
  "w-5 h-5 {x}",
  "w-8 h-8 rounded-full flex items-center justify-center {x}",
  "w-9 h-9 shrink-0 rounded-full {x} text-white flex items-center justify-center font-bold",

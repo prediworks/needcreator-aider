@@ -3687,5 +3687,6 @@ export const EN: Record<string, string> = {
   "Refermer": "Close",
   "Les {x} publicités, une par une": "The {x} ads, one by one",
   "Voir les angles": "See the angles",
+  "Autres marques": "Other brands",
 };
 
