@@ -221,38 +221,6 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             </div>
           )}
 
-          {/* 1 ter. Comparer : le concurrent repéré (ou une marque du même secteur) en un clic vers le duel ; « Autres marques » déplie les suivantes */}
-          {s.status === 'ready' && similar?.scans?.length > 0 && (
-            <div className="rounded-xl border border-neutral-200 bg-white" data-testid="ad-scan-similar">
-              <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
-                <Link href={`/publicites/${s.slug}/face-a/${similar.scans[0].slug}`} className="flex items-center gap-2 min-w-0 basis-full sm:basis-0 sm:flex-1 group/duel" data-testid="ad-scan-duel-top">
-                  <BarChart3 className="w-5 h-5 text-primary-600 shrink-0" />
-                  <span className="min-w-0"><span className="block font-semibold text-neutral-900 truncate group-hover/duel:underline">{`Comparer avec ${similar.scans[0].pageName}`}</span><span className="block text-xs text-neutral-600">Les deux marques côte à côte : nombre de publicités, durée, angles de l&apos;une et pas de l&apos;autre.</span></span>
-                </Link>
-                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0">
-                  <Link href={`/publicites/${s.slug}/face-a/${similar.scans[0].slug}`} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700">Voir le duel <ArrowRight className="w-4 h-4" /></Link>
-                  {similar.scans.length > 1 && <button type="button" onClick={() => setSimilarOpen(v => !v)} aria-expanded={similarOpen} className="inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2" data-testid="ad-scan-similar-toggle"><span>{similarOpen ? 'Refermer' : 'Autres marques'}</span> <ChevronDown className={`w-4 h-4 transition-transform ${similarOpen ? 'rotate-180' : ''}`} /></button>}
-                </div>
-              </div>
-              {similarOpen && similar.scans.length > 1 && (
-                <div className="px-4 pb-4">
-                  <p className="text-sm text-neutral-600 mb-3"><span>Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu&apos;elles laissent libres.</span>{similar.niche && NICHES[similar.niche] ? <span className="text-neutral-500"> · {NICHES[similar.niche]}</span> : null}</p>
-                  <div className="grid sm:grid-cols-3 gap-2">
-                    {similar.scans.slice(1).map((c: any) => (
-                      <div key={c.slug} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white" data-testid="ad-scan-similar-item">
-                        <Link href={`/publicites/${c.slug}`} className="block">
-                          <div className="font-medium text-neutral-900 truncate">{c.pageName}</div>
-                          <div className="text-xs text-neutral-600">{`${adCount(c).main} publicité${adCount(c).n > 1 ? 's' : ''}${c.oldestDays != null ? ` · la plus ancienne : ${c.oldestDays} j` : ''}`}</div>
-                        </Link>
-                        <Link href={`/publicites/${s.slug}/face-a/${c.slug}`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-700 underline" data-testid="ad-scan-duel-link">Comparer côte à côte <ArrowRight className="w-3 h-3" /></Link>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* 1 quater. Les angles et les accroches : repliés (les vidéos restent visibles dessous), avec un bouton d'ouverture bien visible */}
           {s.status === 'ready' && ((auditView && s.audit) || s.insights || s.insightsPending) && (
             <details id="angles" open={anglesOpen} onToggle={(e) => setAnglesOpen((e.target as HTMLDetailsElement).open)} className="group rounded-xl border-2 border-primary-300 bg-white scroll-mt-24" data-testid="ad-scan-angles">
@@ -311,6 +279,38 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 )}
               </div>
             </details>
+          )}
+
+          {/* 1 ter. Comparer : le concurrent repéré (ou une marque du même secteur) en un clic vers le duel ; « Autres marques » déplie les suivantes */}
+          {s.status === 'ready' && similar?.scans?.length > 0 && (
+            <div className="rounded-xl border border-neutral-200 bg-white" data-testid="ad-scan-similar">
+              <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+                <Link href={`/publicites/${s.slug}/face-a/${similar.scans[0].slug}`} className="flex items-center gap-2 min-w-0 basis-full sm:basis-0 sm:flex-1 group/duel" data-testid="ad-scan-duel-top">
+                  <BarChart3 className="w-5 h-5 text-primary-600 shrink-0" />
+                  <span className="min-w-0"><span className="block font-semibold text-neutral-900 truncate group-hover/duel:underline">{`Comparer avec ${similar.scans[0].pageName}`}</span><span className="block text-xs text-neutral-600">Les deux marques côte à côte : nombre de publicités, durée, angles de l&apos;une et pas de l&apos;autre.</span></span>
+                </Link>
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0">
+                  <Link href={`/publicites/${s.slug}/face-a/${similar.scans[0].slug}`} className="inline-flex items-center gap-1 text-sm font-medium text-primary-700">Voir le duel <ArrowRight className="w-4 h-4" /></Link>
+                  {similar.scans.length > 1 && <button type="button" onClick={() => setSimilarOpen(v => !v)} aria-expanded={similarOpen} className="inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2" data-testid="ad-scan-similar-toggle"><span>{similarOpen ? 'Refermer' : 'Autres marques'}</span> <ChevronDown className={`w-4 h-4 transition-transform ${similarOpen ? 'rotate-180' : ''}`} /></button>}
+                </div>
+              </div>
+              {similarOpen && similar.scans.length > 1 && (
+                <div className="px-4 pb-4">
+                  <p className="text-sm text-neutral-600 mb-3"><span>Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu&apos;elles laissent libres.</span>{similar.niche && NICHES[similar.niche] ? <span className="text-neutral-500"> · {NICHES[similar.niche]}</span> : null}</p>
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    {similar.scans.slice(1).map((c: any) => (
+                      <div key={c.slug} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white" data-testid="ad-scan-similar-item">
+                        <Link href={`/publicites/${c.slug}`} className="block">
+                          <div className="font-medium text-neutral-900 truncate">{c.pageName}</div>
+                          <div className="text-xs text-neutral-600">{`${adCount(c).main} publicité${adCount(c).n > 1 ? 's' : ''}${c.oldestDays != null ? ` · la plus ancienne : ${c.oldestDays} j` : ''}`}</div>
+                        </Link>
+                        <Link href={`/publicites/${s.slug}/face-a/${c.slug}`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-700 underline" data-testid="ad-scan-duel-link">Comparer côte à côte <ArrowRight className="w-3 h-3" /></Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* 2. L'offre : ce qu'un créateur tournerait, avec son prix et un seul bouton, des vidéos de la même niche, l'email */}
