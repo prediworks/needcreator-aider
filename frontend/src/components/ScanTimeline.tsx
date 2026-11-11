@@ -6,20 +6,20 @@
  * (une publicité maintenue trois mois est une publicité qui rapporte). Jauge : les angles utilisés sur l'ensemble des angles relevés.
  * Ce sont des comptes, pas une note : la page ne juge pas les publicités.
  */
-export function ScanTimeline({ days }: { days: number[] }) {
+export function ScanTimeline({ days, compact = false, scale = 0 }: { days: number[]; compact?: boolean; scale?: number }) {
   const list = [...(days || [])].filter(d => typeof d === 'number' && d >= 0).sort((a, b) => b - a);
   if (list.length < 2) return null;
-  const top = Math.max(list[0], 100); // l'échelle montre toujours le trait des 90 jours
+  const top = Math.max(list[0], scale, 100); // l'échelle montre toujours le trait des 90 jours ; `scale` : même échelle pour deux marques côte à côte
   const over = list.filter(d => d >= 90).length;
   return (
-    <div className="mt-5" data-testid="ad-scan-timeline">
-      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+    <div className={compact ? '' : 'mt-5'} data-testid="ad-scan-timeline">
+      {!compact && <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <div className="text-sm font-medium text-neutral-900">Depuis combien de temps tourne chaque publicité</div>
         <div className="text-[11px] text-neutral-500 flex items-center gap-3">
           <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-green-600 inline-block" /> <span>plus de 90 jours</span></span>
           <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-neutral-300 inline-block" /> <span>plus récentes</span></span>
         </div>
-      </div>
+      </div>}
       <div className="relative mt-2 h-24 rounded-lg bg-neutral-50 border border-neutral-100 px-2 pt-2" role="img" aria-label={`${list.length} publicités, la plus ancienne depuis ${list[0]} jours, ${over} depuis plus de 90 jours`}>
         <div className="absolute left-0 right-0 border-t border-dashed border-green-600/60" style={{ bottom: `${(90 / top) * 100}%` }}>
           <span className="absolute right-1 -top-4 text-[10px] text-green-700 bg-neutral-50 px-1">90 jours</span>
@@ -30,7 +30,7 @@ export function ScanTimeline({ days }: { days: number[] }) {
           ))}
         </div>
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-neutral-500">
+      <div className={`mt-1 justify-between text-[11px] text-neutral-500 ${compact ? 'hidden' : 'flex'}`}>
         <span>{`La plus ancienne : ${list[0]} j`}</span>
         <span>{`La plus récente : ${list[list.length - 1]} j`}</span>
       </div>

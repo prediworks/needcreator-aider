@@ -287,10 +287,13 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               <p className="text-sm text-neutral-600 mb-3">Leurs publicités, lues de la même façon : ce qui tourne depuis longtemps chez elles, les angles qu&apos;elles laissent libres.</p>
               <div className="grid sm:grid-cols-3 gap-2">
                 {similar.scans.map((c: any) => (
-                  <Link key={c.slug} href={`/publicites/${c.slug}`} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white" data-testid="ad-scan-similar-item">
-                    <div className="font-medium text-neutral-900 truncate">{c.pageName}</div>
-                    <div className="text-xs text-neutral-600">{`${adCount(c).main} publicité${adCount(c).n > 1 ? 's' : ''}${c.oldestDays != null ? ` · la plus ancienne : ${c.oldestDays} j` : ''}`}</div>
-                  </Link>
+                  <div key={c.slug} className="p-3 rounded-lg border border-neutral-200 hover:border-primary-400 bg-white" data-testid="ad-scan-similar-item">
+                    <Link href={`/publicites/${c.slug}`} className="block">
+                      <div className="font-medium text-neutral-900 truncate">{c.pageName}</div>
+                      <div className="text-xs text-neutral-600">{`${adCount(c).main} publicité${adCount(c).n > 1 ? 's' : ''}${c.oldestDays != null ? ` · la plus ancienne : ${c.oldestDays} j` : ''}`}</div>
+                    </Link>
+                    <Link href={`/publicites/${s.slug}/face-a/${c.slug}`} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary-700 underline" data-testid="ad-scan-duel-link">Comparer côte à côte <ArrowRight className="w-3 h-3" /></Link>
+                  </div>
                 ))}
               </div>
             </Card>

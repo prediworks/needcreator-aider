@@ -76,6 +76,42 @@ export async function similarScans(req, res) {
   } catch (error) { fail(res, error, 'Comparaison indisponible', 'similarScans'); }
 }
 
+/**
+ * Duel : deux marques déjà lues, côte à côte (nombre de publicités, durées, angles relevés). Des comptes seulement, sans exemple cité ni accroche :
+ * le détail reste sur la page de chaque marque. Un angle est « en commun » quand les deux lectures le nomment avec un même mot significatif.
+ */
+const DUEL_STOP = new Set(['les', 'des', 'une', 'aux', 'pour', 'avec', 'sur', 'par', 'dans', 'qui', 'que', 'ses', 'son', 'leur', 'vos', 'nos', 'the', 'and']);
+const angleWords = (name) => String(name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(w => w.length > 2 && !DUEL_STOP.has(w)).map(w => w.replace(/s$/, ''));
+export async function duelScans(req, res) {
+  try {
+    const slugs = [req.params.slug, req.params.other].map(x => String(x || '').toLowerCase());
+    if (slugs[0] === slugs[1]) return res.status(400).json({ error: 'Choisissez deux marques différentes' });
+    const st = await scanSettings();
+    const { isBlockedPage } = await import('../services/adScan.js');
+    const found = await AdScan.find({ slug: { $in: slugs } }).select('slug pageName website pageId status totalActive distinctActive capped stats.oldestDays stats.over90Days ads.startedAt insights.angles insights.missing fetchedAt').lean();
+    const now = Date.now();
+    const sides = [];
+    for (const slug of slugs) {
+      const x = found.find(f => f.slug === slug);
+      if (!x) return res.status(404).json({ error: 'Scan introuvable' });
+      if (x.status === 'blocked' || isBlockedPage(st.scanBlockedPages, x)) return res.status(410).json({ error: 'Cette marque a demandé à ne pas apparaître dans l\'outil.' });
+      if (x.status !== 'ready') return res.status(400).json({ error: 'Pas encore de publicités lues pour cette marque' });
+      sides.push({
+        slug: x.slug, pageName: x.pageName, website: x.website || '', totalActive: x.totalActive || 0, distinctActive: x.distinctActive ?? null, capped: !!x.capped,
+        oldestDays: x.stats?.oldestDays ?? null, over90Days: x.stats?.over90Days ?? 0, fetchedAt: x.fetchedAt,
+        timeline: (x.ads || []).map(a => (a.startedAt ? Math.max(0, Math.floor((now - new Date(a.startedAt).getTime()) / 86400000)) : null)).filter(d => d != null).slice(0, 80),
+        angles: (x.insights?.angles || []).slice(0, 6).map(a => ({ name: a.name, count: a.count })),
+        freeAngles: (x.insights?.missing || []).length,
+      });
+    }
+    const [a, b] = sides;
+    const wa = a.angles.map(x => angleWords(x.name)), wb = b.angles.map(x => angleWords(x.name));
+    a.angles.forEach((x, i) => { x.shared = wb.some(w => w.some(t => wa[i].includes(t))); });
+    b.angles.forEach((x, i) => { x.shared = wa.some(w => w.some(t => wb[i].includes(t))); });
+    res.json({ a, b });
+  } catch (error) { fail(res, error, 'Comparaison indisponible', 'duelScans'); }
+}
+
 /** Public : consultation par un navigateur (compteur ; première consultation = condition d'indexation) */
 export async function viewScan(req, res) {
   try {

@@ -2,7 +2,7 @@ import express from 'express';
 import Joi from 'joi';
 import { optionalAuth, authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
-import { scanPdf, similarScans, createScan, getScan, viewScan, briefFromScanHandler, optOutScan, recentScans, auditScan, myScans, trackRef, subscribeScan, scanExamplesView, unsubscribeScan, unsubscribeTipsHandler } from '../controllers/adScans.js';
+import { scanPdf, similarScans, duelScans, createScan, getScan, viewScan, briefFromScanHandler, optOutScan, recentScans, auditScan, myScans, trackRef, subscribeScan, scanExamplesView, unsubscribeScan, unsubscribeTipsHandler } from '../controllers/adScans.js';
 
 const router = express.Router();
 
@@ -16,6 +16,7 @@ router.post('/unsubscribe-tips', validate(Joi.object({ token: Joi.string().patte
 router.get('/:slug', optionalAuth, getScan);
 router.post('/:slug/subscribe', optionalAuth, validate(Joi.object({ email: Joi.string().email().max(160).required(), role: Joi.string().valid('brand', 'creator', '').allow(''), firstName: Joi.string().trim().max(60).allow(''), company: Joi.string().trim().max(120).allow(''), lang: Joi.string().valid('fr', 'en').allow(''), view: Joi.string().valid('audit', 'scan', '').allow('') })), subscribeScan); // rapport par email + alertes ; lang : langue des emails
 router.get('/:slug/pdf', optionalAuth, scanPdf); // PDF du scan ou de l'audit (?vue=audit), fabriqué à la volée
+router.get('/:slug/duel/:other', duelScans); // deux marques déjà lues, côte à côte (comptes seulement)
 router.get('/:slug/similar', similarScans); // 3 marques du même secteur déjà lues, à comparer
 router.get('/:slug/examples', scanExamplesView); // vidéos d'exemple de la niche de la marque et prix
 router.post('/:slug/view', viewScan);
