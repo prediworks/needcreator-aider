@@ -522,11 +522,15 @@ export default function AcquisitionTool() {
   const [status, setStatus] = useState('qualified');
   const [hasEmail, setHasEmail] = useState('');
   const [niche, setNiche] = useState('');
+  // Un seul étage affiché à la fois ; l'onglet et ses sous-panneaux sont conservés au rafraîchissement de la page
+  const [view, setView] = useState<'leads' | 'todo' | 'sources' | 'sending' | 'stats'>('leads');
+  const [todoPanel, setTodoPanel] = useState<'queue' | 'showcases' | 'requests'>('queue');
+  const [srcPanel, setSrcPanel] = useState<'run' | 'suggestions' | 'groups' | 'searches' | 'scans'>('run');
   // File affichée (créateurs ou marques, statut, filtre email) conservée au rafraîchissement de la page
   useEffect(() => {
-    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); if (typeof v.niche === 'string') setNiche(v.niche); } } catch { /* stockage indisponible */ }
+    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); if (typeof v.niche === 'string') setNiche(v.niche); if (['leads', 'todo', 'sources', 'sending', 'stats'].includes(v.view)) setView(v.view); if (['queue', 'showcases', 'requests'].includes(v.todoPanel)) setTodoPanel(v.todoPanel); if (['run', 'suggestions', 'groups', 'searches', 'scans'].includes(v.srcPanel)) setSrcPanel(v.srcPanel); } } catch { /* stockage indisponible */ }
   }, []);
-  useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche]);
+  useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche, view, todoPanel, srcPanel })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche, view, todoPanel, srcPanel]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -535,11 +539,8 @@ export default function AcquisitionTool() {
   const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
   const pushNow = useMutation({ mutationFn: async (body: any) => (await api.post('/admin/acquisition/mailing/push', body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setSelected([]); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const syncNow = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/mailing/sync')).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acquisition-mailing'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
-  const [showDash, setShowDash] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showExt, setShowExt] = useState(false);
-  // Vidéos : deux boutons à compteur dans la rangée des filtres ; le panneau des vidéos à envoyer s'ouvre seul quand il y en a
-  const [panel, setPanel] = useState<'' | 'showcases' | 'requests' | 'suggestions' | 'groups' | 'searches' | 'scans' | null>(null);
   const { data: svList } = useQuery({ queryKey: ['acq-showcases'], queryFn: async () => (await api.get('/admin/acquisition/showcases')).data.showcases, refetchInterval: 60000 });
   const { data: reqList } = useShowcaseRequests();
   const svTodo = (svList || []).filter((x: any) => x.status === 'ready').length;
@@ -552,10 +553,7 @@ export default function AcquisitionTool() {
   const { data: searchData } = useBrandSearches();
   const { data: scanData } = useAdScanStats();
   const searchOpen = searchData?.open || 0;
-  const shown = panel === null ? (svTodo > 0 ? 'showcases' : sugTodo > 0 ? 'suggestions' : '') : panel;
-  // Un panneau ouvert de lui-même (vidéo à envoyer, marque à valider) reste ouvert après l'action : il ne se referme pas quand le compteur tombe à zéro
-  useEffect(() => { if (panel === null && shown) setPanel(shown); }, [panel, shown]);
-  const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: showDash, staleTime: 60000 });
+  const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: view === 'stats', staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, niche, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, niche: niche || undefined, q: q || undefined, limit: 200 } })).data });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }; // une fiche modifiée (réseaux, email) met aussi à jour « Candidatures spontanées à proposer »
@@ -586,7 +584,7 @@ export default function AcquisitionTool() {
     } catch (e: any) { toast.error(getErrorMessage(e)); }
   };
   const pasteReplyList = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.post(`/admin/acquisition/leads/${id}/paste-reply`, body)).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
-  const videoRequest = useMutation({ mutationFn: async ({ id, product }: any) => (await api.post(`/admin/acquisition/leads/${id}/showcase-request`, { action: 'create', product })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); setPanel('requests'); refresh(); queryClient.invalidateQueries({ queryKey: ['acq-showcase-requests'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
+  const videoRequest = useMutation({ mutationFn: async ({ id, product }: any) => (await api.post(`/admin/acquisition/leads/${id}/showcase-request`, { action: 'create', product })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); queryClient.invalidateQueries({ queryKey: ['acq-showcase-requests'] }); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }) });
   const offerBrief = useMutation({ mutationFn: async (id: string) => (await api.post(`/admin/acquisition/leads/${id}/offer-brief`)).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e), { duration: 10000 }) });
   const enrichEmails = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-emails', { kind })).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
   const enrichSocials = useMutation({ mutationFn: async () => (await api.post('/admin/acquisition/leads/enrich-socials')).data, onSuccess: (d) => { toast.success(d.message, { duration: 8000 }); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -605,13 +603,59 @@ export default function AcquisitionTool() {
   const s = ov?.settings; const counts = ov?.counts?.[kind] || {};
   const total = (st: string) => counts[st]?.n || 0;
   const daysLeft = ov?.meta?.expiresAt ? Math.ceil((new Date(ov.meta.expiresAt).getTime() - Date.now()) / 86400000) : null;
+  const TABS: { key: typeof view; label: string; n: number; title: string }[] = [
+    { key: 'leads', label: 'Fiches', n: 0, title: 'La liste des prospects, avec ses filtres' },
+    { key: 'todo', label: 'À traiter', n: svTodo + reqOpen, title: 'File du jour, vidéos à envoyer aux marques, vidéos demandées' },
+    { key: 'sources', label: 'Sources', n: sugTodo + groupTodo + searchOpen, title: 'Recherches, marques suggérées, demandes de marques, marques cherchées, scans' },
+    { key: 'sending', label: 'Envois', n: 0, title: 'Outil de mailing et extension Chrome' },
+    { key: 'stats', label: 'Chiffres', n: 0, title: 'Entonnoirs, niches et mots-clés qui convertissent' },
+  ];
   return (
     <div className="space-y-4">
-      <DailyQueue kind={kind} />
+      {/* Onglets et filtres collés sous l'en-tête du site : un seul étage affiché à la fois, la liste commence tout de suite */}
+      <div className="md:sticky md:top-16 z-30 -mx-4 px-4 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-200" data-testid="acq-tabs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Radar className="w-5 h-5 text-primary-500" />
+          {TABS.map((t) => <button key={t.key} type="button" onClick={() => setView(t.key)} title={t.title} data-testid={`acq-tab-${t.key}`} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${view === t.key ? 'bg-neutral-900 text-white' : 'bg-white border border-neutral-200 text-neutral-700 hover:border-primary-300'}`}>{t.label}{t.n > 0 && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[11px] ${view === t.key ? 'bg-white text-neutral-900' : 'bg-primary-500 text-white'}`}>{t.n}</span>}</button>)}
+          {ov?.progress?.running && <span className="text-xs text-primary-700">Recherche en cours…</span>}
+        </div>
+        {view === 'leads' && (
+          <div className="flex items-center gap-2 flex-wrap mt-2" data-testid="acq-filters">
+          {(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-3 py-1.5 rounded-lg text-sm ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'} ({Object.values(ov?.counts?.[k] || {}).reduce((a: number, c: any) => a + c.n, 0)})</button>)}
+          <span className="text-neutral-300">|</span>
+          {['qualified', 'to_contact', 'contacted', 'replied', 'registered', 'new', 'rejected', 'excluded'].map((st) => <button key={st} type="button" onClick={() => { setStatus(status === st ? '' : st); setSelected([]); }} className={`px-2.5 py-1 rounded-full text-xs ${status === st ? 'bg-neutral-900 text-white' : STATUS[st].cls}`}>{STATUS[st].label} {total(st)}</button>)}
+          <select value={hasEmail} onChange={(e) => setHasEmail(e.target.value)} className="border border-neutral-300 rounded-lg px-2 py-1 text-xs"><option value="">Email : tous</option><option value="1">Avec email</option><option value="0">Sans email</option></select>
+          <select value={niche} onChange={(e) => { setNiche(e.target.value); setSelected([]); }} className={`border rounded-lg px-2 py-1 text-xs ${niche ? 'border-primary-500 bg-primary-50' : 'border-neutral-300'}`} title={kind === 'brand' ? 'Secteur de la marque, rapproché par mots (« cosmétiques », « soins » → Beauté)' : 'Niche du créateur'} data-testid="lead-niche-filter"><option value="">Niche : toutes</option>{Object.entries(NICHES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-40" />
+          </div>
+        )}
+      </div>
+
+      {view === 'todo' && <>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setTodoPanel('queue')} data-testid="queue-button" title="Les messages à envoyer aujourd'hui, un par un" className={`px-2.5 py-1 rounded-full text-xs ${todoPanel === 'queue' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>File du jour</button>
+          <button type="button" onClick={() => setTodoPanel('showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${todoPanel === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
+          <button type="button" onClick={() => setTodoPanel('requests')} data-testid="requests-button" title="Marques qui ont répondu « oui vidéo » : produit, créateurs prévenus, vidéos déposées, échéance de dix jours" className={`px-2.5 py-1 rounded-full text-xs ${todoPanel === 'requests' ? 'bg-neutral-900 text-white' : reqLate > 0 ? 'bg-red-100 text-red-800' : reqOpen > 0 ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>Vidéos demandées {reqOpen}{reqLate > 0 ? ` · ${reqLate} en retard` : ''}</button>
+          {todoPanel === 'queue' && <><span className="text-neutral-300">|</span>{(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-2.5 py-1 rounded-full text-xs ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'}</button>)}</>}
+        </div>
+        {todoPanel === 'queue' && <DailyQueue kind={kind} />}
+        {todoPanel === 'showcases' && <ShowcaseList />}
+        {todoPanel === 'requests' && <ShowcaseRequests />}
+      </>}
+
+      {view === 'sources' && <>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button type="button" onClick={() => setSrcPanel('run')} data-testid="run-button" title="Lancer une recherche de créateurs ou de marques, état des sources, dernières exécutions" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'run' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Recherches</button>
+          <button type="button" onClick={() => setSrcPanel('suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
+          <button type="button" onClick={() => setSrcPanel('groups')} data-testid="groups-button" title="Demandes de marques : publications des groupes Facebook suivis et annonces collées où une marque cherche des créateurs, avec un commentaire ou un email proposé" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'groups' ? 'bg-neutral-900 text-white' : groupTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Demandes de marques {groupTodo}</button>
+          <button type="button" onClick={() => setSrcPanel('searches')} data-testid="searches-button" title="Marques tapées par les créateurs dans « Candidature vidéo » sans résultat : ils possèdent le produit et voulaient tourner" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'searches' ? 'bg-neutral-900 text-white' : searchOpen > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques cherchées {searchOpen}</button>
+          <button type="button" onClick={() => setSrcPanel('scans')} data-testid="scans-button" title="Scan concurrentiel : activité de l'outil public et marques les plus scannées, à mettre en prospection" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'scans' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Scans {scanData?.reads24h ?? 0} / 24 h</button>
+        </div>
+        {srcPanel === 'run' && (
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
           <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2"><Radar className="w-5 h-5 text-primary-500" /> Prospection</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2"><Radar className="w-5 h-5 text-primary-500" /> Recherches</h2>
             <p className="text-sm text-neutral-600 mt-1">Chaque nuit, les agents cherchent des créateurs (YouTube, hashtags Instagram) et des marques (bibliothèque publicitaire Meta), trouvent leur email et les qualifient avec l&apos;IA. Vous exportez les qualifiés vers votre outil de mailing, ou copiez le message pour les contacter à la main sur les réseaux. Réglages dans l&apos;onglet Réglages, groupe « Prospection ».</p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -636,38 +680,14 @@ export default function AcquisitionTool() {
           </details>
         ) : null}
       </Card>
-
-      <Card className="p-6">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary-500" /> Tableau de bord</h3>
-          <Button size="sm" variant="outline" onClick={() => setShowDash(!showDash)} title="Entonnoirs créateurs et marques (trouvés → email → qualifiés → contactés → répondu → intéressés → inscrits), conversion par niche, mots-clés et sources les plus productifs">{showDash ? 'Masquer' : 'Afficher'}</Button>
-        </div>
-        {showDash && dash && (
-          <div className="mt-4 space-y-5">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Funnel title="Créateurs, 30 derniers jours" f={dash.last30.creator} />
-              <Funnel title="Marques, 30 derniers jours" f={dash.last30.brand} />
-              <Funnel title="Créateurs, depuis le début" f={dash.total.creator} />
-              <Funnel title="Marques, depuis le début" f={dash.total.brand} />
-            </div>
-            {dash.byNiche?.length ? (
-              <div>
-                <div className="text-sm font-medium text-neutral-800 mb-1">Ce qui convertit, par niche ou secteur (contactés → répondu → inscrits)</div>
-                <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500 border-b"><th className="py-1 pr-2">Type</th><th className="py-1 pr-2">Niche</th><th className="py-1 pr-2 text-right">Contactés</th><th className="py-1 pr-2 text-right">Répondu</th><th className="py-1 pr-2 text-right">Inscrits</th><th className="py-1 text-right">Taux</th></tr></thead>
-                  <tbody>{dash.byNiche.map((r: any) => <tr key={`${r.kind}-${r.niche}`} className="border-b border-neutral-100"><td className="py-1 pr-2">{r.kind === 'creator' ? 'Créateur' : 'Marque'}</td><td className="py-1 pr-2">{r.niche}</td><td className="py-1 pr-2 text-right">{r.contacted}</td><td className="py-1 pr-2 text-right">{r.replied}</td><td className="py-1 pr-2 text-right">{r.registered}</td><td className="py-1 text-right">{r.contacted ? Math.round((r.registered / r.contacted) * 100) : 0} %</td></tr>)}</tbody></table>
-              </div>
-            ) : <p className="text-xs text-neutral-500">Le tableau par niche se remplit dès que des prospects sont contactés.</p>}
-            {dash.byKeyword?.length ? (
-              <div>
-                <div className="text-sm font-medium text-neutral-800 mb-1">Mots-clés les plus productifs (trouvés → avec email → score ≥ 60 → inscrits)</div>
-                <div className="flex flex-wrap gap-2">{dash.byKeyword.map((k: any) => <span key={`${k.kind}-${k.keyword}`} className="px-2 py-1 rounded-lg bg-neutral-100 text-xs">« {k.keyword} » : {k.found} · {k.withEmail} · {k.qualified} · {k.registered}</span>)}</div>
-              </div>
-            ) : null}
-            <p className="text-xs text-neutral-500">Sources : {dash.bySource?.map((s: any) => `${SOURCE[s.source] || s.source} ${s.found} (${s.withEmail} avec email, ${s.registered} inscrits)`).join(' · ') || 'aucune'} · {dash.runsLast30} exécution(s) sur 30 jours.</p>
-          </div>
         )}
-      </Card>
+        {srcPanel === 'suggestions' && <BrandSuggestions />}
+        {srcPanel === 'groups' && <GroupWatch />}
+        {srcPanel === 'searches' && <BrandSearches />}
+        {srcPanel === 'scans' && <AdScanAdmin />}
+      </>}
 
+      {view === 'sending' && (
       <Card className="p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap mb-2">
           <div>
@@ -692,28 +712,43 @@ export default function AcquisitionTool() {
         {showBreakdown && <MailingBreakdown />}
         <div className="mt-3 text-xs"><button type="button" onClick={() => setShowExt(!showExt)} className="underline text-primary-700" title="Extension Chrome : lots de tâches (publications sans auteur, profils sans email, bibliothèque publicitaire, hashtags) exécutés dans votre navigateur, résultats importés automatiquement" data-testid="extension-toggle">{showExt ? 'Masquer l\'extension Chrome' : 'Extension Chrome : lots de tâches'}</button></div>
         {showExt && <ExtensionPanel />}
-        <div className="border-t border-neutral-100 my-4" />
-        <div className="flex items-center gap-2 flex-wrap mb-3">
-          {(['creator', 'brand'] as const).map((k) => <button key={k} type="button" onClick={() => { setKind(k); setSelected([]); }} className={`px-3 py-1.5 rounded-lg text-sm ${kind === k ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>{k === 'creator' ? 'Créateurs' : 'Marques'} ({Object.values(ov?.counts?.[k] || {}).reduce((a: number, c: any) => a + c.n, 0)})</button>)}
-          <span className="text-neutral-300">|</span>
-          {['qualified', 'to_contact', 'contacted', 'replied', 'registered', 'new', 'rejected', 'excluded'].map((st) => <button key={st} type="button" onClick={() => { setStatus(status === st ? '' : st); setSelected([]); }} className={`px-2.5 py-1 rounded-full text-xs ${status === st ? 'bg-neutral-900 text-white' : STATUS[st].cls}`}>{STATUS[st].label} {total(st)}</button>)}
-          <select value={hasEmail} onChange={(e) => setHasEmail(e.target.value)} className="border border-neutral-300 rounded-lg px-2 py-1 text-xs"><option value="">Email : tous</option><option value="1">Avec email</option><option value="0">Sans email</option></select>
-          <select value={niche} onChange={(e) => { setNiche(e.target.value); setSelected([]); }} className={`border rounded-lg px-2 py-1 text-xs ${niche ? 'border-primary-500 bg-primary-50' : 'border-neutral-300'}`} title={kind === 'brand' ? 'Secteur de la marque, rapproché par mots (« cosmétiques », « soins » → Beauté)' : 'Niche du créateur'} data-testid="lead-niche-filter"><option value="">Niche : toutes</option>{Object.entries(NICHES).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="border border-neutral-300 rounded-lg px-2 py-1 text-xs w-40" />
-          <span className="text-neutral-300">|</span>
-          <button type="button" onClick={() => setPanel(shown === 'showcases' ? '' : 'showcases')} data-testid="showcases-button" title="Candidatures spontanées déposées par les créateurs, à regarder puis à proposer à la marque" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'showcases' ? 'bg-neutral-900 text-white' : svTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>🎬 Vidéos à envoyer {svTodo}</button>
-          <button type="button" onClick={() => setPanel(shown === 'requests' ? '' : 'requests')} data-testid="requests-button" title="Marques qui ont répondu « oui vidéo » : produit, créateurs prévenus, vidéos déposées, échéance de dix jours" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'requests' ? 'bg-neutral-900 text-white' : reqLate > 0 ? 'bg-red-100 text-red-800' : reqOpen > 0 ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-700'}`}>Vidéos demandées {reqOpen}{reqLate > 0 ? ` · ${reqLate} en retard` : ''}</button>
-          <button type="button" onClick={() => setPanel(shown === 'suggestions' ? '' : 'suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
-          <button type="button" onClick={() => setPanel(shown === 'groups' ? '' : 'groups')} data-testid="groups-button" title="Demandes de marques : publications des groupes Facebook suivis et annonces collées où une marque cherche des créateurs, avec un commentaire ou un email proposé" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'groups' ? 'bg-neutral-900 text-white' : groupTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Demandes de marques {groupTodo}</button>
-          <button type="button" onClick={() => setPanel(shown === 'searches' ? '' : 'searches')} data-testid="searches-button" title="Marques tapées par les créateurs dans « Candidature vidéo » sans résultat : ils possèdent le produit et voulaient tourner" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'searches' ? 'bg-neutral-900 text-white' : searchOpen > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques cherchées {searchOpen}</button>
-          <button type="button" onClick={() => setPanel(shown === 'scans' ? '' : 'scans')} data-testid="scans-button" title="Scan concurrentiel : activité de l'outil public et marques les plus scannées, à mettre en prospection" className={`px-2.5 py-1 rounded-full text-xs ${shown === 'scans' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Scans {scanData?.reads24h ?? 0} / 24 h</button>
+      </Card>
+      )}
+
+      {view === 'stats' && (
+      <Card className="p-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <h3 className="font-semibold text-neutral-900 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary-500" /> Tableau de bord</h3>
         </div>
-        {shown === 'showcases' && <div className="mb-4"><ShowcaseList /></div>}
-        {shown === 'suggestions' && <div className="mb-4"><BrandSuggestions /></div>}
-        {shown === 'groups' && <div className="mb-4"><GroupWatch /></div>}
-        {shown === 'searches' && <div className="mb-4"><BrandSearches /></div>}
-        {shown === 'scans' && <div className="mb-4"><AdScanAdmin /></div>}
-        {shown === 'requests' && <div className="mb-4"><ShowcaseRequests /></div>}
+        {!dash ? <p className="mt-3 text-sm text-neutral-500">Chargement…</p> : (
+          <div className="mt-4 space-y-5">
+            <div className="grid md:grid-cols-2 gap-6">
+              <Funnel title="Créateurs, 30 derniers jours" f={dash.last30.creator} />
+              <Funnel title="Marques, 30 derniers jours" f={dash.last30.brand} />
+              <Funnel title="Créateurs, depuis le début" f={dash.total.creator} />
+              <Funnel title="Marques, depuis le début" f={dash.total.brand} />
+            </div>
+            {dash.byNiche?.length ? (
+              <div>
+                <div className="text-sm font-medium text-neutral-800 mb-1">Ce qui convertit, par niche ou secteur (contactés → répondu → inscrits)</div>
+                <table className="w-full text-xs"><thead><tr className="text-left text-neutral-500 border-b"><th className="py-1 pr-2">Type</th><th className="py-1 pr-2">Niche</th><th className="py-1 pr-2 text-right">Contactés</th><th className="py-1 pr-2 text-right">Répondu</th><th className="py-1 pr-2 text-right">Inscrits</th><th className="py-1 text-right">Taux</th></tr></thead>
+                  <tbody>{dash.byNiche.map((r: any) => <tr key={`${r.kind}-${r.niche}`} className="border-b border-neutral-100"><td className="py-1 pr-2">{r.kind === 'creator' ? 'Créateur' : 'Marque'}</td><td className="py-1 pr-2">{r.niche}</td><td className="py-1 pr-2 text-right">{r.contacted}</td><td className="py-1 pr-2 text-right">{r.replied}</td><td className="py-1 pr-2 text-right">{r.registered}</td><td className="py-1 text-right">{r.contacted ? Math.round((r.registered / r.contacted) * 100) : 0} %</td></tr>)}</tbody></table>
+              </div>
+            ) : <p className="text-xs text-neutral-500">Le tableau par niche se remplit dès que des prospects sont contactés.</p>}
+            {dash.byKeyword?.length ? (
+              <div>
+                <div className="text-sm font-medium text-neutral-800 mb-1">Mots-clés les plus productifs (trouvés → avec email → score ≥ 60 → inscrits)</div>
+                <div className="flex flex-wrap gap-2">{dash.byKeyword.map((k: any) => <span key={`${k.kind}-${k.keyword}`} className="px-2 py-1 rounded-lg bg-neutral-100 text-xs">« {k.keyword} » : {k.found} · {k.withEmail} · {k.qualified} · {k.registered}</span>)}</div>
+              </div>
+            ) : null}
+            <p className="text-xs text-neutral-500">Sources : {dash.bySource?.map((s: any) => `${SOURCE[s.source] || s.source} ${s.found} (${s.withEmail} avec email, ${s.registered} inscrits)`).join(' · ') || 'aucune'} · {dash.runsLast30} exécution(s) sur 30 jours.</p>
+          </div>
+        )}
+      </Card>
+      )}
+
+      {view === 'leads' && (
+      <Card className="p-6">
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
           <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle" title="Coller une liste (une ligne par prospect) venant de l'assistant Chrome, d'un salon ou d'un fichier : dédoublonnée, réseaux relevés, qualifiée par l'IA"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
@@ -791,6 +826,7 @@ export default function AcquisitionTool() {
           </div>
         )}
       </Card>
+      )}
     </div>
   );
 }
