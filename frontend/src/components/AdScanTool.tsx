@@ -313,6 +313,46 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             </div>
           )}
 
+          {/* 1 quinquies. Les publicités une par une : la preuve avant l'offre, repliées, avec le même bouton d'ouverture que les angles */}
+          {s.status === 'ready' && s.ads?.length > 0 && (
+            <details className="group rounded-xl border-2 border-primary-300 bg-white" data-testid="ad-scan-details">
+              <summary className="cursor-pointer list-none p-4 sm:p-5 flex items-center justify-between gap-3 rounded-xl bg-primary-50 group-open:rounded-b-none">
+                <span className="flex items-center gap-3 min-w-0"><Search className="w-6 h-6 text-primary-600 shrink-0" /><span className="min-w-0"><span className="block text-base font-semibold text-neutral-900">{`Les ${s.ads.length} publicités, une par une`}</span><span className="block text-xs text-neutral-600">Le texte de chaque publicité, de la plus ancienne à la plus récente.</span></span></span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2" data-testid="ad-scan-details-toggle"><span className="group-open:hidden">Voir les publicités</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
+              </summary>
+              <div className="p-5 space-y-6">
+                {s.ads?.length > 0 && (
+                  <div data-testid="ad-scan-ads">
+                    <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>
+                    <p className="text-xs text-neutral-500 mb-4">{/* une phrase par nœud de texte : traduisible par gabarit (en.ts) */}<span>{`Affichées : ${s.shown} sur ${s.kept}${s.totalActive > s.kept ? ` (${adCount(s).versions || s.totalActive} versions chez Meta)` : ''}.`}</span> <span>Meta ne fournit que le texte : la vidéo ou l&apos;image s&apos;ouvre avec « Voir la pub ».</span></p>
+                    <div className="space-y-3">
+                      {s.ads.map((a: any) => (
+                        <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
+                          <div className="flex items-start justify-between gap-3 flex-wrap text-xs text-neutral-600">
+                            <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{`${a.days} jour${a.days > 1 ? 's' : ''}`}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
+                            <div className="flex gap-3">
+                              <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1 font-medium text-neutral-900">Voir la pub <ExternalLink className="w-3 h-3" /></a>
+                              {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => { if (!brief.isPending) brief.mutate({ adId: a.id }); }} disabled={brief.isPending} title="Prépare un brief NeedCreator : la version créateur de cette publicité">{brief.isPending && brief.variables?.adId === a.id ? 'Préparation du brief… (jusqu\'à une minute)' : 'l\'équivalent en vidéo créateur'}</button>}
+                            </div>
+                          </div>
+                          {a.title && <div className="font-medium text-neutral-900 mt-2">{a.title}</div>}
+                          {a.body && <p className="text-sm text-neutral-700 mt-1 whitespace-pre-line">{a.body}</p>}
+                          {(a.description || a.caption) && <div className="text-xs text-neutral-500 mt-1">{[a.description, a.caption].filter(Boolean).join(' · ')}</div>}
+                        </div>
+                      ))}
+                    </div>
+                    {s.hidden > 0 && (
+                      <div className="mt-4 p-4 rounded-lg bg-primary-50 border border-primary-100 text-sm text-neutral-800 flex items-start gap-2" data-testid="ad-scan-locked">
+                        <Lock className="w-4 h-4 mt-0.5 text-primary-600" />
+                        <div><span>{`${s.hidden} autre${s.hidden > 1 ? 's' : ''} publicité${s.hidden > 1 ? 's' : ''}, la lecture complète de l'IA et ${s.limits?.memberPerDay} marques par jour avec un compte gratuit.`}</span> <Link href={signupHref} className="underline text-primary-700 font-medium">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline">Me connecter</Link></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+
           {/* 2. L'offre : ce qu'un créateur tournerait, avec son prix et un seul bouton, des vidéos de la même niche, l'email */}
           {s.status === 'ready' && user?.role !== 'creator' && (
             <Card className="p-6 border-primary-200" data-testid="ad-scan-offer">
@@ -376,46 +416,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
           {/* Une question : un humain répond par email, aucune adresse affichée */}
           {s.status === 'ready' && user?.role !== 'creator' && !isAdmin && <ScanQuestion slug={s.slug} pageName={s.pageName} audit={auditView} />}
 
-          {/* 3. Les publicités une par une, repliées en bas de page */}
-          {s.status === 'ready' && s.ads?.length > 0 && (
-            <details className="group rounded-xl border border-neutral-200 bg-white" data-testid="ad-scan-details">
-              <summary className="cursor-pointer list-none p-5 flex items-center justify-between gap-3">
-                <span className="font-semibold text-neutral-900">{`Les ${s.ads.length} publicités, une par une`}</span>
-                <ChevronDown className="w-5 h-5 text-neutral-500 transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="px-5 pb-5 space-y-6">
-                {s.ads?.length > 0 && (
-                  <div data-testid="ad-scan-ads">
-                    <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>
-                    <p className="text-xs text-neutral-500 mb-4">{/* une phrase par nœud de texte : traduisible par gabarit (en.ts) */}<span>{`Affichées : ${s.shown} sur ${s.kept}${s.totalActive > s.kept ? ` (${adCount(s).versions || s.totalActive} versions chez Meta)` : ''}.`}</span> <span>Meta ne fournit que le texte : la vidéo ou l&apos;image s&apos;ouvre avec « Voir la pub ».</span></p>
-                    <div className="space-y-3">
-                      {s.ads.map((a: any) => (
-                        <div key={a.id} className="p-4 rounded-lg border border-neutral-200 bg-white" data-testid="ad-scan-ad">
-                          <div className="flex items-start justify-between gap-3 flex-wrap text-xs text-neutral-600">
-                            <div><span className="font-medium text-neutral-900">#{a.index}</span>{a.days != null && <> · tourne depuis <span className={a.days >= 90 ? 'font-semibold text-green-700' : ''}>{`${a.days} jour${a.days > 1 ? 's' : ''}`}</span></>}{a.variants > 1 ? ` · ${a.variants} variantes` : ''}{a.platforms?.length ? ` · ${a.platforms.map((p: string) => PLATFORM[p] || p).join(', ')}` : ''}{a.ages ? ` · ${a.ages} ans` : ''}{a.gender && a.gender !== 'All' ? ` · ${GENDER[a.gender] || a.gender}` : ''}{a.reach ? ` · portée ${Number(a.reach).toLocaleString('fr-FR')}` : ''}</div>
-                            <div className="flex gap-3">
-                              <a href={a.url} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1 font-medium text-neutral-900">Voir la pub <ExternalLink className="w-3 h-3" /></a>
-                              {user?.role !== 'creator' && <button type="button" className="underline text-primary-700" onClick={() => { if (!brief.isPending) brief.mutate({ adId: a.id }); }} disabled={brief.isPending} title="Prépare un brief NeedCreator : la version créateur de cette publicité">{brief.isPending && brief.variables?.adId === a.id ? 'Préparation du brief… (jusqu\'à une minute)' : 'l\'équivalent en vidéo créateur'}</button>}
-                            </div>
-                          </div>
-                          {a.title && <div className="font-medium text-neutral-900 mt-2">{a.title}</div>}
-                          {a.body && <p className="text-sm text-neutral-700 mt-1 whitespace-pre-line">{a.body}</p>}
-                          {(a.description || a.caption) && <div className="text-xs text-neutral-500 mt-1">{[a.description, a.caption].filter(Boolean).join(' · ')}</div>}
-                        </div>
-                      ))}
-                    </div>
-                    {s.hidden > 0 && (
-                      <div className="mt-4 p-4 rounded-lg bg-primary-50 border border-primary-100 text-sm text-neutral-800 flex items-start gap-2" data-testid="ad-scan-locked">
-                        <Lock className="w-4 h-4 mt-0.5 text-primary-600" />
-                        <div><span>{`${s.hidden} autre${s.hidden > 1 ? 's' : ''} publicité${s.hidden > 1 ? 's' : ''}, la lecture complète de l'IA et ${s.limits?.memberPerDay} marques par jour avec un compte gratuit.`}</span> <Link href={signupHref} className="underline text-primary-700 font-medium">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline">Me connecter</Link></div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </details>
-          )}
-          {s.status === 'ready' && !user && (s.hidden > 0 || s.insights?.locked?.length > 0 || s.audit?.locked?.length > 0) && <p className="text-xs text-neutral-600 -mt-3" data-testid="ad-scan-signup-hint"><Lock className="w-3 h-3 inline mr-1" />Avec un compte gratuit : toutes les publicités, la lecture complète et les trois vidéos de l&apos;audit. <Link href={signupHref} className="underline text-primary-700" data-testid="ad-scan-signup">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline" data-testid="ad-scan-login">Me connecter</Link></p>}
+          {s.status === 'ready' && !user && (s.hidden > 0 || s.insights?.locked?.length > 0 || s.audit?.locked?.length > 0) && <p className="text-xs text-neutral-600" data-testid="ad-scan-signup-hint"><Lock className="w-3 h-3 inline mr-1" />Avec un compte gratuit : toutes les publicités, la lecture complète et les trois vidéos de l&apos;audit. <Link href={signupHref} className="underline text-primary-700" data-testid="ad-scan-signup">Créer mon compte gratuit</Link> · <Link href={loginHref} className="underline" data-testid="ad-scan-login">Me connecter</Link></p>}
 
           <div className="text-xs text-neutral-500 flex items-center justify-between gap-3 flex-wrap">
             <span>Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement. Les aperçus restent chez Meta.</span>
