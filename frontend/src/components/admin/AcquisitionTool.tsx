@@ -516,6 +516,8 @@ function ManualForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+const PAGE_SIZE = 50;
+
 export default function AcquisitionTool() {
   const queryClient = useQueryClient();
   const [kind, setKind] = useState<'creator' | 'brand'>('creator');
@@ -533,6 +535,7 @@ export default function AcquisitionTool() {
   useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche, view, todoPanel, srcPanel })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche, view, todoPanel, srcPanel]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
+  const [page, setPage] = useState(1); // liste des fiches : 50 par page
   const [more, setMore] = useState(false); // menu « Plus » : actions moins fréquentes
   const [editing, setEditing] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null); // fiche ouverte dans le volet de droite
@@ -557,14 +560,19 @@ export default function AcquisitionTool() {
   const searchOpen = searchData?.open || 0;
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: view === 'stats', staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
-  const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, niche, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, niche: niche || undefined, q: q || undefined, limit: 200 } })).data });
+  const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, niche, q, page], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, niche: niche || undefined, q: q || undefined, limit: PAGE_SIZE, page } })).data });
+  const pages = Math.max(1, Math.ceil((data?.total || 0) / PAGE_SIZE));
+  // Page vidée par les actions (dernière fiche traitée) : retour à la page précédente
+  useEffect(() => { if (data && !data.leads?.length && page > 1) setPage(Math.min(page - 1, pages)); }, [data, page, pages]);
+  const goPage = (n: number) => { setPage(n); setSelected([]); document.querySelector('[data-testid=acq-tabs]')?.scrollIntoView({ block: 'start' }); };
   const leadList: any[] = data?.leads || [];
   const openIndex = openId ? leadList.findIndex((x: any) => x._id === openId) : -1;
   const openLead = openIndex >= 0 ? leadList[openIndex] : null;
   // La fiche ouverte quitte la liste (statut changé, supprimée) : on passe à celle qui prend sa place ; filtre changé : le volet se ferme
   const lastOpen = useRef(-1);
   const filterKey = [kind, status, hasEmail, niche, q].join('|');
-  useEffect(() => { setOpenId(null); setEditing(null); }, [filterKey]);
+  useEffect(() => { setPage(1); }, [filterKey]);
+  useEffect(() => { setOpenId(null); setEditing(null); }, [filterKey, page]);
   useEffect(() => {
     if (!openId || !data) return;
     if (openIndex >= 0) { lastOpen.current = openIndex; return; }
@@ -822,7 +830,7 @@ export default function AcquisitionTool() {
           <p className="text-sm text-neutral-500">Aucun prospect dans cette catégorie. {status === 'qualified' && total('new') > 0 ? `${total('new')} en attente de qualification (IA).` : ''} Lancez une recherche ou activez la recherche nocturne dans les réglages.</p>
         ) : (
           <div className="space-y-2">
-            <label className="text-xs text-neutral-500 flex items-center gap-2"><input type="checkbox" checked={selected.length === data.leads.length} onChange={(e) => setSelected(e.target.checked ? data.leads.map((l: any) => l._id) : [])} /> Tout sélectionner ({data.total} au total)</label>
+            <label className="text-xs text-neutral-500 flex items-center gap-2"><input type="checkbox" checked={selected.length === data.leads.length} onChange={(e) => setSelected(e.target.checked ? data.leads.map((l: any) => l._id) : [])} /> {pages > 1 ? `Tout sélectionner sur cette page (${data.leads.length} sur ${data.total})` : `Tout sélectionner (${data.total} au total)`}</label>
             {data.leads.map((l: any) => {
               const st = STATUS[l.status] || STATUS.new;
               return (
@@ -845,6 +853,13 @@ export default function AcquisitionTool() {
                 </div>
               );
             })}
+            {pages > 1 && (
+              <div className="flex items-center justify-center gap-3 pt-3 text-xs text-neutral-600" data-testid="lead-pages">
+                <Button size="sm" variant="outline" onClick={() => goPage(page - 1)} disabled={page <= 1} data-testid="lead-page-prev">Page précédente</Button>
+                <span>{`Page ${page} sur ${pages} · fiches ${(page - 1) * PAGE_SIZE + 1} à ${(page - 1) * PAGE_SIZE + data.leads.length} sur ${data.total}`}</span>
+                <Button size="sm" variant="outline" onClick={() => goPage(page + 1)} disabled={page >= pages} data-testid="lead-page-next">Page suivante</Button>
+              </div>
+            )}
           </div>
         )}
       </Card>
