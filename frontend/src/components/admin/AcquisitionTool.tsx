@@ -525,12 +525,12 @@ export default function AcquisitionTool() {
   const [hasEmail, setHasEmail] = useState('');
   const [niche, setNiche] = useState('');
   // Un seul étage affiché à la fois ; l'onglet et ses sous-panneaux sont conservés au rafraîchissement de la page
-  const [view, setView] = useState<'leads' | 'todo' | 'sources' | 'sending' | 'stats'>('leads');
+  const [view, setView] = useState<'leads' | 'todo' | 'sources' | 'scans' | 'sending' | 'stats'>('leads');
   const [todoPanel, setTodoPanel] = useState<'queue' | 'showcases' | 'requests'>('queue');
-  const [srcPanel, setSrcPanel] = useState<'run' | 'suggestions' | 'groups' | 'searches' | 'scans'>('run');
+  const [srcPanel, setSrcPanel] = useState<'run' | 'suggestions' | 'groups' | 'searches'>('run');
   // File affichée (créateurs ou marques, statut, filtre email) conservée au rafraîchissement de la page
   useEffect(() => {
-    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); if (typeof v.niche === 'string') setNiche(v.niche); if (['leads', 'todo', 'sources', 'sending', 'stats'].includes(v.view)) setView(v.view); if (['queue', 'showcases', 'requests'].includes(v.todoPanel)) setTodoPanel(v.todoPanel); if (['run', 'suggestions', 'groups', 'searches', 'scans'].includes(v.srcPanel)) setSrcPanel(v.srcPanel); } } catch { /* stockage indisponible */ }
+    try { const v = JSON.parse(sessionStorage.getItem('nc-acq-view') || 'null'); if (v) { if (v.kind === 'creator' || v.kind === 'brand') setKind(v.kind); if (typeof v.status === 'string') setStatus(v.status); if (typeof v.hasEmail === 'string') setHasEmail(v.hasEmail); if (typeof v.niche === 'string') setNiche(v.niche); if (['leads', 'todo', 'sources', 'scans', 'sending', 'stats'].includes(v.view)) setView(v.view); if (['queue', 'showcases', 'requests'].includes(v.todoPanel)) setTodoPanel(v.todoPanel); if (['run', 'suggestions', 'groups', 'searches'].includes(v.srcPanel)) setSrcPanel(v.srcPanel); } } catch { /* stockage indisponible */ }
   }, []);
   useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche, view, todoPanel, srcPanel })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche, view, todoPanel, srcPanel]);
   const [q, setQ] = useState('');
@@ -651,7 +651,8 @@ export default function AcquisitionTool() {
   const TABS: { key: typeof view; label: string; n: number; title: string }[] = [
     { key: 'leads', label: 'Fiches', n: 0, title: 'La liste des prospects, avec ses filtres' },
     { key: 'todo', label: 'À traiter', n: svTodo + reqOpen, title: 'File du jour, vidéos à envoyer aux marques, vidéos demandées' },
-    { key: 'sources', label: 'Sources', n: sugTodo + groupTodo + searchOpen, title: 'Recherches, marques suggérées, demandes de marques, marques cherchées, scans' },
+    { key: 'sources', label: 'Sources', n: sugTodo + groupTodo + searchOpen, title: 'Recherches, marques suggérées, demandes de marques, marques cherchées' },
+    { key: 'scans', label: `Scans ${scanData?.reads24h ?? 0} / 24 h`, n: 0, title: 'Scan concurrentiel : activité de l\'outil public et marques les plus scannées, à mettre en prospection' },
     { key: 'sending', label: 'Envois', n: 0, title: 'Outil de mailing et extension Chrome' },
     { key: 'stats', label: 'Chiffres', n: 0, title: 'Entonnoirs, niches et mots-clés qui convertissent' },
   ];
@@ -694,7 +695,6 @@ export default function AcquisitionTool() {
           <button type="button" onClick={() => setSrcPanel('suggestions')} data-testid="suggestions-button" title="Marques proposées par les créateurs qui possèdent déjà le produit : à valider avant tout tournage" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'suggestions' ? 'bg-neutral-900 text-white' : sugTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques suggérées {sugTodo}</button>
           <button type="button" onClick={() => setSrcPanel('groups')} data-testid="groups-button" title="Demandes de marques : publications des groupes Facebook suivis et annonces collées où une marque cherche des créateurs, avec un commentaire ou un email proposé" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'groups' ? 'bg-neutral-900 text-white' : groupTodo > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Demandes de marques {groupTodo}</button>
           <button type="button" onClick={() => setSrcPanel('searches')} data-testid="searches-button" title="Marques tapées par les créateurs dans « Candidature vidéo » sans résultat : ils possèdent le produit et voulaient tourner" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'searches' ? 'bg-neutral-900 text-white' : searchOpen > 0 ? 'bg-primary-500 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Marques cherchées {searchOpen}</button>
-          <button type="button" onClick={() => setSrcPanel('scans')} data-testid="scans-button" title="Scan concurrentiel : activité de l'outil public et marques les plus scannées, à mettre en prospection" className={`px-2.5 py-1 rounded-full text-xs ${srcPanel === 'scans' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-700'}`}>Scans {scanData?.reads24h ?? 0} / 24 h</button>
         </div>
         {srcPanel === 'run' && (
       <Card className="p-6">
@@ -729,8 +729,9 @@ export default function AcquisitionTool() {
         {srcPanel === 'suggestions' && <BrandSuggestions />}
         {srcPanel === 'groups' && <GroupWatch />}
         {srcPanel === 'searches' && <BrandSearches />}
-        {srcPanel === 'scans' && <AdScanAdmin />}
       </>}
+
+      {view === 'scans' && <AdScanAdmin />}
 
       {view === 'sending' && (
       <Card className="p-6">

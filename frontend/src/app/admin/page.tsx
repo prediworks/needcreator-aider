@@ -28,11 +28,11 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { CAMPAIGN_STATUS, DELIVERY_STATUS, USER_STATUS, NICHES, DELETION_REASONS } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'acquisition' | 'messages' | 'settings';
+type Tab = 'pending' | 'ambassadors' | 'businesses' | 'reports' | 'disputes' | 'invoices' | 'users' | 'campaigns' | 'deliveries' | 'external' | 'seed' | 'acquisition' | 'quotes' | 'messages' | 'settings';
 
 export default function AdminPage() {
   const { ready } = useRequireAuth({ roles: ['admin'] });
-  const TAB_KEYS: Tab[] = ['pending', 'ambassadors', 'businesses', 'reports', 'disputes', 'invoices', 'users', 'campaigns', 'deliveries', 'external', 'seed', 'acquisition', 'messages', 'settings'];
+  const TAB_KEYS: Tab[] = ['pending', 'ambassadors', 'businesses', 'reports', 'disputes', 'invoices', 'users', 'campaigns', 'deliveries', 'external', 'seed', 'acquisition', 'quotes', 'messages', 'settings'];
   const [tab, setTabState] = useState<Tab>('pending');
   // L'onglet vit dans l'adresse (?tab=…) : conservé au rafraîchissement, partageable, et le bouton Précédent du navigateur fonctionne
   useEffect(() => {
@@ -102,6 +102,7 @@ export default function AdminPage() {
     { key: 'external', title: 'Annuaire public des créateurs référencés (import xlsx ou csv, séquence email)', label: 'Créateurs référencés' },
     { key: 'seed', title: 'Campagnes d’amorçage générées par l’IA pour remplir la place de marché au lancement', label: 'Amorçage' },
     { key: 'acquisition', title: 'Agents de prospection : recherche de créateurs et de marques, qualification IA, mailing, réponses, import groupé', label: 'Prospection' },
+    { key: 'quotes', title: 'Usage des outils créateurs, devis envoyés par les créateurs à leurs clients, vidéos spontanées proposées aux marques', label: 'Devis et vitrines' },
     { key: 'messages', title: 'Annonces aux inscrits (email et notification) et suivi de la séquence d’accueil', label: 'Messages aux inscrits' },
     { key: 'settings', title: 'Réglages de la plateforme par groupe (commissions, délais, IA, prospection, mailing…)', label: 'Réglages' },
   ];
@@ -154,24 +155,6 @@ export default function AdminPage() {
             <div className="text-2xl font-bold">{formatCurrency(stats?.revenue?.total || 0)}</div>
           </Card>
         </div>
-        {stats?.tools && (
-          <Card className="p-5 mb-8" data-testid="tools-usage">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-sm text-neutral-600" title="Créateurs qui se servent des outils hors plateforme : devis clients, suivi de prospection, registre des droits. Chaque devis envoyé met NeedCreator sous les yeux d'une marque ; « marques venues par un devis » compte celles qui se sont inscrites en acceptant un devis.">Outils créateurs : qui s&apos;en sert</span>
-            </div>
-            <div className="text-2xl font-bold">{stats.tools.creators.any} <span className="text-sm font-normal text-neutral-500">créateur(s) sur {stats?.users?.creators ?? 0}</span></div>
-            <div className="text-xs text-neutral-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
-              <span title="Créateurs ayant créé au moins un devis client">Devis clients : {stats.tools.creators.quotes} créateur(s), {stats.tools.quotes.total} devis ({stats.tools.quotes.sent} envoyés, {stats.tools.quotes.acceptedNeedcreator + stats.tools.quotes.acceptedDirect} acceptés dont {stats.tools.quotes.acceptedNeedcreator} payés via NeedCreator, {stats.tools.quotes.declined} refusés)</span>
-              <span title="Créateurs ayant au moins un prospect dans leur suivi">Prospection : {stats.tools.creators.prospects} créateur(s), {stats.tools.prospects.total} prospects ({stats.tools.prospects.contacted + stats.tools.prospects.replied + stats.tools.prospects.quoteSent} en cours, {stats.tools.prospects.won} gagnés, {stats.tools.prospects.lost} perdus)</span>
-              <span title="Créateurs ayant enregistré au moins un contenu externe dans leur registre des droits">Registre des droits : {stats.tools.creators.contents} créateur(s)</span>
-              <span className="font-semibold text-neutral-700" title="Marques inscrites en acceptant un devis d'un créateur">Marques venues par un devis : {stats.tools.brandsViaQuotes}</span>
-              {stats.tools.showcase ? <span title="Vidéos spontanées déposées par les créateurs et proposées aux marques depuis Vitrine : comptées à part, pas comme un usage de l'outil devis">Vidéos spontanées : {stats.tools.creators.showcase} créateur(s), {stats.tools.showcase.total} vidéo(s) ({stats.tools.showcase.ready} à proposer, {stats.tools.showcase.sent} proposées, {stats.tools.showcase.accepted} achetées, {stats.tools.showcase.declined} refusées)</span> : null}
-            </div>
-          </Card>
-        )}
-        {stats?.tools && stats.tools.quotes.total > 0 && <div className="mb-8"><QuotesAdmin /></div>}
-        {stats?.tools?.showcase?.total > 0 && <div className="mb-8"><QuotesAdmin showcase /></div>}
-
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map((t) => (
@@ -369,6 +352,26 @@ export default function AdminPage() {
         {tab === 'external' && <ExternalCreatorsImport />}
         {tab === 'seed' && <SeedTool />}
         {tab === 'acquisition' && <AcquisitionTool />}
+        {/* Outils créateurs : usage, devis clients, vidéos spontanées (rangés ici pour ne plus les traverser avant les onglets) */}
+        {tab === 'quotes' && stats?.tools && (
+          <Card className="p-5 mb-8" data-testid="tools-usage">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm text-neutral-600" title="Créateurs qui se servent des outils hors plateforme : devis clients, suivi de prospection, registre des droits. Chaque devis envoyé met NeedCreator sous les yeux d'une marque ; « marques venues par un devis » compte celles qui se sont inscrites en acceptant un devis.">Outils créateurs : qui s&apos;en sert</span>
+            </div>
+            <div className="text-2xl font-bold">{stats.tools.creators.any} <span className="text-sm font-normal text-neutral-500">créateur(s) sur {stats?.users?.creators ?? 0}</span></div>
+            <div className="text-xs text-neutral-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+              <span title="Créateurs ayant créé au moins un devis client">Devis clients : {stats.tools.creators.quotes} créateur(s), {stats.tools.quotes.total} devis ({stats.tools.quotes.sent} envoyés, {stats.tools.quotes.acceptedNeedcreator + stats.tools.quotes.acceptedDirect} acceptés dont {stats.tools.quotes.acceptedNeedcreator} payés via NeedCreator, {stats.tools.quotes.declined} refusés)</span>
+              <span title="Créateurs ayant au moins un prospect dans leur suivi">Prospection : {stats.tools.creators.prospects} créateur(s), {stats.tools.prospects.total} prospects ({stats.tools.prospects.contacted + stats.tools.prospects.replied + stats.tools.prospects.quoteSent} en cours, {stats.tools.prospects.won} gagnés, {stats.tools.prospects.lost} perdus)</span>
+              <span title="Créateurs ayant enregistré au moins un contenu externe dans leur registre des droits">Registre des droits : {stats.tools.creators.contents} créateur(s)</span>
+              <span className="font-semibold text-neutral-700" title="Marques inscrites en acceptant un devis d'un créateur">Marques venues par un devis : {stats.tools.brandsViaQuotes}</span>
+              {stats.tools.showcase ? <span title="Vidéos spontanées déposées par les créateurs et proposées aux marques depuis Vitrine : comptées à part, pas comme un usage de l'outil devis">Vidéos spontanées : {stats.tools.creators.showcase} créateur(s), {stats.tools.showcase.total} vidéo(s) ({stats.tools.showcase.ready} à proposer, {stats.tools.showcase.sent} proposées, {stats.tools.showcase.accepted} achetées, {stats.tools.showcase.declined} refusées)</span> : null}
+            </div>
+          </Card>
+        )}
+        {tab === 'quotes' && stats?.tools && stats.tools.quotes.total > 0 && <div className="mb-8"><QuotesAdmin /></div>}
+        {tab === 'quotes' && stats?.tools?.showcase?.total > 0 && <div className="mb-8"><QuotesAdmin showcase /></div>}
+
+        {tab === 'quotes' && stats?.tools && !stats.tools.quotes.total && !stats.tools.showcase?.total && <p className="text-sm text-neutral-500">Aucun devis ni vidéo spontanée pour l&apos;instant.</p>}
         {tab === 'messages' && <MemberMessages />}
 
         {tab === 'settings' && (<>
