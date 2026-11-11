@@ -14,6 +14,32 @@ const TYPING_WINDOW_MS = 2 * 60 * 1000;
 const fail = (status, message) => Object.assign(new Error(message), { status });
 export const normBrand = (v) => String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 
+// Mots qui ne distinguent pas deux marques (« Respire » et « Respire Paris » sont la même)
+const FILLER = new Set(['paris', 'france', 'fr', 'officiel', 'officielle', 'official', 'shop', 'store', 'boutique', 'cosmetics', 'cosmetiques', 'cosmetique', 'beauty', 'beaute', 'skincare', 'laboratoire', 'laboratoires', 'maison', 'the', 'le', 'la', 'les']);
+/** Clé de rapprochement : sans accents, tirets ni mots de remplissage (jamais vide : au pire le nom entier) */
+export const brandKey = (v) => {
+  const words = String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+  const kept = words.filter(w => !FILLER.has(w)).join('');
+  return kept.length >= 3 ? kept : words.join('');
+};
+/**
+ * Fiches marque qui portent déjà ce nom. `exact` : même nom aux accents, tirets, espaces et majuscules près (c'est la même marque, on relie).
+ * `near` : nom proche (mot de remplissage en plus, ou un nom qui commence par l'autre) : à l'équipe de dire si c'est la même.
+ */
+export function matchLeads(name, leads) {
+  const norm = normBrand(name); const key = brandKey(name);
+  const exact = leads.find(l => normBrand(l.name) === norm) || null;
+  const near = exact ? [] : leads.filter(l => {
+    const k = brandKey(l.name);
+    if (!k || !key) return false;
+    if (k === key) return true;
+    const [short, long] = k.length < key.length ? [k, key] : [key, k];
+    return short.length >= 5 && long.startsWith(short);
+  }).slice(0, 5);
+  return { exact, near };
+}
+const brandLeads = () => Lead.find({ kind: 'brand' }).select('name status website').lean();
+
 /**
  * Une recherche qui n'a rien rendu. La saisie arrive lettre à lettre (« Fil », « Filo », « Filorga ») : seule la forme la plus longue
  * d'une même frappe est gardée ; un retour en arrière (« Filorg » après « Filorga ») est ignoré. Quatre caractères au moins.
@@ -53,29 +79,43 @@ export async function listBrandSearches() {
     groups.set(r.norm, g);
   }
   const out = [...groups.values()].map(g => ({ ...g, creators: g.creators.size }));
-  // Une marque déjà en prospection sous ce nom : signalée, pour la relier plutôt que la recréer
-  const leads = await Lead.find({ kind: 'brand', name: { $in: out.map(g => new RegExp(`^${g.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) } }).select('name status').lean();
-  for (const g of out) { const l = leads.find(x => normBrand(x.name) === g.norm); if (l && !g.leadId) { g.existingLeadId = l._id; g.existingStatus = l.status; } }
+  // Une marque déjà en prospection sous ce nom (ou un nom proche) : signalée, pour la relier plutôt que la recréer
+  const leads = await brandLeads();
+  for (const g of out) {
+    if (g.leadId) continue;
+    const { exact, near } = matchLeads(g.query, leads);
+    if (exact) { g.existingLeadId = exact._id; g.existingStatus = exact.status; }
+    else if (near.length) g.similar = near.map(l => ({ id: l._id, name: l.name, status: l.status }));
+  }
   return out.sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.creators - a.creators || new Date(b.lastAt) - new Date(a.lastAt));
 }
 
 /** « Créer la fiche marque » : la marque entre dans la prospection, les créateurs qui l'ont cherchée sont prévenus et, s'il n'y en a qu'un, elle lui est réservée */
-export async function createLeadFromSearch(norm, { createdBy, name: chosenName } = {}) {
+export async function createLeadFromSearch(norm, { createdBy, name: chosenName, linkTo, force = false } = {}) {
   const rows = await BrandSearch.find({ norm, status: 'open' });
   if (!rows.length) throw fail(404, 'Aucune recherche en attente pour cette marque');
   // Nom corrigé par l'équipe (faute de frappe du créateur), sinon la forme la plus longue tapée
   const typed = rows.map(r => r.query).sort((a, b) => b.length - a.length)[0].replace(/\s+/g, ' ').trim();
   const fixed = String(chosenName || '').replace(/\s+/g, ' ').trim();
   if (chosenName !== undefined && (fixed.length < 2 || fixed.length > 80)) throw fail(400, 'Nom de marque : 2 à 80 caractères');
-  const name = fixed || typed;
+  let name = fixed || typed;
   const { estimateSize } = await import('./brandSuggestions.js');
   const { size, tier } = await estimateSize({ name }); // liste des marques refusées, annonces Meta, connaissance de l'IA
   if (tier === 'huge') throw fail(400, `${name} est une très grande marque (${size.blocked ? 'liste des marques refusées' : size.reason || `${size.ads} annonces actives`}) : agences et créateurs sous contrat, nous ne la démarchons pas. Ignorez cette recherche.`);
   const creatorIds = [...new Set(rows.map(r => String(r.creatorId)))];
   const single = creatorIds.length === 1 ? rows[0].creatorId : null;
   const reservedUntil = new Date(Date.now() + RESERVED_DAYS * 86400000);
-  let lead = await Lead.findOne({ kind: 'brand', name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') });
-  const note = `Cherchée dans « Candidature vidéo » par ${creatorIds.length} créateur(s) qui possèdent le produit (${rows.reduce((n, r) => n + r.count, 0)} recherche(s))${fixed && normBrand(fixed) !== normBrand(typed) ? `, tapée « ${typed} »` : ''}`;
+  // Doublon : fiche choisie par l'équipe, sinon même nom aux accents et tirets près ; un nom seulement proche demande une décision
+  let lead = linkTo ? await Lead.findOne({ _id: linkTo, kind: 'brand' }) : null;
+  if (linkTo && !lead) throw fail(404, 'Fiche introuvable');
+  if (!lead) {
+    const { exact, near } = matchLeads(name, await brandLeads());
+    if (exact) lead = await Lead.findById(exact._id);
+    else if (near.length && !force) throw Object.assign(fail(409, `Une fiche au nom proche existe déjà : ${near.map(l => l.name).join(', ')}`), { similar: near.map(l => ({ id: l._id, name: l.name, status: l.status })) });
+  }
+  if (lead) name = lead.name; // les créateurs sont prévenus sous le nom de la fiche
+  const note = `Cherchée dans « Candidature vidéo » par ${creatorIds.length} créateur(s) qui possèdent le produit (${rows.reduce((n, r) => n + r.count, 0)} recherche(s))${normBrand(name) !== normBrand(typed) ? `, tapée « ${typed} »` : ''}`;
+  const linked = !!lead;
   if (lead) {
     if (['new', 'rejected', 'excluded'].includes(lead.status)) lead.status = 'qualified';
     if (single) { lead.suggestedBy = lead.suggestedBy || single; lead.reservedUntil = reservedUntil; }
@@ -115,7 +155,7 @@ export async function createLeadFromSearch(norm, { createdBy, name: chosenName }
       await sendSearchedBrandAvailable(c.email, c.profile?.name || '', name, `${config.cors.origin}${href}`, single ? reservedUntil : null, c.preferences?.language === 'en' ? 'en' : 'fr').catch(err => logger.warn(`Searched brand email ${c._id}: ${err.message}`));
     }
   });
-  return { lead, creators: creatorIds.length, tier, reserved: !!single };
+  return { lead, creators: creatorIds.length, tier, reserved: !!single, linked };
 }
 
 export async function dismissSearch(norm) {

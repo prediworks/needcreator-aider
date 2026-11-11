@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
@@ -19,9 +20,14 @@ export function useBrandSearches() {
 export default function BrandSearches() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useBrandSearches();
+  const [conflict, setConflict] = useState<{ norm: string; name: string; similar: { id: string; name: string; status: string }[] } | null>(null);
   const onError = (e: any) => toast.error(getErrorMessage(e), { duration: 10000 });
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acq-brand-searches'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); };
-  const create = useMutation({ mutationFn: async ({ norm, name }: { norm: string; name?: string }) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'create', ...(name ? { name } : {}) })).data, onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); refresh(); }, onError });
+  const create = useMutation({ mutationFn: async ({ norm, name, linkTo, force }: { norm: string; name?: string; linkTo?: string; force?: boolean }) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'create', ...(name ? { name } : {}), ...(linkTo ? { linkTo } : {}), ...(force ? { force: true } : {}) })).data,
+    onSuccess: (d) => { toast.success(d.message, { duration: 10000 }); setConflict(null); refresh(); },
+    // Nom proche d'une fiche existante : le serveur ne crée rien, l'équipe choisit entre relier et créer quand même
+    onError: (e: any, v) => { const similar = e?.response?.data?.similar; if (e?.response?.status === 409 && similar?.length) setConflict({ norm: v.norm, name: v.name || '', similar }); else onError(e); },
+  });
   const dismiss = useMutation({ mutationFn: async (norm: string) => (await api.post('/admin/acquisition/brand-searches', { norm, action: 'dismiss' })).data, onSuccess: (d) => { toast.success(d.message); refresh(); }, onError });
   const list = data?.searches || [];
   return (
@@ -36,11 +42,30 @@ export default function BrandSearches() {
               <span className="text-xs text-neutral-600">{s.creators} créateur{s.creators > 1 ? 's' : ''} · {s.searches} recherche{s.searches > 1 ? 's' : ''} · dernière le {formatDate(s.lastAt)}</span>
               {s.status === 'created' && <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Fiche créée, créateurs prévenus</span>}
               {s.status === 'open' && s.existingLeadId && <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800" title="Une fiche porte déjà ce nom : « Créer la fiche marque » la relie et prévient les créateurs">Déjà en prospection ({s.existingStatus})</span>}
+              {s.status === 'open' && !s.existingLeadId && s.similar?.length > 0 && <span className="px-2 py-0.5 rounded-full text-xs bg-amber-100 text-amber-800" title="Une fiche porte un nom proche : au moment de créer, vous choisirez entre la relier et créer une nouvelle fiche" data-testid="brand-search-similar">{`Nom proche : ${s.similar.map((l: any) => l.name).join(', ')}`}</span>}
               {s.status === 'open' && (
                 <span className="ml-auto flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => { if (s.existingLeadId) { create.mutate({ norm: s.norm }); return; } const n = prompt('Nom de la marque (corrigez une faute de frappe du créateur si besoin) :', s.query); if (n !== null && n.trim()) create.mutate({ norm: s.norm, name: n.trim() }); }} isLoading={create.isPending} data-testid="brand-search-create">{s.existingLeadId ? 'Relier et prévenir' : 'Créer la fiche marque'}</Button>
                   <Button size="sm" variant="ghost" onClick={() => dismiss.mutate(s.norm)} isLoading={dismiss.isPending} title="Faute de frappe, marque hors sujet ou trop grande : la recherche sort de la liste">Ignorer</Button>
                 </span>
+              )}
+              {conflict && conflict.norm === s.norm && (
+                <div className="basis-full rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="brand-search-conflict">
+                  <div className="text-neutral-900 font-medium">Une fiche au nom proche existe déjà. Est-ce la même marque ?</div>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {conflict.similar.map(l => (
+                      <div key={l.id} className="flex items-center gap-2 flex-wrap">
+                        <span className="text-neutral-900">{l.name}</span>
+                        <span className="text-xs text-neutral-600">({l.status})</span>
+                        <Button size="sm" variant="outline" onClick={() => create.mutate({ norm: s.norm, linkTo: l.id })} isLoading={create.isPending} data-testid="brand-search-link">Oui, relier à cette fiche</Button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex gap-2 flex-wrap">
+                    <Button size="sm" variant="ghost" onClick={() => create.mutate({ norm: s.norm, name: conflict.name || undefined, force: true })} isLoading={create.isPending} data-testid="brand-search-force">{`Non, créer une nouvelle fiche « ${conflict.name || s.query} »`}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConflict(null)}>Annuler</Button>
+                  </div>
+                </div>
               )}
             </div>
           ))}
