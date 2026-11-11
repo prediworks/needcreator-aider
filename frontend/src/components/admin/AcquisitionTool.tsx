@@ -16,7 +16,7 @@ import MissingHint from '@/components/ui/MissingHint';
 import SocialEmbed, { embedProvider } from '@/components/SocialEmbed';
 import { formatDate, formatDateTime, shortUrl } from '@/lib/utils';
 import { toast } from 'sonner';
-import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare } from 'lucide-react';
+import { Radar, Copy, ExternalLink, RefreshCw, Trash2, Download, UserPlus, Upload, Play, Send, Mail, BarChart3, MessageSquare, MoreHorizontal } from 'lucide-react';
 
 const INTENT: Record<string, { label: string; cls: string }> = {
   redirect: { label: 'Renvoie vers un autre canal', cls: 'bg-blue-100 text-blue-800' }, interested: { label: 'Intéressé', cls: 'bg-green-100 text-green-800' }, question: { label: 'Question', cls: 'bg-blue-100 text-blue-800' }, not_now: { label: 'Pas maintenant', cls: 'bg-yellow-100 text-yellow-800' }, refusal: { label: 'Refus', cls: 'bg-red-50 text-red-700' }, unsubscribe: { label: 'Ne plus écrire', cls: 'bg-red-100 text-red-800' }, out_of_office: { label: 'Absence', cls: 'bg-neutral-100 text-neutral-600' }, other: { label: 'Autre', cls: 'bg-neutral-100 text-neutral-600' } };
@@ -533,6 +533,7 @@ export default function AcquisitionTool() {
   useEffect(() => { try { sessionStorage.setItem('nc-acq-view', JSON.stringify({ kind, status, hasEmail, niche, view, todoPanel, srcPanel })); } catch { /* stockage indisponible */ } }, [kind, status, hasEmail, niche, view, todoPanel, srcPanel]);
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
+  const [more, setMore] = useState(false); // menu « Plus » : actions moins fréquentes
   const [editing, setEditing] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null); // fiche ouverte dans le volet de droite
   const [importing, setImporting] = useState(false);
@@ -629,6 +630,16 @@ export default function AcquisitionTool() {
   const s = ov?.settings; const counts = ov?.counts?.[kind] || {};
   const total = (st: string) => counts[st]?.n || 0;
   const daysLeft = ov?.meta?.expiresAt ? Math.ceil((new Date(ov.meta.expiresAt).getTime() - Date.now()) / 86400000) : null;
+  const SEL = 'px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20';
+  const MORE: { id: string; label: string; hint: string; icon: any; creator?: boolean; run: () => void }[] = [
+    { id: 'copy-ig-links', creator: true, icon: Copy, label: 'Copier les liens Instagram sans auteur', hint: 'Jusqu\'à 60 publications dont l\'auteur est inconnu, pour la consigne Instagram de l\'assistant Chrome.', run: copyIgLinks },
+    { id: 'copy-noemail', creator: true, icon: Copy, label: 'Copier les profils sans email', hint: 'Jusqu\'à 60 profils, les mieux notés d\'abord, pour la consigne « Créateurs sans email ».', run: copyNoEmailProfiles },
+    { id: 'enrich-emails', icon: Mail, label: 'Chercher les emails sur les sites web', hint: 'Pour les fiches de cet onglet qui ont un site mais pas d\'email. En arrière-plan.', run: () => enrichEmails.mutate() },
+    { id: 'enrich-socials', icon: RefreshCw, label: 'Compléter les réseaux', hint: 'Cherche Instagram et TikTok pour toutes les fiches qui ne les ont pas. En arrière-plan.', run: () => enrichSocials.mutate() },
+    { id: 'export-csv', icon: Download, label: 'Export CSV (avec email)', hint: 'Les fiches de la file affichée qui ont un email, pour votre outil de mailing.', run: () => exportCsv(false) },
+    { id: 'export-csv-mark', icon: Download, label: 'Export CSV et marquer « contactés »', hint: 'Le même export, puis les fiches passent en « Contacté » pour ne pas être exportées deux fois.', run: () => { if (confirm('Exporter et marquer ces prospects « contactés » ?')) exportCsv(true); } },
+    { id: 'to-directory', creator: true, icon: UserPlus, label: 'Tous les qualifiés vers l\'annuaire', hint: 'Ajoute tous les créateurs qualifiés à l\'annuaire public. Pour quelques-uns seulement, cochez-les dans la liste.', run: () => { if (confirm('Ajouter tous les créateurs qualifiés à l\'annuaire des créateurs référencés ?')) importDir.mutate(undefined); } },
+  ];
   const TABS: { key: typeof view; label: string; n: number; title: string }[] = [
     { key: 'leads', label: 'Fiches', n: 0, title: 'La liste des prospects, avec ses filtres' },
     { key: 'todo', label: 'À traiter', n: svTodo + reqOpen, title: 'File du jour, vidéos à envoyer aux marques, vidéos demandées' },
@@ -778,21 +789,33 @@ export default function AcquisitionTool() {
         <div className="flex items-center gap-2 flex-wrap mb-4 text-xs">
           <Button size="sm" variant="outline" onClick={() => setAdding(!adding)} title="Saisir un prospect à la main (nom, profil, email, bio) : il est qualifié aussitôt par l'IA"><UserPlus className="w-4 h-4 mr-1" /> Ajouter à la main</Button>
           <Button size="sm" variant="outline" onClick={() => setImporting(!importing)} data-testid="import-toggle" title="Coller une liste (une ligne par prospect) venant de l'assistant Chrome, d'un salon ou d'un fichier : dédoublonnée, réseaux relevés, qualifiée par l'IA"><Upload className="w-4 h-4 mr-1" /> Import groupé (liste collée)</Button>
-          {kind === 'creator' && <Button size="sm" variant="outline" onClick={copyIgLinks} title="Copie les liens des publications Instagram trouvées par hashtag dont l'auteur n'est pas encore connu (60 au plus). À coller dans la consigne « Créateurs Instagram » de l'assistant Chrome (docs/AGENT-CHROME.md) ; le résultat se recolle dans « Import groupé », qui complète ces fiches au lieu d'en créer de nouvelles." data-testid="copy-ig-links"><Copy className="w-4 h-4 mr-1" /> Copier les liens Instagram sans auteur</Button>}
-          {kind === 'creator' && <Button size="sm" variant="outline" onClick={copyNoEmailProfiles} title="Copie jusqu'à 60 profils Instagram ou TikTok de créateurs sans email, les mieux notés d'abord. À coller dans la consigne « Créateurs sans email » de l'assistant Chrome (docs/AGENT-CHROME.md), qui lit le bouton E-mail et la bio ; son résultat se recolle dans « Import groupé », qui ajoute l'email à la fiche existante. Un profil remis n'est pas redonné avant 30 jours." data-testid="copy-noemail"><Copy className="w-4 h-4 mr-1" /> Copier les profils sans email</Button>}
-          <Button size="sm" variant="outline" onClick={() => enrichEmails.mutate()} isLoading={enrichEmails.isPending} title="Pour les prospects de cet onglet qui ont un site web mais pas d'email : visite la page d'accueil, la page contact et les mentions légales, et relève l'adresse. Tourne en arrière-plan, sans appel à l'IA ; 5 à 15 secondes par site. Fait automatiquement à chaque import groupé." data-testid="enrich-emails"><Mail className="w-4 h-4 mr-1" /> Chercher les emails (sites web)</Button>
-          <Button size="sm" variant="outline" onClick={() => enrichSocials.mutate()} isLoading={enrichSocials.isPending} title="Cherche Instagram et TikTok pour tous les prospects qui ne les ont pas encore : dans leur bio, puis dans la rubrique « Liens » de leur chaîne YouTube. Tourne en arrière-plan, sans appel à l'IA ; rechargez la page dans quelques minutes." data-testid="enrich-socials"><RefreshCw className="w-4 h-4 mr-1" /> Compléter les réseaux (tous)</Button>
-          <Button size="sm" variant="outline" onClick={() => exportCsv(false)} title="Télécharge un CSV des prospects de la file affichée qui ont un email (prénom, pseudo, niche, réseaux, paragraphe et message personnalisés, lien d'inscription) pour votre outil de mailing"><Download className="w-4 h-4 mr-1" /> Export CSV (avec email)</Button>
-          <Button size="sm" variant="outline" onClick={() => { if (confirm('Exporter et marquer ces prospects « contactés » ?')) exportCsv(true); }} title="Même export, puis passe ces prospects en « Contacté » (canal email) pour ne pas les exporter deux fois"><Download className="w-4 h-4 mr-1" /> Export + marquer contactés</Button>
-          {kind === 'creator' && <Button size="sm" variant="outline" onClick={() => { if (confirm(selected.length ? `Ajouter ${selected.length} créateur(s) à l'annuaire des créateurs référencés ?` : 'Ajouter tous les créateurs qualifiés à l\'annuaire des créateurs référencés ?')) importDir.mutate(selected.length ? selected : undefined); }} isLoading={importDir.isPending} title="Ajoute les créateurs sélectionnés (ou tous les qualifiés) à l'annuaire public des créateurs référencés, avec leur séquence email habituelle">Vers l&apos;annuaire {selected.length ? `(${selected.length})` : '(tous les qualifiés)'}</Button>}
-          {selected.length > 0 && <>
-            <span className="text-neutral-500">{selected.length} sélectionné(s) :</span>
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'to_contact' })} title="Valide ces prospects pour l'envoi : ils seront poussés vers l'outil de mailing quel que soit leur score">À contacter</Button>
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'contacted', contactedVia: 'email' })} title="Marque ces prospects comme contactés (par exemple après un message envoyé à la main sur les réseaux)">Contactés</Button>
-            {ml?.settings?.configured && <Button size="sm" variant="ghost" onClick={() => { if (confirm(`Pousser ${selected.length} prospect(s) vers l'outil de mailing, quel que soit le score ?`)) pushNow.mutate({ ids: selected }); }} title="Pousse la sélection vers l'outil de mailing tout de suite, quel que soit le score"><Send className="w-3.5 h-3.5 mr-1" /> Vers le mailing</Button>}
-            <Button size="sm" variant="ghost" onClick={() => bulk.mutate({ ids: selected, status: 'rejected' })} title="Écarte ces prospects : ils ne seront ni exportés ni poussés vers le mailing">Hors cible</Button>
-          </>}
+          <div className="relative">
+            <Button size="sm" variant="outline" onClick={() => setMore(!more)} aria-expanded={more} title="Actions moins fréquentes : copies pour l'assistant Chrome, recherche d'emails, exports, annuaire" data-testid="more-toggle"><MoreHorizontal className="w-4 h-4 mr-1" /> Plus</Button>
+            {more && <>
+              <button type="button" aria-label="Fermer le menu" className="fixed inset-0 z-30 cursor-default" onClick={() => setMore(false)} />
+              <div className="absolute left-0 top-full mt-1 z-40 w-[380px] max-w-[88vw] bg-white border border-neutral-200 rounded-xl shadow-xl p-1.5" data-testid="more-menu">
+                {MORE.filter(m => !m.creator || kind === 'creator').map(m => (
+                  <button key={m.id} type="button" onClick={() => { setMore(false); m.run(); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-neutral-50 flex items-start gap-2.5" data-testid={m.id}>
+                    <m.icon className="w-4 h-4 mt-0.5 text-primary-600 shrink-0" />
+                    <span><span className="block text-sm font-medium text-neutral-900">{m.label}</span><span className="block text-xs text-neutral-600">{m.hint}</span></span>
+                  </button>
+                ))}
+              </div>
+            </>}
+          </div>
         </div>
+        {/* Actions sur la sélection : barre collée en bas de l'écran, visible où que l'on soit dans la liste */}
+        {selected.length > 0 && (
+          <div className={`fixed bottom-4 z-40 left-4 right-4 sm:right-auto sm:-translate-x-1/2 ${openLead ? 'sm:left-1/2 lg:left-[calc((100vw-460px)/2)]' : 'sm:left-1/2'} bg-neutral-900 text-white rounded-xl shadow-xl px-3 py-2 flex items-center gap-1 flex-wrap text-xs`} data-testid="selection-bar">
+            <span className="px-1 font-medium">{selected.length} sélectionné{selected.length > 1 ? 's' : ''}</span>
+            <button type="button" className={SEL} onClick={() => bulk.mutate({ ids: selected, status: 'to_contact' })} title="Valide ces prospects pour l'envoi : ils seront poussés vers l'outil de mailing quel que soit leur score">À contacter</button>
+            <button type="button" className={SEL} onClick={() => bulk.mutate({ ids: selected, status: 'contacted', contactedVia: 'email' })} title="Marque ces prospects comme contactés (par exemple après un message envoyé à la main sur les réseaux)">Contactés</button>
+            {ml?.settings?.configured && <button type="button" className={SEL} onClick={() => { if (confirm(`Pousser ${selected.length} prospect(s) vers l'outil de mailing, quel que soit le score ?`)) pushNow.mutate({ ids: selected }); }} title="Pousse la sélection vers l'outil de mailing tout de suite, quel que soit le score">Vers le mailing</button>}
+            {kind === 'creator' && <button type="button" className={SEL} onClick={() => { if (confirm(`Ajouter ${selected.length} créateur(s) à l'annuaire des créateurs référencés ?`)) importDir.mutate(selected); }} title="Ajoute les créateurs sélectionnés à l'annuaire public des créateurs référencés, avec leur séquence email habituelle">Vers l&apos;annuaire</button>}
+            <button type="button" className={SEL} onClick={() => bulk.mutate({ ids: selected, status: 'rejected' })} title="Écarte ces prospects : ils ne seront ni exportés ni poussés vers le mailing">Hors cible</button>
+            <button type="button" className="px-2 py-1 rounded-lg text-neutral-300 hover:text-white" onClick={() => setSelected([])} title="Vider la sélection" data-testid="selection-clear">✕</button>
+          </div>
+        )}
         {adding && <ManualForm onDone={() => { setAdding(false); refresh(); }} />}
         {importing && <ImportForm kind={kind} onDone={() => { setImporting(false); refresh(); }} />}
         {isLoading ? <p className="text-sm text-neutral-500">Chargement…</p> : !data?.leads?.length ? (
