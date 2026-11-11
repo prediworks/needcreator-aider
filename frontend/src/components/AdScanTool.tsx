@@ -128,6 +128,9 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
   // PDF du scan ou de l'audit, à transférer à un responsable
   const [pdfLoading, setPdfLoading] = useState(false);
+  // Bloc des angles : replié par défaut ; « Voir les angles » sous la jauge l'ouvre et y descend
+  const [anglesOpen, setAnglesOpen] = useState(false);
+  const showAngles = () => { setAnglesOpen(true); setTimeout(() => document.getElementById('angles')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); };
   const downloadPdf = async () => { setPdfLoading(true); const err = await downloadScanPdf(slug, { audit: auditView }); setPdfLoading(false); if (err) toast.error(err, { duration: 8000 }); else trackRef('pdf', slug, isAdmin); };
   // Clic sur une partie verrouillée ou « Créer mon compte » : étape de l'entonnoir des marques venues de l'email
   const onSignupClick = (e: React.MouseEvent) => { if ((e.target as HTMLElement).closest?.('a[href^="/register"]')) trackRef('locked', slug, isAdmin); };
@@ -202,7 +205,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 {auditView && s.audit?.diagnosis ? <p className="mt-1 text-sm text-neutral-700">{s.audit.diagnosis}</p> : s.insights?.summary ? <p className="mt-1 text-sm text-neutral-700">{s.insights.summary}</p> : null}
                 {(platforms || s.stats?.ages?.length > 0 || s.stats?.countries?.length > 0) && <div className="mt-2 text-xs text-neutral-500 flex flex-wrap gap-x-2">{/* un morceau par nœud de texte : traduisible par gabarit (en.ts) */}{platforms && <span>{`Supports : ${platforms}`}</span>}{s.stats?.ages?.length > 0 && <span>{`Âges visés : ${s.stats.ages.join(', ')} ans`}</span>}{s.stats?.countries?.length > 0 && <span>{`Pays : ${s.stats.countries.join(', ')}`}</span>}{s.stats?.reach ? <span>{`· portée estimée cumulée en Europe : ${Number(s.stats.reach).toLocaleString('fr-FR')}`}</span> : null}</div>}
                 <ScanTimeline days={s.timeline || []} />
-                {s.coverage && <AngleCoverage used={s.coverage.used} free={s.coverage.free} own={auditView} />}
+                {s.coverage && <AngleCoverage used={s.coverage.used} free={s.coverage.free} own={auditView} onShow={showAngles} />}
                 {user?.role !== 'creator' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} signupHref={signupHref} />}
               </>
             )}
@@ -215,6 +218,74 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
               <p className="mt-1">{auditView ? 'Vos publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.' : 'Les publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.'}</p>
               <p className="mt-1 text-xs text-neutral-600 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary-600 shrink-0" />{GUARANTEE}</p>
             </div>
+          )}
+
+          {/* 1 ter. Comparer avec le concurrent repéré (ou une marque du même secteur) : une ligne sous le verdict, vers le duel */}
+          {s.status === 'ready' && similar?.scans?.length > 0 && (
+            <Link href={`/publicites/${s.slug}/face-a/${similar.scans[0].slug}`} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-4 hover:border-primary-400" data-testid="ad-scan-duel-top">
+              <span className="flex items-center gap-2 min-w-0"><BarChart3 className="w-5 h-5 text-primary-600 shrink-0" /><span className="min-w-0"><span className="block font-semibold text-neutral-900 truncate">{`Comparer avec ${similar.scans[0].pageName}`}</span><span className="block text-xs text-neutral-600">Les deux marques côte à côte : nombre de publicités, durée, angles de l&apos;une et pas de l&apos;autre.</span></span></span>
+              <span className="shrink-0 inline-flex items-center gap-1 text-sm font-medium text-primary-700">Voir le duel <ArrowRight className="w-4 h-4" /></span>
+            </Link>
+          )}
+
+          {/* 1 quater. Les angles et les accroches : repliés (les vidéos restent visibles dessous), avec un bouton d'ouverture bien visible */}
+          {s.status === 'ready' && ((auditView && s.audit) || s.insights || s.insightsPending) && (
+            <details id="angles" open={anglesOpen} onToggle={(e) => setAnglesOpen((e.target as HTMLDetailsElement).open)} className="group rounded-xl border-2 border-primary-300 bg-white scroll-mt-24" data-testid="ad-scan-angles">
+              <summary className="cursor-pointer list-none p-4 sm:p-5 flex items-center justify-between gap-3 rounded-xl bg-primary-50 group-open:rounded-b-none">
+                <span className="flex items-center gap-3 min-w-0"><BarChart3 className="w-6 h-6 text-primary-600 shrink-0" /><span className="min-w-0"><span className="block text-base font-semibold text-neutral-900">{auditView ? 'Vos angles et les accroches à tester' : 'Les angles et les accroches de ces publicités'}</span><span className="block text-xs text-neutral-600">{s.coverage ? `${s.coverage.used} angle${s.coverage.used > 1 ? 's' : ''} utilisé${s.coverage.used > 1 ? 's' : ''}, ${s.coverage.free} libre${s.coverage.free > 1 ? 's' : ''} : le détail, avec des exemples.` : 'Le détail de la lecture, avec des exemples.'}</span></span></span>
+                <span className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2"><span className="group-open:hidden">Voir le détail</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
+              </summary>
+              <div className="p-5 space-y-6">
+                {auditView && s.audit && (
+                  <div data-testid="ad-scan-audit">
+                    <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><ClipboardCheck className="w-5 h-5 text-primary-600" /> Audit créatif des publicités de {s.pageName}</h3>
+                    <p className="text-xs text-neutral-500 mb-3">Meta ne fournit que le texte et la durée de diffusion : l&apos;audit porte sur ce qui est écrit et sur ce qui dure. Une publicité maintenue longtemps est un indice de rentabilité.</p>
+                    <div className="space-y-4 text-sm">
+                      {s.audit.lasting?.length > 0 && <div><div className="font-medium text-neutral-900 mb-1">Ce qui tient dans la durée</div><ul className="list-disc pl-5 space-y-1 text-neutral-700">{s.audit.lasting.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>}
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div>
+                          <div className="font-medium text-neutral-900 mb-1">Angles répétés</div>
+                          {s.audit.overused?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.overused.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span> · {o.count} pub{o.count > 1 ? 's' : ''}{o.note ? <span className="block text-xs text-neutral-500">{o.note}</span> : null}</li>)}</ul> : s.audit.locked?.includes('overused') ? <Locked text="les angles que vous répétez" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                        </div>
+                        <div>
+                          <div className="font-medium text-neutral-900 mb-1">Angles libres</div>
+                          {s.audit.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.missing.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span>{o.why ? <span className="block text-xs text-neutral-500">{o.why}</span> : null}</li>)}</ul> : s.audit.locked?.includes('missing') ? <Locked text="les angles que vous n'utilisez pas" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                        </div>
+                        <div>
+                          <div className="font-medium text-neutral-900 mb-1">Accroches à tester</div>
+                          {s.audit.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.audit.locked?.includes('hooks') ? <Locked text="cinq accroches pour les trois premières secondes" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                        </div>
+                      </div>
+                      {s.audit.locked?.length > 0 && <SignupBox title="Voir l'audit complet" text=": angles répétés, angles libres, accroches à tester, trois vidéos à commander." signupHref={signupHref} loginHref={loginHref} testid="ad-scan-audit-cta" />}
+                    </div>
+                  </div>
+                )}
+
+                {!s.insights && s.insightsPending && <p className="text-sm text-neutral-700 animate-pulse" data-testid="ad-scan-insights-pending"><BarChart3 className="w-5 h-5 text-primary-600 inline mr-2" />Les publicités sont là ; l&apos;IA les lit (angles, accroches, constats). Une à deux minutes, la page se met à jour toute seule.</p>}
+                {s.insights && (
+                  <div data-testid="ad-scan-insights">
+                    <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-2"><BarChart3 className="w-5 h-5 text-primary-600" /> Ce que disent ces publicités</h3>
+                    {s.insights.facts?.length > 0 && <ul className="list-disc pl-5 text-sm text-neutral-700 space-y-1">{s.insights.facts.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul>}
+                    <div className="grid md:grid-cols-3 gap-4 mt-4 text-sm">
+                      <div>
+                        <div className="font-medium text-neutral-900 mb-1">Angles utilisés</div>
+                        <ul className="space-y-1 text-neutral-700">{(s.insights.angles || []).map((a: any, i: number) => <li key={i}><span className="font-medium">{a.name}</span> · {a.count} pub{a.count > 1 ? 's' : ''}{a.example ? <span className="block text-xs text-neutral-500 italic">« {a.example} »</span> : null}</li>)}</ul>
+                        {s.insights.locked?.includes('angles') && <Locked text="tous les angles avec un exemple cité" href={signupHref} />}
+                      </div>
+                      <div>
+                        <div className="font-medium text-neutral-900 mb-1">Accroches qui reviennent</div>
+                        {s.insights.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.insights.locked?.includes('hooks') ? <Locked text="les formules qui reviennent" href={signupHref} /> : <p className="text-neutral-500">Aucune formule récurrente relevée.</p>}
+                      </div>
+                      <div>
+                        <div className="font-medium text-neutral-900 mb-1">Angles que personne n&apos;utilise</div>
+                        {s.insights.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.missing.map((h: string, i: number) => <li key={i}>{h}</li>)}</ul> : s.insights.locked?.includes('missing') ? <Locked text="les angles libres, ceux d'une vidéo créateur qui sort du lot" href={signupHref} /> : <p className="text-neutral-500">—</p>}
+                      </div>
+                    </div>
+                    {s.insights.locked?.length > 0 && <SignupBox title="Voir la lecture complète" text=": tous les angles avec un exemple, les accroches qui reviennent, les angles que personne n'utilise." signupHref={signupHref} loginHref={loginHref} testid="ad-scan-insights-cta" />}
+                  </div>
+                )}
+              </div>
+            </details>
           )}
 
           {/* 2. L'offre : ce qu'un créateur tournerait, avec son prix et un seul bouton, des vidéos de la même niche, l'email */}
@@ -299,63 +370,14 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
             </Card>
           )}
 
-          {/* 3. Le détail, replié : la lecture, l'audit complet, les publicités une par une */}
-          {s.status === 'ready' && (
+          {/* 3. Les publicités une par une, repliées en bas de page */}
+          {s.status === 'ready' && s.ads?.length > 0 && (
             <details className="group rounded-xl border border-neutral-200 bg-white" data-testid="ad-scan-details">
               <summary className="cursor-pointer list-none p-5 flex items-center justify-between gap-3">
-                <span className="font-semibold text-neutral-900">{s.ads?.length ? `Le détail : angles, accroches et les ${s.ads.length} publicités` : 'Le détail : angles et accroches'}</span>
+                <span className="font-semibold text-neutral-900">{`Les ${s.ads.length} publicités, une par une`}</span>
                 <ChevronDown className="w-5 h-5 text-neutral-500 transition-transform group-open:rotate-180" />
               </summary>
               <div className="px-5 pb-5 space-y-6">
-                {auditView && s.audit && (
-                  <div data-testid="ad-scan-audit">
-                    <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-1"><ClipboardCheck className="w-5 h-5 text-primary-600" /> Audit créatif des publicités de {s.pageName}</h3>
-                    <p className="text-xs text-neutral-500 mb-3">Meta ne fournit que le texte et la durée de diffusion : l&apos;audit porte sur ce qui est écrit et sur ce qui dure. Une publicité maintenue longtemps est un indice de rentabilité.</p>
-                    <div className="space-y-4 text-sm">
-                      {s.audit.lasting?.length > 0 && <div><div className="font-medium text-neutral-900 mb-1">Ce qui tient dans la durée</div><ul className="list-disc pl-5 space-y-1 text-neutral-700">{s.audit.lasting.map((x: string, i: number) => <li key={i}>{x}</li>)}</ul></div>}
-                      <div className="grid md:grid-cols-3 gap-4">
-                        <div>
-                          <div className="font-medium text-neutral-900 mb-1">Angles répétés</div>
-                          {s.audit.overused?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.overused.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span> · {o.count} pub{o.count > 1 ? 's' : ''}{o.note ? <span className="block text-xs text-neutral-500">{o.note}</span> : null}</li>)}</ul> : s.audit.locked?.includes('overused') ? <Locked text="les angles que vous répétez" href={signupHref} /> : <p className="text-neutral-500">—</p>}
-                        </div>
-                        <div>
-                          <div className="font-medium text-neutral-900 mb-1">Angles libres</div>
-                          {s.audit.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.missing.map((o: any, i: number) => <li key={i}><span className="font-medium">{o.angle}</span>{o.why ? <span className="block text-xs text-neutral-500">{o.why}</span> : null}</li>)}</ul> : s.audit.locked?.includes('missing') ? <Locked text="les angles que vous n'utilisez pas" href={signupHref} /> : <p className="text-neutral-500">—</p>}
-                        </div>
-                        <div>
-                          <div className="font-medium text-neutral-900 mb-1">Accroches à tester</div>
-                          {s.audit.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.audit.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.audit.locked?.includes('hooks') ? <Locked text="cinq accroches pour les trois premières secondes" href={signupHref} /> : <p className="text-neutral-500">—</p>}
-                        </div>
-                      </div>
-                      {s.audit.locked?.length > 0 && <SignupBox title="Voir l'audit complet" text=": angles répétés, angles libres, accroches à tester, trois vidéos à commander." signupHref={signupHref} loginHref={loginHref} testid="ad-scan-audit-cta" />}
-                    </div>
-                  </div>
-                )}
-
-                {!s.insights && s.insightsPending && <p className="text-sm text-neutral-700 animate-pulse" data-testid="ad-scan-insights-pending"><BarChart3 className="w-5 h-5 text-primary-600 inline mr-2" />Les publicités sont là ; l&apos;IA les lit (angles, accroches, constats). Une à deux minutes, la page se met à jour toute seule.</p>}
-                {s.insights && (
-                  <div data-testid="ad-scan-insights">
-                    <h3 className="font-semibold text-neutral-900 flex items-center gap-2 mb-2"><BarChart3 className="w-5 h-5 text-primary-600" /> Ce que disent ces publicités</h3>
-                    {s.insights.facts?.length > 0 && <ul className="list-disc pl-5 text-sm text-neutral-700 space-y-1">{s.insights.facts.map((f: string, i: number) => <li key={i}>{f}</li>)}</ul>}
-                    <div className="grid md:grid-cols-3 gap-4 mt-4 text-sm">
-                      <div>
-                        <div className="font-medium text-neutral-900 mb-1">Angles utilisés</div>
-                        <ul className="space-y-1 text-neutral-700">{(s.insights.angles || []).map((a: any, i: number) => <li key={i}><span className="font-medium">{a.name}</span> · {a.count} pub{a.count > 1 ? 's' : ''}{a.example ? <span className="block text-xs text-neutral-500 italic">« {a.example} »</span> : null}</li>)}</ul>
-                        {s.insights.locked?.includes('angles') && <Locked text="tous les angles avec un exemple cité" href={signupHref} />}
-                      </div>
-                      <div>
-                        <div className="font-medium text-neutral-900 mb-1">Accroches qui reviennent</div>
-                        {s.insights.hooks?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.hooks.map((h: string, i: number) => <li key={i}>« {h} »</li>)}</ul> : s.insights.locked?.includes('hooks') ? <Locked text="les formules qui reviennent" href={signupHref} /> : <p className="text-neutral-500">Aucune formule récurrente relevée.</p>}
-                      </div>
-                      <div>
-                        <div className="font-medium text-neutral-900 mb-1">Angles que personne n&apos;utilise</div>
-                        {s.insights.missing?.length ? <ul className="space-y-1 text-neutral-700">{s.insights.missing.map((h: string, i: number) => <li key={i}>{h}</li>)}</ul> : s.insights.locked?.includes('missing') ? <Locked text="les angles libres, ceux d'une vidéo créateur qui sort du lot" href={signupHref} /> : <p className="text-neutral-500">—</p>}
-                      </div>
-                    </div>
-                    {s.insights.locked?.length > 0 && <SignupBox title="Voir la lecture complète" text=": tous les angles avec un exemple, les accroches qui reviennent, les angles que personne n'utilise." signupHref={signupHref} loginHref={loginHref} testid="ad-scan-insights-cta" />}
-                  </div>
-                )}
-
                 {s.ads?.length > 0 && (
                   <div data-testid="ad-scan-ads">
                     <h3 className="font-semibold text-neutral-900 mb-1">Les publicités, de la plus ancienne à la plus récente</h3>

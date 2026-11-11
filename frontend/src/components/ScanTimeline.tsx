@@ -38,7 +38,7 @@ export function ScanTimeline({ days, compact = false, scale = 0 }: { days: numbe
   );
 }
 
-export function AngleCoverage({ used, free, own = false }: { used: number; free: number; own?: boolean }) {
+export function AngleCoverage({ used, free, own = false, onShow }: { used: number; free: number; own?: boolean; onShow?: () => void }) {
   const total = used + free;
   if (!used || !free || total > 16) return null;
   return (
@@ -49,7 +49,7 @@ export function AngleCoverage({ used, free, own = false }: { used: number; free:
           <div key={i} className={`h-3 flex-1 max-w-[56px] rounded-full ${i < used ? 'bg-primary-600' : 'border border-dashed border-primary-400 bg-white'}`} />
         ))}
       </div>
-      <p className="mt-1.5 text-xs text-neutral-600">{own ? `${free} angle${free > 1 ? 's' : ''} que vos publicités n'utilisent pas : c'est là qu'une vidéo créateur apporte du neuf.` : `${free} angle${free > 1 ? 's' : ''} que ces publicités n'utilisent pas : c'est là qu'une vidéo créateur sort du lot.`}</p>
+      <p className="mt-1.5 text-xs text-neutral-600">{own ? `${free} angle${free > 1 ? 's' : ''} que vos publicités n'utilisent pas : c'est là qu'une vidéo créateur apporte du neuf.` : `${free} angle${free > 1 ? 's' : ''} que ces publicités n'utilisent pas : c'est là qu'une vidéo créateur sort du lot.`}{onShow && <> <button type="button" onClick={onShow} className="underline text-primary-700 font-medium" data-testid="ad-scan-coverage-show">Voir les angles</button></>}</p>
     </div>
   );
 }

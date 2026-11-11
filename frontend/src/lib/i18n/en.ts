@@ -3676,5 +3676,16 @@ export const EN: Record<string, string> = {
   "Voir les publicités de {x}": "See the ads of {x}",
   "Données publiques de la bibliothèque publicitaire Meta (transparence européenne). Constats comptés, sans jugement.": "Public data from Meta's Ad Library (EU transparency). Counted findings, no judgment.",
   "Choisissez deux marques différentes": "Choose two different brands",
+  "Comparer avec {x}": "Compare with {x}",
+  "Les deux marques côte à côte : nombre de publicités, durée, angles de l'une et pas de l'autre.": "Both brands side by side: number of ads, duration, angles one uses and the other doesn't.",
+  "Voir le duel": "See the comparison",
+  "Vos angles et les accroches à tester": "Your angles and the hooks to test",
+  "Les angles et les accroches de ces publicités": "The angles and hooks of these ads",
+  "{x} angle{x} utilisé{x}, {x} libre{x} : le détail, avec des exemples.": "{x} angle{x} used{-}, {x} unused{-}: the details, with examples.",
+  "Le détail de la lecture, avec des exemples.": "The details of the reading, with examples.",
+  "Voir le détail": "See the details",
+  "Refermer": "Close",
+  "Les {x} publicités, une par une": "The {x} ads, one by one",
+  "Voir les angles": "See the angles",
 };
 
