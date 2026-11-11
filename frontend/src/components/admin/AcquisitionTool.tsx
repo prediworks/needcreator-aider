@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NICHES } from '@/lib/labels';
 import api, { getErrorMessage } from '@/lib/api';
@@ -534,6 +534,7 @@ export default function AcquisitionTool() {
   const [q, setQ] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null); // fiche ouverte dans le volet de droite
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const { data: ml } = useQuery({ queryKey: ['acquisition-mailing'], queryFn: async () => (await api.get('/admin/acquisition/mailing')).data, staleTime: 30000 });
@@ -556,6 +557,31 @@ export default function AcquisitionTool() {
   const { data: dash } = useQuery({ queryKey: ['acquisition-dashboard'], queryFn: async () => (await api.get('/admin/acquisition/dashboard')).data, enabled: view === 'stats', staleTime: 60000 });
   const { data: ov } = useQuery({ queryKey: ['acquisition-overview'], queryFn: async () => (await api.get('/admin/acquisition')).data, refetchInterval: (query) => (query.state.data?.progress?.running ? 4000 : false) });
   const { data, isLoading } = useQuery({ queryKey: ['acquisition-leads', kind, status, hasEmail, niche, q], queryFn: async () => (await api.get('/admin/acquisition/leads', { params: { kind, status: status || undefined, hasEmail: hasEmail || undefined, niche: niche || undefined, q: q || undefined, limit: 200 } })).data });
+  const leadList: any[] = data?.leads || [];
+  const openIndex = openId ? leadList.findIndex((x: any) => x._id === openId) : -1;
+  const openLead = openIndex >= 0 ? leadList[openIndex] : null;
+  // La fiche ouverte quitte la liste (statut changé, supprimée) : on passe à celle qui prend sa place ; filtre changé : le volet se ferme
+  const lastOpen = useRef(-1);
+  const filterKey = [kind, status, hasEmail, niche, q].join('|');
+  useEffect(() => { setOpenId(null); setEditing(null); }, [filterKey]);
+  useEffect(() => {
+    if (!openId || !data) return;
+    if (openIndex >= 0) { lastOpen.current = openIndex; return; }
+    const next = leadList[Math.min(lastOpen.current, leadList.length - 1)];
+    setOpenId(next ? next._id : null); setEditing(null);
+  }, [openId, openIndex, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Échap ferme le volet ; flèches haut et bas passent d'une fiche à l'autre (hors champ de saisie)
+  useEffect(() => {
+    if (!openId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      if (e.key === 'Escape') { setOpenId(null); setEditing(null); }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { const n = leadList[openIndex + (e.key === 'ArrowDown' ? 1 : -1)]; if (n) { e.preventDefault(); setOpenId(n._id); setEditing(null); } }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openId, openIndex, data]); // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = () => { queryClient.invalidateQueries({ queryKey: ['acquisition-leads'] }); queryClient.invalidateQueries({ queryKey: ['acquisition-overview'] }); queryClient.invalidateQueries({ queryKey: ['acq-daily-queue'] }); queryClient.invalidateQueries({ queryKey: ['acq-showcases'] }); }; // une fiche modifiée (réseaux, email) met aussi à jour « Candidatures spontanées à proposer »
   const patch = useMutation({ mutationFn: async ({ id, ...body }: any) => (await api.patch(`/admin/acquisition/leads/${id}`, body)).data, onSuccess: () => refresh(), onError: (e: any) => toast.error(getErrorMessage(e)) });
   const bulk = useMutation({ mutationFn: async (body: any) => (await api.patch('/admin/acquisition/leads/bulk', body)).data, onSuccess: (d) => { toast.success(d.message); setSelected([]); refresh(); }, onError: (e: any) => toast.error(getErrorMessage(e)) });
@@ -611,7 +637,7 @@ export default function AcquisitionTool() {
     { key: 'stats', label: 'Chiffres', n: 0, title: 'Entonnoirs, niches et mots-clés qui convertissent' },
   ];
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${view === 'leads' && openLead ? 'lg:pr-[460px]' : ''}`}>
       {/* Onglets et filtres collés sous l'en-tête du site : un seul étage affiché à la fois, la liste commence tout de suite */}
       <div className="md:sticky md:top-16 z-30 -mx-4 px-4 py-2 bg-neutral-50/95 backdrop-blur border-b border-neutral-200" data-testid="acq-tabs">
         <div className="flex items-center gap-2 flex-wrap">
@@ -777,10 +803,42 @@ export default function AcquisitionTool() {
             {data.leads.map((l: any) => {
               const st = STATUS[l.status] || STATUS.new;
               return (
-                <div key={l._id} className="border border-neutral-200 rounded-lg p-3 text-sm" data-testid="lead">
-                  <div className="flex items-start gap-3">
-                    <input type="checkbox" className="mt-1" checked={selected.includes(l._id)} onChange={(e) => setSelected(e.target.checked ? [...selected, l._id] : selected.filter(x => x !== l._id))} />
-                    <div className="min-w-0 flex-1">
+                <div key={l._id} role="button" tabIndex={0} onClick={() => { setOpenId(l._id); setEditing(null); }} onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) { setOpenId(l._id); setEditing(null); } }} className={`border rounded-lg px-3 py-2 text-sm flex items-center gap-3 cursor-pointer ${openId === l._id ? 'border-primary-500 bg-primary-50' : 'border-neutral-200 hover:border-primary-300'}`} title="Ouvrir la fiche" data-testid="lead">
+                  <input type="checkbox" checked={selected.includes(l._id)} onClick={(e) => e.stopPropagation()} onChange={(e) => setSelected(e.target.checked ? [...selected, l._id] : selected.filter(x => x !== l._id))} aria-label={`Sélectionner ${l.name}`} />
+                  <div className="min-w-0 flex-1 flex items-center gap-2">
+                    <span className="font-semibold text-neutral-900 truncate min-w-[6rem]">{l.name}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs shrink-0 ${st.cls}`}>{st.label}</span>
+                    {l.score != null && <span className={`px-2 py-0.5 rounded-full text-xs shrink-0 ${l.score >= 70 ? 'bg-green-100 text-green-800' : l.score >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-neutral-100 text-neutral-600'}`}>{l.score}</span>}
+                    {l.mailing?.replyText && <span className="px-2 py-0.5 rounded-full text-xs shrink-0 bg-purple-100 text-purple-800" title="Une réponse est à lire dans la fiche">Réponse à lire</span>}
+                    {l.kind === 'brand' && l.lastScanVisitAt && <span className="px-2 py-0.5 rounded-full text-xs shrink-0 bg-green-100 text-green-800" title="A ouvert l'outil de scan depuis l'email">A ouvert le scan</span>}
+                    <span className={`text-xs text-neutral-500 truncate shrink-[20] hidden ${openLead ? 'xl:inline' : 'sm:inline'}`}>{SOURCE[l.source] || l.source} · {l.niche || '?'}</span>
+                  </div>
+                  <span className={`text-xs truncate max-w-[220px] hidden ${openLead ? '2xl:inline' : 'md:inline'} ${l.email ? 'text-green-700' : 'text-orange-700'}`}>{l.email || 'sans email'}</span>
+                  <div className="hidden sm:flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 hover:text-primary-600" title="Ouvrir le profil"><ExternalLink className="w-4 h-4" /></a>}
+                    {l.message && <button type="button" onClick={() => copy(l.message)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Copier le message"><Copy className="w-4 h-4" /></button>}
+                    <select value={l.status} onChange={(e) => patch.mutate({ id: l._id, status: e.target.value, contactedVia: 'manuel' })} className="border border-neutral-300 rounded px-1 py-1 text-xs bg-white" aria-label="Statut" title="Changer le statut du prospect à la main">{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+      )}
+      {/* Détail d'une fiche : volet à droite, la liste reste sous les yeux */}
+      {view === 'leads' && openLead && (() => {
+        const l = openLead; const st = STATUS[l.status] || STATUS.new;
+        const go = (d: number) => { const n = leadList[openIndex + d]; if (n) { setOpenId(n._id); setEditing(null); } };
+        return (
+          <aside className="fixed right-0 top-16 bottom-0 z-40 w-full sm:w-[460px] bg-white border-l border-neutral-200 shadow-xl flex flex-col" data-testid="lead-drawer">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-neutral-200 text-xs text-neutral-600">
+              <Button size="sm" variant="outline" onClick={() => go(-1)} disabled={openIndex <= 0} title="Fiche précédente (flèche haut)">Précédente</Button>
+              <Button size="sm" variant="outline" onClick={() => go(1)} disabled={openIndex >= leadList.length - 1} title="Fiche suivante (flèche bas)" data-testid="lead-next">Suivante</Button>
+              <span>{openIndex + 1} / {leadList.length}</span>
+              <button type="button" onClick={() => { setOpenId(null); setEditing(null); }} className="ml-auto px-2 py-1 rounded hover:bg-neutral-100 text-sm" title="Fermer (Échap)" data-testid="lead-close">Fermer ✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 text-sm" key={l._id}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-neutral-900">{l.name}</span>
                         {l.handle && <span className="text-neutral-500">{l.handle}</span>}
@@ -804,8 +862,7 @@ export default function AcquisitionTool() {
                       {l.draftCampaignId && <div className="text-xs text-green-700 mt-1">Inscrit : première campagne préparée en brouillon</div>}
                       {l.kind === 'brand' && l.lastScanVisitAt && <div className="text-xs text-green-700 mt-1 font-medium" data-testid="lead-scan-visits" title="Liens de l'email marques (scan d'un concurrent, audit) : chaque visite est rattachée à la fiche">A ouvert l&apos;outil de scan depuis l&apos;email : {l.scanVisits?.length || 1} action{(l.scanVisits?.length || 1) > 1 ? 's' : ''}, dernière le {formatDate(l.lastScanVisitAt)}{l.scanVisits?.some((v: any) => v.pageName) ? ` (${[...new Set(l.scanVisits.map((v: any) => v.pageName).filter(Boolean))].slice(0, 3).join(', ')})` : ''} · à relancer</div>}
                       {l.kind === 'brand' && l.competitor?.checkedAt && <div className="text-xs text-neutral-500 mt-1" title="Concurrent montré dans l'email 1 : cité par l'IA (ou saisi dans « Modifier »), vérifié dans la bibliothèque publicitaire Meta, scan préparé">{l.competitor.pageName ? <>Concurrent de l&apos;email{l.competitor.manual ? " (saisi)" : ""} : {l.competitor.slug ? <a href={`/publicites/${l.competitor.slug}`} target="_blank" rel="noopener noreferrer" className="underline">{l.competitor.pageName}</a> : l.competitor.pageName}</> : `Aucun concurrent trouvé chez Meta${l.competitors?.length ? ` (${l.competitors.join(', ')})` : ''} : phrase générique dans l'email · « Modifier » pour le saisir`}</div>}
-                    </div>
-                    <div className="flex gap-1 flex-wrap justify-end shrink-0">
+              <div className="flex gap-1 flex-wrap items-center mt-3 pt-3 border-t border-neutral-100">
                       {l.url && <a href={l.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 hover:text-primary-600" title="Ouvrir le profil"><ExternalLink className="w-4 h-4" /></a>}
                       {l.message && <button type="button" onClick={() => copy(l.message)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Copier le message"><Copy className="w-4 h-4" /></button>}
                       <button type="button" onClick={() => requalify.mutate(l._id)} className="p-1.5 text-neutral-500 hover:text-primary-600" title="Relance la qualification IA : score, signaux, message, paragraphe email, et complète les réseaux depuis la bio ou la chaîne YouTube"><RefreshCw className="w-4 h-4" /></button>
@@ -817,16 +874,12 @@ export default function AcquisitionTool() {
                       {!l.email && <FindEmailButton leadId={l._id} website={l.website} onFound={refresh} />}
                       {l.kind === 'brand' && l.formUrl && <FormTextButton lead={l} onDone={refresh} />}
                       <button type="button" onClick={() => { if (confirm('Supprimer ce prospect ?')) remove.mutate(l._id); }} className="p-1.5 text-neutral-400 hover:text-red-600" title="Supprimer définitivement ce prospect"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                  {editing === l._id && <LeadEditForm lead={l} onDone={() => { setEditing(null); refresh(); }} />}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-      )}
+              </div>
+              {editing === l._id && <LeadEditForm lead={l} onDone={() => { setEditing(null); refresh(); }} />}
+            </div>
+          </aside>
+        );
+      })()}
     </div>
   );
 }
