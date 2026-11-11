@@ -540,6 +540,9 @@ export async function serializeScan(scan, { user, settings } = {}) {
     slug: scan.slug, pageId: scan.pageId, pageName: scan.pageName, website: scan.website, pageUrl: `https://www.facebook.com/${scan.pageId}`, libraryUrl: `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=FR&view_all_page_id=${encodeURIComponent(scan.pageId)}`,
     status: scan.status, error: scan.error || null, insightsPending: !!scan.insightsPending, totalActive: scan.totalActive || 0, distinctActive: scan.distinctActive ?? null, capped: !!scan.capped, kept: all.length, shown: ads.length, hidden: Math.max(0, all.length - ads.length),
     stats: scan.stats || {}, insights, ads, tier, fetchedAt: scan.fetchedAt, views: scan.views || 0, leadId,
+    // Frise du haut de page : la durée de chaque publicité gardée (un nombre par publicité), et le compte des angles utilisés et libres
+    timeline: all.map(a => ageDays(a.startedAt, now)).filter(d => d != null).slice(0, 80),
+    coverage: ins ? { used: (ins.angles || []).length, free: (ins.missing || []).length } : null,
     limits: { anonAds: st.scanAnonAds, memberPerDay: st.scanMemberPerDay },
   };
 }

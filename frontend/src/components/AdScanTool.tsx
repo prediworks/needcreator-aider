@@ -11,6 +11,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import ScanReportSignup from '@/components/ScanReportSignup';
+import { ScanTimeline, AngleCoverage } from '@/components/ScanTimeline';
 import ScanQuestion from '@/components/ScanQuestion';
 import { REF_KEY, readRef, trackRef } from '@/lib/scanRef';
 import { adCount } from '@/lib/adCount';
@@ -168,15 +169,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
       {s && (
         <div className="space-y-6" data-testid="ad-scan-result">
-          {/* 0. Qui nous sommes, en une phrase : la marque arrive souvent d'un email sans nous connaître */}
-          {s.status === 'ready' && user?.role !== 'creator' && !isAdmin && (
-            <div className="rounded-xl bg-primary-50 border border-primary-100 p-4 text-sm text-neutral-800" data-testid="ad-scan-intro">
-              <div className="font-semibold text-neutral-900">{auditView ? 'Votre audit publicitaire, offert par NeedCreator' : 'Une lecture offerte par NeedCreator'}</div>
-              <p className="mt-1">{auditView ? 'Vos publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.' : 'Les publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.'}</p>
-              <p className="mt-1 text-xs text-neutral-600 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary-600 shrink-0" />{GUARANTEE}</p>
-            </div>
-          )}
-          {/* 1. Le verdict : la marque, trois chiffres, une phrase */}
+          {/* 1. Le verdict, à lire d'un coup d'œil : trois chiffres, une phrase, la frise des durées, les angles, puis une seule action (le PDF complet par email) */}
           <Card className="p-6">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
@@ -186,7 +179,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                   {s.website && <a href={s.website} target="_blank" rel="noreferrer" className="underline">{s.website.replace(/^https?:\/\/(www\.)?/, '')}</a>}
                   <a href={s.libraryUrl} target="_blank" rel="noreferrer" className="underline inline-flex items-center gap-1">Voir dans la bibliothèque Meta <ExternalLink className="w-3 h-3" /></a>
                   <button type="button" onClick={share} className="underline inline-flex items-center gap-1" title="Copie le lien de cette page : elle est publique"><Share2 className="w-3 h-3" /> Partager</button>
-                  {s.status === 'ready' && <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="underline inline-flex items-center gap-1" title="Le rapport en PDF, à transférer à votre équipe ou à votre responsable" data-testid="ad-scan-pdf"><FileDown className="w-3 h-3" /> {pdfLoading ? 'Préparation du PDF…' : 'Télécharger en PDF'}</button>}
+                  {s.status === 'ready' && user && <button type="button" onClick={downloadPdf} disabled={pdfLoading} className="underline inline-flex items-center gap-1" title="Le rapport en PDF, à transférer à votre équipe ou à votre responsable" data-testid="ad-scan-pdf"><FileDown className="w-3 h-3" /> {pdfLoading ? 'Préparation du PDF…' : 'Télécharger en PDF'}</button>}
                   {user?.role !== 'creator' && !auditView && s.status === 'ready' && <button type="button" onClick={openAudit} className="underline inline-flex items-center gap-1 text-primary-700" title="C'est votre marque ? Ce qui tient dans la durée, les angles répétés, les angles libres, des accroches à tester et trois vidéos créateur à commander" data-testid="ad-scan-open-audit"><ClipboardCheck className="w-3 h-3" /> Audit de ces publicités</button>}
                 </div>
               </div>
@@ -208,9 +201,21 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                 {verdict && <p className="mt-4 text-base font-medium text-neutral-900" data-testid="ad-scan-verdict">{verdict}</p>}
                 {auditView && s.audit?.diagnosis ? <p className="mt-1 text-sm text-neutral-700">{s.audit.diagnosis}</p> : s.insights?.summary ? <p className="mt-1 text-sm text-neutral-700">{s.insights.summary}</p> : null}
                 {(platforms || s.stats?.ages?.length > 0 || s.stats?.countries?.length > 0) && <div className="mt-2 text-xs text-neutral-500 flex flex-wrap gap-x-2">{/* un morceau par nœud de texte : traduisible par gabarit (en.ts) */}{platforms && <span>{`Supports : ${platforms}`}</span>}{s.stats?.ages?.length > 0 && <span>{`Âges visés : ${s.stats.ages.join(', ')} ans`}</span>}{s.stats?.countries?.length > 0 && <span>{`Pays : ${s.stats.countries.join(', ')}`}</span>}{s.stats?.reach ? <span>{`· portée estimée cumulée en Europe : ${Number(s.stats.reach).toLocaleString('fr-FR')}`}</span> : null}</div>}
+                <ScanTimeline days={s.timeline || []} />
+                {s.coverage && <AngleCoverage used={s.coverage.used} free={s.coverage.free} own={auditView} />}
+                {user?.role !== 'creator' && !isAdmin && <ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} signupHref={signupHref} />}
               </>
             )}
           </Card>
+
+          {/* 1 bis. Qui nous sommes, en une phrase, sous le verdict : la marque arrive souvent d'un email sans nous connaître */}
+          {s.status === 'ready' && user?.role !== 'creator' && !isAdmin && (
+            <div className="rounded-xl bg-primary-50 border border-primary-100 p-4 text-sm text-neutral-800" data-testid="ad-scan-intro">
+              <div className="font-semibold text-neutral-900">{auditView ? 'Votre audit publicitaire, offert par NeedCreator' : 'Une lecture offerte par NeedCreator'}</div>
+              <p className="mt-1">{auditView ? 'Vos publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo : brief préparé gratuitement, puis les créateurs vous envoient leur devis.' : 'Les publicités qui marchent, lues par l\'IA. Des créateurs vérifiés en tournent la version vidéo pour votre marque : brief préparé gratuitement, puis les créateurs vous envoient leur devis.'}</p>
+              <p className="mt-1 text-xs text-neutral-600 flex items-center gap-1"><ShieldCheck className="w-3.5 h-3.5 text-primary-600 shrink-0" />{GUARANTEE}</p>
+            </div>
+          )}
 
           {/* 2. L'offre : ce qu'un créateur tournerait, avec son prix et un seul bouton, des vidéos de la même niche, l'email */}
           {s.status === 'ready' && user?.role !== 'creator' && (
@@ -269,7 +274,6 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
                   </div>
                 </div>
               )}
-              {!isAdmin && <div className="mt-6"><ScanReportSignup slug={s.slug} pageName={s.pageName} audit={auditView} /></div>}
             </Card>
           )}
 

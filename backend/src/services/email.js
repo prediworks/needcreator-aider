@@ -1216,12 +1216,13 @@ function scanAdRows(scan, ads, limit = 5) {
 }
 const scanFooter = (unsubscribeLink, pageName) => `<p style="color:#6b7280;font-size:12px">Vous recevez cet email parce que vous avez demandé le rapport des publicités de ${esc(pageName)} sur NeedCreator. Un email par semaine au plus, seulement s'il y a du nouveau. <a href="${unsubscribeLink}" style="color:#6b7280">Ne plus rien recevoir</a>.</p>`;
 
-export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName, lang = null, offer = null, creatorsBase = '' }) {
+export async function sendScanReport(email, scan, { link, unsubscribeLink, firstName, lang = null, offer = null, creatorsBase = '', pdf = null }) {
   const subject = `Rapport : les publicités Meta de ${scan.pageName}`;
   const st = scan.stats || {}; const ins = scan.insights || {};
   const html = `
     <h1>Les publicités de ${esc(scan.pageName)}</h1>
     ${firstName ? `<p>Bonjour ${esc(firstName)},</p>` : ''}
+    ${pdf ? '<p><strong>Le rapport complet est joint à cet email, en PDF</strong> : à lire tranquillement ou à transférer à votre équipe.</p>' : ''}
     <p><strong>${countPhrase(scan)}</strong> sur Meta en France${st.oldestDays != null ? `, la plus ancienne tourne depuis <strong>${st.oldestDays} jours</strong>` : ''}${st.over90Days ? `, <strong>${st.over90Days}</strong> depuis plus de 90 jours` : ''}. Une publicité maintenue depuis trois mois est une publicité qui rapporte.</p>
     ${ins.summary ? `<p>${esc(ins.summary)}</p>` : ''}
     ${(scan.ads || []).length ? `<p style="margin-bottom:4px"><strong>Celles qui tournent depuis le plus longtemps</strong></p><ul style="padding-left:18px;margin-top:4px">${scanAdRows(scan, scan.ads)}</ul>` : ''}
@@ -1232,7 +1233,7 @@ export async function sendScanReport(email, scan, { link, unsubscribeLink, first
     <p>Vous serez prévenu quand ${esc(scan.pageName)} lancera de nouvelles publicités, ou qu'une passera les 90 jours.</p>
     ${scanFooter(unsubscribeLink, scan.pageName)}
   `;
-  return sendEmail(email, subject, html, null, { preheader: `${countPhrase(scan)}${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.`, lang: lang === 'en' ? 'en' : null });
+  return sendEmail(email, subject, html, null, { preheader: `${countPhrase(scan)}${st.oldestDays != null ? `, la plus ancienne depuis ${st.oldestDays} jours` : ''}.`, lang: lang === 'en' ? 'en' : null, ...(pdf ? { attachments: [pdf] } : {}) });
 }
 
 /** Alerte hebdomadaire : nouvelles publicités depuis le dernier email, et celles qui viennent de passer les 90 jours */

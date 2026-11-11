@@ -5,7 +5,8 @@ import Lead from '../models/Lead.js';
 import User from '../models/User.js';
 import { config } from '../config/index.js';
 import { sendScanReport, sendScanNewAds } from './email.js';
-import { ensureScanForPage, scanExamples } from './adScan.js';
+import { ensureScanForPage, scanExamples, serializeScan } from './adScan.js';
+import { renderScanPdf, scanPageLink } from './adScanPdf.js';
 import logger from '../utils/logger.js';
 
 /**
@@ -48,7 +49,19 @@ async function leadForSubscriber(email, scan, company = '') {
   });
 }
 
-export async function subscribeToScan({ slug, email, role, firstName, company, user, ip, lang }) {
+/**
+ * Le rapport complet en PDF, joint à l'email : c'est ce que la personne reçoit en échange de son adresse. Lecture entière (comme un compte),
+ * audit si elle était sur la vue audit et qu'il existe. Le lien du PDF porte la fiche de prospection quand il y en a une.
+ */
+async function reportPdf(scan, { audit = false, offer = null, leadId = null } = {}) {
+  if (scan.status !== 'ready') return null;
+  const withAudit = audit && !!(scan.audit && (scan.audit.diagnosis || scan.audit.briefs?.length));
+  const view = await serializeScan(scan, { user: { role: 'brand' } });
+  const pdf = await renderScanPdf({ scan, view, examples: offer, audit: withAudit, link: scanPageLink(scan.slug, { audit: withAudit, ref: leadId ? String(leadId) : '' }) });
+  return { filename: `${withAudit ? 'audit' : 'publicites'}-${scan.slug}.pdf`, content: pdf, contentType: 'application/pdf' };
+}
+
+export async function subscribeToScan({ slug, email, role, firstName, company, user, ip, lang, audit = false }) {
   const scan = await AdScan.findOne({ slug: String(slug || '').toLowerCase() });
   if (!scan) throw fail(404, 'Scan introuvable');
   if (!['ready', 'empty'].includes(scan.status)) throw fail(400, 'La lecture est encore en cours : réessayez dans un instant');
@@ -57,7 +70,6 @@ export async function subscribeToScan({ slug, email, role, firstName, company, u
   if (ip && await AdScanSubscription.countDocuments({ ip, createdAt: { $gte: new Date(Date.now() - 3600000) } }) >= 10) throw fail(429, 'Trop de demandes : réessayez dans une heure');
   const first = String(firstName || '').trim().slice(0, 60), brandName = String(company || '').trim().slice(0, 120);
   if (!user && role === 'creator' && !first) throw fail(400, 'Indiquez votre prénom');
-  if (!user && role === 'brand' && !brandName) throw fail(400, 'Indiquez le nom de votre marque');
   const who = await resolveRole(addr, user, role);
   let sub = await AdScanSubscription.findOne({ email: addr, pageId: scan.pageId });
   const fresh = !sub;
@@ -73,8 +85,11 @@ export async function subscribeToScan({ slug, email, role, firstName, company, u
   await sub.save();
   // Vidéos d'exemple de la niche de la marque et prix de départ : le rapport propose aussi la vidéo, pas seulement la lecture
   const offer = sub.role === 'creator' ? null : await scanExamples(scan).catch(() => null);
-  sendScanReport(addr, scan, { ...links(scan, sub.token), firstName: sub.firstName, lang: sub.lang, offer, creatorsBase: `${config.cors.origin}/c/` }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
-  return { message: `Rapport envoyé à ${addr}. Vous serez prévenu quand ${scan.pageName} lancera de nouvelles publicités.`, renewed: !fresh };
+  // Marque (ou rôle inconnu) : le rapport complet en PDF est joint ; un PDF qui échoue n'empêche pas l'email
+  const pdf = sub.role === 'creator' ? null : await reportPdf(scan, { audit, offer, leadId: sub.leadId }).catch(err => { logger.warn(`Scan report PDF: ${err.message}`); return null; });
+  const l = links(scan, sub.token);
+  sendScanReport(addr, scan, { ...l, link: audit ? `${l.link}?vue=audit` : l.link, firstName: sub.firstName, lang: sub.lang, offer, creatorsBase: `${config.cors.origin}/c/`, pdf }).catch(err => logger.warn(`Scan report not sent to ${addr}: ${err.message}`));
+  return { message: `Rapport envoyé à ${addr}. Vous serez prévenu quand ${scan.pageName} lancera de nouvelles publicités.`, renewed: !fresh, pdf: !!pdf };
 }
 
 /** Lien de l'email : plus aucun rapport ni alerte pour cette adresse, toutes marques confondues */
