@@ -223,10 +223,10 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
           {/* 1 quater. Les angles et les accroches : repliés (les vidéos restent visibles dessous), avec un bouton d'ouverture bien visible */}
           {s.status === 'ready' && ((auditView && s.audit) || s.insights || s.insightsPending) && (
-            <details id="angles" open={anglesOpen} onToggle={(e) => setAnglesOpen((e.target as HTMLDetailsElement).open)} className="group rounded-xl border-2 border-primary-300 bg-white scroll-mt-24" data-testid="ad-scan-angles">
-              <summary className="cursor-pointer list-none p-4 sm:p-5 flex items-center justify-between gap-3 rounded-xl bg-primary-50 group-open:rounded-b-none">
+            <details id="angles" open={anglesOpen} onToggle={(e) => setAnglesOpen((e.target as HTMLDetailsElement).open)} className="group rounded-xl border border-primary-300 bg-white scroll-mt-24" data-testid="ad-scan-angles">
+              <summary className="cursor-pointer list-none p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl">
                 <span className="flex items-center gap-3 min-w-0"><BarChart3 className="w-6 h-6 text-primary-600 shrink-0" /><span className="min-w-0"><span className="block text-base font-semibold text-neutral-900">{auditView ? 'Vos angles et les accroches à tester' : 'Les angles et les accroches de ces publicités'}</span><span className="block text-xs text-neutral-600">{s.coverage ? `${s.coverage.used} angle${s.coverage.used > 1 ? 's' : ''} utilisé${s.coverage.used > 1 ? 's' : ''}, ${s.coverage.free} libre${s.coverage.free > 1 ? 's' : ''} : le détail, avec des exemples.` : 'Le détail de la lecture, avec des exemples.'}</span></span></span>
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2"><span className="group-open:hidden">Voir le détail</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
+                <span className="shrink-0 inline-flex items-center justify-center gap-1 rounded-lg border-2 border-primary-600 bg-white text-primary-700 hover:bg-primary-50 text-sm font-semibold px-3 py-2 w-full sm:w-52"><span className="group-open:hidden">Voir le détail</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
               </summary>
               <div className="p-5 space-y-6">
                 {auditView && s.audit && (
@@ -315,10 +315,10 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
           {/* 1 quinquies. Les publicités une par une : la preuve avant l'offre, repliées, avec le même bouton d'ouverture que les angles */}
           {s.status === 'ready' && s.ads?.length > 0 && (
-            <details className="group rounded-xl border-2 border-primary-300 bg-white" data-testid="ad-scan-details">
-              <summary className="cursor-pointer list-none p-4 sm:p-5 flex items-center justify-between gap-3 rounded-xl bg-primary-50 group-open:rounded-b-none">
+            <details className="group rounded-xl border border-primary-300 bg-white" data-testid="ad-scan-details">
+              <summary className="cursor-pointer list-none p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl">
                 <span className="flex items-center gap-3 min-w-0"><Search className="w-6 h-6 text-primary-600 shrink-0" /><span className="min-w-0"><span className="block text-base font-semibold text-neutral-900">{`Les ${s.ads.length} publicités, une par une`}</span><span className="block text-xs text-neutral-600">Le texte de chaque publicité, de la plus ancienne à la plus récente.</span></span></span>
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-primary-600 text-white text-sm font-semibold px-3 py-2" data-testid="ad-scan-details-toggle"><span className="group-open:hidden">Voir les publicités</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
+                <span className="shrink-0 inline-flex items-center justify-center gap-1 rounded-lg border-2 border-primary-600 bg-white text-primary-700 hover:bg-primary-50 text-sm font-semibold px-3 py-2 w-full sm:w-52" data-testid="ad-scan-details-toggle"><span className="group-open:hidden">Voir les publicités</span><span className="hidden group-open:inline">Refermer</span> <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></span>
               </summary>
               <div className="p-5 space-y-6">
                 {s.ads?.length > 0 && (
@@ -355,7 +355,7 @@ export default function AdScanTool({ initialSlug = '', mode = 'scan' }: { initia
 
           {/* 2. L'offre : ce qu'un créateur tournerait, avec son prix et un seul bouton, des vidéos de la même niche, l'email */}
           {s.status === 'ready' && user?.role !== 'creator' && (
-            <Card className="p-6 border-primary-200" data-testid="ad-scan-offer">
+            <Card className="p-6 rounded-xl border-2 border-primary-400 bg-primary-50/60" data-testid="ad-scan-offer">
               <h3 className="text-lg font-semibold text-neutral-900 flex items-center gap-2"><Clapperboard className="w-5 h-5 text-primary-600" /> Ce qu&apos;un créateur tournerait pour vous</h3>
               <p className="text-sm text-neutral-600 mb-4">Le brief est préparé gratuitement. Les créateurs proposent leur devis ; vous ne payez que la vidéo qui vous convient.</p>
               {auditView ? (
