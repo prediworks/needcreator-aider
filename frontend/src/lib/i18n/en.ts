@@ -871,6 +871,8 @@ export const EN: Record<string, string> = {
   "vidéo(s) (minimum 3)": "video(s) (minimum 3)",
   "Les publicités Meta actives d'un concurrent, de la plus ancienne à la plus récente, les angles qu'il utilise et ceux qu'il laisse libres ; puis l'équivalent en brief prêt à publier": "A competitor's active Meta ads, from oldest to newest, the angles they use and those they leave open; then the equivalent as a ready-to-publish brief",
   "Scanner un concurrent": "Scan a competitor",
+  "Vous faites déjà de la publicité ?": "Already running ads?",
+  "Auditez les vôtres": "Audit yours",
   "livraison(s) à valider": "delivery(ies) to approve",
   "Sans action de votre part, elles seront approuvées automatiquement après": "If you take no action, they will be automatically approved after",
   "n'existe pas ou vous n'y avez pas accès": "doesn't exist or you don't have access to it",
