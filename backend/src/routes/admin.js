@@ -89,6 +89,16 @@ router.get('/businesses/pending', getPendingBusinesses);
 router.post('/businesses/:userId/approve', reviewBusiness);
 router.post('/businesses/:userId/reject', reviewBusiness);
 
+// Solde Stripe : disponible, en attente, ce qui doit y rester, ce qui manque ou ce qui peut être viré (aucun mouvement d'argent ici)
+router.get('/stripe-balance', async (req, res) => {
+  try {
+    const { previewCommissionPayout } = await import('../services/commissionPayout.js');
+    res.json(await previewCommissionPayout());
+  } catch (error) {
+    res.status(502).json({ error: 'Lecture du solde Stripe impossible pour le moment' });
+  }
+});
+
 // Signalements
 router.get('/invoices', async (req, res) => {
   const { Invoice } = await import('../services/invoices.js');

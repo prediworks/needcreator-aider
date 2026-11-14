@@ -284,7 +284,8 @@ export async function runScheduledJobs() {
     const verifyReminders = await runEmailVerificationReminders().catch(err => { logger.error('runEmailVerificationReminders:', err); return 0; });
     const weeklyReport = await sendWeeklyReport().catch(err => ({ sent: false, error: err.message }));
     const brandMessages = await refreshBrandMessages().catch(err => { logger.error('refreshBrandMessages:', err); return 0; });
-    const { runCommissionPayout } = await import('../services/commissionPayout.js');
+    const { runCommissionPayout, runBalanceAlert } = await import('../services/commissionPayout.js');
+    await runBalanceAlert().catch(err => { logger.error('runBalanceAlert:', err); });
     const commissionPayout = await runCommissionPayout().catch(err => { logger.error('runCommissionPayout:', err); return { ran: false, error: err.message }; });
     const scanAlerts = await runScanReportAlerts().catch(err => { logger.error('runScanReportAlerts:', err); return { pages: 0, sent: 0 }; });
 

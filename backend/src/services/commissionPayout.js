@@ -55,7 +55,40 @@ export async function previewCommissionPayout() {
   const schedule = account.settings?.payouts?.schedule?.interval || 'inconnu';
   const margin = Math.max(0, Number(cushion) || 0);
   const amount = Math.floor(Math.max(0, available - reserve.total - margin) * 100) / 100;
-  return { available, pending, schedule, manual: schedule === 'manual', reserve, cushion: margin, amount, payable: amount >= MIN_PAYOUT };
+  // Ce qui manque pour couvrir les missions en cours : `shortNow` sur le solde disponible, `shortfall` une fois les encaissements en attente arrivés (le montant à virer sur Stripe)
+  const shortNow = round2(Math.max(0, reserve.total - available));
+  const shortfall = round2(Math.max(0, reserve.total - available - Math.max(0, pending)));
+  return { available, pending, schedule, manual: schedule === 'manual', reserve, cushion: margin, amount, payable: amount >= MIN_PAYOUT, shortNow, shortfall };
+}
+
+/**
+ * Alerte quand le solde Stripe ne couvre plus les missions en cours (solde vidé par un virement automatique, remboursement, litige) :
+ * sans cet argent, le créateur ne peut pas être payé à la validation. Un email à l'apparition ou au changement du montant, puis un rappel tous les 3 jours.
+ */
+const ALERT_KEY = 'stripeBalanceAlertState';
+export async function runBalanceAlert({ force = false, now = new Date() } = {}) {
+  if (!force && config.env !== 'production') return { ran: false, reason: 'hors production' };
+  const state = (await getSetting(ALERT_KEY, null)) || {};
+  let p;
+  try { p = await previewCommissionPayout(); } catch (err) { logger.warn(`Alerte solde Stripe : lecture impossible : ${err?.message || err}`); return { ran: false, error: err?.message || String(err) }; }
+  if (p.shortfall < 1) {
+    if (state.amount) await setSetting(ALERT_KEY, {});
+    return { ran: true, shortfall: 0 };
+  }
+  const days = state.at ? (now.getTime() - new Date(state.at).getTime()) / 86400000 : Infinity;
+  if (state.amount === p.shortfall && days < 3) return { ran: true, shortfall: p.shortfall, sent: false };
+  const sent = await notifyAdmins(`Solde Stripe insuffisant : il manque ${eur(p.shortfall)}`, `
+    <h1>Il manque ${eur(p.shortfall)} sur votre solde Stripe</h1>
+    <p>Le solde ne couvre plus les missions en cours : à la validation, le créateur ne pourra pas être payé tant que cette somme n'est pas revenue sur Stripe.</p>
+    <table cellpadding="6" style="border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:14px">
+      <tr><td>Solde disponible sur Stripe</td><td align="right"><strong>${eur(p.available)}</strong></td></tr>
+      <tr><td>En attente d'encaissement</td><td align="right">${eur(p.pending)}</td></tr>
+      ${p.reserve.lines.filter(l => l.amount > 0).map(l => `<tr><td>${l.label} (${l.count})</td><td align="right">${eur(l.amount)}</td></tr>`).join('')}
+      <tr><td><strong>À virer sur Stripe</strong></td><td align="right"><strong>${eur(p.shortfall)}</strong></td></tr>
+    </table>
+    <p>Dans Stripe : Soldes → « Ajouter au solde », puis faites le virement depuis votre banque vers l'IBAN indiqué (un à deux jours ouvrés). Le détail est dans l'administration, onglet Factures.</p>`);
+  await setSetting(ALERT_KEY, { amount: p.shortfall, at: now });
+  return { ran: true, shortfall: p.shortfall, sent };
 }
 
 const detailHtml = (p) => `

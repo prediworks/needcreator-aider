@@ -22,6 +22,7 @@ import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
 import MemberMessages from '@/components/admin/MemberMessages';
 import QuotesAdmin from '@/components/admin/QuotesAdmin';
+import StripeBalance from '@/components/admin/StripeBalance';
 import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, SocialLinks, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -155,6 +156,8 @@ export default function AdminPage() {
             <div className="text-2xl font-bold">{formatCurrency(stats?.revenue?.total || 0)}</div>
           </Card>
         </div>
+        {/* Solde Stripe insuffisant : bandeau rouge, seulement quand il manque de l'argent */}
+        {ready && <StripeBalance banner onOpen={() => setTab('invoices')} />}
         {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {tabs.map((t) => (
@@ -288,6 +291,7 @@ export default function AdminPage() {
           </Card>
         )}
 
+        {tab === 'invoices' && <StripeBalance />}
         {tab === 'invoices' && (
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-1">Factures ({adminInvoices?.invoices?.length || 0})</h2>
