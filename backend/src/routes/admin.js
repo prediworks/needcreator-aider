@@ -98,6 +98,16 @@ router.get('/stripe-balance', async (req, res) => {
     res.status(502).json({ error: 'Lecture du solde Stripe impossible pour le moment' });
   }
 });
+// Réapprovisionner le solde par carte : renvoie l'adresse de la page de paiement Stripe (l'argent ne bouge que si l'administrateur y paie)
+router.post('/stripe-balance/topup', async (req, res) => {
+  try {
+    const { createBalanceTopup } = await import('../services/commissionPayout.js');
+    const { config } = await import('../config/index.js');
+    res.json(await createBalanceTopup({ amount: req.body?.amount, adminId: req.user?._id, returnUrl: `${config.cors.origin}/admin?tab=invoices` }));
+  } catch (error) {
+    res.status(error.status || 502).json({ error: error.status ? error.message : 'Création du paiement impossible pour le moment' });
+  }
+});
 
 // Signalements
 router.get('/invoices', async (req, res) => {

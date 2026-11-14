@@ -41,6 +41,31 @@ export async function computeReserve() {
   return { lines, total: round2(lines.reduce((s, l) => s + l.amount, 0)) };
 }
 
+/** Montant à payer par carte pour que `net` arrive sur le solde : frais Stripe estimés au plus haut pour une carte européenne (2 % + 0,25 €), arrondi à l'euro supérieur */
+export const suggestTopup = (net) => (net >= 1 ? Math.ceil((net + 0.25) / 0.98) : 0);
+export const TOPUP_MAX = 5000;
+
+/**
+ * Réapprovisionnement du solde par carte : une page de paiement Stripe sur le compte de la plateforme, payée par l'administrateur.
+ * Aucune mission, aucune facture : le paiement porte `kind: balance_topup` et les webhooks l'ignorent (pas de livraison rattachée).
+ */
+export async function createBalanceTopup({ amount, adminId, returnUrl }) {
+  const value = Math.round(Number(amount) * 100) / 100;
+  if (!(value >= 1) || value > TOPUP_MAX) throw Object.assign(new Error(`Montant entre 1 € et ${TOPUP_MAX} €`), { status: 400 });
+  const meta = { kind: 'balance_topup', adminId: String(adminId || '') };
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [{ quantity: 1, price_data: { currency: 'eur', unit_amount: Math.round(value * 100), product_data: { name: 'Réapprovisionnement du solde NeedCreator' } } }],
+    metadata: meta,
+    payment_intent_data: { description: 'Réapprovisionnement du solde NeedCreator', metadata: meta },
+    success_url: `${returnUrl}&topup=ok`,
+    cancel_url: `${returnUrl}&topup=cancel`,
+  });
+  logger.info(`Réapprovisionnement du solde Stripe : ${value} € demandé par ${meta.adminId} (${session.id})`);
+  return { url: session.url, amount: value };
+}
+
 /** Calcul complet, sans rien virer : solde Stripe, réserve, marge, montant qui partirait */
 export async function previewCommissionPayout() {
   const [balance, account, reserve, cushion] = await Promise.all([
@@ -58,7 +83,7 @@ export async function previewCommissionPayout() {
   // Ce qui manque pour couvrir les missions en cours : `shortNow` sur le solde disponible, `shortfall` une fois les encaissements en attente arrivés (le montant à virer sur Stripe)
   const shortNow = round2(Math.max(0, reserve.total - available));
   const shortfall = round2(Math.max(0, reserve.total - available - Math.max(0, pending)));
-  return { available, pending, schedule, manual: schedule === 'manual', reserve, cushion: margin, amount, payable: amount >= MIN_PAYOUT, shortNow, shortfall };
+  return { available, pending, schedule, manual: schedule === 'manual', reserve, cushion: margin, amount, payable: amount >= MIN_PAYOUT, shortNow, shortfall, topupSuggested: suggestTopup(shortfall) };
 }
 
 /**
@@ -84,9 +109,9 @@ export async function runBalanceAlert({ force = false, now = new Date() } = {}) 
       <tr><td>Solde disponible sur Stripe</td><td align="right"><strong>${eur(p.available)}</strong></td></tr>
       <tr><td>En attente d'encaissement</td><td align="right">${eur(p.pending)}</td></tr>
       ${p.reserve.lines.filter(l => l.amount > 0).map(l => `<tr><td>${l.label} (${l.count})</td><td align="right">${eur(l.amount)}</td></tr>`).join('')}
-      <tr><td><strong>À virer sur Stripe</strong></td><td align="right"><strong>${eur(p.shortfall)}</strong></td></tr>
+      <tr><td><strong>Manque sur Stripe</strong></td><td align="right"><strong>${eur(p.shortfall)}</strong></td></tr>
     </table>
-    <p>Dans Stripe : Soldes → « Ajouter au solde », puis faites le virement depuis votre banque vers l'IBAN indiqué (un à deux jours ouvrés). Le détail est dans l'administration, onglet Factures.</p>`);
+    <p>Pour réapprovisionner : administration, onglet Factures, carte « Solde Stripe », bouton « Payer par carte ».</p>`);
   await setSetting(ALERT_KEY, { amount: p.shortfall, at: now });
   return { ran: true, shortfall: p.shortfall, sent };
 }

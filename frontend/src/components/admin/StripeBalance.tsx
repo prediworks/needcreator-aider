@@ -1,15 +1,17 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import api from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
 import { formatCurrency } from '@/lib/utils';
-import { AlertTriangle, ExternalLink, RefreshCw, Wallet } from 'lucide-react';
+import { AlertTriangle, CreditCard, ExternalLink, RefreshCw, Wallet } from 'lucide-react';
 
 /**
  * Solde Stripe de la plateforme, lu en direct : ce qui est disponible, ce qui doit rester pour les missions en cours et les créateurs,
- * et le résultat (il manque X € à virer sur Stripe, ou X € de commissions peuvent partir à la banque). Lecture seule : l'argent s'ajoute
- * par virement bancaire depuis la page Soldes de Stripe, rien ne bouge depuis ici.
+ * et le résultat (il manque X €, ou X € de commissions peuvent partir à la banque). Quand il manque de l'argent, « Payer par carte » ouvre
+ * une page de paiement Stripe qui réapprovisionne le solde (l'ajout par virement n'est pas proposé par Stripe sur ce compte).
  * `banner` : simple bandeau rouge en haut de l'administration, affiché seulement quand il manque de l'argent.
  */
 const STRIPE_BALANCE_URL = 'https://dashboard.stripe.com/balance/overview';
@@ -26,6 +28,16 @@ export function useStripeBalance(enabled = true) {
 
 export default function StripeBalance({ banner = false, onOpen }: { banner?: boolean; onOpen?: () => void }) {
   const { data: b, isLoading, isError, refetch, isFetching } = useStripeBalance();
+  // Réapprovisionnement par carte : montant proposé (manque + frais Stripe estimés), modifiable ; le paiement se fait sur la page de Stripe
+  const [amount, setAmount] = useState('');
+  useEffect(() => { if (b?.topupSuggested) setAmount(String(b.topupSuggested)); }, [b?.topupSuggested]);
+  const [back, setBack] = useState('');
+  useEffect(() => { if (!banner) setBack(new URLSearchParams(window.location.search).get('topup') || ''); }, [banner]);
+  const topup = useMutation({
+    mutationFn: async () => (await api.post('/admin/stripe-balance/topup', { amount: Number(String(amount).replace(',', '.')) })).data,
+    onSuccess: (d: any) => { window.location.href = d.url; },
+    onError: (e: any) => toast.error(getErrorMessage(e), { duration: 8000 }),
+  });
 
   if (banner) {
     if (!b || !(b.shortfall >= 1)) return null;
@@ -59,14 +71,23 @@ export default function StripeBalance({ banner = false, onOpen }: { banner?: boo
       {isLoading && <p className="text-sm text-neutral-500">Lecture du solde chez Stripe…</p>}
       {isError && <p className="text-sm text-red-700" data-testid="stripe-balance-error">Lecture du solde Stripe impossible pour le moment. Réessayez avec « Actualiser ».</p>}
 
+      {back === 'ok' && <p className="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-neutral-800" data-testid="stripe-balance-paid">Paiement reçu. La somme apparaît dans « En attente d&apos;encaissement » et devient disponible en quelques jours.</p>}
+      {back === 'cancel' && <p className="mb-4 rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700" data-testid="stripe-balance-cancelled">Paiement abandonné : rien n&apos;a été débité.</p>}
       {b && (
         <>
           {b.shortfall >= 1 ? (
             <div className="rounded-lg border border-red-300 bg-red-50 p-4 mb-4" data-testid="stripe-balance-short">
               <div className="text-sm text-red-900">Il manque sur Stripe</div>
               <div className="text-3xl font-bold text-red-700 tabular-nums">{formatCurrency(b.shortfall)}</div>
-              <p className="text-sm text-red-900 mt-1">C&apos;est le montant à virer depuis votre banque. Dans Stripe, page Soldes, bouton « Ajouter au solde » : Stripe affiche l&apos;IBAN et la référence à utiliser. Comptez un à deux jours ouvrés.</p>
-              <a href={STRIPE_BALANCE_URL} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 rounded-lg bg-red-600 text-white text-sm font-semibold px-3 py-2" data-testid="stripe-balance-link">Ouvrir la page Soldes de Stripe <ExternalLink className="w-4 h-4" /></a>
+              <p className="text-sm text-red-900 mt-1">Sans cette somme, le versement au créateur échouera à la validation de la mission. Vous pouvez la remettre sur Stripe en payant par carte.</p>
+              <form onSubmit={(e) => { e.preventDefault(); topup.mutate(); }} className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-center" data-testid="stripe-balance-topup">
+                <label className="inline-flex items-center gap-2 text-sm text-red-900"><span>Montant à payer</span>
+                  <input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-28 rounded-lg border border-red-300 bg-white px-3 py-2 text-right tabular-nums text-neutral-900" aria-label="Montant à payer par carte" data-testid="stripe-balance-topup-amount" /> <span>€</span>
+                </label>
+                <button type="submit" disabled={topup.isPending} className="inline-flex items-center justify-center gap-1 rounded-lg bg-red-600 text-white text-sm font-semibold px-4 py-2 disabled:opacity-60" data-testid="stripe-balance-topup-pay"><CreditCard className="w-4 h-4" /> {topup.isPending ? 'Ouverture de Stripe…' : 'Payer par carte'}</button>
+              </form>
+              <p className="text-xs text-red-900/80 mt-2">{`Le montant proposé couvre le manque et les frais de Stripe (2 % + 0,25 € au plus). L'argent apparaît d'abord « en attente d'encaissement », puis devient disponible en quelques jours. À utiliser pour dépanner : Stripe peut demander des explications sur un paiement fait avec votre propre carte.`}</p>
+              <a href={STRIPE_BALANCE_URL} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs underline text-red-900" data-testid="stripe-balance-link">Ouvrir la page Soldes de Stripe <ExternalLink className="w-3 h-3" /></a>
             </div>
           ) : b.shortNow >= 1 ? (
             <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 mb-4 text-sm text-amber-900" data-testid="stripe-balance-wait">

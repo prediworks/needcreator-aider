@@ -559,6 +559,8 @@
  "— {x}",
  "🌟 Badge",
  "Solde Stripe insuffisant : il manque {x}",
- "<h1>Il manque {x} sur votre solde Stripe</h1> <p>Le solde ne couvre plus les missions en cours : à la validation, le créateur ne pourra pas être payé tant que cette somme n'est pas revenue sur Stripe.</p> <table cellpadding=\"6\" style=\"border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:14px\"> <tr><td>Solde disponible sur Stripe</td><td align=\"right\"><strong>{x}</strong></td></tr> <tr><td>En attente d'encaissement</td><td align=\"right\">{x}</td></tr> {x} <tr><td><strong>À virer sur Stripe</strong></td><td align=\"right\"><strong>{x}</strong></td></tr> </table> <p>Dans Stripe : Soldes → « Ajouter au solde », puis faites le virement depuis votre banque vers l'IBAN indiqué (un à deux jours ouvrés). Le détail est dans l'administration, onglet Factures.</p>",
- "<tr><td>{x} ({x})</td><td align=\"right\">{x}</td></tr>"
+ "<tr><td>{x} ({x})</td><td align=\"right\">{x}</td></tr>",
+ "Montant entre 1 € et {x} €",
+ "Réapprovisionnement du solde NeedCreator",
+ "<h1>Il manque {x} sur votre solde Stripe</h1> <p>Le solde ne couvre plus les missions en cours : à la validation, le créateur ne pourra pas être payé tant que cette somme n'est pas revenue sur Stripe.</p> <table cellpadding=\"6\" style=\"border-collapse:collapse;font-family:Helvetica,Arial,sans-serif;font-size:14px\"> <tr><td>Solde disponible sur Stripe</td><td align=\"right\"><strong>{x}</strong></td></tr> <tr><td>En attente d'encaissement</td><td align=\"right\">{x}</td></tr> {x} <tr><td><strong>Manque sur Stripe</strong></td><td align=\"right\"><strong>{x}</strong></td></tr> </table> <p>Pour réapprovisionner : administration, onglet Factures, carte « Solde Stripe », bouton « Payer par carte ».</p>"
 ]
