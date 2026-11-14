@@ -16,6 +16,13 @@ import { AlertTriangle, CreditCard, ExternalLink, RefreshCw, Wallet } from 'luci
  */
 const STRIPE_BALANCE_URL = 'https://dashboard.stripe.com/balance/overview';
 
+// « Voir le détail » : la carte peut ne pas être encore affichée (changement d'onglet), on la cherche pendant deux secondes puis on y descend
+function scrollToCard(tries = 20) {
+  const el = document.querySelector('[data-testid="stripe-balance"]');
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (tries > 0) window.setTimeout(() => scrollToCard(tries - 1), 100);
+}
+
 export function useStripeBalance(enabled = true) {
   return useQuery({
     queryKey: ['admin', 'stripe-balance'],
@@ -47,7 +54,7 @@ export default function StripeBalance({ banner = false, onOpen }: { banner?: boo
         <div className="flex-1 min-w-0">
           <span className="font-semibold">{`Solde Stripe insuffisant : il manque ${formatCurrency(b.shortfall)}.`}</span>{' '}
           <span>Sans cette somme, un créateur ne pourra pas être payé à la validation de sa mission.</span>{' '}
-          {onOpen && <button type="button" onClick={onOpen} className="underline font-medium" data-testid="stripe-balance-banner-open">Voir le détail</button>}
+          {onOpen && <button type="button" onClick={() => { onOpen(); scrollToCard(); }} className="underline font-medium" data-testid="stripe-balance-banner-open">Voir le détail</button>}
         </div>
       </div>
     );
@@ -61,7 +68,7 @@ export default function StripeBalance({ banner = false, onOpen }: { banner?: boo
   );
 
   return (
-    <Card className="p-6 mb-6" data-testid="stripe-balance">
+    <Card className="p-6 mb-6 scroll-mt-24" data-testid="stripe-balance">
       <div className="flex items-center justify-between gap-3 mb-1">
         <h2 className="text-xl font-semibold flex items-center gap-2"><Wallet className="w-5 h-5 text-primary-600" /> Solde Stripe</h2>
         <button type="button" onClick={() => refetch()} disabled={isFetching} className="text-sm text-neutral-600 underline inline-flex items-center gap-1" data-testid="stripe-balance-refresh"><RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} /> Actualiser</button>
