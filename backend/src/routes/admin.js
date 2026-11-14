@@ -98,6 +98,22 @@ router.get('/stripe-balance', async (req, res) => {
     res.status(502).json({ error: 'Lecture du solde Stripe impossible pour le moment' });
   }
 });
+// Relancer tout de suite le versement d'une mission validée (sans attendre le passage horaire) : même traitement, une seule mission
+router.post('/stripe-balance/retry/:deliveryId', async (req, res) => {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.deliveryId)) return res.status(400).json({ error: 'Mission inconnue' });
+    const { retryPendingTransfers } = await import('../jobs/autoApproval.js');
+    const report = {};
+    await retryPendingTransfers(req.params.deliveryId, report);
+    if (report.done) return res.json({ ok: true, message: 'Versement envoyé au créateur' });
+    if (!report.found) return res.status(404).json({ error: 'Aucun versement en attente pour cette mission' });
+    if (report.reason === 'busy') return res.status(409).json({ error: 'Un essai est déjà en cours pour cette mission : réessayez dans deux minutes' });
+    if (report.reason === 'no_account') return res.status(409).json({ error: 'Le créateur n\'a pas encore connecté son compte Stripe' });
+    res.status(409).json({ error: /insufficient/i.test(report.error || '') ? 'Solde Stripe insuffisant : le versement n\'est pas parti' : `Refusé par Stripe : ${report.error || 'erreur inconnue'}` });
+  } catch (error) {
+    res.status(502).json({ error: 'Relance impossible pour le moment' });
+  }
+});
 // Réapprovisionner le solde par carte : renvoie l'adresse de la page de paiement Stripe (l'argent ne bouge que si l'administrateur y paie)
 router.post('/stripe-balance/topup', async (req, res) => {
   try {

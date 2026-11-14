@@ -26,7 +26,7 @@ export async function computeReserve() {
     // Mission payée, pas encore validée (ou en litige) : la somme entière peut encore être remboursée
     Delivery.find({ 'payment.status': { $in: ['held', 'captured'] }, status: { $nin: ['approved', 'auto_approved'] } }).select('payment.amount').lean(),
     // Mission validée, créateur pas encore payé (compte Stripe non connecté ou virement en échec)
-    Delivery.find({ 'payment.status': 'captured', status: { $in: ['approved', 'auto_approved'] } }).select('payment.creatorAmount').lean(),
+    Delivery.find({ 'payment.status': 'captured', status: { $in: ['approved', 'auto_approved'] } }).select('payment.creatorAmount payment.transferError payment.transferTriedAt approvedAt creatorId').populate('creatorId', 'profile.name email profile.stripeConnect.payoutsEnabled').sort({ approvedAt: 1 }).lean(),
     // Prolongation de droits payée, part créateur pas encore versée
     Delivery.find({ 'rightsExtension.status': 'paid', 'rightsExtension.creatorAmount': { $gt: 0 }, 'rightsExtension.stripeTransferId': { $in: [null, ''] } }).select('rightsExtension.creatorAmount').lean(),
     User.find({ 'referral.rewards': { $elemMatch: { type: 'creator_bonus', status: 'pending' } } }).select('referral.rewards').lean(),
@@ -38,7 +38,17 @@ export async function computeReserve() {
   ];
   const bonuses = referrers.flatMap(u => (u.referral?.rewards || []).filter(r => r.type === 'creator_bonus' && r.status === 'pending'));
   lines.push({ label: 'Bonus de parrainage en attente', count: bonuses.length, amount: round2(bonuses.reduce((s, r) => s + (r.amount || 0), 0)) });
-  return { lines, total: round2(lines.reduce((s, l) => s + l.amount, 0)) };
+  // Versements en attente, un par un : qui, combien, depuis quand, et pourquoi (compte Stripe du créateur non connecté, ou dernier échec chez Stripe)
+  const awaiting = awaitingTransfer.filter(d => (d.payment?.creatorAmount || 0) > 0).map(d => ({
+    id: String(d._id),
+    creator: d.creatorId?.profile?.name || d.creatorId?.email || '',
+    amount: round2(d.payment.creatorAmount),
+    approvedAt: d.approvedAt || null,
+    triedAt: d.payment.transferTriedAt || null,
+    reason: !d.creatorId?.profile?.stripeConnect?.payoutsEnabled ? 'no_account' : /insufficient/i.test(d.payment.transferError || '') ? 'balance' : d.payment.transferError ? 'error' : 'pending',
+    error: d.payment.transferError || '',
+  }));
+  return { lines, total: round2(lines.reduce((s, l) => s + l.amount, 0)), awaiting };
 }
 
 /** Montant à payer par carte pour que `net` arrive sur le solde : frais Stripe estimés au plus haut pour une carte européenne (2 % + 0,25 €), arrondi à l'euro supérieur */

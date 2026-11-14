@@ -197,26 +197,38 @@ export async function flagLateDeliveries() {
  * Virements différés : livraisons validées dont le paiement est encaissé mais pas encore versé
  * (créateur sans compte Stripe au moment de la validation, ou virement en échec). Retenté à chaque exécution.
  */
-export async function retryPendingTransfers() {
-  const pending = await Delivery.find({ status: { $in: ['approved', 'auto_approved'] }, 'payment.status': 'captured', 'payment.stripePaymentIntentId': { $exists: true, $ne: null }, 'payment.creatorAmount': { $gt: 0 } })
+export async function retryPendingTransfers(onlyId = null, report = null) {
+  const pending = await Delivery.find({ ...(onlyId ? { _id: onlyId } : {}), status: { $in: ['approved', 'auto_approved'] }, 'payment.status': 'captured', 'payment.stripePaymentIntentId': { $exists: true, $ne: null }, 'payment.creatorAmount': { $gt: 0 } })
     .populate('creatorId', 'profile.stripeConnect stripeAccountId profile.name');
   let done = 0;
   for (const d of pending) {
     const c = d.creatorId;
     const accountId = c?.profile?.stripeConnect?.payoutsEnabled ? (c.profile.stripeConnect.accountId || c.stripeAccountId) : null;
-    if (!accountId) continue;
+    if (!accountId) { if (report) report.reason = 'no_account'; continue; }
+    // Un seul essai à la fois par mission : la réservation est atomique et expire seule au bout de deux minutes
+    const now = new Date();
+    const claimed = await Delivery.findOneAndUpdate(
+      { _id: d._id, 'payment.status': 'captured', $or: [{ 'payment.transferLock': { $exists: false } }, { 'payment.transferLock': null }, { 'payment.transferLock': { $lt: new Date(now.getTime() - 120000) } }] },
+      { $set: { 'payment.transferLock': now } },
+    ).select('_id').lean();
+    if (!claimed) { if (report) report.reason = 'busy'; continue; }
+    d.payment.transferLock = undefined;
     try {
       const t = await transferToCreator(d.payment.stripePaymentIntentId, accountId, d.payment.creatorAmount, d.payment.currency || 'eur');
       d.payment.status = 'released';
       d.payment.releasedAt = new Date();
       d.payment.stripeTransferId = t.id;
+      d.payment.transferError = undefined;
       await d.save();
       done++;
       logger.info(`Virement différé effectué : ${d._id} → ${accountId} (${t.id})`);
     } catch (err) {
       logger.warn(`Virement différé toujours en échec pour ${d._id}: ${err?.message || err}`);
+      if (report) report.error = String(err?.raw?.message || err?.message || err);
+      await Delivery.updateOne({ _id: d._id }, { $set: { 'payment.transferError': String(err?.raw?.message || err?.message || err).slice(0, 300), 'payment.transferTriedAt': new Date() }, $unset: { 'payment.transferLock': 1 } }).catch(() => {});
     }
   }
+  if (report) { report.found = pending.length; report.done = done; }
   return done;
 }
 

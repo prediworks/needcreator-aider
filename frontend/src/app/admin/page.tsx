@@ -22,7 +22,7 @@ import SeedTool from '@/components/admin/SeedTool';
 import AcquisitionTool from '@/components/admin/AcquisitionTool';
 import MemberMessages from '@/components/admin/MemberMessages';
 import QuotesAdmin from '@/components/admin/QuotesAdmin';
-import StripeBalance from '@/components/admin/StripeBalance';
+import StripeBalance, { useStripeBalance, balanceAlerts } from '@/components/admin/StripeBalance';
 import CreatorFilters, { EMPTY_CREATOR_FILTERS, creatorParams, SocialLinks, formatFollowers, type CreatorFilterState } from '@/components/admin/CreatorFilters';
 import { Users, Briefcase, Package, Euro, Play, CheckCircle, XCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -55,6 +55,7 @@ export default function AdminPage() {
   const userBaseParams = { search: userSearch || undefined, ...Object.fromEntries(Object.entries(userFilters).filter(([, v]) => v)) };
 
   const { data: stats } = useAdminStats(ready);
+  const { data: stripeBalance } = useStripeBalance(ready);
   const { data: pending, isLoading: pendingLoading } = usePendingCreators(ready);
   const { data: users } = useAdminUsers({ ...userBaseParams, limit: 100, ...(userFilters.role === 'creator' ? creatorParams(creatorFilters) : {}) }, ready && tab === 'users');
   const { data: campaigns } = useAdminCampaigns(ready && tab === 'campaigns');
@@ -90,13 +91,13 @@ export default function AdminPage() {
 
   if (!ready) return <Spinner />;
 
-  const tabs: Array<{ key: Tab; label: string; title?: string; count?: number }> = [
+  const tabs: Array<{ key: Tab; label: string; title?: string; count?: number; alert?: number }> = [
     { key: 'pending', title: 'Profils créateurs en attente de validation manuelle (3 vidéos minimum, identité administrative)', label: 'Créateurs à valider', count: stats?.users?.pendingCreators },
     { key: 'ambassadors', title: 'Vidéos proposées par les créateurs Ambassadeurs pour la vitrine, à approuver', label: 'Vidéos Ambassadeur', count: stats?.todo?.pendingAmbassadors },
     { key: 'businesses', title: 'Marques dont le SIRET ou l’entreprise n’a pas pu être vérifié automatiquement', label: 'Marques à vérifier', count: stats?.todo?.pendingBusinesses },
     { key: 'reports', title: 'Signalements d’utilisateurs ou de contenus à traiter', label: 'Signalements', count: stats?.todo?.openReports },
     { key: 'disputes', title: 'Livraisons refusées par une marque : arbitrage à rendre', label: 'Litiges', count: disputes?.disputes?.length || stats?.todo?.openDisputes || undefined },
-    { key: 'invoices', title: 'Factures et avoirs émis, relevés mensuels', label: 'Factures' },
+    { key: 'invoices', title: 'Factures et avoirs émis, relevés mensuels', label: 'Factures', alert: balanceAlerts(stripeBalance) },
     { key: 'users', title: 'Tous les comptes avec filtres (rôle, statut, origine, email confirmé, plan, ambassadeur)', label: 'Utilisateurs' },
     { key: 'campaigns', title: 'Toutes les campagnes, tous statuts', label: 'Campagnes' },
     { key: 'deliveries', title: 'Toutes les livraisons et leur avancement', label: 'Livraisons' },
@@ -171,6 +172,7 @@ export default function AdminPage() {
               )}
             >
               {t.label}{t.count ? ` (${t.count})` : ''}
+              {t.alert ? <span className="ml-2 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-xs font-bold align-middle" title="Solde Stripe insuffisant ou versement créateur en attente" data-testid={`tab-alert-${t.key}`}>{t.alert}</span> : null}
             </button>
           ))}
         </div>

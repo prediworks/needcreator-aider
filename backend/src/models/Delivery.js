@@ -113,6 +113,9 @@ const deliverySchema = new mongoose.Schema({
     stripePaymentIntentId: String,
     expiredPaymentIntentIds: [String], // blocages de carte expirés (Stripe les libère après 7 jours), remplacés par un nouveau paiement
     stripeTransferId: String,
+    transferError: String,     // dernier échec du versement au créateur (message Stripe), effacé quand le versement part
+    transferTriedAt: Date,
+    transferLock: Date,        // essai de versement en cours : empêche deux essais simultanés (passage horaire et relance manuelle) de verser deux fois
     status: {
       type: String,
       enum: ['pending', 'held', 'captured', 'released', 'refunded', 'failed'],

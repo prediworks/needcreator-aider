@@ -1267,6 +1267,7 @@ export async function finalizeApproval(delivery, { isAuto = false } = {}) {
     transferred = result.transferred;
     transferId = result.transfer?.id || null;
     if (!transferred) {
+      if (creatorAccountId) { delivery.payment.transferError = String(result.transferError || 'erreur inconnue').slice(0, 300); delivery.payment.transferTriedAt = new Date(); }
       if (creatorAccountId) { const { alertTransferFailed } = await import('../services/adminAlerts.js'); alertTransferFailed(delivery, result.transferError).catch(() => {}); }
       warning = creatorAccountId
         ? `Paiement encaissé, virement au créateur en échec : ${result.transferError || 'erreur inconnue'}`

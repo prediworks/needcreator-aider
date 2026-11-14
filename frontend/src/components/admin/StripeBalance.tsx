@@ -5,7 +5,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import api, { getErrorMessage } from '@/lib/api';
 import Card from '@/components/ui/Card';
-import { formatCurrency } from '@/lib/utils';
+import Link from 'next/link';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { AlertTriangle, CreditCard, ExternalLink, RefreshCw, Wallet } from 'lucide-react';
 
 /**
@@ -33,6 +34,9 @@ export function useStripeBalance(enabled = true) {
   });
 }
 
+/** Nombre de points d'attention pour la pastille de l'onglet Factures : solde insuffisant, versements créateurs en attente */
+export const balanceAlerts = (b: any) => (b ? (b.shortfall >= 1 ? 1 : 0) + (b.reserve?.awaiting?.length || 0) : 0);
+
 export default function StripeBalance({ banner = false, onOpen }: { banner?: boolean; onOpen?: () => void }) {
   const { data: b, isLoading, isError, refetch, isFetching } = useStripeBalance();
   // Réapprovisionnement par carte : montant proposé (manque + frais Stripe estimés), modifiable ; le paiement se fait sur la page de Stripe
@@ -40,6 +44,11 @@ export default function StripeBalance({ banner = false, onOpen }: { banner?: boo
   useEffect(() => { if (b?.topupSuggested) setAmount(String(b.topupSuggested)); }, [b?.topupSuggested]);
   const [back, setBack] = useState('');
   useEffect(() => { if (!banner) setBack(new URLSearchParams(window.location.search).get('topup') || ''); }, [banner]);
+  const retry = useMutation({
+    mutationFn: async (id: string) => (await api.post(`/admin/stripe-balance/retry/${id}`)).data,
+    onSuccess: (d: any) => { toast.success(d.message); refetch(); },
+    onError: (e: any) => { toast.error(getErrorMessage(e), { duration: 8000 }); refetch(); },
+  });
   const topup = useMutation({
     mutationFn: async () => (await api.post('/admin/stripe-balance/topup', { amount: Number(String(amount).replace(',', '.')) })).data,
     onSuccess: (d: any) => { window.location.href = d.url; },
@@ -115,6 +124,36 @@ export default function StripeBalance({ banner = false, onOpen }: { banner?: boo
             {row('Total à laisser sur Stripe', b.reserve?.total || 0, { strong: true })}
             {row('Marge de sécurité', b.cushion, { hint: '(réglable dans Paramètres)' })}
           </div>
+
+          {b.reserve?.awaiting?.length > 0 && (
+            <div className="mt-5" data-testid="stripe-balance-awaiting">
+              <h3 className="font-semibold text-neutral-900">{`Versements aux créateurs en attente (${b.reserve.awaiting.length})`}</h3>
+              <p className="text-xs text-neutral-500 mb-2">Missions validées dont le créateur n&apos;a pas encore reçu son argent. Le versement est retenté automatiquement toutes les heures.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="py-2 pr-3">Créateur</th><th className="py-2 pr-3 text-right">À verser</th><th className="py-2 pr-3">Validée le</th><th className="py-2 pr-3">Raison</th><th className="py-2" /></tr></thead>
+                  <tbody>
+                    {b.reserve.awaiting.map((a: any) => (
+                      <tr key={a.id} className="border-b border-neutral-100 align-top" data-testid="stripe-balance-awaiting-row">
+                        <td className="py-2 pr-3 font-medium">{a.creator || '—'}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums whitespace-nowrap">{formatCurrency(a.amount)}</td>
+                        <td className="py-2 pr-3 whitespace-nowrap">{a.approvedAt ? formatDate(a.approvedAt) : '—'}</td>
+                        <td className="py-2 pr-3">
+                          <span className={a.reason === 'pending' ? 'text-neutral-600' : 'text-red-700'}>{({ no_account: 'Le créateur n\'a pas connecté son compte Stripe', balance: 'Solde Stripe insuffisant', error: 'Refusé par Stripe', pending: 'Prochain essai dans l\'heure' } as any)[a.reason]}</span>
+                          {a.reason === 'error' && a.error ? <span className="block text-xs text-neutral-500">{a.error}</span> : null}
+                          {a.triedAt && a.reason !== 'pending' && a.reason !== 'no_account' ? <span className="block text-xs text-neutral-500">{`Dernier essai : ${formatDate(a.triedAt)}`}</span> : null}
+                        </td>
+                        <td className="py-2 text-right whitespace-nowrap">
+                          <Link href={`/deliveries/${a.id}`} className="text-primary-600 underline text-xs mr-3">Mission</Link>
+                          {a.reason !== 'no_account' && <button type="button" disabled={retry.isPending} onClick={() => retry.mutate(a.id)} className="inline-flex items-center gap-1 rounded-lg border border-primary-600 text-primary-700 text-xs font-semibold px-2 py-1 disabled:opacity-60" data-testid="stripe-balance-retry">{retry.isPending && retry.variables === a.id ? 'Envoi…' : 'Relancer'}</button>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {!b.manual && (
             <p className="mt-4 text-sm text-red-800 flex items-start gap-2" data-testid="stripe-balance-auto"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" /><span>{`Calendrier des virements Stripe : « ${b.schedule} ». Stripe envoie tout le solde à votre banque, y compris l'argent des missions en cours. À passer en « Manuel » dans Stripe : Paramètres, Virements.`}</span></p>
